@@ -62,13 +62,13 @@ jobs:
         run: ./scripts/build.sh
 
       - name: Generate release notes
-        id: notes
+        id: release_notes
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           cat > release_notes.md <<EOF
 # OraDBA Extension Template v${VERSION}
 
-Reusable OraDBA extension template tarball.
+Extension template tarball for OraDBA.
 
 ## Assets
 - ${VERSION} tarball and SHA256 checksum
