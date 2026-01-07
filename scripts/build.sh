@@ -111,6 +111,7 @@ CHECKSUM_FILE="${TARBALL}.sha256"
 
 CONTENT_PATHS=(
     .extension
+    .checksumignore
     README.md
     CHANGELOG.md
     LICENSE

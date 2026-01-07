@@ -1,0 +1,54 @@
+# Checksum Exclusion Patterns
+# ------------------------------------------------------------------------------
+# This file specifies patterns for files that should be excluded from
+# integrity checks. Each line represents a pattern to exclude.
+#
+# Syntax:
+#   - One pattern per line
+#   - Lines starting with # are comments
+#   - Empty lines are ignored
+#   - Supports glob patterns:
+#     * matches any characters within a filename/directory
+#     ? matches exactly one character
+#   - Patterns ending with / match directory contents
+#
+# Default Exclusions (always applied):
+#   .extension       - Metadata file (may be modified by tools)
+#   .checksumignore  - This file itself
+#   log/             - Log directory (runtime generated files)
+#
+# Examples:
+#   tmp/              - Exclude entire tmp directory
+#   *.log             - Exclude all .log files
+#   data/*.cache      - Exclude cache files in data directory
+#   keystore/         - Exclude keystore directory (credentials)
+#   backup/*.bak      - Exclude backup files
+#   secrets/          - Exclude secrets directory
+#
+# ------------------------------------------------------------------------------
+
+# Log directory (already excluded by default, shown for reference)
+log/
+
+# Uncomment patterns below as needed for your extension:
+
+# Temporary files
+# tmp/
+# *.tmp
+
+# Credentials and secrets
+# keystore/
+# secrets/
+# *.key
+# *.pem
+
+# Cache files
+# cache/
+# *.cache
+
+# Backup files
+# *.bak
+# *.backup
+
+# User-specific configurations (if they override defaults)
+# etc/*.local

@@ -33,10 +33,38 @@ dist/                       # Build outputs (ignored)
 ## Packaging
 
 - `scripts/build.sh` reads `VERSION` and `.extension` to create `dist/<name>-<version>.tar.gz` plus `<tarball>.sha256`.
-- Only extension payload is included by default (`.extension`,
+- Only extension payload is included by default (`.extension`, `.checksumignore`,
   README/CHANGELOG/LICENSE/VERSION, bin/sql/rcv/etc/lib). Dev assets
   (`scripts/`, `tests/`, `.github/`, `dist/`, `.git*`) are excluded.
 - Override output dir with `--dist`. Override version with `--version`.
+- Build also generates `.extension.checksum` file for integrity verification.
+
+## Integrity Checking
+
+The `.checksumignore` file specifies patterns for files excluded from integrity checks:
+
+- **Default exclusions**: `.extension`, `.checksumignore`, and `log/` directory
+- **Glob patterns supported**: `*.log`, `keystore/`, `secrets/*.key`, etc.
+- **One pattern per line**: Lines starting with `#` are comments
+- **Common use cases**: credentials, caches, temporary files, user-specific configs
+
+Example `.checksumignore`:
+
+```text
+# Exclude log directory (already default)
+log/
+
+# Credentials and secrets
+keystore/
+*.key
+*.pem
+
+# Cache and temporary files
+cache/
+*.tmp
+```
+
+When OraDBA verifies extension integrity, files matching these patterns are skipped.
 
 ## Rename Helper
 
