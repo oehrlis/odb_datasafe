@@ -2,17 +2,21 @@
 
 ## Overview
 
-The v4.0.0 library is a **radical simplification** of the v3.0.0 framework, focusing on maintainability, clarity, and practical utility. It reduces complexity by 70% while retaining all essential functionality.
+The v4.0.0 library is a **radical simplification** of the v3.0.0 framework,
+focusing on maintainability, clarity, and practical utility. It reduces
+complexity by 70% while retaining all essential functionality.
 
 ## Philosophy
 
 **Keep it Simple:**
+
 - Flat structure, no deep module nesting
 - Explicit over implicit
 - Easy to read, easy to modify
 - Self-contained scripts with minimal magic
 
 **Core Principles:**
+
 - Each function does one thing well
 - No complex abstractions
 - Direct OCI CLI interaction with simple wrappers
@@ -20,8 +24,8 @@ The v4.0.0 library is a **radical simplification** of the v3.0.0 framework, focu
 
 ## Library Structure
 
-```
-lib_v4/
+```txt
+lib/
 ├── common.sh         # Generic utilities (~350 lines)
 │   ├── Logging system with levels and colors
 │   ├── Error handling and cleanup
@@ -46,10 +50,10 @@ lib_v4/
 
 ```bash
 # Copy the template
-cp bin_v4/TEMPLATE.sh bin_v4/my_script.sh
+cp bin/TEMPLATE.sh bin/my_script.sh
 
 # Edit and implement your logic in do_work()
-vim bin_v4/my_script.sh
+vim bin/my_script.sh
 ```
 
 ### 2. Basic Script Structure
@@ -59,7 +63,7 @@ vim bin_v4/my_script.sh
 
 # Load library (handles all error setup)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/../lib_v4/ds_lib.sh"
+source "${SCRIPT_DIR}/../lib/ds_lib.sh"
 
 # Configuration
 readonly SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
@@ -107,6 +111,7 @@ die "Configuration not found" 2  # Exit with code 2
 ```
 
 **Configuration:**
+
 ```bash
 LOG_LEVEL=2           # Default: INFO
 LOG_FILE="/tmp/my.log"  # Optional file output
@@ -168,8 +173,8 @@ init_config "${SCRIPT_NAME}.conf"
 
 # Loads in order:
 #   1. .env (project root)
-#   2. etc_v4/datasafe.conf (generic)
-#   3. etc_v4/my_script.conf (script-specific)
+#   2. etc/datasafe.conf (generic)
+#   3. etc/my_script.conf (script-specific)
 #   4. Then CLI args override all
 
 # Manual config loading
@@ -218,6 +223,7 @@ oci_exec data-safe target-database list \
 ```
 
 **Configuration:**
+
 ```bash
 OCI_CLI_PROFILE="DEFAULT"
 OCI_CLI_REGION="eu-frankfurt-1"
@@ -288,31 +294,36 @@ summary=$(ds_count_by_lifecycle "$targets_json")
 Configuration is loaded in this order (later overrides earlier):
 
 1. **Script Defaults** (in code)
+
    ```bash
    : "${COMPARTMENT:=}"
    : "${LOG_LEVEL:=2}"
    ```
 
 2. **.env** (project root)
+
    ```bash
    export OCI_CLI_PROFILE="PROD"
    export DS_ROOT_COMP_OCID="ocid1.compartment..."
    ```
 
-3. **Generic Config** (etc_v4/datasafe.conf)
+3. **Generic Config** (etc/datasafe.conf)
+
    ```bash
    COMPARTMENT="ocid1.compartment..."
    LOG_LEVEL=2
-   DB_DOMAIN="b2x.vwg"
+   DB_DOMAIN="oradba.ch"
    ```
 
-4. **Script-Specific Config** (etc_v4/my_script.conf)
+4. **Script-Specific Config** (etc/my_script.conf)
+
    ```bash
    LIFECYCLE_STATE="ACTIVE"
    CUSTOM_SETTING="value"
    ```
 
 5. **CLI Arguments** (highest priority)
+
    ```bash
    ./my_script.sh -c OtherCompartment --debug
    ```
@@ -385,16 +396,16 @@ do_work() {
 
 ```bash
 # Test with dry-run
-./bin_v4/my_script.sh --dry-run -v
+./bin/my_script.sh --dry-run -v
 
 # Test with debug logging
-./bin_v4/my_script.sh --debug
+./bin/my_script.sh --debug
 
 # Test with specific target
-./bin_v4/my_script.sh -T my-target --dry-run
+./bin/my_script.sh -T my-target --dry-run
 
 # Test with log file
-./bin_v4/my_script.sh --log-file /tmp/test.log
+./bin/my_script.sh --log-file /tmp/test.log
 ```
 
 ## Common Patterns & Idioms
@@ -445,15 +456,15 @@ done
 
 ## Comparison: v3 vs v4
 
-| Aspect | v3.0.0 | v4.0.0 |
-|--------|--------|--------|
-| **Library Files** | 10+ modules | 3 files |
-| **Total Lines** | ~5000+ | ~850 |
-| **Dependencies** | Complex chain | Simple |
-| **Learning Curve** | High | Low |
-| **Debuggability** | Difficult | Easy |
-| **Extensibility** | Framework | Direct |
-| **Script Length** | 200-500 lines | 80-150 lines |
+| Aspect             | v3.0.0        | v4.0.0       |
+|--------------------|---------------|--------------|
+| **Library Files**  | 10+ modules   | 3 files      |
+| **Total Lines**    | ~5000+        | ~850         |
+| **Dependencies**   | Complex chain | Simple       |
+| **Learning Curve** | High          | Low          |
+| **Debuggability**  | Difficult     | Easy         |
+| **Extensibility**  | Framework     | Direct       |
+| **Script Length**  | 200-500 lines | 80-150 lines |
 
 ## Migration Guide
 
@@ -465,21 +476,21 @@ done
 
 ### Step 2: Migrate Existing Script
 
-1. Create new script in bin_v4/
+1. Create new script in bin/
 2. Copy business logic from old script
 3. Replace v3 functions with v4 equivalents:
 
-| v3 Function | v4 Equivalent |
-|-------------|---------------|
-| `core_log_message INFO` | `log_info` |
-| `core_exit_script` | `die` |
-| `oci_run` | `oci_exec` |
-| `core_parse_common_flags` | `parse_common_opts` |
-| `core_target_preflight_select` | Manual list + filter |
-| `oci_ds_resolve_target_ocid` | `ds_resolve_target_ocid` |
+| v3 Function                    | v4 Equivalent            |
+|--------------------------------|--------------------------|
+| `core_log_message INFO`        | `log_info`               |
+| `core_exit_script`             | `die`                    |
+| `oci_run`                      | `oci_exec`               |
+| `core_parse_common_flags`      | `parse_common_opts`      |
+| `core_target_preflight_select` | Manual list + filter     |
+| `oci_ds_resolve_target_ocid`   | `ds_resolve_target_ocid` |
 
-4. Test thoroughly
-5. Keep old script until confident
+1. Test thoroughly
+2. Keep old script until confident
 
 ### Step 3: Gradual Rollout
 
@@ -501,21 +512,25 @@ done
 ## Troubleshooting
 
 ### Enable Debug Logging
+
 ```bash
 ./script.sh --debug
 ```
 
 ### Check OCI Commands
+
 ```bash
 LOG_LEVEL=0 ./script.sh  # TRACE level shows all OCI commands
 ```
 
 ### Dry-Run Mode
+
 ```bash
 ./script.sh --dry-run  # Shows what would happen
 ```
 
 ### Check Configuration
+
 ```bash
 # Add to script temporarily
 log_debug "COMPARTMENT=$COMPARTMENT"
@@ -524,14 +539,15 @@ log_debug "OCI_CLI_PROFILE=$OCI_CLI_PROFILE"
 
 ## Need Help?
 
-1. Check [TEMPLATE.sh](../bin_v4/TEMPLATE.sh) for structure
-2. Check [ds_target_refresh.sh](../bin_v4/ds_target_refresh.sh) for real example
+1. Check [TEMPLATE.sh](../bin/TEMPLATE.sh) for structure
+2. Check [ds_target_refresh.sh](../bin/ds_target_refresh.sh) for real example
 3. Read function comments in library files
 4. Use `--debug` mode to see what's happening
 
 ## Future Enhancements
 
 Possible additions without adding complexity:
+
 - Parallel execution helper (GNU parallel)
 - Progress bars for long operations
 - JSON/CSV output formatters

@@ -2,13 +2,13 @@
 # Data Safe Configuration File (v4.0.0)
 # =============================================================================
 # This is the generic configuration file loaded by all Data Safe scripts.
-# Script-specific configs can be created as: etc_v4/<script_name>.conf
+# Script-specific configs can be created as: etc/<script_name>.conf
 #
 # Configuration Precedence (later overrides earlier):
 #   1. Script defaults (in code)
 #   2. .env file (project root)
-#   3. This file (etc_v4/datasafe.conf)
-#   4. Script-specific config (etc_v4/<script>.conf)
+#   3. This file (etc/datasafe.conf)
+#   4. Script-specific config (etc/<script>.conf)
 #   5. Command-line arguments
 # =============================================================================
 
@@ -38,7 +38,7 @@
 # -----------------------------------------------------------------------------
 
 # Database domain for service names
-#DB_DOMAIN="b2x.vwg"
+#DB_DOMAIN="oradba.ch"
 
 # Default listener port
 #LISTENER_PORT="1521"

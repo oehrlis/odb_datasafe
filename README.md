@@ -1,12 +1,14 @@
 # OraDBA Data Safe Extension (odb_datasafe)
 
 **Version:** 1.0.0  
-**Author:** Stefan Oehrli (oes) stefan.oehrli@oradba.ch  
+**Author:** Stefan Oehrli (oes) <stefan.oehrli@oradba.ch>  
 **Purpose:** Simplified OCI Data Safe target management and operations
 
 ## Overview
 
-This OraDBA extension provides a clean, maintainable set of tools for managing Oracle Data Safe targets in OCI. Built from the ground up with simplicity and best practices in mind.
+This OraDBA extension provides a clean, maintainable set of tools for managing
+Oracle Data Safe targets in OCI. Built from the ground up with simplicity and
+best practices in mind.
 
 ### Design Philosophy (v1.0.0)
 
@@ -67,6 +69,7 @@ oradba extensions list
 ### Configuration
 
 1. **Set environment variables** (optional):
+
    ```bash
    cp etc/.env.example .env
    # Edit .env with your defaults
@@ -75,12 +78,14 @@ oradba extensions list
    ```
 
 2. **Create config file** (optional):
+
    ```bash
    cp etc/datasafe.conf.example etc/datasafe.conf
    # Edit etc/datasafe.conf for project-specific settings
    ```
 
 3. **Use scripts**:
+
    ```bash
    # Scripts are added to PATH by OraDBA
    ds_target_refresh.sh --help
@@ -102,6 +107,7 @@ export PATH="/path/to/odb_datasafe/bin:$PATH"
 ### Target Management
 
 - **`ds_target_refresh.sh`** - Refresh Data Safe target databases
+
   ```bash
   # Refresh specific targets
   ds_target_refresh.sh -T target1,target2
@@ -169,6 +175,7 @@ See [lib/README.md](lib/README.md) for complete API documentation.
 ### Creating New Scripts
 
 1. **Copy the template**:
+
    ```bash
    cp bin/TEMPLATE.sh bin/ds_new_feature.sh
    ```
@@ -180,6 +187,7 @@ See [lib/README.md](lib/README.md) for complete API documentation.
 4. **Add business logic** in main section
 
 5. **Test thoroughly**:
+
    ```bash
    # Test with dry-run
    ./bin/ds_new_feature.sh --dry-run --debug
@@ -245,4 +253,5 @@ Apache License Version 2.0 - See LICENSE file
 
 ---
 
-**Note**: This is version 1.0.0 - a complete rewrite prioritizing simplicity and maintainability over feature complexity. Feedback welcome!
+**Note**: This is version 1.0.0 - a complete rewrite prioritizing simplicity and
+maintainability over feature complexity. Feedback welcome!

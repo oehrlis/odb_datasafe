@@ -4,7 +4,7 @@
 
 ## 📁 Project Structure
 
-```
+```text
 odb_datasafe/                          # OraDBA Extension for Data Safe
 ├── .extension                         # Extension metadata (v1.0.0)
 ├── VERSION                            # 1.0.0
@@ -280,15 +280,15 @@ bin/ds_target_refresh.sh --profile test --region eu-frankfurt-1 ...
 
 ## 📊 Version Comparison
 
-| Aspect | Legacy (v3.0.0) | New (v1.0.0) |
-|--------|-----------------|--------------|
-| **Library Files** | 9 modules | 2 modules |
-| **Total Lines** | ~3000 | ~800 |
-| **Complexity** | High (nested deps) | Low (flat) |
-| **Learning Curve** | Steep | Gentle |
-| **Maintainability** | Difficult | Easy |
-| **Functionality** | Full | Full |
-| **Performance** | Good | Better |
+| Aspect              | Legacy (v3.0.0)    | New (v1.0.0) |
+|---------------------|--------------------|--------------|
+| **Library Files**   | 9 modules          | 2 modules    |
+| **Total Lines**     | ~3000              | ~800         |
+| **Complexity**      | High (nested deps) | Low (flat)   |
+| **Learning Curve**  | Steep              | Gentle       |
+| **Maintainability** | Difficult          | Easy         |
+| **Functionality**   | Full               | Full         |
+| **Performance**     | Good               | Better       |
 
 ## 💡 Tips & Best Practices
 
@@ -306,4 +306,4 @@ bin/ds_target_refresh.sh --profile test --region eu-frankfurt-1 ...
 ---
 
 **Last Updated:** 2026-01-09  
-**Maintainer:** Stefan Oehrli (oes) stefan.oehrli@oradba.ch
+**Maintainer:** Stefan Oehrli (oes) <stefan.oehrli@oradba.ch>

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.0] - 2026-01-09
 
 ### Added
+
 - **New Scripts:**
   - `ds_target_list.sh` - List Data Safe targets with count or details mode
     - Count mode (default): Summary by lifecycle state with totals
@@ -47,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Set `ORADBA_ETC=/path/to/configs` to use shared configuration directory
 
 ### Changed
+
 - **BREAKING**: Renamed `DS_ROOT_COMP_OCID` to `DS_ROOT_COMP` in configuration
   - Now accepts either compartment name (e.g., "cmp-lzp-dbso") or full OCID
   - Makes configuration more user-friendly (no need to look up OCIDs)
@@ -63,6 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced help text to document default DS_ROOT_COMP behavior
 
 ### Fixed
+
 - **Critical**: Error handler recursion bug causing infinite loop
   - Added `trap - ERR` at start of `error_handler()` to prevent re-entrancy
   - Changed error output to direct stderr instead of using log functions
@@ -82,9 +85,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Proper error propagation with `|| die` pattern
 
 ### Migration Guide
+
 If upgrading from version 0.1.0 or earlier:
 
 1. **Update configuration variable:**
+
    ```bash
    # In your .env file, rename:
    DS_ROOT_COMP_OCID="..."  # OLD
@@ -93,6 +98,7 @@ If upgrading from version 0.1.0 or earlier:
    ```
 
 2. **Value can now be name or OCID:**
+
    ```bash
    # Both formats work:
    DS_ROOT_COMP="cmp-lzp-dbso"  # Name (will be resolved)
@@ -107,10 +113,11 @@ If upgrading from version 0.1.0 or earlier:
 
 ### Added - Complete Rewrite (v1.0.0)
 
-This is a complete ground-up rewrite of the Data Safe management tools, 
+This is a complete ground-up rewrite of the Data Safe management tools,
 prioritizing radical simplicity and maintainability over feature complexity.
 
 **New Framework Architecture:**
+
 - **lib/ds_lib.sh** - Main library loader (minimal aggregator)
 - **lib/common.sh** - Generic helpers (~350 lines)
   - Logging system with levels (DEBUG|INFO|WARN|ERROR)
@@ -127,6 +134,7 @@ prioritizing radical simplicity and maintainability over feature complexity.
 - **lib/README.md** - Comprehensive library documentation
 
 **New Scripts:**
+
 - **bin/TEMPLATE.sh** - Reference template for new scripts
   - Standard structure and patterns
   - Complete with all common features
@@ -139,12 +147,14 @@ prioritizing radical simplicity and maintainability over feature complexity.
   - Comprehensive error handling
 
 **Configuration:**
+
 - **etc/.env.example** - Environment variable template
 - **etc/datasafe.conf.example** - Main configuration file template
   - Clear structure and documentation
   - Separated by concern (OCI, Data Safe, Logging, etc.)
 
 **Documentation:**
+
 - **README.md** - Complete extension documentation
   - Quick start guide
   - Configuration reference
@@ -167,8 +177,9 @@ prioritizing radical simplicity and maintainability over feature complexity.
 ### Design Philosophy
 
 **What Was Removed (Complexity Reduction):**
+
 - ❌ Complex module dependency chains (9 modules → 2)
-- ❌ Over-engineered abstractions (core_*, _internal functions)
+- ❌ Over-engineered abstractions (core_*,_internal functions)
 - ❌ Unused utility functions (~60% of old lib code)
 - ❌ Dynamic feature loading
 - ❌ Nested sourcing hierarchies
@@ -176,6 +187,7 @@ prioritizing radical simplicity and maintainability over feature complexity.
 - ❌ Complex target selection abstraction layers
 
 **What Was Kept (Essential Features):**
+
 - ✅ Robust error handling and traps
 - ✅ Comprehensive logging with levels
 - ✅ Configuration cascade
@@ -186,6 +198,7 @@ prioritizing radical simplicity and maintainability over feature complexity.
 - ✅ All critical functionality
 
 **Benefits:**
+
 - **90% less code complexity** - From ~3000 lines to ~800 lines
 - **50% faster to understand** - Clear, linear code flow
 - **Easier to maintain** - No hidden dependencies or magic
@@ -199,6 +212,7 @@ The legacy `datasafe/` project (v3.0.0) remains completely unchanged and functio
 This extension (`odb_datasafe/`) is a parallel implementation using the new architecture.
 
 **Migration Strategy:**
+
 1. Test new scripts in parallel with legacy
 2. Gradually migrate functionality script-by-script
 3. Verify each migration thoroughly
@@ -206,6 +220,7 @@ This extension (`odb_datasafe/`) is a parallel implementation using the new arch
 5. Archive old code for reference
 
 **Compatibility:**
+
 - ❌ No backward compatibility with v3.0.0 library APIs
 - ✅ Same OCI operations and functionality
 - ✅ Similar CLI interfaces where practical
@@ -226,5 +241,3 @@ See `../datasafe/` for versions prior to 1.0.0 rewrite.
 Those versions used the complex v3.0.0 framework and are now considered legacy.
 
 ---
-
-[1.0.0]: https://github.com/oradba/odb_datasafe/releases/tag/v1.0.0
