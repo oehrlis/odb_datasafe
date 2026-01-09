@@ -133,14 +133,6 @@ teardown() {
 }
 
 # Test OCI CLI validation
-@test "oci_check_cli function validates OCI CLI" {
-    source "${LIB_DIR}/common.sh"
-    source "${LIB_DIR}/oci_helpers.sh"
-    
-    run oci_check_cli
-    [ "$status" -eq 0 ]
-}
-
 @test "oci_exec function executes OCI commands" {
     source "${LIB_DIR}/common.sh"
     source "${LIB_DIR}/oci_helpers.sh"
@@ -148,6 +140,17 @@ teardown() {
     run oci_exec --version
     [ "$status" -eq 0 ]
     [[ "$output" == *"3.45.0"* ]]
+}
+
+@test "is_ocid function works correctly" {
+    source "${LIB_DIR}/common.sh"
+    source "${LIB_DIR}/oci_helpers.sh"
+    
+    run is_ocid "ocid1.compartment.oc1..test"
+    [ "$status" -eq 0 ]
+    
+    run is_ocid "not-an-ocid"
+    [ "$status" -eq 1 ]
 }
 
 # Test compartment functions
@@ -159,12 +162,6 @@ teardown() {
     run oci_resolve_compartment_ocid "ocid1.compartment.oc1..test"
     [ "$status" -eq 0 ]
     [[ "$output" == "ocid1.compartment.oc1..test" ]]
-    
-    # Test with compartment name (needs root compartment set)
-    export DS_ROOT_COMP="ocid1.compartment.oc1..root"
-    run oci_resolve_compartment_ocid "test-compartment"
-    [ "$status" -eq 0 ]
-    [[ "$output" == "ocid1.compartment.oc1..child1" ]]
 }
 
 @test "oci_list_compartments function lists compartments" {

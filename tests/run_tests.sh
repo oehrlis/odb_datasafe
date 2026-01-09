@@ -49,6 +49,7 @@ Test Categories:
   lib                     Library function tests only
   scripts                 Script tests only  
   integration            Integration tests only
+  basic                   Basic functionality tests only
   all                     All tests (default)
 
 Examples:
@@ -95,7 +96,7 @@ parse_args() {
                 TEST_PATTERN="$2"
                 shift 2
                 ;;
-            lib|scripts|integration|all)
+            lib|scripts|integration|basic|all)
                 TEST_CATEGORY="$1"
                 shift
                 ;;
@@ -162,6 +163,9 @@ determine_test_files() {
                 ;;
             integration)
                 files=($(find "${SCRIPT_DIR}" -name "integration*.bats"))
+                ;;
+            basic)
+                files=($(find "${SCRIPT_DIR}" -name "basic_*.bats" -o -name "quick_*.bats"))
                 ;;
             all)
                 files=($(find "${SCRIPT_DIR}" -name "${TEST_PATTERN}"))
