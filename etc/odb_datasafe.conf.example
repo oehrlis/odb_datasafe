@@ -1,14 +1,14 @@
-# extension-template configuration
+# odb_datasafe configuration
 # Copy required settings into ${ORADBA_PREFIX}/etc/oradba_customer.conf
 
 # Enable/disable this extension (default: true)
-export ORADBA_EXT_EXTENSION_TEMPLATE_ENABLED="true"
+export ORADBA_EXT_ODB_DATASAFE_ENABLED="true"
 
 # Set load priority (lower loads first; default: 50)
-export ORADBA_EXT_EXTENSION_TEMPLATE_PRIORITY="50"
+export ORADBA_EXT_ODB_DATASAFE_PRIORITY="50"
 
 # Example custom variable for your extension
-# export EXTENSION_TEMPLATE_TARGET_DB="PROD"
+# export ODB_DATASAFE_TARGET_DB="PROD"
 
 # Example alias demonstrating how to wrap your tool
 # alias ext-tool='extension_tool.sh --debug'

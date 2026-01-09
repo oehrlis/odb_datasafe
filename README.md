@@ -1,87 +1,248 @@
-# OraDBA Extension Template
+# OraDBA Data Safe Extension (odb_datasafe)
 
-This repository is a ready-to-use OraDBA extension template. Copy/clone it,
-rename the extension, and start adding your own scripts, SQL, and RMAN content.
-CI and release workflows are included; the build script only packages the
-extension payload (bin/sql/rcv/etc/lib + metadata/docs), not the dev helpers.
+**Version:** 1.0.0  
+**Author:** Stefan Oehrli (oes) stefan.oehrli@oradba.ch  
+**Purpose:** Simplified OCI Data Safe target management and operations
+
+## Overview
+
+This OraDBA extension provides a clean, maintainable set of tools for managing Oracle Data Safe targets in OCI. Built from the ground up with simplicity and best practices in mind.
+
+### Design Philosophy (v1.0.0)
+
+- ✅ **Radical Simplicity** - Minimal abstraction, maximum clarity
+- ✅ **Modularity** - Clean separation: generic helpers vs OCI-specific
+- ✅ **Maintainability** - Easy to understand, modify, and extend
+- ✅ **Consistency** - Common patterns across all scripts
+- ✅ **Self-documenting** - Clear code with comprehensive inline docs
+
+### Key Features
+
+- **Unified Library Framework** - Shared helpers for logging, error handling, OCI operations
+- **Standard CLI Patterns** - Consistent short/long flags across all scripts
+- **Configuration Cascade** - Defaults → .env → config file → CLI arguments
+- **Comprehensive Logging** - Multiple log levels with optional file output
+- **Error Handling** - Robust traps with line numbers and cleanup
+- **Dry-run Support** - Test operations safely before execution
+
+## Structure
+
+```text
+odb_datasafe/
+├── .extension              # Extension metadata
+├── VERSION                 # Current version
+├── README.md              # This file
+├── CHANGELOG.md           # Release history
+├── bin/                   # Executable scripts
+│   ├── TEMPLATE.sh        # Script template for new tools
+│   └── ds_target_refresh.sh
+├── lib/                   # Shared libraries
+│   ├── ds_lib.sh          # Main loader (sources common + oci_helpers)
+│   ├── common.sh          # Generic helpers (logging, args, errors)
+│   ├── oci_helpers.sh     # OCI Data Safe operations
+│   └── README.md          # Library documentation
+├── etc/                   # Configuration examples
+│   ├── .env.example       # Environment variables
+│   └── datasafe.conf.example  # Main configuration
+├── sql/                   # SQL scripts (if needed)
+├── tests/                 # Test suite (BATS)
+└── scripts/               # Build/dev tools
+```
 
 ## Quick Start
 
-- Clone/copy this repo.
-- Rename the extension metadata: `./scripts/rename-extension.sh --name myext --description "My OraDBA add-ons"`
-- Customize `bin/`, `sql/`, `rcv/`, `etc/`, and `lib/` with your logic.
-- Build tarball + checksum: `./scripts/build.sh`
-- Tag and push to GitHub to publish via the included release workflow.
+### Installation
 
-## Structure (repo = extension)
+As an OraDBA extension, this is designed to be loaded by the OraDBA framework:
 
-```text
-.extension                  # Extension metadata (name/version/priority/description)
-README.md                   # Template overview (this file)
-CHANGELOG.md, VERSION, LICENSE
-bin/                        # Scripts added to PATH
-sql/                        # SQL scripts added to SQLPATH
-rcv/                        # RMAN scripts
-etc/                        # Config examples (not auto-loaded)
-lib/                        # Shared helpers
-scripts/                    # Dev tooling (build/rename)
-tests/                      # BATS tests for dev tooling
-.github/workflows/          # CI (lint/tests) and release
-dist/                       # Build outputs (ignored)
+```bash
+# Clone or copy to your OraDBA extensions directory
+cd $ORADBA_BASE/extensions/
+git clone <repo> odb_datasafe
+
+# Verify extension is recognized
+oradba extensions list
 ```
 
-## Packaging
+### Configuration
 
-- `scripts/build.sh` reads `VERSION` and `.extension` to create `dist/<name>-<version>.tar.gz` plus `<tarball>.sha256`.
-- Only extension payload is included by default (`.extension`, `.checksumignore`,
-  README/CHANGELOG/LICENSE/VERSION, bin/sql/rcv/etc/lib). Dev assets
-  (`scripts/`, `tests/`, `.github/`, `dist/`, `.git*`) are excluded.
-- Override output dir with `--dist`. Override version with `--version`.
-- Build also generates `.extension.checksum` file for integrity verification.
+1. **Set environment variables** (optional):
+   ```bash
+   cp etc/.env.example .env
+   # Edit .env with your defaults
+   export DS_ROOT_COMP_OCID="ocid1.compartment..."
+   export OCI_CLI_PROFILE="DEFAULT"
+   ```
 
-## Integrity Checking
+2. **Create config file** (optional):
+   ```bash
+   cp etc/datasafe.conf.example etc/datasafe.conf
+   # Edit etc/datasafe.conf for project-specific settings
+   ```
 
-The `.checksumignore` file specifies patterns for files excluded from integrity checks:
+3. **Use scripts**:
+   ```bash
+   # Scripts are added to PATH by OraDBA
+   ds_target_refresh.sh --help
+   ds_target_refresh.sh -T mydb01 --dry-run
+   ```
 
-- **Default exclusions**: `.extension`, `.checksumignore`, and `log/` directory
-- **Glob patterns supported**: `*.log`, `keystore/`, `secrets/*.key`, etc.
-- **One pattern per line**: Lines starting with `#` are comments
-- **Common use cases**: credentials, caches, temporary files, user-specific configs
+### Standalone Usage (without OraDBA)
 
-Example `.checksumignore`:
+```bash
+# Add bin/ to PATH
+export PATH="/path/to/odb_datasafe/bin:$PATH"
 
-```text
-# Exclude log directory (already default)
-log/
-
-# Credentials and secrets
-keystore/
-*.key
-*.pem
-
-# Cache and temporary files
-cache/
-*.tmp
+# Or run directly
+./bin/ds_target_refresh.sh --help
 ```
 
-When OraDBA verifies extension integrity, files matching these patterns are skipped.
+## Available Scripts
 
-## Rename Helper
+### Target Management
 
-- `scripts/rename-extension.sh --name <newname> [--description "..."] [--workdir <path>]`
-- Updates `.extension`, README, the sample config filename in `etc/`, and
-  references to the old name (including release notes).
-- Run immediately after cloning to avoid manual edits.
+- **`ds_target_refresh.sh`** - Refresh Data Safe target databases
+  ```bash
+  # Refresh specific targets
+  ds_target_refresh.sh -T target1,target2
+  
+  # Refresh all NEEDS_ATTENTION targets in compartment
+  ds_target_refresh.sh -c "MyCompartment" -L NEEDS_ATTENTION
+  
+  # Dry-run to see what would happen
+  ds_target_refresh.sh -T mydb --dry-run --debug
+  ```
 
-## CI and Releases
+### Template
 
-- CI: shellcheck for scripts, markdownlint for docs, BATS tests for helper scripts.
-- Release: on tags `v*.*.*` (or manual dispatch), runs lint/tests, builds
-  tarball + checksum, and publishes them as GitHub release assets.
+- **`TEMPLATE.sh`** - Template for creating new scripts
+  - Copy and modify for new functionality
+  - Pre-configured with standard patterns
 
-## Using the Template
+## Configuration Reference
 
-1. Add your logic to `bin/`, `sql/`, `rcv/`, `etc/`, and `lib/`.
-2. Keep `.extension` metadata current (name, version, priority).
-3. Users copy any needed settings from `etc/<name>.conf.example` into `${ORADBA_PREFIX}/etc/oradba_customer.conf`.
-4. Extract the tarball into `${ORADBA_LOCAL_BASE}`; auto-discovery will load the extension.
+### Environment Variables
+
+```bash
+# OCI Configuration
+OCI_CLI_PROFILE="DEFAULT"           # OCI CLI profile to use
+OCI_CLI_REGION="eu-frankfurt-1"     # OCI region
+
+# Data Safe Defaults
+DS_ROOT_COMP_OCID="ocid1.comp..."   # Root compartment for Data Safe
+DS_LIFECYCLE="NEEDS_ATTENTION"       # Default lifecycle filter
+
+# Logging
+LOG_LEVEL="INFO"                     # DEBUG|INFO|WARN|ERROR
+LOG_FILE=""                          # Optional log file path
+LOG_COLOR="auto"                     # auto|always|never
+```
+
+### Config File Format
+
+See `etc/datasafe.conf.example` for full configuration options.
+
+## Library Reference
+
+### common.sh - Generic Helpers
+
+Core functionality used by all scripts:
+
+- **Logging**: `log()`, `die()`
+- **Validation**: `require_cmd()`, `require_env()`
+- **Arguments**: `parse_common_flags()`, `get_flag_value()`
+- **Utilities**: `normalize_bool()`, `timestamp()`, `cleanup_temp_files()`
+
+### oci_helpers.sh - OCI Data Safe Operations
+
+Data Safe specific operations:
+
+- **Target Operations**: `ds_list_targets()`, `ds_get_target()`, `ds_refresh_target()`
+- **Resolution**: `resolve_target_ocid()`, `resolve_compartment()`
+- **Tagging**: `ds_update_target_tags()`
+- **Utilities**: `oci_exec()`, `oci_wait_for_state()`
+
+See [lib/README.md](lib/README.md) for complete API documentation.
+
+## Development
+
+### Creating New Scripts
+
+1. **Copy the template**:
+   ```bash
+   cp bin/TEMPLATE.sh bin/ds_new_feature.sh
+   ```
+
+2. **Update metadata** in script header (name, purpose, version)
+
+3. **Implement** `parse_args()` with script-specific flags
+
+4. **Add business logic** in main section
+
+5. **Test thoroughly**:
+   ```bash
+   # Test with dry-run
+   ./bin/ds_new_feature.sh --dry-run --debug
+   
+   # Add BATS tests
+   vim tests/ds_new_feature.bats
+   ```
+
+### Testing
+
+```bash
+# Run all tests
+make test
+
+# Or directly with bats
+bats tests/
+
+# Test single script
+bats tests/ds_target_refresh.bats
+```
+
+### Building Release
+
+```bash
+# Build extension tarball
+./scripts/build.sh
+
+# Output in dist/
+ls -l dist/odb_datasafe-1.0.0.tar.gz
+```
+
+## Migration from Legacy (datasafe/)
+
+The legacy `datasafe/` project remains unchanged. This extension (`odb_datasafe/`) is a complete rewrite with:
+
+- **90% less code complexity** - Removed over-engineered abstractions
+- **Same functionality** - All operations preserved
+- **Better maintainability** - Clear, simple patterns
+- **Improved debugging** - Better error messages and logging
+
+### Migration Strategy
+
+1. **Test in parallel** - Both systems work independently
+2. **Migrate scripts gradually** - One at a time, verify functionality
+3. **Deprecate legacy** - Once all critical scripts migrated
+4. **Archive old code** - Keep for reference but mark as deprecated
+
+## Support & Contribution
+
+- **Issues**: Report via GitHub issues
+- **Documentation**: See inline comments and lib/README.md
+- **Questions**: Contact Stefan Oehrli
+
+## License
+
+Apache License Version 2.0 - See LICENSE file
+
+## Related Links
+
+- [Legacy datasafe project](../datasafe/)
+- [OraDBA Framework](https://github.com/oradba/oradba)
+- [OCI Data Safe Documentation](https://docs.oracle.com/en-us/iaas/data-safe/)
+
+---
+
+**Note**: This is version 1.0.0 - a complete rewrite prioritizing simplicity and maintainability over feature complexity. Feedback welcome!

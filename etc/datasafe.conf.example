@@ -1,0 +1,112 @@
+# =============================================================================
+# Data Safe Configuration File (v4.0.0)
+# =============================================================================
+# This is the generic configuration file loaded by all Data Safe scripts.
+# Script-specific configs can be created as: etc_v4/<script_name>.conf
+#
+# Configuration Precedence (later overrides earlier):
+#   1. Script defaults (in code)
+#   2. .env file (project root)
+#   3. This file (etc_v4/datasafe.conf)
+#   4. Script-specific config (etc_v4/<script>.conf)
+#   5. Command-line arguments
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# OCI Configuration
+# -----------------------------------------------------------------------------
+
+# OCI CLI configuration
+#OCI_CLI_PROFILE="DEFAULT"
+#OCI_CLI_REGION="eu-frankfurt-1"
+#OCI_CLI_CONFIG_FILE="${HOME}/.oci/config"
+
+# -----------------------------------------------------------------------------
+# Data Safe Common Settings
+# -----------------------------------------------------------------------------
+
+# Default root compartment for Data Safe operations
+# Override with -c/--compartment or DS_ROOT_COMP_OCID env var
+#COMPARTMENT="ocid1.compartment.oc1..aaaa..."
+#DS_ROOT_COMP_OCID="ocid1.compartment.oc1..aaaa..."
+
+# Default lifecycle states to filter
+#LIFECYCLE_STATE="NEEDS_ATTENTION"
+
+# -----------------------------------------------------------------------------
+# Database Settings
+# -----------------------------------------------------------------------------
+
+# Database domain for service names
+#DB_DOMAIN="b2x.vwg"
+
+# Default listener port
+#LISTENER_PORT="1521"
+
+# Default service protocol
+#SERVICE_PROTOCOL="TCP"
+
+# Data Safe admin user settings
+#DATASAFE_USER="DS_ADMIN"
+#COMMON_USER_PREFIX="C##"
+
+# -----------------------------------------------------------------------------
+# On-Premises Connector
+# -----------------------------------------------------------------------------
+
+# Default on-premises connector (name or OCID)
+#ONPREM_CONNECTOR="my-connector"
+#ONPREM_CONNECTOR_OCID="ocid1.datasafeonpremconnector.oc1..aaaa..."
+
+# -----------------------------------------------------------------------------
+# Logging Configuration
+# -----------------------------------------------------------------------------
+
+# Log level: 0=TRACE, 1=DEBUG, 2=INFO, 3=WARN, 4=ERROR, 5=FATAL
+#LOG_LEVEL=2
+
+# Enable/disable colors: auto|always|never
+#LOG_COLORS="auto"
+
+# Log file (optional, per-script or global)
+#LOG_FILE="/var/log/datasafe/datasafe.log"
+
+# -----------------------------------------------------------------------------
+# Behavior Settings
+# -----------------------------------------------------------------------------
+
+# Dry-run mode (override with --dry-run)
+#DRY_RUN=false
+
+# Show stack traces on errors
+#SHOW_STACKTRACE=true
+
+# Enable cleanup on exit
+#CLEANUP_ON_EXIT=true
+
+# -----------------------------------------------------------------------------
+# Tag Configuration
+# -----------------------------------------------------------------------------
+
+# Tag namespace for Data Safe targets
+#TAG_NAMESPACE="DBSec"
+
+# Required tags
+#REQUIRED_TAGS="Classification,Environment,Owner"
+
+# -----------------------------------------------------------------------------
+# Performance & Limits
+# -----------------------------------------------------------------------------
+
+# Maximum concurrent operations (for future parallel processing)
+#MAX_CONCURRENT=5
+
+# OCI CLI timeout (seconds)
+#OCI_TIMEOUT=300
+
+# Wait for state timeout (seconds)
+#WAIT_TIMEOUT=600
+
+# =============================================================================
+# End of Configuration
+# =============================================================================

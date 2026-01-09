@@ -10,7 +10,7 @@ setup() {
     run bash -c "cd \"$REPO_ROOT\" && ./scripts/build.sh --dist \"$dist\""
     [ "$status" -eq 0 ]
 
-    tarball="${dist}/extension-template-${VERSION}.tar.gz"
+    tarball="${dist}/odb_datasafe-${VERSION}.tar.gz"
     checksum="${tarball}.sha256"
     [ -f "$tarball" ]
     [ -f "$checksum" ]
