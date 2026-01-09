@@ -1,7 +1,51 @@
-.DS_Store
-dist/
-build/
-node_modules/
+# ------------------------------------------------------------------------------
+# OraDBA - Oracle Database Infrastructure and Security, 5630 Muri, Switzerland
+# ------------------------------------------------------------------------------
+# Name.......: .gitignore
+# Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
+# Editor.....: Stefan Oehrli
+# Date.......: 2025.12.18
+# Version....: v0.7.14
+# Purpose....: Ignore transient build and local config artifacts.
+# Notes......: Tailor paths per stack; keep secrets and locals out of VCS.
+# Reference..: https://github.com/oehrlis/oci-labs-infra
+# License....: Apache License Version 2.0
+# ------------------------------------------------------------------------------
+
+# Build and distribution output
+/dist/
+/build/
+
+# Archives
+*.tar.gz
+*.zip
+
+# Logs
 *.log
-*.tmp
+src/log/*
+!src/log/README.md
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
 *.swp
+*.swo
+*~
+
+# Test results
+test/test_results/
+*.tap
+
+# Temporary files
+*.tmp
+*.bak
+*.old
+
+# Environment specific
+.env
+.env.local
+# --- EOF ----------------------------------------------------------------------
