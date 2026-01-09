@@ -71,8 +71,8 @@ jobs:
           Extension template tarball for OraDBA.
 
           ## Assets
-          - extension-template-${VERSION}.tar.gz
-          - extension-template-${VERSION}.tar.gz.sha256
+          - odb_datasafe-${VERSION}.tar.gz
+          - odb_datasafe-${VERSION}.tar.gz.sha256
 
           ## Usage
           Extract the tarball into ${ORADBA_LOCAL_BASE} and adjust metadata/configs as needed.
