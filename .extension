@@ -1,6 +1,6 @@
 name: odb_datasafe
 version: 0.2.0
-description: OraDBA Data Safe Extension - Comprehensive OCI Data Safe management with 4 core scripts
+description: OraDBA Data Safe Extension - Comprehensive OCI Data Safe management with 7 core scripts
 author: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 enabled: true
 priority: 50

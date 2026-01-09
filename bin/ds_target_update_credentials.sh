@@ -2,11 +2,11 @@
 # ------------------------------------------------------------------------------
 # OraDBA - Oracle Database Infrastructure and Security, 5630 Muri, Switzerland
 # ------------------------------------------------------------------------------
-# Script.....: ds_target_update_tags.sh (v0.2.0)
+# Script.....: ds_target_update_credentials.sh (v0.2.0)
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.01.09
 # Version....: v0.2.0
-# Purpose....: Update Oracle Data Safe target database tags based on compartment
+# Purpose....: Update Oracle Data Safe target database credentials
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
 
@@ -25,12 +25,12 @@ readonly SCRIPT_VERSION="0.2.0"
 # Defaults
 : "${COMPARTMENT:=}"
 : "${TARGETS:=}"
+: "${LIFECYCLE_STATE:=ACTIVE}"
+: "${DS_USERNAME:=${DATASAFE_USER:-}}"
+: "${DS_PASSWORD:=}"
+: "${NO_PROMPT:=false}"
+: "${CRED_FILE:=}"
 : "${APPLY_CHANGES:=false}"
-: "${TAG_NAMESPACE:=DBSec}"
-: "${ENVIRONMENT_TAG:=Environment}"
-: "${CONTAINER_STAGE_TAG:=ContainerStage}"
-: "${CONTAINER_TYPE_TAG:=ContainerType}"
-: "${CLASSIFICATION_TAG:=Classification}"
 
 # Load library
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -46,6 +46,9 @@ source "${LIB_DIR}/ds_lib.sh" || {
 # Initialize configuration
 init_config
 
+# Runtime variables
+TMP_CRED_JSON=""
+
 # =============================================================================
 # FUNCTIONS
 # =============================================================================
@@ -55,8 +58,8 @@ usage() {
 Usage: ${SCRIPT_NAME} [OPTIONS]
 
 Description:
-  Update Oracle Data Safe target database tags based on compartment environment.
-  Derives environment from compartment name patterns and updates target tags.
+  Update Oracle Data Safe target database credentials (username/password).
+  Supports individual targets or bulk updates with flexible credential sources.
 
 Options:
   Common:
@@ -74,32 +77,36 @@ Options:
   Selection:
     -c, --compartment ID    Compartment OCID or name (default: DS_ROOT_COMP from .env)
     -T, --targets LIST      Comma-separated target names or OCIDs
+    -L, --lifecycle STATE   Filter by lifecycle state (default: ${LIFECYCLE_STATE})
+
+  Credentials:
+    -U, --username USER     Database username (default: ${DS_USERNAME:-not set})
+    -P, --password PASS     Database password (use with caution)
+    --cred-file FILE        JSON file with {\"userName\": \"user\", \"password\": \"pass\"}
+    --no-prompt             Fail instead of prompting for missing password
 
   Execution:
     --apply                 Apply changes (default: dry-run only)
     -n, --dry-run           Dry-run mode (show what would be done)
 
-  Tag Configuration:
-    --namespace NS          Tag namespace (default: ${TAG_NAMESPACE})
-    --env-tag TAG           Environment tag key (default: ${ENVIRONMENT_TAG})
-    --stage-tag TAG         Container stage tag key (default: ${CONTAINER_STAGE_TAG})
-    --type-tag TAG          Container type tag key (default: ${CONTAINER_TYPE_TAG})
-    --class-tag TAG         Classification tag key (default: ${CLASSIFICATION_TAG})
-
-Tag Rules:
-  - Environment derived from compartment pattern: cmp-lzp-dbso-{env}-projects
-  - Supported environments: test, qs, prod
-  - Default values: Environment=undef, ContainerStage=undef, etc.
+Credential Sources (in order of precedence):
+  1. --cred-file JSON file
+  2. -U/--username and -P/--password options
+  3. Environment variables (DS_USERNAME/DS_PASSWORD)
+  4. Interactive prompt (unless --no-prompt)
 
 Examples:
-  # Dry-run for all targets in DS_ROOT_COMP
-  ${SCRIPT_NAME}
+  # Dry-run with specific username (will prompt for password)
+  ${SCRIPT_NAME} -U myuser
 
-  # Apply changes to specific compartment
-  ${SCRIPT_NAME} -c cmp-lzp-dbso-prod-projects --apply
+  # Apply changes using credentials file
+  ${SCRIPT_NAME} --cred-file creds.json --apply
 
-  # Update specific targets
-  ${SCRIPT_NAME} -T target1,target2 --apply
+  # Update specific targets with username/password
+  ${SCRIPT_NAME} -T target1,target2 -U myuser -P mypass --apply
+
+  # Bulk update for compartment (interactive password)
+  ${SCRIPT_NAME} -c cmp-lzp-dbso-prod-projects -U dbuser --apply
 
 EOF
     exit 0
@@ -124,34 +131,33 @@ parse_args() {
                 TARGETS="$2"
                 shift 2
                 ;;
+            -L|--lifecycle)
+                need_val "$1" "${2:-}"
+                LIFECYCLE_STATE="$2"
+                shift 2
+                ;;
+            -U|--username)
+                need_val "$1" "${2:-}"
+                DS_USERNAME="$2"
+                shift 2
+                ;;
+            -P|--password)
+                need_val "$1" "${2:-}"
+                DS_PASSWORD="$2"
+                shift 2
+                ;;
+            --cred-file)
+                need_val "$1" "${2:-}"
+                CRED_FILE="$2"
+                shift 2
+                ;;
+            --no-prompt)
+                NO_PROMPT=true
+                shift
+                ;;
             --apply)
                 APPLY_CHANGES=true
                 shift
-                ;;
-            --namespace)
-                need_val "$1" "${2:-}"
-                TAG_NAMESPACE="$2"
-                shift 2
-                ;;
-            --env-tag)
-                need_val "$1" "${2:-}"
-                ENVIRONMENT_TAG="$2"
-                shift 2
-                ;;
-            --stage-tag)
-                need_val "$1" "${2:-}"
-                CONTAINER_STAGE_TAG="$2"
-                shift 2
-                ;;
-            --type-tag)
-                need_val "$1" "${2:-}"
-                CONTAINER_TYPE_TAG="$2"
-                shift 2
-                ;;
-            --class-tag)
-                need_val "$1" "${2:-}"
-                CLASSIFICATION_TAG="$2"
-                shift 2
                 ;;
             --oci-profile)
                 need_val "$1" "${2:-}"
@@ -192,7 +198,7 @@ parse_args() {
 validate_inputs() {
     log_debug "Validating inputs..."
     
-    require_cmd oci jq
+    require_cmd oci jq base64
     
     # If no scope specified, use DS_ROOT_COMP as default
     if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
@@ -200,6 +206,17 @@ validate_inputs() {
         root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment. Set DS_ROOT_COMP in .env or use -c/--compartment"
         COMPARTMENT="$root_comp"
         log_info "No scope specified, using DS_ROOT_COMP: $COMPARTMENT"
+    fi
+    
+    # Validate credentials file if provided
+    if [[ -n "$CRED_FILE" ]]; then
+        [[ -f "$CRED_FILE" ]] || die "Credentials file not found: $CRED_FILE"
+        [[ -r "$CRED_FILE" ]] || die "Cannot read credentials file: $CRED_FILE"
+        
+        # Validate JSON structure
+        if ! jq -r '.userName // empty' "$CRED_FILE" >/dev/null 2>&1; then
+            die "Invalid credentials file format. Expected JSON with userName/password fields"
+        fi
     fi
     
     # Show mode
@@ -211,118 +228,109 @@ validate_inputs() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: get_env_from_compartment_name
-# Purpose.....: Derive environment from compartment name pattern
-# Parameters..: $1 - compartment name
-# Returns.....: Environment string (test|qs|prod|undef)
+# Function....: resolve_credentials
+# Purpose.....: Resolve username/password from various sources
+# Returns.....: Sets DS_USERNAME and DS_PASSWORD variables
 # ------------------------------------------------------------------------------
-get_env_from_compartment_name() {
-    local comp_name="$1"
-    local env="undef"
+resolve_credentials() {
+    log_debug "Resolving credentials..."
     
-    # Pattern: cmp-lzp-dbso-{env}-projects
-    if [[ "$comp_name" =~ ^cmp-lzp-dbso-([^-]+)-projects$ ]]; then
-        env="${BASH_REMATCH[1]}"
+    # 1. Use credentials file if provided
+    if [[ -n "$CRED_FILE" ]]; then
+        log_debug "Loading credentials from file: $CRED_FILE"
+        DS_USERNAME=$(jq -r '.userName // ""' "$CRED_FILE")
+        DS_PASSWORD=$(jq -r '.password // ""' "$CRED_FILE")
+        
+        [[ -n "$DS_USERNAME" ]] || die "Username not found in credentials file"
+        [[ -n "$DS_PASSWORD" ]] || die "Password not found in credentials file"
+        
+        log_info "Credentials loaded from file: $CRED_FILE"
+        return 0
     fi
     
-    case "$env" in
-        test|qs|prod) echo "$env" ;;
-        *) echo "undef" ;;
-    esac
-}
-
-# ------------------------------------------------------------------------------
-# Function....: get_compartment_name
-# Purpose.....: Get compartment name from OCID
-# Parameters..: $1 - compartment OCID
-# Returns.....: Compartment name
-# ------------------------------------------------------------------------------
-get_compartment_name() {
-    local comp_id="$1"
+    # 2. Check if we have username
+    [[ -n "$DS_USERNAME" ]] || die "Username not specified. Use -U/--username, --cred-file, or set DS_USERNAME"
     
-    oci_exec iam compartment get \
-        --compartment-id "$comp_id" \
-        --query 'data.name' \
-        --raw-output 2>/dev/null || echo "unknown"
-}
-
-# ------------------------------------------------------------------------------
-# Function....: build_tag_update_json
-# Purpose.....: Build JSON for tag updates
-# Parameters..: $1 - environment
-#               $2 - container stage
-#               $3 - container type
-#               $4 - classification
-# Returns.....: JSON string
-# ------------------------------------------------------------------------------
-build_tag_update_json() {
-    local env="$1"
-    local stage="$2"
-    local type="$3"
-    local classification="$4"
+    # 3. Resolve password if not provided
+    if [[ -z "$DS_PASSWORD" ]]; then
+        if [[ "$NO_PROMPT" == "true" ]]; then
+            die "Password not specified and --no-prompt set. Use -P/--password, --cred-file, or set DS_PASSWORD"
+        fi
+        
+        # Interactive prompt for password
+        log_info "Password not provided, prompting..."
+        echo -n "Enter password for user '$DS_USERNAME': " >&2
+        read -rs DS_PASSWORD
+        echo >&2
+        
+        [[ -n "$DS_PASSWORD" ]] || die "Password cannot be empty"
+    fi
     
-    cat <<EOF
-{
-  "defined-tags": {
-    "${TAG_NAMESPACE}": {
-      "${ENVIRONMENT_TAG}": "${env}",
-      "${CONTAINER_STAGE_TAG}": "${stage}",
-      "${CONTAINER_TYPE_TAG}": "${type}",
-      "${CLASSIFICATION_TAG}": "${classification}"
-    }
-  }
-}
-EOF
+    log_info "Using credentials for user: $DS_USERNAME"
 }
 
 # ------------------------------------------------------------------------------
-# Function....: update_target_tags
-# Purpose.....: Update tags for a single target
+# Function....: create_temp_cred_json
+# Purpose.....: Create temporary JSON file with credentials
+# Returns.....: Sets TMP_CRED_JSON variable
+# ------------------------------------------------------------------------------
+create_temp_cred_json() {
+    TMP_CRED_JSON=$(mktemp)
+    
+    # Create credentials JSON
+    jq -n \
+        --arg user "$DS_USERNAME" \
+        --arg pass "$DS_PASSWORD" \
+        '{userName: $user, password: $pass}' > "$TMP_CRED_JSON"
+    
+    log_debug "Created temporary credentials file: $TMP_CRED_JSON"
+}
+
+# ------------------------------------------------------------------------------
+# Function....: cleanup_temp_files
+# Purpose.....: Clean up temporary credential files
+# ------------------------------------------------------------------------------
+cleanup_temp_files() {
+    if [[ -n "$TMP_CRED_JSON" && -f "$TMP_CRED_JSON" ]]; then
+        log_debug "Cleaning up temporary credentials file"
+        rm -f "$TMP_CRED_JSON"
+        TMP_CRED_JSON=""
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# Function....: update_target_credentials
+# Purpose.....: Update credentials for a single target
 # Parameters..: $1 - target OCID
 #               $2 - target name
-#               $3 - target compartment OCID
 # ------------------------------------------------------------------------------
-update_target_tags() {
+update_target_credentials() {
     local target_ocid="$1"
     local target_name="$2"
-    local target_comp="$3"
     
     log_debug "Processing target: $target_name ($target_ocid)"
     
-    # Get compartment name and derive environment
-    local comp_name
-    comp_name=$(get_compartment_name "$target_comp")
-    
-    local env
-    env=$(get_env_from_compartment_name "$comp_name")
-    
-    log_debug "Target compartment: $comp_name -> Environment: $env"
-    
-    # Default tag values - customize as needed
-    local container_stage="undef"
-    local container_type="undef"
-    local classification="undef"
-    
-    # Build update JSON
-    local update_json
-    update_json=$(build_tag_update_json "$env" "$container_stage" "$container_type" "$classification")
-    
     log_info "Target: $target_name"
-    log_info "  Environment: $env"
-    log_info "  Container Stage: $container_stage"
-    log_info "  Container Type: $container_type"
-    log_info "  Classification: $classification"
+    log_info "  Username: $DS_USERNAME"
+    log_info "  Password: [hidden]"
     
     if [[ "$APPLY_CHANGES" == "true" ]]; then
-        log_info "  Applying tags..."
+        log_info "  Updating credentials..."
+        
+        # Prepare credentials JSON for API call
+        local cred_json
+        cred_json=$(jq -n \
+            --arg user "$DS_USERNAME" \
+            --arg pass "$DS_PASSWORD" \
+            '{userName: $user, password: $pass}')
         
         if oci_exec data-safe target-database update \
             --target-database-id "$target_ocid" \
-            --defined-tags "$update_json" >/dev/null; then
-            log_info "  ✅ Tags updated successfully"
+            --credentials "$cred_json" >/dev/null; then
+            log_info "  ✅ Credentials updated successfully"
             return 0
         else
-            log_error "  ❌ Failed to update tags"
+            log_error "  ❌ Failed to update credentials"
             return 1
         fi
     else
@@ -333,7 +341,7 @@ update_target_tags() {
 
 # ------------------------------------------------------------------------------
 # Function....: list_targets_in_compartment
-# Purpose.....: List all targets in compartment
+# Purpose.....: List targets in compartment
 # Parameters..: $1 - compartment OCID or name
 # Returns.....: JSON array of targets
 # ------------------------------------------------------------------------------
@@ -345,10 +353,18 @@ list_targets_in_compartment() {
     
     log_debug "Listing targets in compartment: $comp_ocid"
     
-    oci_exec data-safe target-database list \
-        --compartment-id "$comp_ocid" \
-        --compartment-id-in-subtree true \
+    local -a cmd=(
+        data-safe target-database list
+        --compartment-id "$comp_ocid"
+        --compartment-id-in-subtree true
         --all
+    )
+    
+    if [[ -n "$LIFECYCLE_STATE" ]]; then
+        cmd+=(--lifecycle-state "$LIFECYCLE_STATE")
+    fi
+    
+    oci_exec "${cmd[@]}"
 }
 
 # ------------------------------------------------------------------------------
@@ -356,7 +372,14 @@ list_targets_in_compartment() {
 # Purpose.....: Main work function
 # ------------------------------------------------------------------------------
 do_work() {
-    local json_data success_count=0 error_count=0
+    local success_count=0 error_count=0
+    
+    # Resolve and validate credentials
+    resolve_credentials
+    create_temp_cred_json
+    
+    # Ensure cleanup on exit
+    trap cleanup_temp_files EXIT
     
     # Collect target data
     if [[ -n "$TARGETS" ]]; then
@@ -369,34 +392,42 @@ do_work() {
         for target in "${target_list[@]}"; do
             target="${target// /}"  # trim spaces
             
+            local target_ocid target_name
+            
             if is_ocid "$target"; then
-                # Get target details
-                local target_data
-                if target_data=$(oci_exec data-safe target-database get \
-                    --target-database-id "$target" \
-                    --query 'data' 2>/dev/null); then
-                    
-                    local target_name target_comp
-                    target_name=$(echo "$target_data" | jq -r '."display-name"')
-                    target_comp=$(echo "$target_data" | jq -r '."compartment-id"')
-                    
-                    if update_target_tags "$target" "$target_name" "$target_comp"; then
-                        success_count=$((success_count + 1))
-                    else
-                        error_count=$((error_count + 1))
-                    fi
-                else
-                    log_error "Failed to get details for target: $target"
-                    error_count=$((error_count + 1))
-                fi
+                target_ocid="$target"
+                # Get target name
+                target_name=$(oci_exec data-safe target-database get \
+                    --target-database-id "$target_ocid" \
+                    --query 'data."display-name"' \
+                    --raw-output 2>/dev/null || echo "unknown")
             else
-                log_error "Target name resolution not implemented yet: $target"
+                # Resolve target name to OCID
+                log_debug "Resolving target name: $target"
+                local resolved
+                if [[ -n "$COMPARTMENT" ]]; then
+                    resolved=$(ds_resolve_target_ocid "$target" "$COMPARTMENT") || die "Failed to resolve target: $target"
+                else
+                    local root_comp
+                    root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment"
+                    resolved=$(ds_resolve_target_ocid "$target" "$root_comp") || die "Failed to resolve target: $target"
+                fi
+                
+                [[ -n "$resolved" ]] || die "Target not found: $target"
+                target_ocid="$resolved"
+                target_name="$target"
+            fi
+            
+            if update_target_credentials "$target_ocid" "$target_name"; then
+                success_count=$((success_count + 1))
+            else
                 error_count=$((error_count + 1))
             fi
         done
     else
         # Process targets from compartment
         log_info "Processing targets from compartment..."
+        local json_data
         json_data=$(list_targets_in_compartment "$COMPARTMENT") || die "Failed to list targets"
         
         local total_count
@@ -409,20 +440,20 @@ do_work() {
         fi
         
         local current=0
-        while read -r target_ocid target_name target_comp; do
+        while read -r target_ocid target_name; do
             current=$((current + 1))
             log_info "[$current/$total_count] Processing: $target_name"
             
-            if update_target_tags "$target_ocid" "$target_name" "$target_comp"; then
+            if update_target_credentials "$target_ocid" "$target_name"; then
                 success_count=$((success_count + 1))
             else
                 error_count=$((error_count + 1))
             fi
-        done < <(echo "$json_data" | jq -r '.data[] | [.id, ."display-name", ."compartment-id"] | @tsv')
+        done < <(echo "$json_data" | jq -r '.data[] | [.id, ."display-name"] | @tsv')
     fi
     
     # Summary
-    log_info "Tag update completed:"
+    log_info "Credential update completed:"
     log_info "  Successful: $success_count"
     log_info "  Errors: $error_count"
     
@@ -444,9 +475,9 @@ main() {
     
     # Execute main work
     if do_work; then
-        log_info "Tag update completed successfully"
+        log_info "Credential update completed successfully"
     else
-        die "Tag update failed with errors"
+        die "Credential update failed with errors"
     fi
 }
 
@@ -454,4 +485,4 @@ main() {
 parse_args "$@"
 main
 
-# --- End of ds_target_update_tags.sh ------------------------------------------
+# --- End of ds_target_update_credentials.sh -----------------------------------

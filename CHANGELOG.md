@@ -20,6 +20,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Configurable tag namespace and field names
     - Dry-run mode (default) and --apply mode
     - Progress tracking with target counters
+  - `ds_target_update_service.sh` - Update target service names to standardized format
+    - Service name transformation to "{base}_exa.{domain}" format
+    - Dry-run and apply modes for safe operations
+    - Individual target or compartment-wide processing
+    - 62% code reduction vs legacy version (~340 vs ~900 lines)
+  - `ds_target_update_credentials.sh` - Update target database credentials
+    - Multiple credential sources: CLI options, JSON file, environment, interactive
+    - Username/password management with secure handling
+    - Flexible target selection (individual or compartment-based)
+    - 58% code reduction vs legacy version (~430 vs ~1000 lines)
+  - `ds_target_update_connector.sh` - Manage on-premises connector assignments
+    - Three operation modes: set, migrate, distribute
+    - Set specific connector for targets
+    - Migrate all targets from one connector to another
+    - Distribute targets evenly across available connectors
+    - Comprehensive connector discovery and validation
   - `ds_tg_report.sh` - Generate comprehensive tag reports
     - Multiple report types: all|tags|env|missing|undef
     - Output formats: table|json|csv
