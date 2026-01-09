@@ -1,11 +1,11 @@
-name: extension-template
-version: 0.1.0
-description: Template OraDBA extension with starter scripts and docs
-author: OraDBA Team
+name: odb_datasafe
+version: 0.2.0
+description: OraDBA Data Safe Extension - Simplified OCI Data Safe target management
+author: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 enabled: true
 priority: 50
 provides:
   bin: true
   sql: true
-  rcv: true
+  rcv: false
   etc: true
