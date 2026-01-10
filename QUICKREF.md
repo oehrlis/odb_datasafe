@@ -375,3 +375,39 @@ ds_target_details.sh -c prod-compartment -O json
 ds_target_details.sh -T exacc-target -O table
 ```
 
+
+## 🆕 New in v0.3.1
+
+### Export Targets
+
+```bash
+# Export all targets in compartment to CSV
+ds_target_export.sh -c prod-compartment
+
+# Export ACTIVE targets to JSON
+ds_target_export.sh -c prod-compartment -L ACTIVE -F json -o targets.json
+
+# Export targets created since specific date
+ds_target_export.sh -c prod-compartment -D 2025-01-01
+```
+
+### Register New Targets
+
+```bash
+# Register a PDB
+ds_target_register.sh -H db01 --sid cdb01 --pdb APP1PDB \
+  -c prod-compartment --connector my-connector --ds-password <password>
+
+# Register CDB$ROOT  
+ds_target_register.sh -H db01 --sid cdb01 --root \
+  -c prod-compartment --connector my-connector --ds-password <password>
+
+# Check if target already exists
+ds_target_register.sh -H db01 --sid cdb01 --pdb APP1PDB \
+  -c prod-compartment --connector my-connector --check
+
+# Dry-run to preview registration plan
+ds_target_register.sh -H db01 --sid cdb01 --pdb APP1PDB \
+  -c prod-compartment --connector my-connector --ds-password <password> --dry-run
+```
+

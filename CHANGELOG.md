@@ -1,4 +1,4 @@
-]633;E;{ head -n 8 CHANGELOG.md\x3b echo ""\x3b cat /tmp/v030_changelog.txt\x3b echo ""\x3b tail -n +9 CHANGELOG.md\x3b } > CHANGELOG_new.md && mv CHANGELOG_new.md CHANGELOG.md;17f0bf59-b442-4a3e-8d36-7f41465d082a]633;C# Changelog
+]633;E;{ head -n 8 CHANGELOG.md\x3b echo ""\x3b cat /tmp/v031_changelog.txt\x3b echo ""\x3b tail -n +11 CHANGELOG.md\x3b } > CHANGELOG_new.md && mv CHANGELOG_new.md CHANGELOG.md;17f0bf59-b442-4a3e-8d36-7f41465d082a]633;C]633;E;{ head -n 8 CHANGELOG.md\x3b echo ""\x3b cat /tmp/v030_changelog.txt\x3b echo ""\x3b tail -n +9 CHANGELOG.md\x3b } > CHANGELOG_new.md && mv CHANGELOG_new.md CHANGELOG.md;17f0bf59-b442-4a3e-8d36-7f41465d082a]633;C# Changelog
 
 All notable changes to the OraDBA Data Safe Extension will be documented in this file.
 
@@ -7,7 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.0] - 2026-01-09
 
-## [0.3.0] - 2026-01-09
+## [0.3.1] - 2026-01-10
+
+### Added
+
+- **New Scripts:**
+  - `ds_target_export.sh` - Export Data Safe targets to CSV or JSON
+    - Export target information with enriched metadata
+    - Cluster/CDB/PDB parsing from display names
+    - Connector mapping and service details
+    - Multiple output formats (CSV, JSON)
+    - Lifecycle and creation date filtering
+  - `ds_target_register.sh` - Register database as Data Safe target
+    - Register PDB or CDB$ROOT without SSH access
+    - Automatic service name derivation
+    - On-premises connector integration
+    - Dry-run and check-registration modes
+    - JSON payload creation for OCI CLI
+
+### Changed
+
+- All scripts continue to follow v0.2.0 framework patterns
+- Simplified registration process compared to legacy version
+- Export now includes enhanced metadata extraction
+
+### Fixed
+
+- Shell linting continues to pass (0 errors) for all scripts
+
+
 
 ### Added
 
