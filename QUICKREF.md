@@ -307,3 +307,71 @@ bin/ds_target_refresh.sh --profile test --region eu-frankfurt-1 ...
 
 **Last Updated:** 2026-01-09  
 **Maintainer:** Stefan Oehrli (oes) <stefan.oehrli@oradba.ch>
+
+## 🆕 New in v0.3.0
+
+### Target Deletion
+
+```bash
+# Delete targets with dependencies (audit trails, assessments, policies)
+ds_target_delete.sh -T target1,target2 --delete-dependencies --force
+
+# Delete from compartment with confirmation
+ds_target_delete.sh -c prod-compartment
+
+# Continue processing even if errors occur
+ds_target_delete.sh -T target1,target2,target3 --continue-on-error
+```
+
+### Find Untagged Targets
+
+```bash
+# Find targets without tags in default DBSec namespace
+ds_find_untagged_targets.sh
+
+# Find untagged in specific namespace, CSV output
+ds_find_untagged_targets.sh -n Security -o csv
+
+# Find in specific compartment
+ds_find_untagged_targets.sh -c prod-compartment
+```
+
+### Start Audit Trails
+
+```bash
+# Start UNIFIED_AUDIT trails (default)
+ds_target_audit_trail.sh -T target1,target2
+
+# Customize audit trail settings
+ds_target_audit_trail.sh -c prod-compartment \
+  --audit-type UNIFIED_AUDIT \
+  --retention-days 180 \
+  --collection-frequency WEEKLY
+```
+
+### Move Targets Between Compartments
+
+```bash
+# Move targets with dependencies
+ds_target_move.sh -T target1,target2 -D prod-compartment --move-dependencies
+
+# Move entire compartment of targets
+ds_target_move.sh -c test-compartment -D prod-compartment --force
+
+# Dry-run first to see what would happen
+ds_target_move.sh -c test-compartment -D prod-compartment --dry-run
+```
+
+### Get Detailed Target Info
+
+```bash
+# Show details for specific targets
+ds_target_details.sh -T target1,target2
+
+# Show details for all targets in compartment (JSON output)
+ds_target_details.sh -c prod-compartment -O json
+
+# Get cluster/CDB/PDB info for ExaCC targets
+ds_target_details.sh -T exacc-target -O table
+```
+

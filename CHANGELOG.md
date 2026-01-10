@@ -1,4 +1,4 @@
-# Changelog
+]633;E;{ head -n 8 CHANGELOG.md\x3b echo ""\x3b cat /tmp/v030_changelog.txt\x3b echo ""\x3b tail -n +9 CHANGELOG.md\x3b } > CHANGELOG_new.md && mv CHANGELOG_new.md CHANGELOG.md;17f0bf59-b442-4a3e-8d36-7f41465d082a]633;C# Changelog
 
 All notable changes to the OraDBA Data Safe Extension will be documented in this file.
 
@@ -6,6 +6,55 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.2.0] - 2026-01-09
+
+## [0.3.0] - 2026-01-09
+
+### Added
+
+- **New Scripts:**
+  - `ds_target_delete.sh` - Delete Data Safe target databases with dependencies
+    - Automated deletion of dependencies (audit trails, security assessments, sensitive data models, alert policies)
+    - `--delete-dependencies` / `--no-delete-dependencies` flags for dependency control
+    - `--continue-on-error` / `--stop-on-error` for error handling strategy
+    - `--force` flag to skip confirmation prompts
+    - Dry-run mode for safe preview
+    - Comprehensive summary reporting (success/error counts)
+  - `ds_find_untagged_targets.sh` - Find targets without tags in specified namespace
+    - Configurable tag namespace (default: DBSec)
+    - Same output format as ds_target_list.sh for consistency
+    - Lifecycle state filtering
+    - Multiple output formats (table, JSON, CSV)
+  - `ds_target_audit_trail.sh` - Start audit trails for target databases
+    - Configurable audit trail type (default: UNIFIED_AUDIT)
+    - Parameters for retention days, collection frequency, etc.
+    - Submit-and-continue pattern (non-blocking by default)
+    - Support for both individual targets and compartment-wide operations
+  - `ds_target_move.sh` - Move targets between compartments
+    - Automatic handling of referencing objects (security assessments, alert policies, etc.)
+    - `--move-dependencies` / `--no-move-dependencies` for dependency control
+    - `--continue-on-error` pattern for bulk operations
+    - Dry-run mode for safe testing
+    - Progress tracking and comprehensive error reporting
+  - `ds_target_details.sh` - Show detailed target information
+    - Comprehensive target details including database connection info
+    - Connector mapping and relationship display
+    - Cluster, CDB, and PDB parsing for ExaCC targets
+    - Multiple output formats (table, JSON, CSV)
+    - Bulk target processing support
+
+### Changed
+
+- All scripts now use `#!/usr/bin/env bash` for better compatibility with modern bash versions
+- Improved error handling and logging consistency across all scripts
+- Standardized argument parsing patterns across all new scripts
+
+### Fixed
+
+- Shell linting now passes completely (0 errors) for all scripts
+- Resolved compatibility issues with v0.2.0 framework functions
+- Fixed unused variable warnings with proper shellcheck disable annotations
+
+
 
 ### Added
 
