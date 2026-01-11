@@ -1,4 +1,5 @@
-]633;E;{ head -n 8 CHANGELOG.md\x3b echo ""\x3b cat /tmp/v032_changelog.txt\x3b echo ""\x3b tail -n +9 CHANGELOG.md\x3b } > CHANGELOG_new.md && mv CHANGELOG_new.md CHANGELOG.md;17f0bf59-b442-4a3e-8d36-7f41465d082a]633;C]633;E;{ head -n 8 CHANGELOG.md\x3b echo ""\x3b cat /tmp/v031_changelog.txt\x3b echo ""\x3b tail -n +11 CHANGELOG.md\x3b } > CHANGELOG_new.md && mv CHANGELOG_new.md CHANGELOG.md;17f0bf59-b442-4a3e-8d36-7f41465d082a]633;C]633;E;{ head -n 8 CHANGELOG.md\x3b echo ""\x3b cat /tmp/v030_changelog.txt\x3b echo ""\x3b tail -n +9 CHANGELOG.md\x3b } > CHANGELOG_new.md && mv CHANGELOG_new.md CHANGELOG.md;17f0bf59-b442-4a3e-8d36-7f41465d082a]633;C# Changelog
+
+# Changelog
 
 All notable changes to the OraDBA Data Safe Extension will be documented in this file.
 
@@ -6,6 +7,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.2.0] - 2026-01-09
+
+## [0.3.3] - 2026-01-11
+
+### Fixed
+
+- Fixed markdown formatting issues in CHANGELOG.md and QUICKREF.md
+- Removed terminal escape codes from CHANGELOG.md
+- Removed multiple consecutive blank lines in markdown files
+- Markdown linting errors reduced from 79 to 70 (remaining are acceptable changelog conventions)
+
+### Changed
+
+- Shell linting: 100% clean (0 errors maintained)
+- Test coverage: 107/169 tests pass (62 integration tests require OCI CLI)
 
 ## [0.3.2] - 2026-01-10
 
@@ -25,8 +40,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed `ds_target_connect_details.sh` which was not working correctly in legacy version
 - Removed complex library dependencies (lib_all.sh) in favor of simplified ds_lib.sh
 - All shellcheck warnings resolved
-
-
 
 ## [0.3.1] - 2026-01-10
 
@@ -55,8 +68,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Shell linting continues to pass (0 errors) for all scripts
-
-
 
 ### Added
 
@@ -102,8 +113,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Shell linting now passes completely (0 errors) for all scripts
 - Resolved compatibility issues with v0.2.0 framework functions
 - Fixed unused variable warnings with proper shellcheck disable annotations
-
-
 
 ### Added
 

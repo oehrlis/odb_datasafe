@@ -375,7 +375,6 @@ ds_target_details.sh -c prod-compartment -O json
 ds_target_details.sh -T exacc-target -O table
 ```
 
-
 ## 🆕 New in v0.3.1
 
 ### Export Targets
@@ -410,7 +409,6 @@ ds_target_register.sh -H db01 --sid cdb01 --pdb APP1PDB \
 ds_target_register.sh -H db01 --sid cdb01 --pdb APP1PDB \
   -c prod-compartment --connector my-connector --ds-password <password> --dry-run
 ```
-
 
 ### New in v0.3.2
 
