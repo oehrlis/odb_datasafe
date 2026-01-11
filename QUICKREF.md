@@ -411,3 +411,22 @@ ds_target_register.sh -H db01 --sid cdb01 --pdb APP1PDB \
   -c prod-compartment --connector my-connector --ds-password <password> --dry-run
 ```
 
+
+### New in v0.3.2
+
+**ds_target_connect_details.sh** - Display connection details for Data Safe targets
+
+```bash
+# Show connection details for a target (table format)
+ds_target_connect_details.sh -T exa118r05c15_cdb09a15_MYPDB
+
+# Get connection details as JSON
+ds_target_connect_details.sh -T ocid1.datasafetargetdatabase... -O json
+
+# Specify compartment for name resolution
+ds_target_connect_details.sh -T MYPDB -c my-compartment-name
+
+# Get connection details with debug output
+ds_target_connect_details.sh -T exa118r05c15_cdb09a15_MYPDB -d
+```
+

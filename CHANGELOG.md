@@ -1,4 +1,4 @@
-]633;E;{ head -n 8 CHANGELOG.md\x3b echo ""\x3b cat /tmp/v031_changelog.txt\x3b echo ""\x3b tail -n +11 CHANGELOG.md\x3b } > CHANGELOG_new.md && mv CHANGELOG_new.md CHANGELOG.md;17f0bf59-b442-4a3e-8d36-7f41465d082a]633;C]633;E;{ head -n 8 CHANGELOG.md\x3b echo ""\x3b cat /tmp/v030_changelog.txt\x3b echo ""\x3b tail -n +9 CHANGELOG.md\x3b } > CHANGELOG_new.md && mv CHANGELOG_new.md CHANGELOG.md;17f0bf59-b442-4a3e-8d36-7f41465d082a]633;C# Changelog
+]633;E;{ head -n 8 CHANGELOG.md\x3b echo ""\x3b cat /tmp/v032_changelog.txt\x3b echo ""\x3b tail -n +9 CHANGELOG.md\x3b } > CHANGELOG_new.md && mv CHANGELOG_new.md CHANGELOG.md;17f0bf59-b442-4a3e-8d36-7f41465d082a]633;C]633;E;{ head -n 8 CHANGELOG.md\x3b echo ""\x3b cat /tmp/v031_changelog.txt\x3b echo ""\x3b tail -n +11 CHANGELOG.md\x3b } > CHANGELOG_new.md && mv CHANGELOG_new.md CHANGELOG.md;17f0bf59-b442-4a3e-8d36-7f41465d082a]633;C]633;E;{ head -n 8 CHANGELOG.md\x3b echo ""\x3b cat /tmp/v030_changelog.txt\x3b echo ""\x3b tail -n +9 CHANGELOG.md\x3b } > CHANGELOG_new.md && mv CHANGELOG_new.md CHANGELOG.md;17f0bf59-b442-4a3e-8d36-7f41465d082a]633;C# Changelog
 
 All notable changes to the OraDBA Data Safe Extension will be documented in this file.
 
@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.2.0] - 2026-01-09
+
+## [0.3.2] - 2026-01-10
+
+### Added
+
+- **Rewritten Script:**
+  - `ds_target_connect_details.sh` - Display connection details for Data Safe targets
+    - Complete rewrite to v0.2.0 framework (simplified from 608 lines legacy version)
+    - Show listener port, service name, and VM cluster hosts
+    - Generate connection strings with sqlplus format
+    - Resolve on-premises connector and compartment information
+    - Multiple output formats (table, JSON)
+    - Clean integration with v0.2.0 framework (init_config, parse_common_opts, validate_inputs)
+
+### Fixed
+
+- Fixed `ds_target_connect_details.sh` which was not working correctly in legacy version
+- Removed complex library dependencies (lib_all.sh) in favor of simplified ds_lib.sh
+- All shellcheck warnings resolved
+
+
 
 ## [0.3.1] - 2026-01-10
 
