@@ -169,7 +169,7 @@ list_services() {
         
         local sudoers_file="/etc/sudoers.d/oracle-datasafe-${connector_name}"
         if [[ ! -f "$sudoers_file" ]]; then
-            sudoers_file="/etc/sudoers.d/oravw-datasafe-${connector_name}"
+            sudoers_file="/etc/sudoers.d/oracle-datasafe-${connector_name}"
         fi
         [[ -f "$sudoers_file" ]] && echo "    Sudoers: $sudoers_file"
         

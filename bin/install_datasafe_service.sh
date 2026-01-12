@@ -147,13 +147,13 @@ ${BOLD}Examples:${NC}
     $SCRIPT_NAME -n my-connector --remove
 
     # Custom configuration
-    $SCRIPT_NAME -n my-connector -u oravw -g dba -j /opt/java/jdk
+    $SCRIPT_NAME -n my-connector -u oracle -g dba -j /opt/java/jdk
 
     # Install without sudo config (for environments with external sudo management)
     $SCRIPT_NAME -n my-connector --skip-sudo -y
 
     # Custom configuration
-    $SCRIPT_NAME -n my-connector -u oravw -g dba -j /opt/java/jdk
+    $SCRIPT_NAME -n my-connector -u oracle -g dba -j /opt/java/jdk
 
 ${BOLD}Environment Variables:${NC}
     CONNECTOR_BASE            Override default connector base path

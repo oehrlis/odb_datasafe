@@ -26,7 +26,7 @@ readonly SCRIPT_VERSION="0.2.0"
 : "${COMPARTMENT:=}"
 : "${TARGETS:=}"
 : "${LIFECYCLE_STATE:=ACTIVE}"
-: "${DB_DOMAIN:=b2x.vwg}"
+: "${DB_DOMAIN:=oradba.ch}"
 : "${APPLY_CHANGES:=false}"
 
 # Load library
