@@ -1,6 +1,7 @@
 # OraDBA Data Safe Extension
 
-Oracle Data Safe management extension for OraDBA - comprehensive tools for managing OCI Data Safe targets, connectors, and operations.
+Oracle Data Safe management extension for OraDBA - comprehensive tools for managing
+OCI Data Safe targets, connectors, and operations.
 
 ## Overview
 
@@ -92,24 +93,24 @@ ds_target_update_credentials.sh <target-id>
 
 Located in `bin/` directory:
 
-| Script | Purpose |
-|--------|---------|
-| `ds_target_list.sh` | List all Data Safe targets |
-| `ds_target_details.sh` | Get detailed target information |
-| `ds_target_refresh.sh` | Refresh target in Data Safe |
-| `ds_target_register.sh` | Register new database target |
-| `ds_target_update_credentials.sh` | Update target database credentials |
-| `ds_target_update_tags.sh` | Update target tags |
-| `ds_target_delete.sh` | Delete a target from Data Safe |
-| `ds_target_audit_trail.sh` | Manage audit trail configuration |
-| `ds_target_connect_details.sh` | Get connection details |
+| Script                            | Purpose                                   |
+|-----------------------------------|-------------------------------------------|
+| `ds_target_list.sh`               | List all Data Safe targets                |
+| `ds_target_details.sh`            | Get detailed target information           |
+| `ds_target_refresh.sh`            | Refresh target in Data Safe               |
+| `ds_target_register.sh`           | Register new database target              |
+| `ds_target_update_credentials.sh` | Update target database credentials        |
+| `ds_target_update_tags.sh`        | Update target tags                        |
+| `ds_target_delete.sh`             | Delete a target from Data Safe            |
+| `ds_target_audit_trail.sh`        | Manage audit trail configuration          |
+| `ds_target_connect_details.sh`    | Get connection details                    |
 
 ### Service Management
 
-| Script | Purpose |
-|--------|---------|
-| `install_datasafe_service.sh` | Install Data Safe connector as systemd service |
-| `uninstall_all_datasafe_services.sh` | Remove all Data Safe connector services |
+| Script                                | Purpose                                          |
+|---------------------------------------|--------------------------------------------------|
+| `install_datasafe_service.sh`         | Install Data Safe connector as systemd service   |
+| `uninstall_all_datasafe_services.sh`  | Remove all Data Safe connector services          |
 
 ### Library Framework
 
