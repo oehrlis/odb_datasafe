@@ -20,18 +20,18 @@ jobs:
           sudo apt-get install -y shellcheck
 
       - name: Lint shell scripts
-        run: |
-          find scripts bin lib -name "*.sh" -type f -print0 | xargs -0 shellcheck -e SC1091
+        run: make lint-shell
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
+      - name: Install markdownlint
+        run: npm install -g markdownlint-cli
+
       - name: Lint markdown
-        run: |
-          npm install -g markdownlint-cli
-          markdownlint "**/*.md" --ignore node_modules --ignore dist --ignore build
+        run: make lint-markdown
 
   test:
     name: Shell Tests
@@ -46,4 +46,4 @@ jobs:
           sudo apt-get install -y bats
 
       - name: Run tests
-        run: bats tests
+        run: make test

@@ -52,14 +52,8 @@ jobs:
             exit 1
           fi
 
-      - name: Lint
-        run: make lint
-
-      - name: Test
-        run: make test
-
-      - name: Build tarball
-        run: ./scripts/build.sh
+      - name: Run CI checks
+        run: make ci
 
       - name: Generate release notes
         id: release_notes
@@ -71,8 +65,8 @@ jobs:
           Extension template tarball for OraDBA.
 
           ## Assets
-          - odb_datasafe-${VERSION}.tar.gz
-          - odb_datasafe-${VERSION}.tar.gz.sha256
+          - extension-template-${VERSION}.tar.gz
+          - extension-template-${VERSION}.tar.gz.sha256
 
           ## Usage
           Extract the tarball into ${ORADBA_LOCAL_BASE} and adjust metadata/configs as needed.

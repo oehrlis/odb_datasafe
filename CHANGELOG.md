@@ -6,6 +6,55 @@ All notable changes to the OraDBA Data Safe Extension will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-01-12
+
+### Changed
+
+- **Project Structure Alignment** - Adopted oradba_extension template standards
+  - Updated Makefile to match template structure with enhanced targets
+  - Added `make help` with categorized targets and color output
+  - Added `make format`, `make check`, `make ci`, `make pre-commit` targets
+  - Added `make tools` to show development tools status
+  - Added `make info` for project information display
+  - Added version bump targets: `version-bump-patch/minor/major`
+  - Added quick shortcuts: `t` (test), `l` (lint), `f` (format), `b` (build), `c` (clean)
+  - Updated test target to exclude integration tests by default (60s timeout)
+  - Kept `make test-all` for full test suite including integration tests
+  - Updated markdown linting to exclude CHANGELOG.md
+
+- **CI/CD Workflows** - Updated GitHub Actions workflows to template standards
+  - Enhanced CI workflow with proper job dependencies
+  - Updated release workflow with version validation
+  - Added workflow_dispatch for manual triggering
+  - Improved release notes generation
+
+- **Metadata Updates**
+  - Updated .extension file: version 0.5.0, added `doc: true`
+  - VERSION: 0.4.0 → 0.5.0
+
+- **Documentation** - Aligned with template conventions
+  - Maintained datasafe-specific documentation in doc/
+  - Project follows template development workflow
+
+### Technical Details
+
+**Makefile Enhancements:**
+- Color-coded output for better readability
+- Organized targets into logical categories (Development, Build, Version, CI/CD, Tools)
+- Better error handling and tool detection
+- Consistent messaging across all targets
+- Added comprehensive help system
+
+**Testing:**
+- Unit tests run fast (60s timeout, exclude integration)
+- Full test suite available via `make test-all`
+- Integration tests separated for CI/CD efficiency
+
+**Quality:**
+- Shellcheck: 100% pass rate maintained
+- Markdown lint: Configured for CHANGELOG format
+- All template standards adopted
+
 ## [0.4.0] - 2026-01-11
 
 ### Added
