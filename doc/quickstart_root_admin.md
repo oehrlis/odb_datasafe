@@ -80,7 +80,7 @@ sudo journalctl -u oracle_datasafe_my-connector.service -f
 ```bash
 # Install specific connector without prompts
 sudo install_datasafe_service.sh \
-  --connector ds-conn-exacc-p1312-wob-vwg \
+  --connector ds-conn-oradba-prod \
   --yes
 ```
 
@@ -123,7 +123,7 @@ netstat -tlnp | grep cmgw
 # Custom user/group
 sudo install_datasafe_service.sh \
   -n my-connector \
-  -u oravw \
+  -u oracle \
   -g dba \
   --yes
 

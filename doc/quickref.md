@@ -371,8 +371,8 @@ ds_target_details.sh -T target1,target2
 # Show details for all targets in compartment (JSON output)
 ds_target_details.sh -c prod-compartment -O json
 
-# Get cluster/CDB/PDB info for ExaCC targets
-ds_target_details.sh -T exacc-target -O table
+# Get cluster/CDB/PDB info for specific target
+ds_target_details.sh -T my-target-id -O table
 ```
 
 ## 🆕 New in v0.3.1

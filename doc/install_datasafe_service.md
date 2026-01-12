@@ -80,13 +80,13 @@ Example output:
 ```text
 Available connectors:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- 1. ds-conn-exacc-p1312-wob-vwg                      [NOT INSTALLED]
-    Path: /appl/oracle/product/dsconnect/ds-conn-exacc-p1312-wob-vwg
-    CMAN: cust_cman
+ 1. ds-conn-oradba-prod                              [NOT INSTALLED]
+    Path: /appl/oracle/product/dsconnect/ds-conn-oradba-prod
+    CMAN: oradba_cman
 
- 2. ds-conn-prod-fra                                 [INSTALLED]
-    Path: /appl/oracle/product/dsconnect/ds-conn-prod-fra
-    CMAN: prod_cman
+ 2. ds-conn-oradba-test                              [INSTALLED]
+    Path: /appl/oracle/product/dsconnect/ds-conn-oradba-test
+    CMAN: test_cman
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Total: 2 connector(s) found
 ```
@@ -97,7 +97,7 @@ Install a specific connector:
 
 ```bash
 sudo install_datasafe_service.sh \
-  --connector ds-conn-exacc-p1312-wob-vwg \
+  --connector ds-conn-oradba-prod \
   --yes
 ```
 
@@ -106,7 +106,7 @@ With custom configuration:
 ```bash
 sudo install_datasafe_service.sh \
   --connector my-connector \
-  --user oravw \
+  --user oracle \
   --group dba \
   --java-home /opt/java/jdk \
   --yes
@@ -163,7 +163,7 @@ Override defaults using environment variables:
 
 ```bash
 export CONNECTOR_BASE="/custom/path/to/connectors"
-export OS_USER="oravw"
+export OS_USER="oracle"
 export OS_GROUP="dba"
 export JAVA_HOME="/opt/java/jdk"
 
@@ -366,9 +366,9 @@ sudo install_datasafe_service.sh \
 # install_all_connectors.sh
 
 CONNECTORS=(
-  "ds-conn-prod-fra"
-  "ds-conn-test-ams"
-  "ds-conn-dev-lon"
+  "ds-conn-oradba-prod"
+  "ds-conn-oradba-test"
+  "ds-conn-oradba-dev"
 )
 
 for connector in "${CONNECTORS[@]}"; do
@@ -444,13 +444,13 @@ Scanning for Data Safe connectors in: /appl/oracle/product/dsconnect
 
 Available Data Safe On-Premises Connectors:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- 1. ds-conn-exacc-p1312-wob-vwg
- 2. ds-conn-prod-frankfurt
+ 1. ds-conn-oradba-prod
+ 2. ds-conn-oradba-test
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Select connector (1-2) or 'q' to quit: 1
-✅ Selected connector: ds-conn-exacc-p1312-wob-vwg
-✅ Connector validated: ds-conn-exacc-p1312-wob-vwg
+✅ Selected connector: ds-conn-oradba-prod
+✅ Connector validated: ds-conn-oradba-prod
 ▶  Installing Data Safe Connector Service
 ...
 ✅ Data Safe Connector Service Installation Complete
@@ -461,16 +461,16 @@ Select connector (1-2) or 'q' to quit: 1
 ```bash
 # Non-interactive installation
 sudo install_datasafe_service.sh \
-  --connector ds-conn-exacc-p1312-wob-vwg \
+  --connector ds-conn-oradba-prod \
   --user oracle \
   --group dba \
   --java-home /appl/oracle/product/dsconnect/jdk \
   --yes
 
 # Oracle user can now manage the service
-[oracle@server]$ sudo systemctl status oracle_datasafe_ds-conn-exacc-p1312-wob-vwg.service
-● oracle_datasafe_ds-conn-exacc-p1312-wob-vwg.service - Oracle Data Safe On-Premises Connector
-   Loaded: loaded (/etc/systemd/system/oracle_datasafe_ds-conn-exacc-p1312-wob-vwg.service)
+[oracle@server]$ sudo systemctl status oracle_datasafe_ds-conn-oradba-prod.service
+● oracle_datasafe_ds-conn-oradba-prod.service - Oracle Data Safe On-Premises Connector
+   Loaded: loaded (/etc/systemd/system/oracle_datasafe_ds-conn-oradba-prod.service)
    Active: active (running) since Thu 2026-01-11 10:30:00 UTC
 ```
 
