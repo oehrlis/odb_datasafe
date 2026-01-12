@@ -1,6 +1,7 @@
 # Test Suite for odb_datasafe
 
-This directory contains a comprehensive test suite for the OraDBA Data Safe Extension v0.2.0, built using the [BATS (Bash Automated Testing System)](https://github.com/bats-core/bats-core) framework.
+This directory contains a comprehensive test suite for the OraDBA Data Safe
+Extension v0.2.0, built using the [BATS (Bash Automated Testing System)](https://github.com/bats-core/bats-core) framework.
 
 ## 📋 Test Structure
 
@@ -80,6 +81,7 @@ make test
 The test suite provides comprehensive coverage across multiple dimensions:
 
 ### Functional Coverage
+
 - ✅ **CLI Argument Parsing** - All option combinations and validation
 - ✅ **Configuration Loading** - Environment files, CLI overrides, defaults
 - ✅ **OCI Integration** - API calls, response handling, error conditions
@@ -88,11 +90,13 @@ The test suite provides comprehensive coverage across multiple dimensions:
 - ✅ **Error Handling** - Invalid inputs, missing resources, API failures
 
 ### Library Function Coverage
+
 - ✅ **common.sh functions**: `log_*`, `is_ocid`, `require_cmd`, `init_config`, etc.
 - ✅ **oci_helpers.sh functions**: `oci_exec`, `oci_resolve_*`, `ds_*`, etc.
 - ✅ **Integration patterns**: Library loading, function composition, error propagation
 
 ### Script Coverage
+
 - ✅ **ds_target_list.sh**: Count/details modes, filtering, output formats
 - ✅ **ds_target_update_tags.sh**: Environment detection, tag application, dry-run/apply
 - ✅ **ds_target_update_credentials.sh**: Credential sources, security, target selection
@@ -101,22 +105,28 @@ The test suite provides comprehensive coverage across multiple dimensions:
 ## 🔧 Test Architecture
 
 ### Mock OCI CLI
+
 All tests use a comprehensive mock OCI CLI that:
+
 - ✅ Simulates realistic API responses
 - ✅ Supports all required Data Safe operations
 - ✅ Handles compartment resolution and target queries
 - ✅ Provides consistent test data across test suites
 
 ### Test Environment
+
 Each test runs in an isolated environment with:
+
 - ✅ Temporary directories for config and data files
 - ✅ Mock OCI CLI in PATH precedence
 - ✅ Controlled environment variables
 - ✅ Automatic cleanup after each test
 
 ### Test Data
+
 Consistent test data across all suites:
-```
+
+```text
 Compartments:
 - ocid1.compartment.oc1..test-root (DS_ROOT_COMP)
 - ocid1.compartment.oc1..prod-comp (cmp-lzp-dbso-prod-projects)
@@ -134,6 +144,7 @@ Connectors:
 ## 📊 Test Results
 
 ### Test Execution
+
 ```bash
 # Example test run output
 OraDBA Data Safe Test Runner v0.2.0
@@ -154,7 +165,9 @@ Test execution time: 12 seconds
 ```
 
 ### Coverage Report
+
 The test runner can generate coverage reports showing:
+
 - Total library functions vs functions with tests
 - Estimated test coverage percentage
 - Detailed coverage by component
@@ -162,6 +175,7 @@ The test runner can generate coverage reports showing:
 ## 🐛 Debugging Tests
 
 ### Verbose Output
+
 ```bash
 # See detailed test execution
 ./tests/run_tests.sh -v
@@ -171,6 +185,7 @@ bats -v tests/lib_common.bats
 ```
 
 ### Test Debugging
+
 ```bash
 # Run single test with debugging
 bats --verbose-run tests/script_ds_target_list.bats
@@ -180,6 +195,7 @@ bats --verbose-run tests/script_ds_target_list.bats
 ```
 
 ### Manual Testing
+
 ```bash
 # Set up test environment manually
 export TEST_TEMP_DIR="/tmp/bats-test"
@@ -196,7 +212,9 @@ PATH="$TEST_TEMP_DIR/bin:$PATH" ./bin/ds_target_list.sh --help
 ## 🔄 Continuous Integration
 
 ### Integration with Make
+
 The test suite integrates with the project Makefile:
+
 ```bash
 make test           # Run all tests
 make lint           # Run linting
@@ -204,7 +222,9 @@ make build          # Build and test
 ```
 
 ### CI/CD Pipeline
+
 For automated testing in CI/CD:
+
 ```yaml
 # Example GitHub Actions step
 - name: Run Test Suite
@@ -226,6 +246,7 @@ For automated testing in CI/CD:
 ## 🎯 Best Practices
 
 ### Writing New Tests
+
 1. **Follow naming conventions**: `test_category_component.bats`
 2. **Use descriptive test names**: `@test "script validates required arguments"`
 3. **Test both success and failure cases**
@@ -233,6 +254,7 @@ For automated testing in CI/CD:
 5. **Keep tests focused and atomic**
 
 ### Test Organization
+
 1. **Group related tests** in the same file
 2. **Use consistent mock data** across test suites
 3. **Test integration points** between components
@@ -240,6 +262,7 @@ For automated testing in CI/CD:
 5. **Test edge cases** and boundary conditions
 
 ### Performance
+
 1. **Use parallel execution** for faster test runs
 2. **Mock external dependencies** (OCI CLI, network calls)
 3. **Clean up resources** in teardown functions
@@ -255,4 +278,6 @@ For automated testing in CI/CD:
 
 ---
 
-The test suite ensures the reliability and maintainability of the odb_datasafe framework by providing comprehensive automated validation of all components and workflows.
+The test suite ensures the reliability and maintainability of the odb_datasafe
+framework by providing comprehensive automated validation of all components and
+workflows.

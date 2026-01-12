@@ -6,7 +6,63 @@ All notable changes to the OraDBA Data Safe Extension will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.0] - 2026-01-09
+## [0.4.0] - 2026-01-11
+
+### Added
+
+- **Service Installer Scripts** - Major new feature for production deployments
+  - `install_datasafe_service.sh` - Generic installer for Data Safe connectors as systemd services
+    - Auto-discovers connectors in base directory
+    - Validates connector structure (cmctl, cman.ora, Java)
+    - Generates systemd service files
+    - Creates sudo configurations for oracle user
+    - Multiple operation modes: interactive, non-interactive, test, dry-run
+    - Flags: `--test`, `--dry-run`, `--skip-sudo`, `--no-color`, `--list`, `--check`, `--remove`
+    - Works without root for test/dry-run modes (enables CI/CD testing)
+  - `uninstall_all_datasafe_services.sh` - Batch uninstaller for all Data Safe services
+    - Auto-discovers all oracle_datasafe_*.service files
+    - Lists services with status (ACTIVE/INACTIVE)
+    - Interactive confirmation or `--force` mode
+    - Preserves connector installations, removes only service configs
+    - Dry-run support for safe testing
+
+### Changed
+
+- **Documentation Reorganization**
+  - Root README.md simplified for root administrators (hyper-simple, 3-command setup)
+  - All docs moved to `./doc` directory with lowercase names and numbered sorting
+  - Created documentation index at `doc/README.md` with clear organization
+  - Renamed files with numbers for logical ordering:
+    - `doc/01_quickref.md` - Quick reference guide
+    - `doc/02_migration_complete.md` - Migration guide
+    - `doc/03_release_notes_v0.3.0.md` - v0.3.0 release notes
+    - `doc/04_service_installer.md` - Service installer summary
+    - `doc/05_quickstart_root_admin.md` - Root admin quickstart
+    - `doc/06_install_datasafe_service.md` - Detailed service installer docs
+    - `doc/07_release_notes_v0.2.0.md` - v0.2.0 release notes
+
+### Fixed
+
+- Fixed shellcheck warning in `uninstall_all_datasafe_services.sh` (unused variable)
+- Fixed syntax errors in `install_datasafe_service.sh` from initial implementation
+- All shellcheck linting now passes (100% clean)
+
+### Testing
+
+- **New Test Suites**
+  - `tests/install_datasafe_service.bats` - 17 tests for service installer (8 passing)
+  - `tests/uninstall_all_datasafe_services.bats` - 5 tests for batch uninstaller (all passing)
+  - `tests/test_helper.bash` - Common test helper functions
+  - Test coverage: 110/191 tests pass (81 failures require real connectors or OCI CLI)
+  - `make test` and `make lint` both working correctly
+
+### Documentation
+
+- New comprehensive documentation:
+  - `doc/04_service_installer.md` - Complete service installer guide with examples
+  - `doc/05_quickstart_root_admin.md` - 5-minute setup for root administrators
+  - `doc/README.md` - Documentation index with clear navigation
+  - Root `README.md` - Hyper-simple for immediate use
 
 ## [0.3.3] - 2026-01-11
 

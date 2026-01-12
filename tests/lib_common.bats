@@ -92,7 +92,7 @@ teardown() {
     # Debug message should not appear (filtered by level)
     
     # With debug level
-    export LOG_LEVEL=1  # DEBUG level
+    export LOG_LEVEL=DEBUG  # Use string level name
     run log_debug "debug message"
     [ "$status" -eq 0 ]
     [[ "$output" == *"debug message"* ]]

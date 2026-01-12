@@ -427,4 +427,3 @@ ds_target_connect_details.sh -T MYPDB -c my-compartment-name
 # Get connection details with debug output
 ds_target_connect_details.sh -T exa118r05c15_cdb09a15_MYPDB -d
 ```
-
