@@ -6,6 +6,28 @@ All notable changes to the OraDBA Data Safe Extension will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-01-13
+
+### Added
+
+- **OCI IAM Policy Documentation** - Comprehensive IAM policy guide for Data Safe management
+  - Added `doc/oci-iam-policies.md` with production-ready policy statements
+  - Four access profiles: DataSafeAdmins, DataSafeOperations, DataSafeAuditors, DataSafeServiceAccount
+  - Service account (dynamic group) configuration for automated operations
+  - Hierarchical compartment access patterns for cross-compartment target management
+  - Security best practices: MFA requirements, network restrictions, audit logging
+  - Complete deployment guide with OCI CLI commands
+  - Testing and validation procedures for each access profile
+  - Troubleshooting guide for common authorization issues
+  - Production-grade security considerations and maintenance guidelines
+
+### Documentation
+
+- Analyzed all OCI CLI operations used across odb_datasafe scripts
+- Documented OCI Data Safe resource types and permission requirements
+- Created role-based access control (RBAC) model aligned with security best practices
+- Added policy examples for vault secrets integration (future use)
+
 ## [0.5.0] - 2026-01-12
 
 ### Changed

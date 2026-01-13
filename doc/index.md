@@ -21,7 +21,7 @@ Extract the extension to your OraDBA local directory:
 
 ```bash
 cd ${ORADBA_LOCAL_BASE}
-tar -xzf odb_datasafe-0.5.0.tar.gz
+tar -xzf odb_datasafe-0.5.1.tar.gz
 
 # Source OraDBA environment
 source oraenv.sh
@@ -126,8 +126,8 @@ See [lib/README.md](../lib/README.md) for API documentation.
 
 ```text
 odb_datasafe/
-├── .extension              # Extension metadata (v0.5.0)
-├── VERSION                 # 0.5.0
+├── .extension              # Extension metadata (v0.5.1)
+├── VERSION                 # 0.5.1
 ├── README.md               # Main documentation
 ├── CHANGELOG.md            # Release history
 ├── Makefile                # Development tasks
@@ -213,6 +213,6 @@ Apache License 2.0
 
 ## Version
 
-Current version: **0.5.0**
+Current version: **0.5.1**
 
 See [CHANGELOG.md](../CHANGELOG.md) for version history and [release_notes/](release_notes/) for detailed release documentation.
