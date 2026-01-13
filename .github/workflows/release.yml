@@ -59,18 +59,43 @@ jobs:
         id: release_notes
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          cat > release_notes.md <<EOF
-          # OraDBA Extension Template v${VERSION}
+          RELEASE_NOTES_FILE="doc/release_notes/v${VERSION}.md"
+          
+          # Check if detailed release notes exist
+          if [ -f "$RELEASE_NOTES_FILE" ]; then
+            echo "Using detailed release notes from $RELEASE_NOTES_FILE"
+            cp "$RELEASE_NOTES_FILE" release_notes.md
+          else
+            echo "Release notes file not found, generating generic notes"
+            cat > release_notes.md <<EOF
+          # odb_datasafe v${VERSION}
 
-          Extension template tarball for OraDBA.
+          Oracle Data Safe Management Scripts
+
+          ## What's Changed
+
+          See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
 
           ## Assets
-          - extension-template-${VERSION}.tar.gz
-          - extension-template-${VERSION}.tar.gz.sha256
 
-          ## Usage
-          Extract the tarball into ${ORADBA_LOCAL_BASE} and adjust metadata/configs as needed.
+          - **odb_datasafe-${VERSION}.tar.gz**: Distribution tarball
+          - **odb_datasafe-${VERSION}.tar.gz.sha256**: Checksum file
+
+          ## Installation
+
+          \`\`\`bash
+          tar -xzf odb_datasafe-${VERSION}.tar.gz
+          cd odb_datasafe
+          make install
+          \`\`\`
+
+          ## Documentation
+
+          - [Quick Reference](https://github.com/${{ github.repository }}/blob/main/doc/quickref.md)
+          - [Installation Guide](https://github.com/${{ github.repository }}/blob/main/doc/install_datasafe_service.md)
+          - [OCI IAM Policies](https://github.com/${{ github.repository }}/blob/main/doc/oci-iam-policies.md)
           EOF
+          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1

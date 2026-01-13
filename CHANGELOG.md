@@ -27,6 +27,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documented OCI Data Safe resource types and permission requirements
 - Created role-based access control (RBAC) model aligned with security best practices
 - Added policy examples for vault secrets integration (future use)
+- Added detailed release notes for v0.5.0 and v0.5.1 (`doc/release_notes/`)
+
+### Changed
+
+- **Release Workflow** - Enhanced GitHub Actions release workflow
+  - Updated release notes generation to check for version-specific markdown files
+  - Workflow now uses detailed release notes from `doc/release_notes/v{VERSION}.md` if available
+  - Falls back to generic release notes with proper project branding
+  - Improved documentation links in release artifacts
 
 ## [0.5.0] - 2026-01-12
 
