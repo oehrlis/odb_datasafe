@@ -218,8 +218,12 @@ version-bump-patch: ## Bump patch version (0.0.X)
 	minor=$${rest%%.*}; \
 	patch=$${rest#*.}; \
 	new_patch=$$((patch + 1)); \
-	echo "$$major.$$minor.$$new_patch" > VERSION; \
-	echo -e "$(COLOR_GREEN)✓ Version bumped: $$current → $$major.$$minor.$$new_patch$(COLOR_RESET)"
+	new_version="$$major.$$minor.$$new_patch"; \
+	echo "$$new_version" > VERSION; \
+	sed -i.bak "s/^version:.*/version: $$new_version/" .extension && rm -f .extension.bak || \
+	sed -i '' "s/^version:.*/version: $$new_version/" .extension; \
+	echo -e "$(COLOR_GREEN)✓ Version bumped: $$current → $$new_version$(COLOR_RESET)"; \
+	echo -e "$(COLOR_GREEN)✓ Updated VERSION file and .extension metadata$(COLOR_RESET)"
 
 .PHONY: version-bump-minor
 version-bump-minor: ## Bump minor version (0.X.0)
@@ -229,8 +233,12 @@ version-bump-minor: ## Bump minor version (0.X.0)
 	rest=$${current#*.}; \
 	minor=$${rest%%.*}; \
 	new_minor=$$((minor + 1)); \
-	echo "$$major.$$new_minor.0" > VERSION; \
-	echo -e "$(COLOR_GREEN)✓ Version bumped: $$current → $$major.$$new_minor.0$(COLOR_RESET)"
+	new_version="$$major.$$new_minor.0"; \
+	echo "$$new_version" > VERSION; \
+	sed -i.bak "s/^version:.*/version: $$new_version/" .extension && rm -f .extension.bak || \
+	sed -i '' "s/^version:.*/version: $$new_version/" .extension; \
+	echo -e "$(COLOR_GREEN)✓ Version bumped: $$current → $$new_version$(COLOR_RESET)"; \
+	echo -e "$(COLOR_GREEN)✓ Updated VERSION file and .extension metadata$(COLOR_RESET)"
 
 .PHONY: version-bump-major
 version-bump-major: ## Bump major version (X.0.0)
@@ -238,8 +246,12 @@ version-bump-major: ## Bump major version (X.0.0)
 	@current=$$(cat VERSION); \
 	major=$${current%%.*}; \
 	new_major=$$((major + 1)); \
-	echo "$$new_major.0.0" > VERSION; \
-	echo -e "$(COLOR_GREEN)✓ Version bumped: $$current → $$new_major.0.0$(COLOR_RESET)"
+	new_version="$$new_major.0.0"; \
+	echo "$$new_version" > VERSION; \
+	sed -i.bak "s/^version:.*/version: $$new_version/" .extension && rm -f .extension.bak || \
+	sed -i '' "s/^version:.*/version: $$new_version/" .extension; \
+	echo -e "$(COLOR_GREEN)✓ Version bumped: $$current → $$new_version$(COLOR_RESET)"; \
+	echo -e "$(COLOR_GREEN)✓ Updated VERSION file and .extension metadata$(COLOR_RESET)"
 
 .PHONY: tag
 tag: ## Create git tag from VERSION file
