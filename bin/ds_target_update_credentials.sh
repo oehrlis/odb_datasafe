@@ -106,7 +106,7 @@ Examples:
   ${SCRIPT_NAME} -T target1,target2 -U myuser -P mypass --apply
 
   # Bulk update for compartment (interactive password)
-  ${SCRIPT_NAME} -c cmp-lzp-dbso-prod-projects -U dbuser --apply
+  ${SCRIPT_NAME} -c my-compartment -U dbuser --apply
 
 EOF
     exit 0

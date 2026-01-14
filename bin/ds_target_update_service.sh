@@ -95,7 +95,7 @@ Examples:
   ${SCRIPT_NAME} --domain custom.example --apply
 
   # Process specific compartment
-  ${SCRIPT_NAME} -c cmp-lzp-dbso-prod-projects --apply
+  ${SCRIPT_NAME} -c my-compartment --apply
 
 EOF
     exit 0

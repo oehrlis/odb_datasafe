@@ -109,7 +109,7 @@ CSV columns:
 
 Examples:
   ds_target_details.sh -T exa118r05c15_cdb09a15_HRPDB,ocid1.datasafetargetdatabase...
-  ds_target_details.sh -c cmp-lzp-platform-exacc-db -O json
+  ds_target_details.sh -c my-compartment -O json
   ds_target_details.sh -c test-compartment -s ACTIVE -O table
 
 EOF

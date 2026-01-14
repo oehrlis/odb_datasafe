@@ -104,7 +104,7 @@ Logging / generic:
 
 Examples:
   ds_target_audit_trail.sh -T exa118r05c15_cdb09a15_HRPDB --dry-run
-  ds_target_audit_trail.sh -c cmp-lzp-platform-exacc-db --audit-type UNIFIED_AUDIT
+  ds_target_audit_trail.sh -c my-compartment --audit-type UNIFIED_AUDIT
   ds_target_audit_trail.sh -T test-target-1 --retention-days 180 --collection-frequency WEEKLY
 
 EOF

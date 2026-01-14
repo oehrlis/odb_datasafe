@@ -87,7 +87,7 @@ Options:
     --class-tag TAG         Classification tag key (default: ${CLASSIFICATION_TAG})
 
 Tag Rules:
-  - Environment derived from compartment pattern: cmp-lzp-dbso-{env}-projects
+  - Environment derived from compartment pattern: cmp-{org}-{env}-projects
   - Supported environments: test, qs, prod
   - Default values: Environment=undef, ContainerStage=undef, etc.
 
@@ -220,8 +220,8 @@ get_env_from_compartment_name() {
     local comp_name="$1"
     local env="undef"
     
-    # Pattern: cmp-lzp-dbso-{env}-projects
-    if [[ "$comp_name" =~ ^cmp-lzp-dbso-([^-]+)-projects$ ]]; then
+    # Pattern: cmp-{org}-{env}-projects
+    if [[ "$comp_name" =~ ^cmp-[^-]+-([^-]+)-projects$ ]]; then
         env="${BASH_REMATCH[1]}"
     fi
     

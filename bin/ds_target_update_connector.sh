@@ -116,11 +116,11 @@ Examples:
   ${SCRIPT_NAME} set -T target1,target2 --target-connector conn-prod-02 --apply
 
   # Migrate all targets from old to new connector in compartment
-  ${SCRIPT_NAME} migrate -c cmp-lzp-dbso-prod-projects \\
+  ${SCRIPT_NAME} migrate -c my-compartment \
     --source-connector conn-old --target-connector conn-new --apply
 
   # Distribute all targets across available connectors (dry-run)
-  ${SCRIPT_NAME} distribute -c cmp-lzp-dbso-prod-projects
+  ${SCRIPT_NAME} distribute -c my-compartment
 
   # Apply distribution for entire root compartment
   ${SCRIPT_NAME} distribute --apply

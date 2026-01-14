@@ -107,7 +107,7 @@ Logging / generic:
 
 Examples:
   ${SCRIPT_NAME} -T exa118r05c15_cdb09a15_HRPDB,test-target-2 --dry-run
-  ${SCRIPT_NAME} -c cmp-lzp-platform-exacc-db -s NEEDS_ATTENTION --force
+  ${SCRIPT_NAME} -c my-compartment -s NEEDS_ATTENTION --force
   ${SCRIPT_NAME} -T ocid1.datasafetargetdatabase... --no-delete-dependencies
 
 EOF
