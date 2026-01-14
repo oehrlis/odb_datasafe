@@ -2,9 +2,9 @@
 # ------------------------------------------------------------------------------
 # OraDBA - Oracle Database Infrastructure and Security, 5630 Muri, Switzerland
 # ------------------------------------------------------------------------------
-# Module.....: common.sh (v4.0.0)
+# Module.....: common.sh (v4.0.1)
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.01.09
+# Date.......: 2026.01.14
 # Purpose....: Generic utilities for bash scripts - logging, error handling, 
 #              argument parsing helpers. Designed to be reusable across projects.
 # License....: Apache License Version 2.0
@@ -113,12 +113,8 @@ log() {
     
     local formatted="${color}[${timestamp}] [${level}]${reset} ${msg}"
     
-    # Output to stderr for WARN/ERROR/FATAL, stdout for others
-    if [[ "$level" =~ ^(WARN|ERROR|FATAL)$ ]]; then
-        echo -e "$formatted" >&2
-    else
-        echo -e "$formatted"
-    fi
+    # Output all log messages to stderr to avoid contaminating command output
+    echo -e "$formatted" >&2
     
     # Also log to file if configured
     if [[ -n "${LOG_FILE}" ]]; then
@@ -312,15 +308,15 @@ parse_common_opts() {
                 exit 0
                 ;;
             -v|--verbose)
-                LOG_LEVEL=1  # DEBUG
+                LOG_LEVEL=DEBUG
                 shift
                 ;;
             -d|--debug)
-                LOG_LEVEL=0  # TRACE
+                LOG_LEVEL=TRACE
                 shift
                 ;;
             -q|--quiet)
-                LOG_LEVEL=3  # WARN
+                LOG_LEVEL=WARN
                 shift
                 ;;
             -n|--dry-run)

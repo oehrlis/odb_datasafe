@@ -2,9 +2,9 @@
 # ------------------------------------------------------------------------------
 # OraDBA - Oracle Database Infrastructure and Security, 5630 Muri, Switzerland
 # ------------------------------------------------------------------------------
-# Module.....: oci_helpers.sh (v4.0.0)
+# Module.....: oci_helpers.sh (v4.0.1)
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.01.09
+# Date.......: 2026.01.14
 # Purpose....: OCI CLI wrapper functions for Oracle Data Safe operations
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
@@ -207,6 +207,45 @@ oci_resolve_compartment_name() {
     fi
     
     echo "$result"
+}
+
+# ------------------------------------------------------------------------------
+# Function....: oci_get_compartment_name
+# Purpose.....: Get name for compartment or tenancy OCID
+# Parameters..: $1 - compartment or tenancy OCID
+# Returns.....: Name on stdout (or original OCID if resolution fails)
+# Usage.......: name=$(oci_get_compartment_name "$ocid")
+# Notes.......: Handles both compartment and tenancy OCIDs gracefully
+# ------------------------------------------------------------------------------
+oci_get_compartment_name() {
+    local ocid="$1"
+    
+    if ! is_ocid "$ocid"; then
+        echo "$ocid"
+        return 0
+    fi
+    
+    # Check if it's a tenancy OCID
+    if [[ "$ocid" =~ ^ocid1\.tenancy\. ]]; then
+        log_debug "Resolving tenancy OCID: $ocid"
+        local result
+        result=$(oci_exec iam tenancy get \
+            --tenancy-id "$ocid" \
+            --query 'data.name' \
+            --raw-output 2>/dev/null) || {
+            log_debug "Failed to resolve tenancy name, using OCID"
+            echo "$ocid"
+            return 0
+        }
+        echo "$result"
+    else
+        # It's a compartment OCID
+        oci_resolve_compartment_name "$ocid" 2>/dev/null || {
+            log_debug "Failed to resolve compartment name, using OCID"
+            echo "$ocid"
+            return 0
+        }
+    fi
 }
 
 # =============================================================================

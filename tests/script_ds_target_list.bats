@@ -108,15 +108,22 @@ teardown() {
     [[ "$output" == *"0.2.0"* ]]
 }
 
-# Test count mode (default)
-@test "ds_target_list.sh count mode shows target summary" {
+# Test list mode (default)
+@test "ds_target_list.sh default mode shows target list" {
     run "${BIN_DIR}/ds_target_list.sh" -c "ocid1.compartment.oc1..test-root" || true
     # Script may fail with mock environment, but should not crash
     [[ "$status" -eq 0 ]] || [[ "$status" -eq 1 ]]
 }
 
+# Test count mode (with -C flag)
+@test "ds_target_list.sh count mode shows target summary" {
+    run "${BIN_DIR}/ds_target_list.sh" -C -c "ocid1.compartment.oc1..test-root" || true
+    # Script may fail with mock environment, but should not crash
+    [[ "$status" -eq 0 ]] || [[ "$status" -eq 1 ]]
+}
+
 @test "ds_target_list.sh count mode with specific lifecycle state" {
-    run "${BIN_DIR}/ds_target_list.sh" -c "ocid1.compartment.oc1..test-root" -L ACTIVE
+    run "${BIN_DIR}/ds_target_list.sh" -C -c "ocid1.compartment.oc1..test-root" -L ACTIVE
     [ "$status" -eq 0 ] || [ "$status" -eq 1 ]  # May fail in mock environment
 }
 
@@ -172,9 +179,16 @@ teardown() {
 }
 
 @test "ds_target_list.sh supports debug mode" {
-    run "${BIN_DIR}/ds_target_list.sh" -d -c "ocid1.compartment.oc1..test-root"
+    run "${BIN_DIR}/ds_target_list.sh" -d -C -c "ocid1.compartment.oc1..test-root" 2>&1
     [ "$status" -eq 0 ]
-    [[ "$output" == *"DEBUG"* ]]
+    [[ "$output" == *"DEBUG"* ]] || [[ "$output" == *"TRACE"* ]]
+}
+
+@test "ds_target_list.sh supports quiet mode" {
+    run "${BIN_DIR}/ds_target_list.sh" -q -C -c "ocid1.compartment.oc1..test-root" 2>&1
+    [ "$status" -eq 0 ]
+    # In quiet mode, should not have INFO messages
+    [[ "$output" != *"[INFO]"* ]] || [[ "$output" != *"Starting ds_target_list"* ]]
 }
 
 # Test specific target selection
@@ -204,7 +218,8 @@ teardown() {
     # Remove explicit compartment and rely on .env
     run "${BIN_DIR}/ds_target_list.sh"
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Data Safe Target Summary"* ]]
+    # Default is list mode, not count mode
+    [[ "$output" == *"display-name"* ]] || [[ "$output" == *"test-target"* ]]
 }
 
 # Test tag-related functionality

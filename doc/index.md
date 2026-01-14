@@ -60,8 +60,17 @@ The extension is automatically discovered and loaded.
 ### Basic Usage
 
 ```bash
-# List all Data Safe targets
+# List all Data Safe targets (table format, default)
 ds_target_list.sh
+
+# Show count summary by lifecycle state
+ds_target_list.sh -C
+
+# Quiet mode (suppress INFO messages)
+ds_target_list.sh -q
+
+# Debug mode (show detailed debug output)
+ds_target_list.sh -d
 
 # Get target details
 ds_target_details.sh <target-id>

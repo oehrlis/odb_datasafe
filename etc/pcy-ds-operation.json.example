@@ -1,0 +1,9 @@
+[
+  "Allow group grp-ds-operation to use data-safe-family in compartment id <datasafe-compartment-ocid>",
+  "Allow group grp-ds-operation to inspect data-safe-family in compartment id <datasafe-compartment-ocid>",
+  "Allow group grp-ds-operation to read compartments in tenancy",
+  "Allow group grp-ds-operation to read database-family in tenancy",
+  "Allow group grp-ds-operation to read autonomous-database-family in tenancy",
+  "Allow group grp-ds-operation to use tag-namespaces in tenancy",
+  "Allow group grp-ds-operation to read secret-family in compartment id <datasafe-compartment-ocid>"
+]

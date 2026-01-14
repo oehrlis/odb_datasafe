@@ -7,12 +7,10 @@ Data Safe management in a production environment. The policies are designed to
 support automated operations via service accounts while providing appropriate
 access levels for different administrative roles.
 
-**Document Version:** 1.0  
-**Date:** 2026-01-13  
+**Document Version:** 1.0.0
+**Date:** 13.01.2026
 **Environment:** Production  
 **Policy Scope:** Hierarchical compartment access from root compartment
-
----
 
 ## Architecture
 
@@ -29,13 +27,14 @@ access levels for different administrative roles.
 - **Service Account Priority:** Automation via service account for routine operations
 - **Production-Grade:** Strict access controls with audit capability
 
----
-
 ## Groups and Roles
 
-### 1. DataSafeAdmins
+### Data Safe Admin Group
 
-**Purpose:** Full lifecycle management of Data Safe resources  
+**Group Name:** `grp-ds-admin`  
+**Description:** Data Safe administration group with full administrative rights
+across OCI resources, enabling management of all cloud services, configurations,
+and security policies, excluding Identity and access management configurations.  
 **Use Case:** Senior DBAs and Cloud Administrators  
 **Capabilities:**
 
@@ -44,9 +43,11 @@ access levels for different administrative roles.
 - Policy and assessment configuration
 - Emergency access and troubleshooting
 
-### 2. DataSafeOperations
+### Data Safe Operation Group
 
-**Purpose:** Day-to-day operational management  
+**Group Name:** `grp-ds-operation`  
+**Description:** Data Safe operations group with day-to-day operational management
+capabilities for target configuration, maintenance, and assessment execution.  
 **Use Case:** DBAs and Database Operations team  
 **Capabilities:**
 
@@ -55,9 +56,12 @@ access levels for different administrative roles.
 - Policy and assessment execution
 - Read-only access to connectors (use existing)
 
-### 3. DataSafeAuditors
+### Data Safe Auditor Group
 
-**Purpose:** Security compliance and audit reporting  
+**Group Name:** `grp-ds-auditor`  
+**Description:** Data Safe auditor group with read-only access for security
+compliance and audit reporting, enabling comprehensive monitoring without modification
+capabilities.  
 **Use Case:** Security Officers, Compliance Team  
 **Capabilities:**
 
@@ -66,9 +70,11 @@ access levels for different administrative roles.
 - Assessment report viewing and export
 - No modification capabilities
 
-### 4. DataSafeServiceAccount (Dynamic Group)
+### Data Safe Service Account Group
 
-**Purpose:** Automated target management and maintenance  
+**Group Name:** `grp-ds-service`  
+**Description:** Data Safe service account group for automated target management,
+maintenance operations, and CI/CD pipeline integration.  
 **Use Case:** CI/CD pipelines, automated scripts (odb_datasafe)  
 **Capabilities:**
 
@@ -77,8 +83,6 @@ access levels for different administrative roles.
 - Audit trail and assessment management
 - Read-only access to connectors (use existing, cannot create)
 
----
-
 ## Policy Statements
 
 ### Prerequisites
@@ -86,204 +90,177 @@ access levels for different administrative roles.
 1. **Create Groups** (via OCI Console or CLI):
 
    ```bash
-   oci iam group create --name DataSafeAdmins --description "Data Safe Full Administrators"
-   oci iam group create --name DataSafeOperations --description "Data Safe Operations Team"
-   oci iam group create --name DataSafeAuditors --description "Data Safe Security Auditors"
+   oci iam group create --name grp-ds-admin --description "Data Safe administration group with full administrative rights across OCI resources, enabling management of all cloud services, configurations, and security policies, excluding Identity and access management configurations."
+   oci iam group create --name grp-ds-operation --description "Data Safe operations group with day-to-day operational management capabilities for target configuration, maintenance, and assessment execution."
+   oci iam group create --name grp-ds-auditor --description "Data Safe auditor group with read-only access for security compliance and audit reporting, enabling comprehensive monitoring without modification capabilities."
+   oci iam group create --name grp-ds-service --description "Data Safe service account group for automated target management, maintenance operations, and CI/CD pipeline integration."
    ```
 
-2. **Create Dynamic Group** for Service Account:
-
-   ```bash
-   oci iam dynamic-group create \
-     --name DataSafeServiceAccount \
-     --description "Service account for automated Data Safe operations" \
-     --matching-rule "ANY {instance.compartment.id = 'ocid1.compartment.oc1..xxxxx'}"
-   ```
-
-   **Matching Rule Options:**
-   - By compute instance compartment: `instance.compartment.id = '<compartment-ocid>'`
-   - By specific instance: `instance.id = '<instance-ocid>'`
-   - By instance pool: `instance.compartment.id = '<compartment-ocid>' && resource.type = 'instance'`
-
-3. **Variable Definitions:**
+2. **Variable Definitions:**
    - `<root-compartment-ocid>` - Root compartment for hierarchical access
    - `<datasafe-compartment-ocid>` - Specific compartment where Data Safe resources reside
    - `<datasafe-compartment-name>` - Name of the Data Safe compartment
 
----
+## Data Safe Admin Group Policy
 
-## Policy 1: DataSafeAdmins (Full Administrative Access)
+**Policy File:** `pcy-ds-admin.json`
 
 ```text
 # ============================================================================
-# Policy Name: DataSafeAdmins-FullAccess
+# Policy Name: pcy-ds-admin
 # Compartment: Root or Data Safe parent compartment
+# Description: Policy to allow grp-ds-admin group users to manage all Data Safe
+#              resources, connectors, and security configurations across OCI
 # ============================================================================
 
 # Full Data Safe Management (all resources)
-Allow group DataSafeAdmins to manage data-safe-family in compartment id <datasafe-compartment-ocid>
-Allow group DataSafeAdmins to manage data-safe-family in tenancy where all {target.compartment.id = '<datasafe-compartment-ocid>'}
+Allow group grp-ds-admin to manage data-safe-family in compartment id <datasafe-compartment-ocid>
+Allow group grp-ds-admin to manage data-safe-family in tenancy
 
-# Full On-Premises Connector Management
-Allow group DataSafeAdmins to manage data-safe-on-prem-connectors in compartment id <datasafe-compartment-ocid>
-Allow group DataSafeAdmins to manage data-safe-private-endpoints in compartment id <datasafe-compartment-ocid>
+# Note: data-safe-family includes all Data Safe resources including:
+# - target-databases, security-assessments, user-assessments
+# - data-safe-private-endpoints, onprem-connectors
+# - data-safe-sensitive-data-models, data-safe-masking-policies
+# - data-safe-audit-profiles, data-safe-audit-trails, data-safe-audit-events
+# - and all other Data Safe resources
 
 # Compartment Management (for target organization and movement)
-Allow group DataSafeAdmins to read compartments in tenancy
-Allow group DataSafeAdmins to use compartments in tenancy
+Allow group grp-ds-admin to read compartments in tenancy
+Allow group grp-ds-admin to use compartments in tenancy
 
 # Database Resource Access (for target validation and connection testing)
-Allow group DataSafeAdmins to read database-family in tenancy
-Allow group DataSafeAdmins to read autonomous-database-family in tenancy
-Allow group DataSafeAdmins to read db-systems in tenancy
-Allow group DataSafeAdmins to read autonomous-databases in tenancy
+Allow group grp-ds-admin to read database-family in tenancy
+Allow group grp-ds-admin to read autonomous-database-family in tenancy
+Allow group grp-ds-admin to read db-systems in tenancy
+Allow group grp-ds-admin to read autonomous-databases in tenancy
 
 # Network Resources (for connectivity validation)
-Allow group DataSafeAdmins to read virtual-network-family in tenancy
-Allow group DataSafeAdmins to read vcns in tenancy
-Allow group DataSafeAdmins to read subnets in tenancy
+Allow group grp-ds-admin to read virtual-network-family in tenancy
+Allow group grp-ds-admin to read vcns in tenancy
+Allow group grp-ds-admin to read subnets in tenancy
 
 # Vault Secrets Management (for future credential management)
-Allow group DataSafeAdmins to manage secret-family in compartment id <datasafe-compartment-ocid>
-Allow group DataSafeAdmins to read vaults in compartment id <datasafe-compartment-ocid>
-Allow group DataSafeAdmins to use keys in compartment id <datasafe-compartment-ocid>
+Allow group grp-ds-admin to manage secret-family in compartment id <datasafe-compartment-ocid>
+Allow group grp-ds-admin to read vaults in compartment id <datasafe-compartment-ocid>
+Allow group grp-ds-admin to use keys in compartment id <datasafe-compartment-ocid>
 
 # Tagging (for target organization and metadata)
-Allow group DataSafeAdmins to manage tag-namespaces in tenancy
-Allow group DataSafeAdmins to manage tag-defaults in tenancy
-Allow group DataSafeAdmins to use tag-namespaces in tenancy
+Allow group grp-ds-admin to manage tag-namespaces in tenancy
+Allow group grp-ds-admin to manage tag-defaults in tenancy
+Allow group grp-ds-admin to use tag-namespaces in tenancy
 ```
 
----
+## Data Safe Operation Group Policy
 
-## Policy 2: DataSafeOperations (Operational Management)
+**Policy File:** `pcy-ds-operation.json`
 
 ```text
 # ============================================================================
-# Policy Name: DataSafeOperations-LimitedAccess
+# Policy Name: pcy-ds-operation
 # Compartment: Root or Data Safe parent compartment
+# Description: Policy to allow grp-ds-operation group users to use and inspect
+#              Data Safe resources for day-to-day operations
 # ============================================================================
 
-# Target Management (update, refresh, configure - no delete)
-Allow group DataSafeOperations to use data-safe-target-databases in compartment id <datasafe-compartment-ocid>
-Allow group DataSafeOperations to inspect data-safe-target-databases in compartment id <datasafe-compartment-ocid>
-Allow group DataSafeOperations to use data-safe-target-databases in tenancy where target.compartment.id = '<datasafe-compartment-ocid>'
+# Data Safe Operations (use and inspect - no create/delete)
+Allow group grp-ds-operation to use data-safe-family in compartment id <datasafe-compartment-ocid>
+Allow group grp-ds-operation to inspect data-safe-family in compartment id <datasafe-compartment-ocid>
 
-# Assessment and Audit Trail Management
-Allow group DataSafeOperations to manage data-safe-security-assessments in compartment id <datasafe-compartment-ocid>
-Allow group DataSafeOperations to manage data-safe-user-assessments in compartment id <datasafe-compartment-ocid>
-Allow group DataSafeOperations to manage data-safe-audit-trails in compartment id <datasafe-compartment-ocid>
-Allow group DataSafeOperations to manage data-safe-audit-policies in compartment id <datasafe-compartment-ocid>
-
-# Discovery and Masking (for sensitive data management)
-Allow group DataSafeOperations to manage data-safe-discovery-jobs in compartment id <datasafe-compartment-ocid>
-Allow group DataSafeOperations to manage data-safe-masking-policies in compartment id <datasafe-compartment-ocid>
-
-# Read-Only Connector Access (use existing, cannot create/delete)
-Allow group DataSafeOperations to read data-safe-on-prem-connectors in compartment id <datasafe-compartment-ocid>
-Allow group DataSafeOperations to use data-safe-on-prem-connectors in compartment id <datasafe-compartment-ocid>
+# Note: data-safe-family includes all Data Safe resources
+# 'use' verb allows updating existing resources but not creating/deleting
+# 'inspect' verb allows detailed read access
 
 # Compartment Navigation
-Allow group DataSafeOperations to read compartments in tenancy
+Allow group grp-ds-operation to read compartments in tenancy
 
 # Read Database Resources (for target information)
-Allow group DataSafeOperations to read database-family in tenancy
-Allow group DataSafeOperations to read autonomous-database-family in tenancy
+Allow group grp-ds-operation to read database-family in tenancy
+Allow group grp-ds-operation to read autonomous-database-family in tenancy
 
 # Tagging (update existing tags only)
-Allow group DataSafeOperations to use tag-namespaces in tenancy
+Allow group grp-ds-operation to use tag-namespaces in tenancy
 
 # Read Vault Secrets (for future credential retrieval)
-Allow group DataSafeOperations to read secret-family in compartment id <datasafe-compartment-ocid>
-Allow group DataSafeOperations to read secrets in compartment id <datasafe-compartment-ocid>
+Allow group grp-ds-operation to read secret-family in compartment id <datasafe-compartment-ocid>
 ```
 
----
+## Data Safe Auditor Group Policy
 
-## Policy 3: DataSafeAuditors (Read-Only Audit Access)
+**Policy File:** `pcy-ds-auditor.json`
 
 ```text
 # ============================================================================
-# Policy Name: DataSafeAuditors-ReadOnlyAccess
+# Policy Name: pcy-ds-auditor
 # Compartment: Root or Data Safe parent compartment
+# Description: Policy to allow grp-ds-auditor group users to read and inspect
+#              all Data Safe resources for security compliance and audit
+#              reporting without modification capabilities
 # ============================================================================
 
 # Read-Only Access to All Data Safe Resources
-Allow group DataSafeAuditors to read data-safe-family in compartment id <datasafe-compartment-ocid>
-Allow group DataSafeAuditors to inspect data-safe-family in compartment id <datasafe-compartment-ocid>
+Allow group grp-ds-auditor to read data-safe-family in compartment id <datasafe-compartment-ocid>
+Allow group grp-ds-auditor to inspect data-safe-family in compartment id <datasafe-compartment-ocid>
+Allow group grp-ds-auditor to read data-safe-family in tenancy
 
-# Enhanced Access to Audit and Reports (read + download)
-Allow group DataSafeAuditors to read data-safe-audit-trails in tenancy
-Allow group DataSafeAuditors to read data-safe-audit-events in tenancy
-Allow group DataSafeAuditors to read data-safe-security-assessments in tenancy
-Allow group DataSafeAuditors to read data-safe-user-assessments in tenancy
-Allow group DataSafeAuditors to read data-safe-reports in compartment id <datasafe-compartment-ocid>
+# Note: data-safe-family includes all Data Safe resources including:
+# - target-databases, audit-trails, audit-events
+# - security-assessments, user-assessments, reports
+# - onprem-connectors, private-endpoints, and all other Data Safe resources
 
 # Compartment Navigation
-Allow group DataSafeAuditors to read compartments in tenancy
+Allow group grp-ds-auditor to read compartments in tenancy
 
 # Read Database Resources (for context)
-Allow group DataSafeAuditors to read database-family in tenancy
-Allow group DataSafeAuditors to read autonomous-database-family in tenancy
+Allow group grp-ds-auditor to read database-family in tenancy
+Allow group grp-ds-auditor to read autonomous-database-family in tenancy
 
-# Read Connectors and Network (for audit context)
-Allow group DataSafeAuditors to read data-safe-on-prem-connectors in compartment id <datasafe-compartment-ocid>
-Allow group DataSafeAuditors to read virtual-network-family in tenancy
+# Read Network Resources (for audit context)
+Allow group grp-ds-auditor to read virtual-network-family in tenancy
 ```
 
----
+## Data Safe Service Account Group Policy
 
-## Policy 4: DataSafeServiceAccount (Automated Operations)
+**Policy File:** `pcy-ds-service.json`
 
 ```text
 # ============================================================================
-# Policy Name: DataSafeServiceAccount-AutomationAccess
+# Policy Name: pcy-ds-service
 # Compartment: Root or Data Safe parent compartment
-# Description: For automated scripts (odb_datasafe) with full target 
-#              management but no connector creation
+# Description: Policy to allow grp-ds-service group to manage automated
+#              target operations, assessments, and audit trails for CI/CD
+#              pipelines and service/functional user accounts
 # ============================================================================
 
-# Full Target Database Management
-Allow dynamic-group DataSafeServiceAccount to manage data-safe-target-databases in compartment id <datasafe-compartment-ocid>
-Allow dynamic-group DataSafeServiceAccount to manage data-safe-target-databases in tenancy where any {target.compartment.id = '<datasafe-compartment-ocid>', request.permission = 'DATASAFE_TARGET_DATABASE_UPDATE', request.permission = 'DATASAFE_TARGET_DATABASE_DELETE', request.permission = 'DATASAFE_TARGET_DATABASE_CREATE', request.permission = 'DATASAFE_TARGET_DATABASE_MOVE', request.permission = 'DATASAFE_TARGET_DATABASE_REFRESH'}
+# Full Data Safe Management
+Allow group grp-ds-service to manage data-safe-family in compartment id <datasafe-compartment-ocid>
+Allow group grp-ds-service to manage data-safe-family in tenancy
 
-# Assessment and Audit Management
-Allow dynamic-group DataSafeServiceAccount to manage data-safe-security-assessments in compartment id <datasafe-compartment-ocid>
-Allow dynamic-group DataSafeServiceAccount to manage data-safe-user-assessments in compartment id <datasafe-compartment-ocid>
-Allow dynamic-group DataSafeServiceAccount to manage data-safe-audit-trails in compartment id <datasafe-compartment-ocid>
-Allow dynamic-group DataSafeServiceAccount to manage data-safe-audit-policies in compartment id <datasafe-compartment-ocid>
-
-# Discovery and Masking
-Allow dynamic-group DataSafeServiceAccount to manage data-safe-discovery-jobs in compartment id <datasafe-compartment-ocid>
-Allow dynamic-group DataSafeServiceAccount to manage data-safe-masking-policies in compartment id <datasafe-compartment-ocid>
-
-# Read-Only Connector Access (use existing, CANNOT create/delete)
-Allow dynamic-group DataSafeServiceAccount to read data-safe-on-prem-connectors in compartment id <datasafe-compartment-ocid>
-Allow dynamic-group DataSafeServiceAccount to use data-safe-on-prem-connectors in compartment id <datasafe-compartment-ocid>
-Allow dynamic-group DataSafeServiceAccount to inspect data-safe-on-prem-connectors in compartment id <datasafe-compartment-ocid>
+# Note: data-safe-family includes all Data Safe resources including:
+# - target-databases (register, update, delete, move)
+# - security-assessments, user-assessments, audit-trails
+# - discovery-jobs, masking-policies
+# - onprem-connectors (read/use only, cannot create)
+# - and all other Data Safe resources
 
 # Compartment Management (for target movement and organization)
-Allow dynamic-group DataSafeServiceAccount to read compartments in tenancy
-Allow dynamic-group DataSafeServiceAccount to use compartments in tenancy
+Allow group grp-ds-service to read compartments in tenancy
+Allow group grp-ds-service to use compartments in tenancy
 
 # Database Resource Access (for target validation)
-Allow dynamic-group DataSafeServiceAccount to read database-family in tenancy
-Allow dynamic-group DataSafeServiceAccount to read autonomous-database-family in tenancy
-Allow dynamic-group DataSafeServiceAccount to read db-systems in tenancy
+Allow group grp-ds-service to read database-family in tenancy
+Allow group grp-ds-service to read autonomous-database-family in tenancy
+Allow group grp-ds-service to read db-systems in tenancy
 
 # Network Resources (for connectivity validation)
-Allow dynamic-group DataSafeServiceAccount to read virtual-network-family in tenancy
+Allow group grp-ds-service to read virtual-network-family in tenancy
 
 # Tagging (for target organization)
-Allow dynamic-group DataSafeServiceAccount to use tag-namespaces in tenancy
+Allow group grp-ds-service to use tag-namespaces in tenancy
 
 # Vault Secrets (for future credential retrieval)
-Allow dynamic-group DataSafeServiceAccount to read secret-family in compartment id <datasafe-compartment-ocid>
-Allow dynamic-group DataSafeServiceAccount to read secrets in compartment id <datasafe-compartment-ocid>
-Allow dynamic-group DataSafeServiceAccount to use keys in compartment id <datasafe-compartment-ocid>
+Allow group grp-ds-service to read secret-family in compartment id <datasafe-compartment-ocid>
+Allow group grp-ds-service to use keys in compartment id <datasafe-compartment-ocid>
 ```
-
----
 
 ## Additional Considerations for Production
 
@@ -293,13 +270,13 @@ Add conditions to policies for enhanced security:
 
 ```text
 # Example: Restrict by IP address
-Allow group DataSafeOperations to use data-safe-target-databases in compartment id <datasafe-compartment-ocid> where request.networkSource.name='CorporateNetwork'
+Allow group grp-ds-operation to use data-safe-target-databases in compartment id <datasafe-compartment-ocid> where request.networkSource.name='CorporateNetwork'
 
 # Example: Restrict by time window (for maintenance windows)
-Allow dynamic-group DataSafeServiceAccount to manage data-safe-target-databases in compartment id <datasafe-compartment-ocid> where request.user.mfaAuthenticated='true'
+Allow group grp-ds-service to manage data-safe-target-databases in compartment id <datasafe-compartment-ocid> where request.user.mfaAuthenticated='true'
 
 # Example: Restrict delete operations to specific times
-Allow group DataSafeAdmins to manage data-safe-target-databases in compartment id <datasafe-compartment-ocid> where any {request.operation != 'DeleteTargetDatabase', request.operation = 'DeleteTargetDatabase' && request.user.mfaAuthenticated='true'}
+Allow group grp-ds-admin to manage data-safe-target-databases in compartment id <datasafe-compartment-ocid> where any {request.operation != 'DeleteTargetDatabase', request.operation = 'DeleteTargetDatabase' && request.user.mfaAuthenticated='true'}
 ```
 
 ### 2. MFA Requirements
@@ -308,7 +285,7 @@ For production environments, enforce MFA for sensitive operations:
 
 ```text
 # Require MFA for deletion operations (Admin group)
-Allow group DataSafeAdmins to manage data-safe-target-databases in compartment id <datasafe-compartment-ocid> where any {request.permission != 'DATASAFE_TARGET_DATABASE_DELETE', request.user.mfaAuthenticated='true'}
+Allow group grp-ds-admin to manage data-safe-target-databases in compartment id <datasafe-compartment-ocid> where any {request.permission != 'DATASAFE_TARGET_DATABASE_DELETE', request.user.mfaAuthenticated='true'}
 ```
 
 ### 3. Audit Logging
@@ -332,7 +309,7 @@ oci iam network-source create \
   --public-source-list '["203.0.113.0/24", "198.51.100.0/24"]'
 
 # Apply to policies
-Allow group DataSafeAdmins to manage data-safe-family in compartment id <datasafe-compartment-ocid> where request.networkSource.name='CorporateNetwork'
+Allow group grp-ds-admin to manage data-safe-family in compartment id <datasafe-compartment-ocid> where request.networkSource.name='CorporateNetwork'
 ```
 
 ### 5. Emergency Access
@@ -346,8 +323,6 @@ Allow group DataSafeEmergency to manage data-safe-family in tenancy
 # Monitor usage strictly via audit logs
 ```
 
----
-
 ## Policy Deployment Guide
 
 ### Step 1: Prepare Environment
@@ -355,6 +330,9 @@ Allow group DataSafeEmergency to manage data-safe-family in tenancy
 1. Identify compartment OCIDs:
 
    ```bash
+   # Set root compartment OCID (tenancy OCID)
+   export ROOT_COMP_OCID="ocid1.tenancy.oc1..aaaaaaaa..."
+   
    # List all compartments
    oci iam compartment list --all --compartment-id-in-subtree true
    
@@ -367,59 +345,111 @@ Allow group DataSafeEmergency to manage data-safe-family in tenancy
 2. Create groups:
 
    ```bash
-   oci iam group create --name DataSafeAdmins --description "Data Safe Full Administrators"
-   oci iam group create --name DataSafeOperations --description "Data Safe Operations Team"
-   oci iam group create --name DataSafeAuditors --description "Data Safe Security Auditors"
-   ```
-
-3. Create dynamic group for service account:
-
-   ```bash
-   # Replace <compartment-ocid> with your compute compartment
-   oci iam dynamic-group create \
-     --name DataSafeServiceAccount \
-     --description "Service account for automated Data Safe operations" \
-     --matching-rule "instance.compartment.id = '<compartment-ocid>'"
+   oci iam group create --name grp-ds-admin --description "Data Safe administration group with full administrative rights across OCI resources, enabling management of all cloud services, configurations, and security policies, excluding Identity and access management configurations."
+   oci iam group create --name grp-ds-operation --description "Data Safe operations group with day-to-day operational management capabilities for target configuration, maintenance, and assessment execution."
+   oci iam group create --name grp-ds-auditor --description "Data Safe auditor group with read-only access for security compliance and audit reporting, enabling comprehensive monitoring without modification capabilities."
+   oci iam group create --name grp-ds-service --description "Data Safe service account group for automated target management, maintenance operations, and CI/CD pipeline integration."
    ```
 
 ### Step 2: Create Policies
 
-1. Create policy files (one per group):
-   - `datasafe-admins-policy.txt`
-   - `datasafe-operations-policy.txt`
-   - `datasafe-auditors-policy.txt`
-   - `datasafe-serviceaccount-policy.txt`
+1. Policy JSON template files are provided in the `etc/` folder:
+   - `etc/pcy-ds-admin.json.example`
+   - `etc/pcy-ds-operation.json.example`
+   - `etc/pcy-ds-auditor.json.example`
+   - `etc/pcy-ds-service.json.example`
+
+   **IMPORTANT:** The JSON template files contain ONLY valid JSON arrays of strings -
+   no comments, no blank lines outside the array.
+
+   Example for `pcy-ds-admin.json`:
+
+   ```json
+   [
+     "Allow group grp-ds-admin to manage data-safe-family in compartment id <datasafe-compartment-ocid>",
+     "Allow group grp-ds-admin to manage data-safe-family in tenancy where all {target.compartment.id = '<datasafe-compartment-ocid>'}",
+     "Allow group grp-ds-admin to manage data-safe-on-prem-connectors in compartment id <datasafe-compartment-ocid>",
+     "Allow group grp-ds-admin to manage data-safe-private-endpoints in compartment id <datasafe-compartment-ocid>",
+     "Allow group grp-ds-admin to read compartments in tenancy",
+     "Allow group grp-ds-admin to use compartments in tenancy",
+     "Allow group grp-ds-admin to read database-family in tenancy",
+     "Allow group grp-ds-admin to read autonomous-database-family in tenancy",
+     "Allow group grp-ds-admin to read db-systems in tenancy",
+     "Allow group grp-ds-admin to read autonomous-databases in tenancy",
+     "Allow group grp-ds-admin to read virtual-network-family in tenancy",
+     "Allow group grp-ds-admin to read vcns in tenancy",
+     "Allow group grp-ds-admin to read subnets in tenancy",
+     "Allow group grp-ds-admin to manage secret-family in compartment id <datasafe-compartment-ocid>",
+     "Allow group grp-ds-admin to read vaults in compartment id <datasafe-compartment-ocid>",
+     "Allow group grp-ds-admin to use keys in compartment id <datasafe-compartment-ocid>",
+     "Allow group grp-ds-admin to manage tag-namespaces in tenancy",
+     "Allow group grp-ds-admin to manage tag-defaults in tenancy",
+     "Allow group grp-ds-admin to use tag-namespaces in tenancy"
+   ]
+   ```
+
+   **Helper script to create JSON from policy statements:**
+
+   ```bash
+   # Extract policy statements from documentation and convert to JSON array
+   # Remove comments, blank lines, and format as JSON
+   grep "^Allow group grp-ds-admin" pcy-ds-admin.txt | \
+     jq -R -s -c 'split("\n") | map(select(length > 0))' > pcy-ds-admin.json
+   ```
+
+   **Replace placeholders with actual OCIDs:**
+
+   ```bash
+   # Set your Data Safe compartment OCID
+   export DATASAFE_COMP_OCID="ocid1.compartment.oc1..aaaaaaaa..."
+   
+   # Create policy files from templates with actual OCID
+   sed "s/<datasafe-compartment-ocid>/${DATASAFE_COMP_OCID}/g" etc/pcy-ds-admin.json.example > etc/pcy-ds-admin.json
+   sed "s/<datasafe-compartment-ocid>/${DATASAFE_COMP_OCID}/g" etc/pcy-ds-operation.json.example > etc/pcy-ds-operation.json
+   sed "s/<datasafe-compartment-ocid>/${DATASAFE_COMP_OCID}/g" etc/pcy-ds-auditor.json.example > etc/pcy-ds-auditor.json
+   sed "s/<datasafe-compartment-ocid>/${DATASAFE_COMP_OCID}/g" etc/pcy-ds-service.json.example > etc/pcy-ds-service.json
+   ```
 
 2. Deploy policies:
 
    ```bash
    # Admin policy
    oci iam policy create \
-     --compartment-id <root-compartment-ocid> \
-     --name DataSafeAdmins-FullAccess \
-     --description "Full Data Safe administration access" \
-     --statements file://datasafe-admins-policy.txt
+     --compartment-id $ROOT_COMP_OCID \
+     --name pcy-ds-admin \
+     --description "Policy to allow grp-ds-admin group users to manage all Data Safe resources, connectors, and security configurations across OCI" \
+     --statements file://etc/pcy-ds-admin.json
 
    # Operations policy
    oci iam policy create \
-     --compartment-id <root-compartment-ocid> \
-     --name DataSafeOperations-LimitedAccess \
-     --description "Data Safe operational access" \
-     --statements file://datasafe-operations-policy.txt
+     --compartment-id $ROOT_COMP_OCID \
+     --name pcy-ds-operation \
+     --description "Policy to allow grp-ds-operation group users to manage day-to-day operations including target configuration, assessments, and audit trails" \
+     --statements file://etc/pcy-ds-operation.json
 
    # Auditors policy
    oci iam policy create \
-     --compartment-id <root-compartment-ocid> \
-     --name DataSafeAuditors-ReadOnlyAccess \
-     --description "Data Safe audit and reporting access" \
-     --statements file://datasafe-auditors-policy.txt
+     --compartment-id $ROOT_COMP_OCID \
+     --name pcy-ds-auditor \
+     --description "Policy to allow grp-ds-auditor group users to read and inspect all Data Safe resources for security compliance and audit reporting" \
+     --statements file://etc/pcy-ds-auditor.json
 
    # Service account policy
    oci iam policy create \
-     --compartment-id <root-compartment-ocid> \
-     --name DataSafeServiceAccount-AutomationAccess \
-     --description "Data Safe automation access for service accounts" \
-     --statements file://datasafe-serviceaccount-policy.txt
+     --compartment-id $ROOT_COMP_OCID \
+     --name pcy-ds-service \
+     --description "Policy to allow grp-ds-service group to manage automated target operations, assessments, and audit trails for CI/CD pipelines" \
+     --statements file://etc/pcy-ds-service.json
+   ```
+
+   **Alternative: Inline JSON array** (for simple policies):
+
+   ```bash
+   oci iam policy create \
+     --compartment-id $ROOT_COMP_OCID \
+     --name pcy-ds-admin \
+     --description "Policy for grp-ds-admin" \
+     --statements '[\"Allow group grp-ds-admin to manage data-safe-family in compartment id <datasafe-compartment-ocid>\"]'
    ```
 
 ### Step 3: Add Users to Groups
@@ -431,14 +461,14 @@ USER_OCID=$(oci iam user list --query "data[?name=='john.doe@example.com'].id | 
 # Add to group
 oci iam group add-user \
   --user-id $USER_OCID \
-  --group-id $(oci iam group list --query "data[?name=='DataSafeAdmins'].id | [0]" --raw-output)
+  --group-id $(oci iam group list --query "data[?name=='grp-ds-admin'].id | [0]" --raw-output)
 ```
 
 ### Step 4: Verify Policies
 
 ```bash
 # List policies
-oci iam policy list --compartment-id <root-compartment-ocid>
+oci iam policy list --compartment-id $ROOT_COMP_OCID
 
 # Get policy details
 oci iam policy get --policy-id <policy-ocid>
@@ -450,8 +480,6 @@ oci data-safe target-database list \
   --profile <user-profile>
 ```
 
----
-
 ## Testing and Validation
 
 ### 1. Service Account Testing
@@ -459,25 +487,25 @@ oci data-safe target-database list \
 Test automated operations with the service account:
 
 ```bash
-# SSH to compute instance (or run from compute)
-# Service account should work automatically via instance principal
+# Test using API key authentication with service account user profile
+# Configure service user profile in ~/.oci/config first
 
 # Test target list
 oci data-safe target-database list \
   --compartment-id $DATASAFE_COMP \
   --compartment-id-in-subtree true \
-  --auth instance_principal
+  --profile <service-account-profile>
 
 # Test target update
 oci data-safe target-database update \
   --target-database-id <target-ocid> \
   --freeform-tags '{"Environment":"prod"}' \
-  --auth instance_principal
+  --profile <service-account-profile>
 ```
 
 ### 2. Operations Testing
 
-Test with DataSafeOperations user:
+Test with grp-ds-operation user:
 
 ```bash
 # Should succeed: List targets
@@ -493,7 +521,7 @@ oci data-safe on-prem-connector create --compartment-id $DATASAFE_COMP
 
 ### 3. Auditor Testing
 
-Test with DataSafeAuditors user:
+Test with grp-ds-auditor user:
 
 ```bash
 # Should succeed: Read targets
@@ -506,8 +534,6 @@ oci data-safe audit-trail list --compartment-id $DATASAFE_COMP
 oci data-safe target-database update --target-database-id <target-ocid> --freeform-tags '{}'
 # Expected: Authorization failed
 ```
-
----
 
 ## Troubleshooting
 
@@ -539,7 +565,7 @@ oci data-safe target-database update --target-database-id <target-ocid> --freefo
 
 ```bash
 # Check effective permissions for a user
-oci iam policy list --compartment-id <root-compartment> | jq '.data[].statements[]'
+oci iam policy list --compartment-id $ROOT_COMP_OCID | jq '.data[].statements[]'
 
 # Validate dynamic group membership
 oci iam dynamic-group get --dynamic-group-id <dynamic-group-ocid>
@@ -547,8 +573,6 @@ oci iam dynamic-group get --dynamic-group-id <dynamic-group-ocid>
 # Test specific permission
 oci data-safe target-database list --compartment-id $DATASAFE_COMP --debug
 ```
-
----
 
 ## Maintenance and Review
 
@@ -578,8 +602,6 @@ oci data-safe target-database list --compartment-id $DATASAFE_COMP --debug
 5. Verify with test users
 6. Monitor audit logs for issues
 
----
-
 ## References
 
 - [OCI IAM Policies](https://docs.oracle.com/en-iaas/Content/Identity/Concepts/policies.htm)
@@ -590,13 +612,156 @@ oci data-safe target-database list --compartment-id $DATASAFE_COMP --debug
 
 ---
 
+## Removing Policies and Groups
+
+### Remove Individual Policy
+
+To remove a specific policy:
+
+```bash
+# Set root compartment OCID
+export ROOT_COMP_OCID="ocid1.tenancy.oc1..aaaaaaaa..."
+
+# List policies to find the policy ID
+oci iam policy list --compartment-id $ROOT_COMP_OCID --all
+
+# Delete specific policy
+oci iam policy delete \
+  --policy-id <policy-ocid> \
+  --force
+
+# Or delete by name
+oci iam policy delete \
+  --policy-id $(oci iam policy list --compartment-id $ROOT_COMP_OCID --all | jq -r '.data[] | select(.name=="pcy-ds-admin") | .id') \
+  --force
+```
+
+### Remove All Data Safe Policies
+
+To remove all Data Safe policies at once:
+
+```bash
+# Set root compartment OCID
+export ROOT_COMP_OCID="ocid1.tenancy.oc1..aaaaaaaa..."
+
+# Delete all Data Safe policies
+for policy in pcy-ds-admin pcy-ds-operation pcy-ds-auditor pcy-ds-service; do
+  echo "Deleting policy: $policy"
+  POLICY_ID=$(oci iam policy list --compartment-id $ROOT_COMP_OCID --all | jq -r ".data[] | select(.name==\"$policy\") | .id")
+  if [ -n "$POLICY_ID" ]; then
+    oci iam policy delete --policy-id $POLICY_ID --force
+    echo "Deleted: $policy"
+  else
+    echo "Not found: $policy"
+  fi
+done
+```
+
+### Remove Groups
+
+**WARNING:** Only remove groups after ensuring no users are assigned and no policies reference them.
+
+```bash
+# List users in a group
+oci iam group list-users --group-id <group-ocid>
+
+# Remove all users from group
+for user_id in $(oci iam group list-users --group-id <group-ocid> | jq -r '.data[].id'); do
+  oci iam group remove-user --group-id <group-ocid> --user-id $user_id
+done
+
+# Delete the group
+oci iam group delete --group-id <group-ocid> --force
+
+# Or delete by name
+oci iam group delete \
+  --group-id $(oci iam group list --all | jq -r '.data[] | select(.name=="grp-ds-admin") | .id') \
+  --force
+```
+
+### Remove All Data Safe Groups
+
+To remove all Data Safe groups:
+
+```bash
+# Delete all Data Safe groups
+for group in grp-ds-admin grp-ds-operation grp-ds-auditor grp-ds-service; do
+  echo "Processing group: $group"
+  GROUP_ID=$(oci iam group list --all | jq -r ".data[] | select(.name==\"$group\") | .id")
+  
+  if [ -n "$GROUP_ID" ]; then
+    # Remove all users from group first
+    echo "Removing users from $group..."
+    for user_id in $(oci iam group list-users --group-id $GROUP_ID | jq -r '.data[].id'); do
+      oci iam group remove-user --group-id $GROUP_ID --user-id $user_id
+      echo "Removed user: $user_id"
+    done
+    
+    # Delete the group
+    oci iam group delete --group-id $GROUP_ID --force
+    echo "Deleted group: $group"
+  else
+    echo "Group not found: $group"
+  fi
+done
+```
+
+### Complete Cleanup Script
+
+Complete script to remove all Data Safe IAM resources:
+
+```bash
+#!/bin/bash
+# cleanup_datasafe_iam.sh
+# Remove all Data Safe policies and groups
+
+# Set root compartment OCID (tenancy OCID)
+export ROOT_COMP_OCID="${ROOT_COMP_OCID:-ocid1.tenancy.oc1..aaaaaaaa...}"
+
+echo "=== Data Safe IAM Cleanup ==="
+echo "Root Compartment: $ROOT_COMP_OCID"
+echo ""
+
+# Step 1: Delete Policies
+echo "Step 1: Deleting policies..."
+for policy in pcy-ds-admin pcy-ds-operation pcy-ds-auditor pcy-ds-service; do
+  POLICY_ID=$(oci iam policy list --compartment-id $ROOT_COMP_OCID --all | jq -r ".data[] | select(.name==\"$policy\") | .id")
+  if [ -n "$POLICY_ID" ]; then
+    oci iam policy delete --policy-id $POLICY_ID --force
+    echo "✓ Deleted policy: $policy"
+  fi
+done
+
+echo ""
+echo "Step 2: Deleting groups..."
+# Step 2: Delete Groups (after removing users)
+for group in grp-ds-admin grp-ds-operation grp-ds-auditor grp-ds-service; do
+  GROUP_ID=$(oci iam group list --all | jq -r ".data[] | select(.name==\"$group\") | .id")
+  
+  if [ -n "$GROUP_ID" ]; then
+    # Remove users
+    for user_id in $(oci iam group list-users --group-id $GROUP_ID | jq -r '.data[].id'); do
+      oci iam group remove-user --group-id $GROUP_ID --user-id $user_id
+    done
+    
+    # Delete group
+    oci iam group delete --group-id $GROUP_ID --force
+    echo "✓ Deleted group: $group"
+  fi
+done
+
+echo ""
+echo "=== Cleanup Complete ==="
+```
+
+---
+
 ## Change Log
 
 | Date       | Version | Author        | Changes                                |
 |------------|---------|---------------|----------------------------------------|
 | 2026-01-13 | 1.0.0   | Stefan Oehrli | Initial policy document for production |
-
----
+| 2026-01-14 | 1.0.1   | Stefan Oehrli | Fixed resource types, added removal section |
 
 ## Contact
 

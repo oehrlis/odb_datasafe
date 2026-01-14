@@ -4,8 +4,8 @@
 # ------------------------------------------------------------------------------
 # Script.....: ds_target_list.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.01.09
-# Version....: v0.2.0
+# Date.......: 2026.01.14
+# Version....: v0.2.1
 # Purpose....: List Oracle Data Safe target databases with summary or details
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
@@ -20,7 +20,7 @@ set -euo pipefail
 # Script metadata
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_NAME
-readonly SCRIPT_VERSION="0.2.0"
+readonly SCRIPT_VERSION="0.2.1"
 
 # Defaults
 : "${COMPARTMENT:=}"

@@ -70,6 +70,25 @@ bin/ds_target_refresh.sh --help
 ### 3. Basic Usage
 
 ```bash
+# List Data Safe targets (default: table view)
+bin/ds_target_list.sh
+
+# Show count summary by lifecycle state
+bin/ds_target_list.sh -C
+
+# Quiet mode (suppress INFO messages)
+bin/ds_target_list.sh -q
+
+# Debug mode (detailed logging)
+bin/ds_target_list.sh -d
+
+# Filter by lifecycle state
+bin/ds_target_list.sh -L NEEDS_ATTENTION
+
+# Output as JSON or CSV
+bin/ds_target_list.sh -f json
+bin/ds_target_list.sh -f csv
+
 # Refresh specific target (dry-run first)
 bin/ds_target_refresh.sh -T mydb01 --dry-run --debug
 

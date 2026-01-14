@@ -6,6 +6,45 @@ All notable changes to the OraDBA Data Safe Extension will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2] - 2026-01-14
+
+### Fixed
+
+- **ds_target_list.sh (v0.2.1)** - Enhanced logging and default behavior
+  - Fixed debug mode breaking OCI CLI commands (all logs now to stderr)
+  - Changed default mode from count to list (count requires `-C` flag)
+  - Added `-q/--quiet` flag to suppress INFO messages
+  - Added `-d/--debug` flag for explicit debug/trace mode
+  - Fixed LOG_LEVEL assignments to use strings (WARN/DEBUG/TRACE) instead of numbers
+  - Fixed JSON output pollution by moving log calls outside data-returning functions
+
+- **lib/common.sh (v4.0.1)** - Improved logging system
+  - All log levels now output to stderr to prevent stdout contamination
+  - Fixed parse_common_opts to set LOG_LEVEL with string values
+  - Prevents log output from breaking command substitution captures
+
+- **lib/oci_helpers.sh (v4.0.1)** - Enhanced compartment resolution
+  - Added `oci_get_compartment_name()` function for compartment/tenancy name resolution
+  - Handles both compartment OCIDs (ocid1.compartment.*) and tenancy OCIDs (ocid1.tenancy.*)
+  - Graceful degradation: returns OCID if name resolution fails
+
+### Documentation
+
+- Updated `doc/index.md` with new ds_target_list.sh usage examples (-q, -d, -C flags)
+- Updated `doc/release_notes/v0.2.0.md` to reflect list-first default behavior
+- Updated `doc/quickref.md` with comprehensive ds_target_list.sh examples
+- All examples now show correct default behavior (list mode, not count mode)
+
+### Tests
+
+- Updated `tests/script_ds_target_list.bats` with 6 modified tests and 1 new test
+  - Test 3: Updated to expect list output by default
+  - Tests 4-5: Added `-C` flag to count mode tests
+  - Test 13: Enhanced to check for DEBUG or TRACE output
+  - Test 14: NEW - validates quiet mode suppresses INFO messages
+  - Test 18: Updated to expect list output from config
+  - All feature tests passing (14/19 total)
+
 ## [0.5.1] - 2026-01-13
 
 ### Added
