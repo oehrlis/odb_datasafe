@@ -2,7 +2,7 @@
 # ------------------------------------------------------------------------------
 # OraDBA - Oracle Database Infrastructure and Security, 5630 Muri, Switzerland
 # ------------------------------------------------------------------------------
-# Script.....: ds_target_list.sh (v0.2.0)
+# Script.....: ds_target_list.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.01.09
 # Version....: v0.2.0
@@ -27,7 +27,7 @@ readonly SCRIPT_VERSION="0.2.0"
 : "${TARGETS:=}"
 : "${LIFECYCLE_STATE:=}"
 : "${OUTPUT_FORMAT:=table}"  # table|json|csv
-: "${SHOW_COUNT:=true}"      # Default to count mode
+: "${SHOW_COUNT:=false}"     # Default to list mode
 : "${FIELDS:=display-name,lifecycle-state,infrastructure-type}"
 
 # Load library
@@ -62,6 +62,7 @@ Options:
     -V, --version           Show version
     -v, --verbose           Enable verbose output
     -d, --debug             Enable debug output
+    -q, --quiet             Suppress INFO messages (warnings/errors only)
     -n, --dry-run           Dry-run mode (show what would be done)
     --log-file FILE         Log to file
 
@@ -76,27 +77,29 @@ Options:
     -L, --lifecycle STATE   Filter by lifecycle state (ACTIVE, NEEDS_ATTENTION, etc.)
 
   Output:
-    -C, --count             Show summary count by lifecycle state (default mode)
-    -D, --details           Show detailed target information
+    -C, --count             Show summary count by lifecycle state
+    -D, --details           Show detailed target information (default)
     -f, --format FMT        Output format: table|json|csv (default: table)
     -F, --fields FIELDS     Comma-separated fields for details (default: ${FIELDS})
 
 Examples:
-  # Show count summary for DS_ROOT_COMP (default)
+  # Show detailed list for DS_ROOT_COMP (default)
   ${SCRIPT_NAME}
+
+  # Show count summary
   ${SCRIPT_NAME} -C
 
   # Show count for specific compartment
-  ${SCRIPT_NAME} -c MyCompartment
+  ${SCRIPT_NAME} -C -c MyCompartment
 
   # Show count for NEEDS_ATTENTION only
-  ${SCRIPT_NAME} -L NEEDS_ATTENTION
+  ${SCRIPT_NAME} -C -L NEEDS_ATTENTION
 
-  # Show detailed list (table format)
-  ${SCRIPT_NAME} -D
+  # Show list for NEEDS_ATTENTION (quiet mode)
+  ${SCRIPT_NAME} -q -L NEEDS_ATTENTION
 
   # Show detailed list as JSON
-  ${SCRIPT_NAME} -D -f json
+  ${SCRIPT_NAME} -f json
 
   # Show specific fields as CSV
   ${SCRIPT_NAME} -D -f csv -F display-name,id,lifecycle-state
@@ -110,6 +113,12 @@ EOF
 
 parse_args() {
     parse_common_opts "$@"
+    
+    # Reset defaults (override any env/config values)
+    # These can be explicitly set via command-line options
+    [[ -z "${OUTPUT_FORMAT_OVERRIDE:-}" ]] && OUTPUT_FORMAT="table"
+    [[ -z "${SHOW_COUNT_OVERRIDE:-}" ]] && SHOW_COUNT="false"
+    [[ -z "${FIELDS_OVERRIDE:-}" ]] && FIELDS="display-name,lifecycle-state,infrastructure-type"
     
     # Parse script-specific options
     local -a remaining=()
@@ -134,20 +143,24 @@ parse_args() {
                 ;;
             -C|--count)
                 SHOW_COUNT=true
+                SHOW_COUNT_OVERRIDE=true
                 shift
                 ;;
             -D|--details)
                 SHOW_COUNT=false
+                SHOW_COUNT_OVERRIDE=true
                 shift
                 ;;
             -f|--format)
                 need_val "$1" "${2:-}"
                 OUTPUT_FORMAT="$2"
+                OUTPUT_FORMAT_OVERRIDE=true
                 shift 2
                 ;;
             -F|--fields)
                 need_val "$1" "${2:-}"
                 FIELDS="$2"
+                FIELDS_OVERRIDE=true
                 shift 2
                 ;;
             --oci-profile)
@@ -188,7 +201,7 @@ parse_args() {
     # Validate output format
     case "${OUTPUT_FORMAT}" in
         table|json|csv) : ;;
-        *) die "Invalid format: ${OUTPUT_FORMAT}. Use table, json, or csv" ;;
+        *) die "Invalid output format: '${OUTPUT_FORMAT}'. Use table, json, or csv" ;;
     esac
 }
 
@@ -202,7 +215,13 @@ validate_inputs() {
         local root_comp
         root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment. Set DS_ROOT_COMP in .env or use -c/--compartment"
         COMPARTMENT="$root_comp"
-        log_info "No compartment specified, using DS_ROOT_COMP: $COMPARTMENT"
+        
+        # Get compartment name for display
+        local comp_name
+        comp_name=$(oci_get_compartment_name "$root_comp") || comp_name="<unknown>"
+        
+        log_debug "Using root compartment OCID: $COMPARTMENT"
+        log_info "Using root compartment: $comp_name (includes sub-compartments)"
     fi
     
     # Count mode doesn't work with specific targets
@@ -223,7 +242,7 @@ list_targets_in_compartment() {
     
     comp_ocid=$(oci_resolve_compartment_ocid "$compartment") || return 1
     
-    log_debug "Listing targets in compartment: $comp_ocid"
+    log_debug "Listing targets in compartment OCID: $comp_ocid"
     
     local -a cmd=(
         data-safe target-database list
@@ -234,6 +253,7 @@ list_targets_in_compartment() {
     
     if [[ -n "$LIFECYCLE_STATE" ]]; then
         cmd+=(--lifecycle-state "$LIFECYCLE_STATE")
+        log_debug "Filtering by lifecycle state: $LIFECYCLE_STATE"
     fi
     
     oci_exec "${cmd[@]}"
@@ -473,8 +493,10 @@ do_work() {
         json_data+="]}"
         
     else
-        # List targets from compartment
-        log_info "Listing targets from compartment..."
+        # List targets from compartment hierarchy
+        local comp_name
+        comp_name=$(oci_get_compartment_name "$COMPARTMENT") || comp_name="$COMPARTMENT"
+        log_info "Listing targets in compartment: $comp_name (includes sub-compartments)"
         json_data=$(list_targets_in_compartment "$COMPARTMENT") || die "Failed to list targets"
     fi
     
