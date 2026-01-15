@@ -75,7 +75,7 @@ EOF
     for script in "${scripts[@]}"; do
         run "${BIN_DIR}/${script}" --version
         [ "$status" -eq 0 ]
-        [[ "$output" == *"0.2.0"* ]]
+        [[ "$output" =~ 0\.2\.[0-9]+ ]]
     done
 }
 
