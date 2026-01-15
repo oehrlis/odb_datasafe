@@ -15,7 +15,7 @@ EXT_CHECKSUM_FILE=".extension.checksum"
 CLEANUP_CHECKSUM=false
 
 usage() {
-    cat <<'USAGE'
+    cat << 'USAGE'
 Usage: ./scripts/build.sh [options]
 
 Builds a tarball for the extension and writes a SHA256 checksum.
@@ -31,7 +31,7 @@ USAGE
 }
 
 command_exists() {
-    command -v "$1" >/dev/null 2>&1
+    command -v "$1" > /dev/null 2>&1
 }
 
 checksum_cmd() {

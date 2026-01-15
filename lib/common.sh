@@ -5,7 +5,7 @@
 # Module.....: common.sh (v4.0.1)
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.01.14
-# Purpose....: Generic utilities for bash scripts - logging, error handling, 
+# Purpose....: Generic utilities for bash scripts - logging, error handling,
 #              argument parsing helpers. Designed to be reusable across projects.
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
@@ -19,13 +19,13 @@ readonly COMMON_SH_LOADED=1
 # =============================================================================
 
 # Log levels: 0=TRACE, 1=DEBUG, 2=INFO, 3=WARN, 4=ERROR, 5=FATAL
-: "${LOG_LEVEL:=2}"           # Default: INFO
-: "${LOG_FILE:=}"             # Optional: log to file
-: "${LOG_COLORS:=auto}"       # auto|always|never
+: "${LOG_LEVEL:=2}"     # Default: INFO
+: "${LOG_FILE:=}"       # Optional: log to file
+: "${LOG_COLORS:=auto}" # auto|always|never
 
 # Error handling
-: "${SHOW_STACKTRACE:=true}"  # Show stack trace on error
-: "${CLEANUP_ON_EXIT:=true}"  # Call cleanup function on exit
+: "${SHOW_STACKTRACE:=true}" # Show stack trace on error
+: "${CLEANUP_ON_EXIT:=true}" # Call cleanup function on exit
 
 # Script metadata (set by script, not library)
 : "${SCRIPT_NAME:=$(basename "${BASH_SOURCE[-1]}")}"
@@ -39,11 +39,11 @@ readonly COMMON_SH_LOADED=1
 _init_colors() {
     # Only use colors if: terminal + (LOG_COLORS=always OR (LOG_COLORS=auto AND tty))
     if [[ "${LOG_COLORS}" == "never" ]]; then
-        COLOR_RESET="" COLOR_RED="" COLOR_GREEN="" COLOR_YELLOW="" 
+        COLOR_RESET="" COLOR_RED="" COLOR_GREEN="" COLOR_YELLOW=""
         COLOR_BLUE="" COLOR_CYAN="" COLOR_GRAY=""
         return
     fi
-    
+
     if [[ "${LOG_COLORS}" == "always" ]] || [[ -t 2 && "${LOG_COLORS}" == "auto" ]]; then
         COLOR_RESET='\033[0m'
         COLOR_RED='\033[0;31m'
@@ -53,7 +53,7 @@ _init_colors() {
         COLOR_CYAN='\033[0;36m'
         COLOR_GRAY='\033[0;90m'
     else
-        COLOR_RESET="" COLOR_RED="" COLOR_GREEN="" COLOR_YELLOW="" 
+        COLOR_RESET="" COLOR_RED="" COLOR_GREEN="" COLOR_YELLOW=""
         # shellcheck disable=SC2034 # These color variables might be used in future
         COLOR_BLUE="" COLOR_CYAN="" COLOR_GRAY=""
     fi
@@ -69,11 +69,11 @@ _log_level_num() {
     case "${1^^}" in
         TRACE) echo 0 ;;
         DEBUG) echo 1 ;;
-        INFO)  echo 2 ;;
-        WARN)  echo 3 ;;
+        INFO) echo 2 ;;
+        WARN) echo 3 ;;
         ERROR) echo 4 ;;
         FATAL) echo 5 ;;
-        *)     echo 2 ;; # default INFO
+        *) echo 2 ;; # default INFO
     esac
 }
 
@@ -89,49 +89,49 @@ log() {
     local level="${1^^}"
     shift
     local msg="$*"
-    
+
     local level_num
     level_num=$(_log_level_num "$level")
     local current_level_num
     current_level_num=$(_log_level_num "${LOG_LEVEL}")
-    
+
     # Skip if below current log level
     [[ $level_num -lt $current_level_num ]] && return 0
-    
+
     local timestamp
     timestamp=$(date '+%Y-%m-%d %H:%M:%S')
     local color=""
     local reset="${COLOR_RESET}"
-    
+
     case "$level" in
         TRACE) color="${COLOR_GRAY}" ;;
         DEBUG) color="${COLOR_CYAN}" ;;
-        INFO)  color="${COLOR_GREEN}" ;;
-        WARN)  color="${COLOR_YELLOW}" ;;
-        ERROR|FATAL) color="${COLOR_RED}" ;;
+        INFO) color="${COLOR_GREEN}" ;;
+        WARN) color="${COLOR_YELLOW}" ;;
+        ERROR | FATAL) color="${COLOR_RED}" ;;
     esac
-    
+
     local formatted="${color}[${timestamp}] [${level}]${reset} ${msg}"
-    
+
     # Output all log messages to stderr to avoid contaminating command output
     echo -e "$formatted" >&2
-    
+
     # Also log to file if configured
     if [[ -n "${LOG_FILE}" ]]; then
         echo "[${timestamp}] [${level}] ${msg}" >> "${LOG_FILE}"
     fi
-    
+
     # Exit on FATAL
     [[ "$level" == "FATAL" ]] && exit 1
-    
+
     return 0
 }
 
 # Convenience wrappers
 log_trace() { log TRACE "$@"; }
 log_debug() { log DEBUG "$@"; }
-log_info()  { log INFO "$@"; }
-log_warn()  { log WARN "$@"; }
+log_info() { log INFO "$@"; }
+log_warn() { log WARN "$@"; }
 log_error() { log ERROR "$@"; }
 log_fatal() { log FATAL "$@"; }
 
@@ -177,18 +177,18 @@ stacktrace() {
 error_handler() {
     # CRITICAL: Disable ERR trap immediately to prevent infinite recursion
     trap - ERR
-    
+
     local exit_code=$?
     local line_num="${BASH_LINENO[0]}"
     local script="${BASH_SOURCE[1]}"
-    
+
     # Output directly to stderr to avoid triggering more errors
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] Error in ${script} at line ${line_num} (exit code: ${exit_code})" >&2
-    
+
     if [[ "${SHOW_STACKTRACE:-true}" == "true" ]]; then
         stacktrace
     fi
-    
+
     exit "$exit_code"
 }
 
@@ -210,10 +210,10 @@ cleanup() {
 # ------------------------------------------------------------------------------
 setup_error_handling() {
     set -euo pipefail
-    set -E  # ERR trap inherited by functions
-    
+    set -E # ERR trap inherited by functions
+
     trap error_handler ERR
-    
+
     if [[ "${CLEANUP_ON_EXIT}" == "true" ]]; then
         trap cleanup EXIT
     fi
@@ -232,11 +232,11 @@ setup_error_handling() {
 require_cmd() {
     local missing=()
     for cmd in "$@"; do
-        if ! command -v "$cmd" >/dev/null 2>&1; then
+        if ! command -v "$cmd" > /dev/null 2>&1; then
             missing+=("$cmd")
         fi
     done
-    
+
     if [[ ${#missing[@]} -gt 0 ]]; then
         die "Missing required commands: ${missing[*]}"
     fi
@@ -255,7 +255,7 @@ require_var() {
             missing+=("$var")
         fi
     done
-    
+
     if [[ ${#missing[@]} -gt 0 ]]; then
         die "Missing required variables: ${missing[*]}"
     fi
@@ -293,33 +293,33 @@ need_val() {
 # ------------------------------------------------------------------------------
 parse_common_opts() {
     ARGS=()
-    
+
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            -h|--help)
-                if declare -f usage >/dev/null 2>&1; then
+            -h | --help)
+                if declare -f usage > /dev/null 2>&1; then
                     usage
                 else
                     die "Help not available"
                 fi
                 ;;
-            -V|--version)
+            -V | --version)
                 echo "${SCRIPT_NAME} ${SCRIPT_VERSION:-unknown}"
                 exit 0
                 ;;
-            -v|--verbose)
+            -v | --verbose)
                 LOG_LEVEL=DEBUG
                 shift
                 ;;
-            -d|--debug)
+            -d | --debug)
                 LOG_LEVEL=TRACE
                 shift
                 ;;
-            -q|--quiet)
+            -q | --quiet)
                 LOG_LEVEL=WARN
                 shift
                 ;;
-            -n|--dry-run)
+            -n | --dry-run)
                 export DRY_RUN=true
                 shift
                 ;;
@@ -360,7 +360,7 @@ parse_common_opts() {
 # ------------------------------------------------------------------------------
 load_config() {
     local config_file="$1"
-    
+
     if [[ -f "$config_file" ]]; then
         log_debug "Loading config from: $config_file"
         # shellcheck disable=SC1090
@@ -379,31 +379,31 @@ load_config() {
 # ------------------------------------------------------------------------------
 init_config() {
     local script_conf="${1:-}"
-    
+
     # Load .env from project root if exists
     local env_file="${SCRIPT_DIR}/../.env"
     load_config "$env_file"
-   
+
     # Load generic config - check ORADBA_ETC first, then local etc/
     if [[ -n "${ORADBA_ETC:-}" && -f "${ORADBA_ETC}/datasafe.conf" ]]; then
         log_debug "Loading config from ORADBA_ETC: ${ORADBA_ETC}/datasafe.conf"
         load_config "${ORADBA_ETC}/datasafe.conf"
     fi
-    
+
     local generic_conf="${SCRIPT_DIR}/../etc/datasafe.conf"
     load_config "$generic_conf"
-    
+
     # Load script-specific config if provided - check ORADBA_ETC first
     if [[ -n "$script_conf" ]]; then
         if [[ -n "${ORADBA_ETC:-}" && -f "${ORADBA_ETC}/${script_conf}" ]]; then
             log_debug "Loading script config from ORADBA_ETC: ${ORADBA_ETC}/${script_conf}"
             load_config "${ORADBA_ETC}/${script_conf}"
         fi
-        
+
         local specific_conf="${SCRIPT_DIR}/../etc/${script_conf}"
         load_config "$specific_conf"
     fi
-    
+
     return 0
 }
 
@@ -421,10 +421,10 @@ init_config() {
 confirm() {
     local prompt="${1:-Are you sure?}"
     local response
-    
+
     read -r -p "${prompt} [y/N] " response
     case "$response" in
-        [yY][eE][sS]|[yY]) 
+        [yY][eE][sS] | [yY])
             return 0
             ;;
         *)

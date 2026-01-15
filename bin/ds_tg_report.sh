@@ -25,7 +25,7 @@ readonly SCRIPT_VERSION="0.2.0"
 # Defaults
 : "${COMPARTMENT:=}"
 : "${REPORT_TYPE:=all}"
-: "${OUTPUT_FORMAT:=table}"  # table|json|csv
+: "${OUTPUT_FORMAT:=table}" # table|json|csv
 : "${TAG_NAMESPACE:=DBSec}"
 
 # Load library
@@ -47,7 +47,7 @@ init_config
 # =============================================================================
 
 usage() {
-    cat <<EOF
+    cat << EOF
 Usage: ${SCRIPT_NAME} [OPTIONS]
 
 Description:
@@ -101,24 +101,24 @@ EOF
 
 parse_args() {
     parse_common_opts "$@"
-    
+
     # Parse script-specific options
     local -a remaining=()
     set -- "${ARGS[@]}"
-    
+
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            -c|--compartment)
+            -c | --compartment)
                 need_val "$1" "${2:-}"
                 COMPARTMENT="$2"
                 shift 2
                 ;;
-            -r|--report)
+            -r | --report)
                 need_val "$1" "${2:-}"
                 REPORT_TYPE="$2"
                 shift 2
                 ;;
-            -f|--format)
+            -f | --format)
                 need_val "$1" "${2:-}"
                 OUTPUT_FORMAT="$2"
                 shift 2
@@ -152,25 +152,25 @@ parse_args() {
                 ;;
         esac
     done
-    
+
     # Validate report type
     case "$REPORT_TYPE" in
-        all|tags|env|missing|undef) : ;;
+        all | tags | env | missing | undef) : ;;
         *) die "Invalid report type: $REPORT_TYPE. Use all, tags, env, missing, or undef" ;;
     esac
-    
+
     # Validate output format
     case "$OUTPUT_FORMAT" in
-        table|json|csv) : ;;
+        table | json | csv) : ;;
         *) die "Invalid format: $OUTPUT_FORMAT. Use table, json, or csv" ;;
     esac
 }
 
 validate_inputs() {
     log_debug "Validating inputs..."
-    
+
     require_cmd oci jq
-    
+
     # Use DS_ROOT_COMP as default if no compartment specified
     if [[ -z "$COMPARTMENT" ]]; then
         local root_comp
@@ -189,9 +189,9 @@ validate_inputs() {
 get_targets_with_tags() {
     local comp_ocid
     comp_ocid=$(oci_resolve_compartment_ocid "$COMPARTMENT") || return 1
-    
+
     log_debug "Fetching targets with tags from compartment: $comp_ocid"
-    
+
     oci_exec data-safe target-database list \
         --compartment-id "$comp_ocid" \
         --compartment-id-in-subtree true \
@@ -205,10 +205,10 @@ get_targets_with_tags() {
 report_all_tags() {
     log_info "All Data Safe targets with ${TAG_NAMESPACE} tags"
     echo
-    
+
     local targets_json
     targets_json=$(get_targets_with_tags)
-    
+
     if [[ "$OUTPUT_FORMAT" == "table" ]]; then
         echo "$targets_json" | jq -r "
             .data[] | 
@@ -229,7 +229,7 @@ report_all_tags() {
                 "$(printf '%.15s' '---------------')" \
                 "$(printf '%.15s' '---------------')" \
                 "$(printf '%.15s' '---------------')"
-            
+
             while IFS=$'\t' read -r name env stage type class; do
                 printf "%-50s %-15s %-15s %-15s %-15s\n" \
                     "${name:0:48}" "$env" "$stage" "$type" "$class"
@@ -267,27 +267,27 @@ report_all_tags() {
 report_environment_distribution() {
     log_info "Environment distribution summary"
     echo
-    
+
     local targets_json
     targets_json=$(get_targets_with_tags)
-    
+
     # Count by environment
     local counts
     counts=$(echo "$targets_json" | jq -r "
         .data[] | 
         .\"defined-tags\".${TAG_NAMESPACE}.Environment // \"unset\"
     " | sort | uniq -c | sort -rn)
-    
+
     if [[ "$OUTPUT_FORMAT" == "table" ]]; then
         printf "%-15s %10s\n" "Environment" "Count"
         printf "%-15s %10s\n" "---------------" "----------"
-        
+
         local total=0
         while read -r count env; do
             printf "%-15s %10d\n" "$env" "$count"
             total=$((total + count))
         done <<< "$counts"
-        
+
         printf "%-15s %10s\n" "---------------" "----------"
         printf "%-15s %10d\n" "TOTAL" "$total"
     elif [[ "$OUTPUT_FORMAT" == "csv" ]]; then
@@ -312,10 +312,10 @@ report_environment_distribution() {
 report_undefined_tags() {
     log_info "Targets with undefined (undef) tag values"
     echo
-    
+
     local targets_json
     targets_json=$(get_targets_with_tags)
-    
+
     # Filter targets with any "undef" tag values
     local undef_targets
     undef_targets=$(echo "$targets_json" | jq "
@@ -327,12 +327,12 @@ report_undefined_tags() {
             (.\"defined-tags\".${TAG_NAMESPACE}.Classification // \"unset\") == \"undef\"
         )
     ")
-    
+
     if [[ -z "$undef_targets" || "$undef_targets" == "null" ]]; then
         log_info "No targets found with undefined tag values"
         return 0
     fi
-    
+
     if [[ "$OUTPUT_FORMAT" == "table" ]]; then
         echo "$undef_targets" | jq -r "
             [
@@ -350,7 +350,7 @@ report_undefined_tags() {
                 "$(printf '%.15s' '---------------')" \
                 "$(printf '%.15s' '---------------')" \
                 "$(printf '%.15s' '---------------')"
-            
+
             while IFS=$'\t' read -r name env stage type; do
                 printf "%-50s %-15s %-15s %-15s\n" \
                     "${name:0:48}" "$env" "$stage" "$type"
@@ -380,27 +380,27 @@ report_undefined_tags() {
 report_missing_tags() {
     log_info "Targets missing ${TAG_NAMESPACE} tags"
     echo
-    
+
     local targets_json
     targets_json=$(get_targets_with_tags)
-    
+
     # Filter targets without the tag namespace
     local missing_targets
     missing_targets=$(echo "$targets_json" | jq "
         .data[] | 
         select(.\"defined-tags\".${TAG_NAMESPACE} == null)
     ")
-    
+
     if [[ -z "$missing_targets" || "$missing_targets" == "null" ]]; then
         log_info "No targets found missing ${TAG_NAMESPACE} tag namespace"
         return 0
     fi
-    
+
     if [[ "$OUTPUT_FORMAT" == "table" ]]; then
         echo "$missing_targets" | jq -r '.\"display-name\"' | {
             printf "%-50s\n" "Display Name"
             printf "%-50s\n" "$(printf '%.50s' '--------------------------------------------------')"
-            
+
             while read -r name; do
                 printf "%-50s\n" "${name:0:48}"
             done
@@ -447,16 +447,16 @@ do_work() {
 
 main() {
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
-    
+
     # Setup error handling
     setup_error_handling
-    
+
     # Validate inputs
     validate_inputs
-    
+
     # Execute main work
     do_work
-    
+
     log_info "Report completed successfully"
 }
 

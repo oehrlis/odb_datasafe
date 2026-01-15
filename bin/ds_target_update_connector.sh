@@ -51,7 +51,7 @@ init_config
 # =============================================================================
 
 usage() {
-    cat <<EOF
+    cat << EOF
 Usage: ${SCRIPT_NAME} [OPTIONS] MODE
 
 Description:
@@ -131,24 +131,24 @@ EOF
 
 parse_args() {
     parse_common_opts "$@"
-    
+
     # Parse script-specific options
     local -a remaining=()
     set -- "${ARGS[@]}"
-    
+
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            -c|--compartment)
+            -c | --compartment)
                 need_val "$1" "${2:-}"
                 COMPARTMENT="$2"
                 shift 2
                 ;;
-            -T|--targets)
+            -T | --targets)
                 need_val "$1" "${2:-}"
                 TARGETS="$2"
                 shift 2
                 ;;
-            -L|--lifecycle)
+            -L | --lifecycle)
                 need_val "$1" "${2:-}"
                 LIFECYCLE_STATE="$2"
                 shift 2
@@ -195,11 +195,11 @@ parse_args() {
                 ;;
         esac
     done
-    
+
     # Handle mode and positional arguments
     if [[ ${#remaining[@]} -gt 0 ]]; then
         OPERATION_MODE="${remaining[0]}"
-        
+
         # Handle remaining positional args as targets if not already set
         if [[ ${#remaining[@]} -gt 1 && -z "$TARGETS" ]]; then
             local -a target_args=("${remaining[@]:1}")
@@ -211,15 +211,15 @@ parse_args() {
 
 validate_inputs() {
     log_debug "Validating inputs..."
-    
+
     require_cmd oci jq
-    
+
     # Validate operation mode
     case "$OPERATION_MODE" in
-        set|migrate|distribute) ;;
+        set | migrate | distribute) ;;
         *) die "Invalid operation mode: $OPERATION_MODE. Use: set, migrate, or distribute" ;;
     esac
-    
+
     # Validate mode-specific requirements
     case "$OPERATION_MODE" in
         set)
@@ -234,7 +234,7 @@ validate_inputs() {
             [[ -z "$SOURCE_CONNECTOR" && -z "$TARGET_CONNECTOR" ]] || log_warn "Connector options ignored in distribute mode"
             ;;
     esac
-    
+
     # If no scope specified, use DS_ROOT_COMP as default (except for set mode with specific targets)
     if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
         local root_comp
@@ -242,19 +242,19 @@ validate_inputs() {
         COMPARTMENT="$root_comp"
         log_info "No scope specified, using DS_ROOT_COMP: $COMPARTMENT"
     fi
-    
+
     # For set mode, require either targets or compartment
     if [[ "$OPERATION_MODE" == "set" && -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
         die "Set mode requires either --targets or --compartment to be specified"
     fi
-    
+
     # Show mode
     if [[ "$APPLY_CHANGES" == "true" ]]; then
         log_info "Apply mode: Changes will be applied"
     else
         log_info "Dry-run mode: Changes will be shown only (use --apply to apply)"
     fi
-    
+
     log_info "Operation mode: $OPERATION_MODE"
 }
 
@@ -266,14 +266,14 @@ validate_inputs() {
 # ------------------------------------------------------------------------------
 resolve_connector_ocid() {
     local connector="$1"
-    
+
     if is_ocid "$connector"; then
         echo "$connector"
         return 0
     fi
-    
+
     log_debug "Resolving connector name: $connector"
-    
+
     # Get compartment to search in
     local comp_ocid
     if [[ -n "$COMPARTMENT" ]]; then
@@ -281,19 +281,19 @@ resolve_connector_ocid() {
     else
         comp_ocid=$(get_root_compartment_ocid) || return 1
     fi
-    
+
     # Search for connector by display name
     local connector_ocid
     connector_ocid=$(oci_exec data-safe on-premises-connector list \
         --compartment-id "$comp_ocid" \
         --compartment-id-in-subtree true \
         --query "data[?\"display-name\"=='$connector'].id | [0]" \
-        --raw-output 2>/dev/null)
-    
+        --raw-output 2> /dev/null)
+
     if [[ -z "$connector_ocid" || "$connector_ocid" == "null" ]]; then
         return 1
     fi
-    
+
     echo "$connector_ocid"
 }
 
@@ -305,11 +305,11 @@ resolve_connector_ocid() {
 # ------------------------------------------------------------------------------
 get_connector_name() {
     local connector_ocid="$1"
-    
+
     oci_exec data-safe on-premises-connector get \
         --on-premises-connector-id "$connector_ocid" \
         --query 'data."display-name"' \
-        --raw-output 2>/dev/null || echo "unknown"
+        --raw-output 2> /dev/null || echo "unknown"
 }
 
 # ------------------------------------------------------------------------------
@@ -319,14 +319,14 @@ get_connector_name() {
 # ------------------------------------------------------------------------------
 list_available_connectors() {
     log_debug "Listing available on-premises connectors..."
-    
+
     local comp_ocid
     if [[ -n "$COMPARTMENT" ]]; then
         comp_ocid=$(oci_resolve_compartment_ocid "$COMPARTMENT") || return 1
     else
         comp_ocid=$(get_root_compartment_ocid) || return 1
     fi
-    
+
     oci_exec data-safe on-premises-connector list \
         --compartment-id "$comp_ocid" \
         --compartment-id-in-subtree true \
@@ -347,39 +347,39 @@ update_target_connector() {
     local target_name="$2"
     local new_connector_ocid="$3"
     local new_connector_name="$4"
-    
+
     log_debug "Processing target: $target_name ($target_ocid)"
-    
+
     # Get current connector
     local current_connector_ocid current_connector_name
     current_connector_ocid=$(oci_exec data-safe target-database get \
         --target-database-id "$target_ocid" \
         --query 'data."connection-option"."on-premise-connector-id"' \
-        --raw-output 2>/dev/null || echo "")
-    
+        --raw-output 2> /dev/null || echo "")
+
     if [[ -n "$current_connector_ocid" && "$current_connector_ocid" != "null" ]]; then
         current_connector_name=$(get_connector_name "$current_connector_ocid")
     else
         current_connector_name="none"
     fi
-    
+
     log_info "Target: $target_name"
     log_info "  Current connector: $current_connector_name"
     log_info "  New connector: $new_connector_name"
-    
+
     # Skip if already using target connector
     if [[ "$current_connector_ocid" == "$new_connector_ocid" ]]; then
         log_info "  ➤ Already using target connector - skipping"
         return 0
     fi
-    
+
     if [[ "$APPLY_CHANGES" == "true" ]]; then
         log_info "  Updating connector..."
-        
+
         # Update target with new connector
         if oci_exec data-safe target-database update \
             --target-database-id "$target_ocid" \
-            --connection-option "{\"onPremiseConnectorId\": \"$new_connector_ocid\"}" >/dev/null; then
+            --connection-option "{\"onPremiseConnectorId\": \"$new_connector_ocid\"}" > /dev/null; then
             log_info "  ✅ Connector updated successfully"
             return 0
         else
@@ -401,25 +401,25 @@ update_target_connector() {
 list_targets_in_compartment() {
     local compartment="$1"
     local comp_ocid
-    
+
     comp_ocid=$(oci_resolve_compartment_ocid "$compartment") || return 1
-    
+
     log_debug "Listing targets in compartment: $comp_ocid"
-    
+
     local -a cmd=(
         data-safe target-database list
         --compartment-id "$comp_ocid"
         --compartment-id-in-subtree true
         --all
     )
-    
+
     if [[ -n "$LIFECYCLE_STATE" ]]; then
         cmd+=(--lifecycle-state "$LIFECYCLE_STATE")
     fi
-    
+
     local json_data
     json_data=$(oci_exec "${cmd[@]}")
-    
+
     # Apply additional filtering if needed
     if [[ "$EXCLUDE_AUTO" == "true" ]]; then
         echo "$json_data" | jq '.data = (.data | map(select(.["display-name"] | test("_auto$") | not)))'
@@ -434,34 +434,34 @@ list_targets_in_compartment() {
 # ------------------------------------------------------------------------------
 do_set_mode() {
     log_info "Executing SET mode..."
-    
+
     local target_connector_ocid target_connector_name
     target_connector_ocid=$(resolve_connector_ocid "$TARGET_CONNECTOR") || die "Failed to resolve target connector: $TARGET_CONNECTOR"
     target_connector_name=$(get_connector_name "$target_connector_ocid")
-    
+
     log_info "Target connector: $target_connector_name ($target_connector_ocid)"
-    
+
     local success_count=0 error_count=0
-    
+
     # Process targets
     if [[ -n "$TARGETS" ]]; then
         # Process specific targets
         log_info "Processing specific targets..."
-        
+
         local -a target_list
         IFS=',' read -ra target_list <<< "$TARGETS"
-        
+
         for target in "${target_list[@]}"; do
-            target="${target// /}"  # trim spaces
-            
+            target="${target// /}" # trim spaces
+
             local target_ocid target_name
-            
+
             if is_ocid "$target"; then
                 target_ocid="$target"
                 target_name=$(oci_exec data-safe target-database get \
                     --target-database-id "$target_ocid" \
                     --query 'data."display-name"' \
-                    --raw-output 2>/dev/null || echo "unknown")
+                    --raw-output 2> /dev/null || echo "unknown")
             else
                 # Resolve target name to OCID
                 log_debug "Resolving target name: $target"
@@ -473,12 +473,12 @@ do_set_mode() {
                     root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment"
                     resolved=$(ds_resolve_target_ocid "$target" "$root_comp") || die "Failed to resolve target: $target"
                 fi
-                
+
                 [[ -n "$resolved" ]] || die "Target not found: $target"
                 target_ocid="$resolved"
                 target_name="$target"
             fi
-            
+
             if update_target_connector "$target_ocid" "$target_name" "$target_connector_ocid" "$target_connector_name"; then
                 success_count=$((success_count + 1))
             else
@@ -490,21 +490,21 @@ do_set_mode() {
         log_info "Processing targets from compartment..."
         local json_data
         json_data=$(list_targets_in_compartment "$COMPARTMENT") || die "Failed to list targets"
-        
+
         local total_count
         total_count=$(echo "$json_data" | jq '.data | length')
         log_info "Found $total_count targets to process"
-        
+
         if [[ $total_count -eq 0 ]]; then
             log_warn "No targets found"
             return 0
         fi
-        
+
         local current=0
         while read -r target_ocid target_name; do
             current=$((current + 1))
             log_info "[$current/$total_count] Processing: $target_name"
-            
+
             if update_target_connector "$target_ocid" "$target_name" "$target_connector_ocid" "$target_connector_name"; then
                 success_count=$((success_count + 1))
             else
@@ -512,12 +512,12 @@ do_set_mode() {
             fi
         done < <(echo "$json_data" | jq -r '.data[] | [.id, ."display-name"] | @tsv')
     fi
-    
+
     # Summary
     log_info "SET operation completed:"
     log_info "  Successful: $success_count"
     log_info "  Errors: $error_count"
-    
+
     [[ $error_count -gt 0 ]] && return 1 || return 0
 }
 
@@ -527,55 +527,55 @@ do_set_mode() {
 # ------------------------------------------------------------------------------
 do_migrate_mode() {
     log_info "Executing MIGRATE mode..."
-    
+
     local source_connector_ocid target_connector_ocid source_connector_name target_connector_name
     source_connector_ocid=$(resolve_connector_ocid "$SOURCE_CONNECTOR") || die "Failed to resolve source connector: $SOURCE_CONNECTOR"
     target_connector_ocid=$(resolve_connector_ocid "$TARGET_CONNECTOR") || die "Failed to resolve target connector: $TARGET_CONNECTOR"
-    
+
     source_connector_name=$(get_connector_name "$source_connector_ocid")
     target_connector_name=$(get_connector_name "$target_connector_ocid")
-    
+
     log_info "Source connector: $source_connector_name ($source_connector_ocid)"
     log_info "Target connector: $target_connector_name ($target_connector_ocid)"
-    
+
     # Get all targets using source connector
     log_info "Finding targets using source connector..."
     local json_data
     json_data=$(list_targets_in_compartment "$COMPARTMENT") || die "Failed to list targets"
-    
+
     # Filter targets by source connector
     local filtered_data
     filtered_data=$(echo "$json_data" | jq --arg source_id "$source_connector_ocid" '
         .data = (.data | map(select(.["connection-option"]["on-premise-connector-id"] == $source_id)))
     ')
-    
+
     local total_count
     total_count=$(echo "$filtered_data" | jq '.data | length')
     log_info "Found $total_count targets using source connector"
-    
+
     if [[ $total_count -eq 0 ]]; then
         log_warn "No targets found using source connector"
         return 0
     fi
-    
+
     local success_count=0 error_count=0 current=0
-    
+
     while read -r target_ocid target_name; do
         current=$((current + 1))
         log_info "[$current/$total_count] Processing: $target_name"
-        
+
         if update_target_connector "$target_ocid" "$target_name" "$target_connector_ocid" "$target_connector_name"; then
             success_count=$((success_count + 1))
         else
             error_count=$((error_count + 1))
         fi
     done < <(echo "$filtered_data" | jq -r '.data[] | [.id, ."display-name"] | @tsv')
-    
+
     # Summary
     log_info "MIGRATE operation completed:"
     log_info "  Successful: $success_count"
     log_info "  Errors: $error_count"
-    
+
     [[ $error_count -gt 0 ]] && return 1 || return 0
 }
 
@@ -585,21 +585,21 @@ do_migrate_mode() {
 # ------------------------------------------------------------------------------
 do_distribute_mode() {
     log_info "Executing DISTRIBUTE mode..."
-    
+
     # Get all available connectors
     log_info "Finding available on-premises connectors..."
     local connectors_data
     connectors_data=$(list_available_connectors) || die "Failed to list connectors"
-    
+
     local connector_count
     connector_count=$(echo "$connectors_data" | jq '.data | length')
-    
+
     if [[ $connector_count -eq 0 ]]; then
         die "No active on-premises connectors found"
     fi
-    
+
     log_info "Found $connector_count available connectors:"
-    
+
     # Display available connectors
     local -a connector_ocids connector_names
     while read -r ocid name; do
@@ -607,57 +607,57 @@ do_distribute_mode() {
         connector_names+=("$name")
         log_info "  - $name ($ocid)"
     done < <(echo "$connectors_data" | jq -r '.data[] | [.id, ."display-name"] | @tsv')
-    
+
     # Get all targets that need distribution
     log_info "Finding targets to distribute..."
     local targets_data
     targets_data=$(list_targets_in_compartment "$COMPARTMENT") || die "Failed to list targets"
-    
+
     local total_targets
     total_targets=$(echo "$targets_data" | jq '.data | length')
     log_info "Found $total_targets targets to distribute"
-    
+
     if [[ $total_targets -eq 0 ]]; then
         log_warn "No targets found for distribution"
         return 0
     fi
-    
+
     local success_count=0 error_count=0 current=0
-    
+
     # Distribute targets round-robin across connectors
     while read -r target_ocid target_name; do
         current=$((current + 1))
-        local connector_index=$(( (current - 1) % connector_count ))
+        local connector_index=$(((current - 1) % connector_count))
         local assigned_connector_ocid="${connector_ocids[$connector_index]}"
         local assigned_connector_name="${connector_names[$connector_index]}"
-        
+
         log_info "[$current/$total_targets] Processing: $target_name"
         log_info "  Assigning to: $assigned_connector_name"
-        
+
         if update_target_connector "$target_ocid" "$target_name" "$assigned_connector_ocid" "$assigned_connector_name"; then
             success_count=$((success_count + 1))
         else
             error_count=$((error_count + 1))
         fi
     done < <(echo "$targets_data" | jq -r '.data[] | [.id, ."display-name"] | @tsv')
-    
+
     # Summary
     log_info "DISTRIBUTE operation completed:"
     log_info "  Successful: $success_count"
     log_info "  Errors: $error_count"
-    
+
     # Show distribution summary
     if [[ "$APPLY_CHANGES" == "true" ]]; then
         log_info "Distribution summary:"
-        for ((i=0; i<connector_count; i++)); do
-            local count=$(( success_count / connector_count ))
-            if [[ $i -lt $(( success_count % connector_count )) ]]; then
+        for ((i = 0; i < connector_count; i++)); do
+            local count=$((success_count / connector_count))
+            if [[ $i -lt $((success_count % connector_count)) ]]; then
                 count=$((count + 1))
             fi
             log_info "  ${connector_names[$i]}: ~$count targets"
         done
     fi
-    
+
     [[ $error_count -gt 0 ]] && return 1 || return 0
 }
 
@@ -688,13 +688,13 @@ do_work() {
 
 main() {
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
-    
+
     # Setup error handling
     setup_error_handling
-    
+
     # Validate inputs
     validate_inputs
-    
+
     # Execute main work
     if do_work; then
         log_info "Connector management completed successfully"

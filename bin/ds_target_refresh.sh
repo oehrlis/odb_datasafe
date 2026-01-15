@@ -30,9 +30,9 @@ readonly SCRIPT_VERSION="0.2.0"
 # Defaults
 : "${COMPARTMENT:=}"
 : "${TARGETS:=}"
-: "${LIFECYCLE_STATE:=NEEDS_ATTENTION}"  # Default to NEEDS_ATTENTION
+: "${LIFECYCLE_STATE:=NEEDS_ATTENTION}" # Default to NEEDS_ATTENTION
 : "${DRY_RUN:=false}"
-: "${WAIT_FOR_COMPLETION:=false}"  # Default to no-wait for speed
+: "${WAIT_FOR_COMPLETION:=false}" # Default to no-wait for speed
 
 # Counters
 SUCCESS_COUNT=0
@@ -44,7 +44,7 @@ SKIPPED_COUNT=0
 # =============================================================================
 
 usage() {
-    cat <<EOF
+    cat << EOF
 Usage: ${SCRIPT_NAME} [OPTIONS] [TARGETS...]
 
 Description:
@@ -101,23 +101,23 @@ EOF
 
 parse_args() {
     parse_common_opts "$@"
-    
+
     local -a remaining=()
     set -- "${ARGS[@]}"
-    
+
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            -c|--compartment)
+            -c | --compartment)
                 need_val "$1" "${2:-}"
                 COMPARTMENT="$2"
                 shift 2
                 ;;
-            -T|--targets)
+            -T | --targets)
                 need_val "$1" "${2:-}"
                 TARGETS="$2"
                 shift 2
                 ;;
-            -L|--lifecycle)
+            -L | --lifecycle)
                 need_val "$1" "${2:-}"
                 LIFECYCLE_STATE="$2"
                 shift 2
@@ -154,7 +154,7 @@ parse_args() {
                 ;;
         esac
     done
-    
+
     # Positional args become targets
     if [[ ${#remaining[@]} -gt 0 ]]; then
         if [[ -z "$TARGETS" ]]; then
@@ -168,9 +168,9 @@ parse_args() {
 
 validate_inputs() {
     log_debug "Validating inputs..."
-    
+
     require_cmd oci jq
-    
+
     # If neither targets nor compartment specified, use DS_ROOT_COMP as default
     if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
         local root_comp
@@ -185,19 +185,19 @@ refresh_single_target() {
     local current="${2:-1}"
     local total="${3:-1}"
     local target_name
-    
-    target_name=$(ds_resolve_target_name "$target_ocid" 2>/dev/null) || {
+
+    target_name=$(ds_resolve_target_name "$target_ocid" 2> /dev/null) || {
         log_error "Failed to resolve target name: $target_ocid"
         FAILED_COUNT=$((FAILED_COUNT + 1))
         return 1
     }
-    
+
     if [[ "${DRY_RUN}" == "true" ]]; then
         log_info "[$current/$total] [DRY-RUN] Would refresh: $target_name ($target_ocid)"
         SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
         return 0
     fi
-    
+
     # Pass the counter info to ds_refresh_target
     if ds_refresh_target "$target_ocid" "$current" "$total"; then
         log_debug "✓ Successfully refreshed: $target_name"
@@ -212,14 +212,14 @@ refresh_single_target() {
 
 do_work() {
     local -a target_ocids=()
-    
+
     # Collect target OCIDs
     if [[ -n "$TARGETS" ]]; then
         # Process explicit targets
         IFS=',' read -ra target_list <<< "$TARGETS"
         for target in "${target_list[@]}"; do
-            target="${target// /}"  # trim spaces
-            
+            target="${target// /}" # trim spaces
+
             if is_ocid "$target"; then
                 target_ocids+=("$target")
             else
@@ -233,45 +233,45 @@ do_work() {
                     root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment"
                     resolved=$(ds_resolve_target_ocid "$target" "$root_comp") || die "Failed to resolve target: $target"
                 fi
-                
+
                 if [[ -z "$resolved" ]]; then
                     die "Target not found: $target"
                 fi
-                
+
                 target_ocids+=("$resolved")
             fi
         done
     elif [[ -n "$COMPARTMENT" ]]; then
         # List targets from compartment
         log_info "Discovering targets in compartment: $COMPARTMENT (lifecycle: $LIFECYCLE_STATE)"
-        
+
         local comp_ocid
         comp_ocid=$(oci_resolve_compartment_ocid "$COMPARTMENT")
-        
+
         local targets_json
         targets_json=$(ds_list_targets "$comp_ocid" "$LIFECYCLE_STATE")
-        
+
         # Extract OCIDs
         mapfile -t target_ocids < <(echo "$targets_json" | jq -r '.data[].id')
-        
+
         local count=${#target_ocids[@]}
         if [[ $count -eq 0 ]]; then
             log_warn "No targets found matching criteria"
             return 0
         fi
-        
+
         log_info "Found $count targets to refresh"
     fi
-    
+
     # Refresh each target
     local total=${#target_ocids[@]}
     local current=0
-    
+
     for target_ocid in "${target_ocids[@]}"; do
         current=$((current + 1))
         refresh_single_target "$target_ocid" "$current" "$total"
     done
-    
+
     # Print summary
     echo ""
     log_info "====== Refresh Summary ======"
@@ -280,7 +280,7 @@ do_work() {
     log_info "Failed:           $FAILED_COUNT"
     log_info "Skipped:          $SKIPPED_COUNT"
     log_info "============================"
-    
+
     # Exit with error if any failed
     if [[ $FAILED_COUNT -gt 0 ]]; then
         die "Some targets failed to refresh" 10
@@ -293,12 +293,12 @@ do_work() {
 
 main() {
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
-    
+
     init_config "${SCRIPT_NAME}.conf"
     parse_args "$@"
     validate_inputs
     do_work
-    
+
     log_info "Refresh completed successfully"
 }
 

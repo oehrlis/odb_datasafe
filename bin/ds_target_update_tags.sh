@@ -51,7 +51,7 @@ init_config
 # =============================================================================
 
 usage() {
-    cat <<EOF
+    cat << EOF
 Usage: ${SCRIPT_NAME} [OPTIONS]
 
 Description:
@@ -107,19 +107,19 @@ EOF
 
 parse_args() {
     parse_common_opts "$@"
-    
+
     # Parse script-specific options
     local -a remaining=()
     set -- "${ARGS[@]}"
-    
+
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            -c|--compartment)
+            -c | --compartment)
                 need_val "$1" "${2:-}"
                 COMPARTMENT="$2"
                 shift 2
                 ;;
-            -T|--targets)
+            -T | --targets)
                 need_val "$1" "${2:-}"
                 TARGETS="$2"
                 shift 2
@@ -177,7 +177,7 @@ parse_args() {
                 ;;
         esac
     done
-    
+
     # Handle positional arguments
     if [[ ${#remaining[@]} -gt 0 ]]; then
         if [[ -z "$TARGETS" ]]; then
@@ -191,9 +191,9 @@ parse_args() {
 
 validate_inputs() {
     log_debug "Validating inputs..."
-    
+
     require_cmd oci jq
-    
+
     # If no scope specified, use DS_ROOT_COMP as default
     if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
         local root_comp
@@ -201,7 +201,7 @@ validate_inputs() {
         COMPARTMENT="$root_comp"
         log_info "No scope specified, using DS_ROOT_COMP: $COMPARTMENT"
     fi
-    
+
     # Show mode
     if [[ "$APPLY_CHANGES" == "true" ]]; then
         log_info "Apply mode: Changes will be applied"
@@ -219,14 +219,14 @@ validate_inputs() {
 get_env_from_compartment_name() {
     local comp_name="$1"
     local env="undef"
-    
+
     # Pattern: cmp-{org}-{env}-projects
     if [[ "$comp_name" =~ ^cmp-[^-]+-([^-]+)-projects$ ]]; then
         env="${BASH_REMATCH[1]}"
     fi
-    
+
     case "$env" in
-        test|qs|prod) echo "$env" ;;
+        test | qs | prod) echo "$env" ;;
         *) echo "undef" ;;
     esac
 }
@@ -239,11 +239,11 @@ get_env_from_compartment_name() {
 # ------------------------------------------------------------------------------
 get_compartment_name() {
     local comp_id="$1"
-    
+
     oci_exec iam compartment get \
         --compartment-id "$comp_id" \
         --query 'data.name' \
-        --raw-output 2>/dev/null || echo "unknown"
+        --raw-output 2> /dev/null || echo "unknown"
 }
 
 # ------------------------------------------------------------------------------
@@ -260,8 +260,8 @@ build_tag_update_json() {
     local stage="$2"
     local type="$3"
     local classification="$4"
-    
-    cat <<EOF
+
+    cat << EOF
 {
   "defined-tags": {
     "${TAG_NAMESPACE}": {
@@ -286,39 +286,39 @@ update_target_tags() {
     local target_ocid="$1"
     local target_name="$2"
     local target_comp="$3"
-    
+
     log_debug "Processing target: $target_name ($target_ocid)"
-    
+
     # Get compartment name and derive environment
     local comp_name
     comp_name=$(get_compartment_name "$target_comp")
-    
+
     local env
     env=$(get_env_from_compartment_name "$comp_name")
-    
+
     log_debug "Target compartment: $comp_name -> Environment: $env"
-    
+
     # Default tag values - customize as needed
     local container_stage="undef"
     local container_type="undef"
     local classification="undef"
-    
+
     # Build update JSON
     local update_json
     update_json=$(build_tag_update_json "$env" "$container_stage" "$container_type" "$classification")
-    
+
     log_info "Target: $target_name"
     log_info "  Environment: $env"
     log_info "  Container Stage: $container_stage"
     log_info "  Container Type: $container_type"
     log_info "  Classification: $classification"
-    
+
     if [[ "$APPLY_CHANGES" == "true" ]]; then
         log_info "  Applying tags..."
-        
+
         if oci_exec data-safe target-database update \
             --target-database-id "$target_ocid" \
-            --defined-tags "$update_json" >/dev/null; then
+            --defined-tags "$update_json" > /dev/null; then
             log_info "  ✅ Tags updated successfully"
             return 0
         else
@@ -340,11 +340,11 @@ update_target_tags() {
 list_targets_in_compartment() {
     local compartment="$1"
     local comp_ocid
-    
+
     comp_ocid=$(oci_resolve_compartment_ocid "$compartment") || return 1
-    
+
     log_debug "Listing targets in compartment: $comp_ocid"
-    
+
     oci_exec data-safe target-database list \
         --compartment-id "$comp_ocid" \
         --compartment-id-in-subtree true \
@@ -357,29 +357,29 @@ list_targets_in_compartment() {
 # ------------------------------------------------------------------------------
 do_work() {
     local json_data success_count=0 error_count=0
-    
+
     # Collect target data
     if [[ -n "$TARGETS" ]]; then
         # Process specific targets
         log_info "Processing specific targets..."
-        
+
         local -a target_list
         IFS=',' read -ra target_list <<< "$TARGETS"
-        
+
         for target in "${target_list[@]}"; do
-            target="${target// /}"  # trim spaces
-            
+            target="${target// /}" # trim spaces
+
             if is_ocid "$target"; then
                 # Get target details
                 local target_data
                 if target_data=$(oci_exec data-safe target-database get \
                     --target-database-id "$target" \
-                    --query 'data' 2>/dev/null); then
-                    
+                    --query 'data' 2> /dev/null); then
+
                     local target_name target_comp
                     target_name=$(echo "$target_data" | jq -r '."display-name"')
                     target_comp=$(echo "$target_data" | jq -r '."compartment-id"')
-                    
+
                     if update_target_tags "$target" "$target_name" "$target_comp"; then
                         success_count=$((success_count + 1))
                     else
@@ -398,21 +398,21 @@ do_work() {
         # Process targets from compartment
         log_info "Processing targets from compartment..."
         json_data=$(list_targets_in_compartment "$COMPARTMENT") || die "Failed to list targets"
-        
+
         local total_count
         total_count=$(echo "$json_data" | jq '.data | length')
         log_info "Found $total_count targets to process"
-        
+
         if [[ $total_count -eq 0 ]]; then
             log_warn "No targets found"
             return 0
         fi
-        
+
         local current=0
         while read -r target_ocid target_name target_comp; do
             current=$((current + 1))
             log_info "[$current/$total_count] Processing: $target_name"
-            
+
             if update_target_tags "$target_ocid" "$target_name" "$target_comp"; then
                 success_count=$((success_count + 1))
             else
@@ -420,12 +420,12 @@ do_work() {
             fi
         done < <(echo "$json_data" | jq -r '.data[] | [.id, ."display-name", ."compartment-id"] | @tsv')
     fi
-    
+
     # Summary
     log_info "Tag update completed:"
     log_info "  Successful: $success_count"
     log_info "  Errors: $error_count"
-    
+
     [[ $error_count -gt 0 ]] && return 1 || return 0
 }
 
@@ -435,13 +435,13 @@ do_work() {
 
 main() {
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
-    
+
     # Setup error handling
     setup_error_handling
-    
+
     # Validate inputs
     validate_inputs
-    
+
     # Execute main work
     if do_work; then
         log_info "Tag update completed successfully"

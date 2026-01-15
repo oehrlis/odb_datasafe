@@ -30,10 +30,10 @@ readonly SCRIPT_NAME
 readonly SCRIPT_VERSION="0.2.0"
 
 # Default configuration (can be overridden by config files and CLI)
-: "${COMPARTMENT:=}"                # Compartment name or OCID
-: "${TARGETS:=}"                    # Comma-separated target names/OCIDs
-: "${LIFECYCLE_STATE:=}"            # Filter by lifecycle (e.g., ACTIVE,NEEDS_ATTENTION)
-: "${DRY_RUN:=false}"              # Dry-run mode (set by --dry-run flag)
+: "${COMPARTMENT:=}"     # Compartment name or OCID
+: "${TARGETS:=}"         # Comma-separated target names/OCIDs
+: "${LIFECYCLE_STATE:=}" # Filter by lifecycle (e.g., ACTIVE,NEEDS_ATTENTION)
+: "${DRY_RUN:=false}"    # Dry-run mode (set by --dry-run flag)
 
 # Script-specific defaults (add your own here)
 # : "${MY_CUSTOM_OPTION:=default_value}"
@@ -47,7 +47,7 @@ readonly SCRIPT_VERSION="0.2.0"
 # Purpose.....: Display usage information
 # ------------------------------------------------------------------------------
 usage() {
-    cat <<EOF
+    cat << EOF
 Usage: ${SCRIPT_NAME} [OPTIONS] [TARGETS...]
 
 Description:
@@ -108,24 +108,24 @@ EOF
 parse_args() {
     # First, parse common options (sets ARGS with remaining args)
     parse_common_opts "$@"
-    
+
     # Now parse script-specific options from ARGS
     local -a remaining=()
     set -- "${ARGS[@]}"
-    
+
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            -c|--compartment)
+            -c | --compartment)
                 need_val "$1" "${2:-}"
                 COMPARTMENT="$2"
                 shift 2
                 ;;
-            -T|--targets)
+            -T | --targets)
                 need_val "$1" "${2:-}"
                 TARGETS="$2"
                 shift 2
                 ;;
-            -L|--lifecycle)
+            -L | --lifecycle)
                 need_val "$1" "${2:-}"
                 LIFECYCLE_STATE="$2"
                 shift 2
@@ -161,12 +161,12 @@ parse_args() {
                 ;;
         esac
     done
-    
+
     # Handle positional arguments (e.g., treat as targets)
     if [[ ${#remaining[@]} -gt 0 ]]; then
         if [[ -z "$TARGETS" ]]; then
             TARGETS="${remaining[*]}"
-            TARGETS="${TARGETS// /,}"  # Convert spaces to commas
+            TARGETS="${TARGETS// /,}" # Convert spaces to commas
         else
             log_warn "Ignoring positional args, targets already specified: ${remaining[*]}"
         fi
@@ -179,24 +179,24 @@ parse_args() {
 # ------------------------------------------------------------------------------
 validate_inputs() {
     log_debug "Validating inputs..."
-    
+
     # Check required commands
     require_cmd oci jq
-    
+
     # Check required variables (uncomment as needed)
     # require_var COMPARTMENT
     # require_var TARGETS
-    
+
     # Example: Get root compartment OCID (resolves name if needed)
     # local root_comp
     # root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment"
     # log_debug "Using root compartment: $root_comp"
-    
+
     # Custom validation logic
     if [[ -z "$COMPARTMENT" && -z "$TARGETS" ]]; then
         die "Either --compartment or --targets must be specified"
     fi
-    
+
     # Add your validation here
 }
 
@@ -206,50 +206,50 @@ validate_inputs() {
 # ------------------------------------------------------------------------------
 do_work() {
     log_info "Starting work..."
-    
+
     # Example: List targets
     if [[ -n "$COMPARTMENT" ]]; then
         log_info "Listing targets in compartment: $COMPARTMENT"
-        
+
         local comp_ocid
         comp_ocid=$(oci_resolve_compartment_ocid "$COMPARTMENT")
-        
+
         local targets_json
         targets_json=$(ds_list_targets "$comp_ocid" "$LIFECYCLE_STATE")
-        
+
         # Process targets
         local count
         count=$(echo "$targets_json" | jq '.data | length')
         log_info "Found $count targets"
-        
+
         # Example: iterate over targets
         echo "$targets_json" | jq -r '.data[].id' | while read -r target_ocid; do
             local target_name
             target_name=$(ds_resolve_target_name "$target_ocid")
             log_info "Processing: $target_name"
-            
+
             # Do something with each target
             # ds_refresh_target "$target_ocid"
         done
     fi
-    
+
     # Example: Process specific targets
     if [[ -n "$TARGETS" ]]; then
         IFS=',' read -ra target_list <<< "$TARGETS"
         for target in "${target_list[@]}"; do
             log_info "Processing target: $target"
-            
+
             # Resolve to OCID if needed
             local target_ocid="$target"
             if ! is_ocid "$target"; then
                 target_ocid=$(ds_resolve_target_ocid "$target" "${COMPARTMENT:-}")
             fi
-            
+
             # Do something with the target
             # ds_refresh_target "$target_ocid"
         done
     fi
-    
+
     log_info "Work completed successfully"
 }
 
@@ -269,19 +269,19 @@ cleanup() {
 
 main() {
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
-    
+
     # Initialize configuration cascade
     init_config "${SCRIPT_NAME}.conf"
-    
+
     # Parse arguments
     parse_args "$@"
-    
+
     # Validate inputs
     validate_inputs
-    
+
     # Do the work
     do_work
-    
+
     log_info "${SCRIPT_NAME} completed successfully"
 }
 

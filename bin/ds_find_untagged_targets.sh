@@ -4,23 +4,23 @@
 # Description : Find Data Safe target databases without tags in specified namespace
 # Version     : 0.3.0
 # Author      : Generated for odb_datasafe framework
-# 
+#
 # Purpose:
 #   Find targets without tags in a specific namespace (default: DBSec).
 #   Outputs in same format as ds_target_list.sh for consistency.
-# 
+#
 # Usage:
 #   ds_find_untagged_targets.sh [options]
-# 
+#
 # Options:
 #   -c, --compartment COMP      Compartment name or OCID (default: DS_ROOT_COMP)
-#   -n, --namespace NS          Tag namespace to check (default: DBSec) 
+#   -n, --namespace NS          Tag namespace to check (default: DBSec)
 #   -s, --state STATE           Lifecycle state filter (default: ACTIVE)
 #   -o, --output FORMAT         Output format: table, csv, json (default: table)
 #   --oci-config FILE           OCI config file
 #   --oci-profile PROFILE       OCI profile to use
 #   -h, --help                  Show help
-# 
+#
 # Exit Codes:
 #   0 = Success
 #   1 = Input validation error
@@ -37,8 +37,8 @@ LIB_DIR="${SCRIPT_DIR}/../lib"
 
 # Load framework libraries
 if [[ ! -f "${LIB_DIR}/ds_lib.sh" ]]; then
-  echo "[ERROR] Cannot find ds_lib.sh in ${LIB_DIR}" >&2
-  exit 1
+    echo "[ERROR] Cannot find ds_lib.sh in ${LIB_DIR}" >&2
+    exit 1
 fi
 source "${LIB_DIR}/ds_lib.sh"
 
@@ -55,8 +55,8 @@ OUTPUT_FORMAT="table"
 # ------------------------------------------------------------------------------
 
 Usage() {
-  local exit_code=${1:-0}
-  cat << EOF
+    local exit_code=${1:-0}
+    cat << EOF
 USAGE: ${SCRIPT_NAME} [options]
 
 DESCRIPTION:
@@ -89,27 +89,27 @@ EXIT CODES:
   2 = OCI command error
 
 EOF
-  exit "$exit_code"
+    exit "$exit_code"
 }
 
 parse_args() {
     local remaining=()
-    
+
     while [[ $# -gt 0 ]]; do
         case $1 in
-            -c|--compartment)
+            -c | --compartment)
                 COMPARTMENT="$2"
                 shift 2
                 ;;
-            -n|--namespace)
+            -n | --namespace)
                 TAG_NAMESPACE="$2"
                 shift 2
                 ;;
-            -s|--state)
+            -s | --state)
                 STATE_FILTERS="$2"
                 shift 2
                 ;;
-            -o|--output)
+            -o | --output)
                 OUTPUT_FORMAT="$2"
                 shift 2
                 ;;
@@ -121,7 +121,7 @@ parse_args() {
                 OCI_CLI_PROFILE="$2"
                 shift 2
                 ;;
-            -h|--help)
+            -h | --help)
                 Usage 0
                 ;;
             *)
@@ -134,9 +134,9 @@ parse_args() {
 
 validate_inputs() {
     log_debug "Validating inputs..."
-    
+
     require_cmd oci jq
-    
+
     # Use root compartment if none specified
     if [[ -z "$COMPARTMENT" ]]; then
         local root_comp
@@ -144,29 +144,29 @@ validate_inputs() {
         COMPARTMENT="$root_comp"
         log_info "No compartment specified, using DS_ROOT_COMP: $COMPARTMENT"
     fi
-    
+
     # Resolve compartment OCID
     COMP_OCID=$(oci_resolve_compartment_ocid "$COMPARTMENT") || die "Failed to resolve compartment: $COMPARTMENT"
     log_info "Using compartment: $COMPARTMENT ($COMP_OCID)"
-    
+
     # Validate tag namespace
     if [[ -z "$TAG_NAMESPACE" ]]; then
         TAG_NAMESPACE="DBSec"
         log_info "Using default tag namespace: $TAG_NAMESPACE"
     fi
-    
+
     # Validate output format
     case "$OUTPUT_FORMAT" in
-        table|csv|json) ;;
+        table | csv | json) ;;
         *) die "Invalid output format: $OUTPUT_FORMAT. Must be: table, csv, json" ;;
     esac
-    
+
     log_info "Searching for untagged targets in namespace: $TAG_NAMESPACE"
 }
 
 find_untagged_targets() {
     log_info "Retrieving targets from compartment..."
-    
+
     local targets_json
     targets_json=$(oci data-safe target-database list \
         --compartment-id "$COMP_OCID" \
@@ -174,12 +174,12 @@ find_untagged_targets() {
         --lifecycle-state "$STATE_FILTERS" \
         --all \
         --config-file "${OCI_CLI_CONFIG_FILE}" \
-        --profile "${OCI_CLI_PROFILE}" 2>/dev/null) || die "Failed to list targets"
-    
+        --profile "${OCI_CLI_PROFILE}" 2> /dev/null) || die "Failed to list targets"
+
     local total_count
     total_count=$(echo "$targets_json" | jq '.data | length')
     log_info "Found $total_count total targets"
-    
+
     # Find untagged targets - check if namespace has any tags
     local untagged_targets
     untagged_targets=$(echo "$targets_json" | jq --arg ns "$TAG_NAMESPACE" '
@@ -187,17 +187,17 @@ find_untagged_targets() {
             (.["defined-tags"][$ns] | type) != "object" or
             (.["defined-tags"][$ns] | length) == 0
         )')
-    
+
     local untagged_count
     untagged_count=$(echo "$untagged_targets" | jq -s 'length')
-    
+
     if [[ "$untagged_count" -eq 0 ]]; then
         log_info "No untagged targets found"
         return 0
     fi
-    
+
     log_info "Found $untagged_count untagged targets"
-    
+
     # Output in requested format
     case "$OUTPUT_FORMAT" in
         json)
@@ -215,7 +215,7 @@ find_untagged_targets() {
                 .["database-details"]["infrastructure-type"] // "N/A"
             ] | @csv' | jq -r '.'
             ;;
-        table|*)
+        table | *)
             printf "%-60s %-25s %-15s %-15s\n" "Target ID" "Display Name" "State" "Database Type"
             printf "%-60s %-25s %-15s %-15s\n" "$(printf "%0.s-" {1..60})" "$(printf "%0.s-" {1..25})" "$(printf "%0.s-" {1..15})" "$(printf "%0.s-" {1..15})"
             echo "$untagged_targets" | jq -r '[
@@ -235,18 +235,18 @@ main() {
     init_config
     parse_common_opts "$@"
     parse_args "$@"
-    
+
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
-    
+
     # Setup error handling
     setup_error_handling
-    
+
     # Validate inputs
     validate_inputs
-    
+
     # Find and display untagged targets
     find_untagged_targets
-    
+
     log_info "Search completed"
 }
 

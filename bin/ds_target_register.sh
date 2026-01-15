@@ -4,15 +4,15 @@
 # Description : Register a database as Oracle Data Safe target
 # Version     : 0.3.1
 # Author      : Migrated to odb_datasafe v0.2.0 framework
-# 
+#
 # Purpose:
 #   Register a single database (PDB or CDB$ROOT) as a Data Safe target without
 #   requiring SSH access. Uses OCI CLI to create target with JSON payload.
-# 
+#
 # Usage:
 #   ds_target_register.sh --host <host> --sid <sid> --pdb <pdb> [options]
 #   ds_target_register.sh --host <host> --sid <sid> --root [options]
-# 
+#
 # Options:
 #   -H, --host HOST             Database host (required)
 #   --sid SID                   Database SID (required)
@@ -30,7 +30,7 @@
 #   --check                     Only check if target exists
 #   -n, --dry-run               Show plan without registering
 #   -h, --help                  Show help
-# 
+#
 # Exit Codes:
 #   0 = Success
 #   1 = Input validation error
@@ -47,8 +47,8 @@ LIB_DIR="${SCRIPT_DIR}/../lib"
 
 # Load framework libraries
 if [[ ! -f "${LIB_DIR}/ds_lib.sh" ]]; then
-  echo "[ERROR] Cannot find ds_lib.sh in ${LIB_DIR}" >&2
-  exit 1
+    echo "[ERROR] Cannot find ds_lib.sh in ${LIB_DIR}" >&2
+    exit 1
 fi
 source "${LIB_DIR}/ds_lib.sh"
 
@@ -81,8 +81,8 @@ CLUSTER_OCID=""
 # ------------------------------------------------------------------------------
 
 Usage() {
-  local exit_code=${1:-0}
-  cat << EOF
+    local exit_code=${1:-0}
+    cat << EOF
 USAGE: ${SCRIPT_NAME} [options]
 
 DESCRIPTION:
@@ -134,15 +134,15 @@ EXIT CODES:
   2 = Registration error
 
 EOF
-  exit "$exit_code"
+    exit "$exit_code"
 }
 
 parse_args() {
     local remaining=()
-    
+
     while [[ $# -gt 0 ]]; do
         case $1 in
-            -H|--host)
+            -H | --host)
                 HOST="$2"
                 shift 2
                 ;;
@@ -158,7 +158,7 @@ parse_args() {
                 RUN_ROOT=true
                 shift
                 ;;
-            -c|--compartment)
+            -c | --compartment)
                 COMPARTMENT="$2"
                 shift 2
                 ;;
@@ -182,7 +182,7 @@ parse_args() {
                 DS_PASSWORD="$2"
                 shift 2
                 ;;
-            -N|--display-name)
+            -N | --display-name)
                 DISPLAY_NAME="$2"
                 shift 2
                 ;;
@@ -198,7 +198,7 @@ parse_args() {
                 CHECK_ONLY=true
                 shift
                 ;;
-            -n|--dry-run)
+            -n | --dry-run)
                 DRY_RUN=true
                 shift
                 ;;
@@ -210,7 +210,7 @@ parse_args() {
                 OCI_CLI_PROFILE="$2"
                 shift 2
                 ;;
-            -h|--help)
+            -h | --help)
                 Usage 0
                 ;;
             *)
@@ -223,33 +223,33 @@ parse_args() {
 
 validate_inputs() {
     log_debug "Validating inputs..."
-    
+
     require_cmd oci jq
-    
+
     # Required fields
     [[ -z "$HOST" ]] && die "Missing required option: --host"
     [[ -z "$SID" ]] && die "Missing required option: --sid"
     [[ -z "$COMPARTMENT" ]] && die "Missing required option: --compartment"
     [[ -z "$CONNECTOR" ]] && die "Missing required option: --connector"
-    
+
     # Scope validation
     if [[ -z "$PDB" && "$RUN_ROOT" != "true" ]]; then
         die "Specify scope: --pdb <name> OR --root"
     fi
-    
+
     if [[ -n "$PDB" && "$RUN_ROOT" == "true" ]]; then
         die "Choose exactly one scope: --pdb OR --root (not both)"
     fi
-    
+
     # Password required unless check-only
     if [[ "$CHECK_ONLY" != "true" && -z "$DS_PASSWORD" ]]; then
         die "Missing required option: --ds-password (not needed with --check)"
     fi
-    
+
     # Resolve compartment OCID
     COMP_OCID=$(oci_resolve_compartment_ocid "$COMPARTMENT") || die "Failed to resolve compartment: $COMPARTMENT"
     log_info "Target compartment: $COMPARTMENT ($COMP_OCID)"
-    
+
     # Resolve connector OCID
     if [[ "$CONNECTOR" =~ ^ocid1\.datasafeonpremconnector\. ]]; then
         CONNECTOR_OCID="$CONNECTOR"
@@ -260,16 +260,16 @@ validate_inputs() {
             --compartment-id "$COMP_OCID" \
             --all \
             --config-file "${OCI_CLI_CONFIG_FILE}" \
-            --profile "${OCI_CLI_PROFILE}" 2>/dev/null) || die "Failed to list connectors"
-        
+            --profile "${OCI_CLI_PROFILE}" 2> /dev/null) || die "Failed to list connectors"
+
         CONNECTOR_OCID=$(echo "$connectors_json" | jq -r ".data[] | select(.\"display-name\" == \"$CONNECTOR\") | .id" | head -n1)
-        
+
         if [[ -z "$CONNECTOR_OCID" ]]; then
             die "Connector not found: $CONNECTOR"
         fi
     fi
     log_info "On-premises connector: $CONNECTOR ($CONNECTOR_OCID)"
-    
+
     # Derive service name if not provided
     if [[ -z "$SERVICE_NAME" ]]; then
         if [[ "$RUN_ROOT" == "true" ]]; then
@@ -279,7 +279,7 @@ validate_inputs() {
         fi
         log_info "Auto-derived service name: $SERVICE_NAME"
     fi
-    
+
     # Generate display name if not provided
     if [[ -z "$DISPLAY_NAME" ]]; then
         local scope_name
@@ -288,7 +288,7 @@ validate_inputs() {
         else
             scope_name="$PDB"
         fi
-        
+
         if [[ -n "$CLUSTER" ]]; then
             DISPLAY_NAME="${CLUSTER}_${SID}_${scope_name}"
         else
@@ -296,24 +296,24 @@ validate_inputs() {
         fi
         log_info "Auto-generated display name: $DISPLAY_NAME"
     fi
-    
+
     log_info "Registration plan validated"
 }
 
 check_target_exists() {
     log_info "Checking if target already exists..."
-    
+
     local targets_json
     targets_json=$(oci data-safe target-database list \
         --compartment-id "$COMP_OCID" \
         --compartment-id-in-subtree true \
         --all \
         --config-file "${OCI_CLI_CONFIG_FILE}" \
-        --profile "${OCI_CLI_PROFILE}" 2>/dev/null) || die "Failed to list targets"
-    
+        --profile "${OCI_CLI_PROFILE}" 2> /dev/null) || die "Failed to list targets"
+
     local existing_target
     existing_target=$(echo "$targets_json" | jq -r ".data[] | select(.\"display-name\" == \"$DISPLAY_NAME\") | .id" | head -n1)
-    
+
     if [[ -n "$existing_target" ]]; then
         log_info "Target already exists: $DISPLAY_NAME ($existing_target)"
         return 0
@@ -330,7 +330,7 @@ show_registration_plan() {
     else
         scope="PDB: $PDB"
     fi
-    
+
     log_info "Registration Plan:"
     log_info "  Scope:         $scope"
     log_info "  Host:          $HOST"
@@ -347,19 +347,19 @@ show_registration_plan() {
 
 register_target() {
     log_info "Creating Data Safe target registration..."
-    
+
     # Create JSON payload
     local json_file="${TMPDIR:-/tmp}/ds_target_${DISPLAY_NAME//[^a-zA-Z0-9]/_}.json"
     local pdb_name
-    
+
     if [[ "$RUN_ROOT" == "true" ]]; then
         pdb_name="CDBROOT"
     else
         pdb_name="$PDB"
     fi
-    
+
     local desc="${DESCRIPTION:-PDB ${pdb_name} on Database ${SID} at ${HOST}}"
-    
+
     # Build database details JSON
     local db_details
     db_details=$(jq -n \
@@ -373,7 +373,7 @@ register_target() {
             listenerPort: $port,
             serviceName: $svc
         }')
-    
+
     # Create full payload
     jq -n \
         --arg comp "$COMP_OCID" \
@@ -397,9 +397,9 @@ register_target() {
             },
             databaseDetails: $dbd
         }' > "$json_file"
-    
+
     log_debug "JSON payload created: $json_file"
-    
+
     if [[ "${DRY_RUN:-false}" == "true" ]]; then
         log_info "DRY-RUN: Would execute:"
         log_info "  oci data-safe target-database create --from-json file://$json_file"
@@ -409,7 +409,7 @@ register_target() {
         rm -f "$json_file"
         return 0
     fi
-    
+
     # Execute registration
     local result
     result=$(oci data-safe target-database create \
@@ -423,17 +423,17 @@ register_target() {
         rm -f "$json_file"
         die 2 "Target registration failed"
     }
-    
+
     local target_id
     target_id=$(echo "$result" | jq -r '.data.id // empty')
-    
+
     if [[ -n "$target_id" ]]; then
         log_info "Successfully registered target: $DISPLAY_NAME"
         log_info "Target OCID: $target_id"
     else
         log_warn "Registration command completed but could not extract target ID"
     fi
-    
+
     rm -f "$json_file"
 }
 
@@ -442,18 +442,18 @@ main() {
     init_config
     parse_common_opts "$@"
     parse_args "$@"
-    
+
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
-    
+
     # Setup error handling
     setup_error_handling
-    
+
     # Validate inputs
     validate_inputs
-    
+
     # Show registration plan
     show_registration_plan
-    
+
     # Handle check-only mode
     if [[ "$CHECK_ONLY" == "true" ]]; then
         if check_target_exists; then
@@ -462,16 +462,16 @@ main() {
             exit 1
         fi
     fi
-    
+
     # Check if target already exists
     if check_target_exists; then
         log_warn "Target already exists. Use a different display name or remove existing target first."
         exit 0
     fi
-    
+
     # Register target
     register_target
-    
+
     log_info "Registration completed successfully"
 }
 

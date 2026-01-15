@@ -10,7 +10,7 @@ DESCRIPTION=""
 DRY_RUN=false
 
 usage() {
-    cat <<'USAGE'
+    cat << 'USAGE'
 Usage: ./scripts/rename-extension.sh --name <newname> [options]
 
 Options:
@@ -32,7 +32,7 @@ read_metadata_value() {
 
 replace_tokens() {
     local file="$1" old="$2" new="$3" old_upper="$4" new_upper="$5" description="$6"
-    python3 - "$file" "$old" "$new" "$old_upper" "$new_upper" "$description" <<'PY'
+    python3 - "$file" "$old" "$new" "$old_upper" "$new_upper" "$description" << 'PY'
 from pathlib import Path
 import sys, re
 
@@ -53,17 +53,28 @@ PY
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --name)
-            NEW_NAME="$2"; shift 2 ;;
+            NEW_NAME="$2"
+            shift 2
+            ;;
         --description)
-            DESCRIPTION="$2"; shift 2 ;;
+            DESCRIPTION="$2"
+            shift 2
+            ;;
         --workdir)
-            WORKDIR="$(cd "$2" && pwd)"; shift 2 ;;
+            WORKDIR="$(cd "$2" && pwd)"
+            shift 2
+            ;;
         --dry-run)
-            DRY_RUN=true; shift ;;
+            DRY_RUN=true
+            shift
+            ;;
         --help)
-            usage ;;
+            usage
+            ;;
         *)
-            echo "Unknown option: $1" >&2; usage ;;
+            echo "Unknown option: $1" >&2
+            usage
+            ;;
     esac
 done
 
@@ -84,7 +95,7 @@ if [[ ! -f "$META_FILE" ]]; then
 fi
 
 OLD_NAME="$(read_metadata_value "name" "$META_FILE")"
-OLD_NAME="${OLD_NAME:-$(basename "$WORKDIR")}" 
+OLD_NAME="${OLD_NAME:-$(basename "$WORKDIR")}"
 OLD_UPPER=$(echo "$OLD_NAME" | tr '[:lower:]-' '[:upper:]_')
 NEW_UPPER=$(echo "$NEW_NAME" | tr '[:lower:]-' '[:upper:]_')
 

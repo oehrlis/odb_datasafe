@@ -84,14 +84,14 @@ print_message() {
     local level="$1"
     shift
     local message="$*"
-    
+
     case "$level" in
-        ERROR)   echo -e "${RED}❌ ERROR:${NC} $message" >&2 ;;
+        ERROR) echo -e "${RED}❌ ERROR:${NC} $message" >&2 ;;
         SUCCESS) echo -e "${GREEN}✅${NC} $message" ;;
         WARNING) echo -e "${YELLOW}⚠️  WARNING:${NC} $message" ;;
-        INFO)    echo -e "${BLUE}ℹ️${NC}  $message" ;;
-        STEP)    echo -e "${BOLD}▶${NC}  $message" ;;
-        *)       echo "$message" ;;
+        INFO) echo -e "${BLUE}ℹ️${NC}  $message" ;;
+        STEP) echo -e "${BOLD}▶${NC}  $message" ;;
+        *) echo "$message" ;;
     esac
 }
 
@@ -191,12 +191,12 @@ check_root() {
 discover_connectors() {
     local base="$1"
     local -a connectors=()
-    
+
     if [[ ! -d "$base" ]]; then
         print_message ERROR "Connector base directory not found: $base"
         return 1
     fi
-    
+
     while IFS= read -r -d '' dir; do
         local name
         name="$(basename "$dir")"
@@ -204,8 +204,8 @@ discover_connectors() {
         if [[ "$name" != "jdk" && -d "$dir/oracle_cman_home" ]]; then
             connectors+=("$name")
         fi
-    done < <(find "$base" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null)
-    
+    done < <(find "$base" -mindepth 1 -maxdepth 1 -type d -print0 2> /dev/null)
+
     printf '%s\n' "${connectors[@]}"
 }
 
@@ -213,45 +213,45 @@ discover_connectors() {
 list_connectors() {
     print_message STEP "Scanning for Data Safe connectors in: $CONNECTOR_BASE"
     echo
-    
+
     local -a connectors
     mapfile -t connectors < <(discover_connectors "$CONNECTOR_BASE")
-    
+
     if [[ ${#connectors[@]} -eq 0 ]]; then
         print_message WARNING "No connectors found in $CONNECTOR_BASE"
         return 1
     fi
-    
+
     echo "Available connectors:"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    
+
     local idx=1
     for connector in "${connectors[@]}"; do
         local conn_path="$CONNECTOR_BASE/$connector"
         local cman_home="$conn_path/oracle_cman_home"
         local service_name="oracle_datasafe_${connector}.service"
         local installed=""
-        
-        if systemctl list-unit-files "$service_name" &>/dev/null; then
+
+        if systemctl list-unit-files "$service_name" &> /dev/null; then
             installed="${GREEN}[INSTALLED]${NC}"
         else
             installed="${YELLOW}[NOT INSTALLED]${NC}"
         fi
-        
+
         printf "%2d. %-50s %s\n" "$idx" "$connector" "$installed"
         printf "    Path: %s\n" "$conn_path"
-        
+
         # Try to get CMAN name from cman.ora
         local cman_ora="$cman_home/network/admin/cman.ora"
         if [[ -f "$cman_ora" ]]; then
             local cman_name
-            cman_name="$(grep -E '^\s*[A-Za-z0-9_]+\s*=' "$cman_ora" 2>/dev/null | head -1 | awk -F= '{print $1}' | tr -d ' ' || echo "N/A")"
+            cman_name="$(grep -E '^\s*[A-Za-z0-9_]+\s*=' "$cman_ora" 2> /dev/null | head -1 | awk -F= '{print $1}' | tr -d ' ' || echo "N/A")"
             printf "    CMAN: %s\n" "$cman_name"
         fi
         echo
         ((idx++))
     done
-    
+
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "Total: ${#connectors[@]} connector(s) found"
 }
@@ -260,66 +260,66 @@ list_connectors() {
 validate_connector() {
     local connector="$1"
     local base="$2"
-    
+
     CONNECTOR_HOME="$base/$connector"
-    
+
     if [[ ! -d "$CONNECTOR_HOME" ]]; then
         print_message ERROR "Connector directory not found: $CONNECTOR_HOME"
         return 1
     fi
-    
+
     CMAN_HOME="$CONNECTOR_HOME/oracle_cman_home"
     if [[ ! -d "$CMAN_HOME" ]]; then
         print_message ERROR "CMAN home not found: $CMAN_HOME"
         return 1
     fi
-    
+
     CMAN_CTL="$CMAN_HOME/bin/cmctl"
     if [[ ! -x "$CMAN_CTL" ]]; then
         print_message ERROR "cmctl not found or not executable: $CMAN_CTL"
         return 1
     fi
-    
+
     # Try to detect CMAN instance name from cman.ora
     local cman_ora="$CMAN_HOME/network/admin/cman.ora"
     if [[ ! -f "$cman_ora" ]]; then
         print_message ERROR "cman.ora not found: $cman_ora"
         return 1
     fi
-    
+
     # Extract CMAN instance name (first parameter name in cman.ora)
-    CMAN_NAME="$(grep -E '^\s*[A-Za-z0-9_]+\s*=' "$cman_ora" 2>/dev/null | head -1 | awk -F= '{print $1}' | tr -d ' ')"
-    
+    CMAN_NAME="$(grep -E '^\s*[A-Za-z0-9_]+\s*=' "$cman_ora" 2> /dev/null | head -1 | awk -F= '{print $1}' | tr -d ' ')"
+
     if [[ -z "$CMAN_NAME" ]]; then
         print_message ERROR "Could not detect CMAN instance name from $cman_ora"
         return 1
     fi
-    
+
     # Validate Java
     if [[ ! -d "$JAVA_HOME" ]]; then
         print_message ERROR "JAVA_HOME not found: $JAVA_HOME"
         return 1
     fi
-    
+
     local java_bin="$JAVA_HOME/bin/java"
     if [[ ! -x "$java_bin" ]]; then
         print_message ERROR "Java executable not found: $java_bin"
         return 1
     fi
-    
+
     # Validate user and group (skip in test mode or dry-run)
     if ! $TEST_MODE && ! $DRY_RUN; then
-        if ! id "$OS_USER" &>/dev/null; then
+        if ! id "$OS_USER" &> /dev/null; then
             print_message ERROR "User does not exist: $OS_USER"
             return 1
         fi
-        
-        if ! getent group "$OS_GROUP" &>/dev/null; then
+
+        if ! getent group "$OS_GROUP" &> /dev/null; then
             print_message ERROR "Group does not exist: $OS_GROUP"
             return 1
         fi
     fi
-    
+
     return 0
 }
 
@@ -327,42 +327,42 @@ validate_connector() {
 select_connector_interactive() {
     local -a connectors
     mapfile -t connectors < <(discover_connectors "$CONNECTOR_BASE")
-    
+
     if [[ ${#connectors[@]} -eq 0 ]]; then
         print_message ERROR "No connectors found in $CONNECTOR_BASE"
         return 1
     fi
-    
+
     echo
     echo "Available Data Safe On-Premises Connectors:"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    
+
     local idx=1
     for connector in "${connectors[@]}"; do
         printf "%2d. %s\n" "$idx" "$connector"
         ((idx++))
     done
-    
+
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo
-    
+
     local selection
     while true; do
         read -rp "Select connector (1-${#connectors[@]}) or 'q' to quit: " selection
-        
+
         if [[ "$selection" == "q" || "$selection" == "Q" ]]; then
             print_message INFO "Operation cancelled by user"
             exit 0
         fi
-        
-        if [[ "$selection" =~ ^[0-9]+$ ]] && (( selection >= 1 && selection <= ${#connectors[@]} )); then
-            CONNECTOR_NAME="${connectors[$((selection-1))]}"
+
+        if [[ "$selection" =~ ^[0-9]+$ ]] && ((selection >= 1 && selection <= ${#connectors[@]})); then
+            CONNECTOR_NAME="${connectors[$((selection - 1))]}"
             break
         else
             print_message WARNING "Invalid selection. Please enter a number between 1 and ${#connectors[@]}"
         fi
     done
-    
+
     print_message SUCCESS "Selected connector: $CONNECTOR_NAME"
 }
 
@@ -442,7 +442,7 @@ EOF
 # Generate README file
 generate_readme() {
     local readme="$README_FILE"
-    
+
     cat > "$readme" << EOF
 # Oracle Data Safe On-Premises Connector Service
 # Connector: $CONNECTOR_NAME
@@ -568,7 +568,7 @@ sudo $SCRIPT_NAME --connector $CONNECTOR_NAME --remove
 ---
 Generated by $SCRIPT_NAME $SCRIPT_VERSION
 EOF
-    
+
     chmod 644 "$readme"
 }
 
@@ -576,13 +576,13 @@ EOF
 install_service() {
     print_message STEP "Installing Data Safe Connector Service"
     echo
-    
+
     # Set service and file names
     SERVICE_NAME="oracle_datasafe_${CONNECTOR_NAME}.service"
     SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME"
     SUDOERS_FILE="/etc/sudoers.d/${OS_USER}-datasafe-${CONNECTOR_NAME}"
     README_FILE="$CONNECTOR_HOME/SERVICE_README.md"
-    
+
     # Check if already installed
     if [[ -f "$SERVICE_FILE" ]] && ! $DRY_RUN; then
         local answer
@@ -592,9 +592,9 @@ install_service() {
             return 0
         fi
         # Stop existing service
-        systemctl stop "$SERVICE_NAME" 2>/dev/null || true
+        systemctl stop "$SERVICE_NAME" 2> /dev/null || true
     fi
-    
+
     # Display configuration
     echo "Configuration:"
     echo "  Connector Name....: $CONNECTOR_NAME"
@@ -609,7 +609,7 @@ install_service() {
         echo "  Sudo Config.......: Skipped"
     fi
     echo
-    
+
     # Handle dry-run or test mode
     if $DRY_RUN || $TEST_MODE; then
         local mode_name="DRY-RUN"
@@ -636,20 +636,20 @@ install_service() {
         fi
         return 0
     fi
-    
+
     # Create service file
     print_message INFO "Creating systemd service file: $SERVICE_FILE"
     generate_service_file > "$SERVICE_FILE"
     chmod 644 "$SERVICE_FILE"
-    
+
     # Create sudoers file (unless skipped)
     if ! $SKIP_SUDO; then
         print_message INFO "Creating sudoers configuration: $SUDOERS_FILE"
         generate_sudoers_file > "$SUDOERS_FILE"
         chmod 440 "$SUDOERS_FILE"
-        
+
         # Validate sudoers syntax
-        if ! visudo -c -f "$SUDOERS_FILE" &>/dev/null; then
+        if ! visudo -c -f "$SUDOERS_FILE" &> /dev/null; then
             print_message ERROR "Invalid sudoers syntax, removing file"
             rm -f "$SUDOERS_FILE"
             return 1
@@ -657,19 +657,19 @@ install_service() {
     else
         print_message INFO "Skipping sudoers configuration (--skip-sudo)"
     fi
-    
+
     # Generate README
     print_message INFO "Creating service documentation: $README_FILE"
     generate_readme
-    
+
     # Reload systemd
     print_message INFO "Reloading systemd daemon"
     systemctl daemon-reload
-    
+
     # Enable service
     print_message INFO "Enabling service"
     systemctl enable "$SERVICE_NAME"
-    
+
     # Start service
     print_message INFO "Starting service"
     if systemctl start "$SERVICE_NAME"; then
@@ -679,13 +679,13 @@ install_service() {
         print_message INFO "Check status with: systemctl status $SERVICE_NAME"
         return 1
     fi
-    
+
     # Wait a moment and check status
     sleep 2
-    
+
     echo
     systemctl status "$SERVICE_NAME" --no-pager -l
-    
+
     # Print summary
     echo
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -717,13 +717,13 @@ check_service() {
     SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME"
     SUDOERS_FILE="/etc/sudoers.d/${OS_USER}-datasafe-${CONNECTOR_NAME}"
     README_FILE="$CONNECTOR_HOME/SERVICE_README.md"
-    
+
     echo
     print_message STEP "Checking service installation for connector: $CONNECTOR_NAME"
     echo
-    
+
     local installed=true
-    
+
     # Check service file
     echo "Service file: $SERVICE_FILE"
     if [[ -f "$SERVICE_FILE" ]]; then
@@ -732,7 +732,7 @@ check_service() {
         print_message ERROR "Not found"
         installed=false
     fi
-    
+
     # Check sudoers file
     echo
     echo "Sudoers file: $SUDOERS_FILE"
@@ -742,7 +742,7 @@ check_service() {
         print_message ERROR "Not found"
         installed=false
     fi
-    
+
     # Check README
     echo
     echo "Documentation: $README_FILE"
@@ -751,7 +751,7 @@ check_service() {
     else
         print_message WARNING "Not found"
     fi
-    
+
     echo
     if $installed; then
         # Show service status
@@ -759,8 +759,8 @@ check_service() {
         systemctl status "$SERVICE_NAME" --no-pager -l || true
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         echo
-        
-        if systemctl is-active "$SERVICE_NAME" &>/dev/null; then
+
+        if systemctl is-active "$SERVICE_NAME" &> /dev/null; then
             print_message SUCCESS "Service is installed and running"
         else
             print_message WARNING "Service is installed but not running"
@@ -777,15 +777,15 @@ remove_service() {
     SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME"
     SUDOERS_FILE="/etc/sudoers.d/${OS_USER}-datasafe-${CONNECTOR_NAME}"
     README_FILE="$CONNECTOR_HOME/SERVICE_README.md"
-    
+
     print_message STEP "Removing service for connector: $CONNECTOR_NAME"
     echo
-    
+
     if [[ ! -f "$SERVICE_FILE" ]]; then
         print_message WARNING "Service not installed: $SERVICE_NAME"
         return 0
     fi
-    
+
     if $DRY_RUN; then
         print_message INFO "DRY-RUN MODE - Would remove:"
         echo "  - $SERVICE_FILE"
@@ -793,7 +793,7 @@ remove_service() {
         echo "  - $README_FILE"
         return 0
     fi
-    
+
     # Confirm removal
     if $INTERACTIVE; then
         local answer
@@ -803,25 +803,25 @@ remove_service() {
             return 0
         fi
     fi
-    
+
     # Stop service
     print_message INFO "Stopping service"
-    systemctl stop "$SERVICE_NAME" 2>/dev/null || true
-    
+    systemctl stop "$SERVICE_NAME" 2> /dev/null || true
+
     # Disable service
     print_message INFO "Disabling service"
-    systemctl disable "$SERVICE_NAME" 2>/dev/null || true
-    
+    systemctl disable "$SERVICE_NAME" 2> /dev/null || true
+
     # Remove files
     print_message INFO "Removing service files"
     rm -f "$SERVICE_FILE"
     rm -f "$SUDOERS_FILE"
     rm -f "$README_FILE"
-    
+
     # Reload systemd
     print_message INFO "Reloading systemd daemon"
     systemctl daemon-reload
-    
+
     print_message SUCCESS "Service removed successfully"
 }
 
@@ -829,35 +829,35 @@ remove_service() {
 parse_arguments() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            -n|--connector)
+            -n | --connector)
                 CONNECTOR_NAME="$2"
                 shift 2
                 ;;
-            -b|--base)
+            -b | --base)
                 CONNECTOR_BASE="$2"
                 shift 2
                 ;;
-            -u|--user)
+            -u | --user)
                 OS_USER="$2"
                 shift 2
                 ;;
-            -g|--group)
+            -g | --group)
                 OS_GROUP="$2"
                 shift 2
                 ;;
-            -j|--java-home)
+            -j | --java-home)
                 JAVA_HOME="$2"
                 shift 2
                 ;;
-            -l|--list)
+            -l | --list)
                 LIST_MODE=true
                 shift
                 ;;
-            -c|--check)
+            -c | --check)
                 CHECK_MODE=true
                 shift
                 ;;
-            -t|--test)
+            -t | --test)
                 TEST_MODE=true
                 DRY_RUN=true
                 shift
@@ -870,23 +870,23 @@ parse_arguments() {
                 USE_COLOR=false
                 shift
                 ;;
-            -r|--remove)
+            -r | --remove)
                 REMOVE_MODE=true
                 shift
                 ;;
-            -y|--yes)
+            -y | --yes)
                 INTERACTIVE=false
                 shift
                 ;;
-            -d|--dry-run)
+            -d | --dry-run)
                 DRY_RUN=true
                 shift
                 ;;
-            -v|--verbose)
+            -v | --verbose)
                 VERBOSE=true
                 shift
                 ;;
-            -h|--help)
+            -h | --help)
                 usage
                 ;;
             *)
@@ -902,19 +902,19 @@ parse_arguments() {
 main() {
     # Initialize colors
     init_colors
-    
+
     # Parse arguments
     parse_arguments "$@"
-    
+
     # Check root
     check_root
-    
+
     # Handle list mode
     if $LIST_MODE; then
         list_connectors
         exit 0
     fi
-    
+
     # Interactive connector selection if not specified
     if [[ -z "$CONNECTOR_NAME" ]]; then
         if $INTERACTIVE; then
@@ -925,15 +925,15 @@ main() {
             exit 1
         fi
     fi
-    
+
     # Validate connector
     if ! validate_connector "$CONNECTOR_NAME" "$CONNECTOR_BASE"; then
         exit 1
     fi
-    
+
     print_message SUCCESS "Connector validated: $CONNECTOR_NAME"
     $VERBOSE && print_message INFO "CMAN instance detected: $CMAN_NAME"
-    
+
     # Handle different modes
     if $CHECK_MODE; then
         check_service

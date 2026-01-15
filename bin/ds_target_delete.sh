@@ -22,13 +22,12 @@
 : "${OCI_CLI_CONFIG_FILE:=${HOME}/.oci/config}"
 : "${OCI_CLI_PROFILE:=DEFAULT}"
 
-: "${COMPARTMENT:=}"                 # name or OCID  
-: "${TARGETS:=}"                     # CSV names/OCIDs (overrides compartment mode)
+: "${COMPARTMENT:=}" # name or OCID
+: "${TARGETS:=}"     # CSV names/OCIDs (overrides compartment mode)
 : "${STATE_FILTERS:=NEEDS_ATTENTION}"# CSV lifecycle states when scanning compartment
-: "${FORCE:=false}"                  # skip confirmation prompts
-: "${DELETE_DEPENDENCIES:=true}"     # delete audit trails, assessments, policies
-: "${CONTINUE_ON_ERROR:=true}"       # continue processing other targets if one fails
-
+: "${FORCE:=false}"              # skip confirmation prompts
+: "${DELETE_DEPENDENCIES:=true}" # delete audit trails, assessments, policies
+: "${CONTINUE_ON_ERROR:=true}"   # continue processing other targets if one fails
 
 # Runtime
 COMP_OCID=""
@@ -68,9 +67,9 @@ init_config
 # Purpose.....: Display command-line usage instructions and exit
 # ------------------------------------------------------------------------------
 Usage() {
-  local exit_code="${1:-0}"
-  
-  cat << EOF
+    local exit_code="${1:-0}"
+
+    cat << EOF
 
 Usage:
   ${SCRIPT_NAME} (-T <CSV> | -c <OCID|NAME>) [options]
@@ -111,27 +110,27 @@ Examples:
   ${SCRIPT_NAME} -T ocid1.datasafetargetdatabase... --no-delete-dependencies
 
 EOF
-  die "${exit_code}" ""
+    die "${exit_code}" ""
 }
 
 parse_args() {
     local remaining=()
-    
+
     while [[ $# -gt 0 ]]; do
         case $1 in
-            -T|--targets)
+            -T | --targets)
                 TARGETS="$2"
                 shift 2
                 ;;
-            -s|--state)
+            -s | --state)
                 STATE_FILTERS="$2"
                 shift 2
                 ;;
-            -c|--compartment)
+            -c | --compartment)
                 COMPARTMENT="$2"
                 shift 2
                 ;;
-            -f|--force)
+            -f | --force)
                 FORCE=true
                 shift
                 ;;
@@ -158,7 +157,7 @@ parse_args() {
                 OCI_CLI_PROFILE="$2"
                 shift 2
                 ;;
-            -h|--help)
+            -h | --help)
                 Usage 0
                 ;;
             *)
@@ -167,7 +166,7 @@ parse_args() {
                 ;;
         esac
     done
-    
+
     # Handle positional arguments as additional targets
     if [[ ${#remaining[@]} -gt 0 ]]; then
         if [[ -z "$TARGETS" ]]; then
@@ -181,9 +180,9 @@ parse_args() {
 
 validate_inputs() {
     log_debug "Validating inputs..."
-    
+
     require_cmd oci jq
-    
+
     # If neither targets nor compartment specified, use DS_ROOT_COMP as default
     if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
         local root_comp
@@ -191,30 +190,30 @@ validate_inputs() {
         COMPARTMENT="$root_comp"
         log_info "No compartment specified, using DS_ROOT_COMP: $COMPARTMENT"
     fi
-    
+
     # Resolve compartment if specified
     if [[ -n "$COMPARTMENT" ]]; then
         COMP_OCID=$(oci_resolve_compartment_ocid "$COMPARTMENT") || die "Failed to resolve compartment: $COMPARTMENT"
         log_info "Using compartment: $COMPARTMENT ($COMP_OCID)"
     fi
-    
+
     # Build target list
     if [[ -n "$TARGETS" ]]; then
         IFS=',' read -ra RESOLVED_TARGETS <<< "$TARGETS"
     elif [[ -n "$COMP_OCID" ]]; then
         # Get targets from compartment
         local targets_json
-        targets_json=$(oci data-safe target-database list --compartment-id "$COMP_OCID" --compartment-id-in-subtree true --all --lifecycle-state "$STATE_FILTERS" 2>/dev/null) || die "Failed to list targets in compartment"
-        
+        targets_json=$(oci data-safe target-database list --compartment-id "$COMP_OCID" --compartment-id-in-subtree true --all --lifecycle-state "$STATE_FILTERS" 2> /dev/null) || die "Failed to list targets in compartment"
+
         mapfile -t RESOLVED_TARGETS < <(echo "$targets_json" | jq -r '.data[]?.id // empty')
     fi
-    
+
     if [[ ${#RESOLVED_TARGETS[@]} -eq 0 ]]; then
         die "No targets found to delete."
     fi
-    
+
     log_info "Targets selected for deletion: ${#RESOLVED_TARGETS[@]}"
-    
+
     # Confirmation unless force or dry-run
     if [[ "${FORCE}" != "true" && "${DRY_RUN}" != "true" ]]; then
         log_warn "This will DELETE ${#RESOLVED_TARGETS[@]} Data Safe target database(s)"
@@ -229,195 +228,195 @@ validate_inputs() {
 
 # --- Steps --------------------------------------------------------------------
 
-# Step 1: Delete target dependencies  
+# Step 1: Delete target dependencies
 step_delete_dependencies() {
-  [[ "${DELETE_DEPENDENCIES}" != "true" ]] && return 0
+    [[ "${DELETE_DEPENDENCIES}" != "true" ]] && return 0
 
-  log_info "Step 1/2: Deleting target dependencies..."
-  
-  for target_ocid in "${RESOLVED_TARGETS[@]}"; do
-    local target_name
-    target_name="$(ds_resolve_target_name "${target_ocid}" 2>/dev/null || echo "${target_ocid}")"
-    
-    log_info "Processing dependencies for: ${target_name}"
-    
-    if [[ "${DRY_RUN}" == "true" ]]; then
-      log_info "  [DRY-RUN] Would delete audit trails for ${target_name}"
-      log_info "  [DRY-RUN] Would delete assessments for ${target_name}"
-      log_info "  [DRY-RUN] Would delete security policies for ${target_name}"
-      continue
-    fi
+    log_info "Step 1/2: Deleting target dependencies..."
 
-    # Delete audit trails
-    if ! delete_audit_trails "${target_ocid}" "${target_name}"; then
-      log_error "Failed to delete audit trails for ${target_name}"
-      [[ "${CONTINUE_ON_ERROR}" != "true" ]] && die 1 "Stopping on error"
-    fi
+    for target_ocid in "${RESOLVED_TARGETS[@]}"; do
+        local target_name
+        target_name="$(ds_resolve_target_name "${target_ocid}" 2> /dev/null || echo "${target_ocid}")"
 
-    # Delete assessments  
-    if ! delete_assessments "${target_ocid}" "${target_name}"; then
-      log_error "Failed to delete assessments for ${target_name}"
-      [[ "${CONTINUE_ON_ERROR}" != "true" ]] && die 1 "Stopping on error"
-    fi
+        log_info "Processing dependencies for: ${target_name}"
 
-    # Delete security policies
-    if ! delete_security_policies "${target_ocid}" "${target_name}"; then
-      log_error "Failed to delete security policies for ${target_name}"
-      [[ "${CONTINUE_ON_ERROR}" != "true" ]] && die 1 "Stopping on error"
-    fi
-  done
+        if [[ "${DRY_RUN}" == "true" ]]; then
+            log_info "  [DRY-RUN] Would delete audit trails for ${target_name}"
+            log_info "  [DRY-RUN] Would delete assessments for ${target_name}"
+            log_info "  [DRY-RUN] Would delete security policies for ${target_name}"
+            continue
+        fi
+
+        # Delete audit trails
+        if ! delete_audit_trails "${target_ocid}" "${target_name}"; then
+            log_error "Failed to delete audit trails for ${target_name}"
+            [[ "${CONTINUE_ON_ERROR}" != "true" ]] && die 1 "Stopping on error"
+        fi
+
+        # Delete assessments
+        if ! delete_assessments "${target_ocid}" "${target_name}"; then
+            log_error "Failed to delete assessments for ${target_name}"
+            [[ "${CONTINUE_ON_ERROR}" != "true" ]] && die 1 "Stopping on error"
+        fi
+
+        # Delete security policies
+        if ! delete_security_policies "${target_ocid}" "${target_name}"; then
+            log_error "Failed to delete security policies for ${target_name}"
+            [[ "${CONTINUE_ON_ERROR}" != "true" ]] && die 1 "Stopping on error"
+        fi
+    done
 }
 
 # Step 2: Delete targets
 step_delete_targets() {
-  log_info "Step 2/2: Deleting target databases..."
-  
-  for target_ocid in "${RESOLVED_TARGETS[@]}"; do
-    local target_name
-    target_name="$(ds_resolve_target_name "${target_ocid}" 2>/dev/null || echo "${target_ocid}")"
-    
-    if [[ "${DRY_RUN}" == "true" ]]; then
-      log_info "  [DRY-RUN] Would delete target: ${target_name}"
-      ((deleted_count++))
-      continue
-    fi
+    log_info "Step 2/2: Deleting target databases..."
 
-    log_info "Deleting target: ${target_name}"
-    
-    if oci data-safe target-database delete \
-         --target-database-id "${target_ocid}" \
-         --config-file "${OCI_CLI_CONFIG_FILE}" \
-         --profile "${OCI_CLI_PROFILE}" \
-         --force \
-         --wait-for-state SUCCEEDED \
-         >/dev/null 2>&1; then
-      log_info "  ✓ Successfully deleted: ${target_name}"
-      ((deleted_count++))
-    else
-      log_error "  ✗ Failed to delete: ${target_name}"
-      ((failed_count++))
-      [[ "${CONTINUE_ON_ERROR}" != "true" ]] && die 1 "Stopping on error"
-    fi
-  done
+    for target_ocid in "${RESOLVED_TARGETS[@]}"; do
+        local target_name
+        target_name="$(ds_resolve_target_name "${target_ocid}" 2> /dev/null || echo "${target_ocid}")"
+
+        if [[ "${DRY_RUN}" == "true" ]]; then
+            log_info "  [DRY-RUN] Would delete target: ${target_name}"
+            ((deleted_count++))
+            continue
+        fi
+
+        log_info "Deleting target: ${target_name}"
+
+        if oci data-safe target-database delete \
+            --target-database-id "${target_ocid}" \
+            --config-file "${OCI_CLI_CONFIG_FILE}" \
+            --profile "${OCI_CLI_PROFILE}" \
+            --force \
+            --wait-for-state SUCCEEDED \
+            > /dev/null 2>&1; then
+            log_info "  ✓ Successfully deleted: ${target_name}"
+            ((deleted_count++))
+        else
+            log_error "  ✗ Failed to delete: ${target_name}"
+            ((failed_count++))
+            [[ "${CONTINUE_ON_ERROR}" != "true" ]] && die 1 "Stopping on error"
+        fi
+    done
 }
 
 # --- Dependency deletion helpers ----------------------------------------------
 
 delete_audit_trails() {
-  local target_ocid="$1"
-  local target_name="$2"
-  
-  # List and delete audit trails for this target
-  local trails_json
-  trails_json="$(oci data-safe audit-trail list \
-    --target-database-id "${target_ocid}" \
-    --config-file "${OCI_CLI_CONFIG_FILE}" \
-    --profile "${OCI_CLI_PROFILE}" \
-    --all 2>/dev/null)" || return 1
+    local target_ocid="$1"
+    local target_name="$2"
 
-  local trail_ocids
-  trail_ocids="$(echo "${trails_json}" | jq -r '.data[]?.id // empty')"
-  
-  if [[ -z "${trail_ocids}" ]]; then
-    log_debug "  No audit trails found for ${target_name}"
-    return 0
-  fi
+    # List and delete audit trails for this target
+    local trails_json
+    trails_json="$(oci data-safe audit-trail list \
+        --target-database-id "${target_ocid}" \
+        --config-file "${OCI_CLI_CONFIG_FILE}" \
+        --profile "${OCI_CLI_PROFILE}" \
+        --all 2> /dev/null)" || return 1
 
-  local count=0
-  while IFS= read -r trail_ocid; do
-    [[ -z "${trail_ocid}" ]] && continue
-    if oci data-safe audit-trail delete \
-         --audit-trail-id "${trail_ocid}" \
-         --config-file "${OCI_CLI_CONFIG_FILE}" \
-         --profile "${OCI_CLI_PROFILE}" \
-         --force \
-         >/dev/null 2>&1; then
-      ((count++))
-    else
-      log_error "    Failed to delete audit trail: ${trail_ocid}"
+    local trail_ocids
+    trail_ocids="$(echo "${trails_json}" | jq -r '.data[]?.id // empty')"
+
+    if [[ -z "${trail_ocids}" ]]; then
+        log_debug "  No audit trails found for ${target_name}"
+        return 0
     fi
-  done <<< "${trail_ocids}"
 
-  log_debug "  Deleted ${count} audit trails for ${target_name}"
-  return 0
+    local count=0
+    while IFS= read -r trail_ocid; do
+        [[ -z "${trail_ocid}" ]] && continue
+        if oci data-safe audit-trail delete \
+            --audit-trail-id "${trail_ocid}" \
+            --config-file "${OCI_CLI_CONFIG_FILE}" \
+            --profile "${OCI_CLI_PROFILE}" \
+            --force \
+            > /dev/null 2>&1; then
+            ((count++))
+        else
+            log_error "    Failed to delete audit trail: ${trail_ocid}"
+        fi
+    done <<< "${trail_ocids}"
+
+    log_debug "  Deleted ${count} audit trails for ${target_name}"
+    return 0
 }
 
 delete_assessments() {
-  local target_ocid="$1"
-  local target_name="$2"
-  
-  # List and delete security assessments for this target
-  local assessments_json
-  assessments_json="$(oci data-safe security-assessment list \
-    --target-database-id "${target_ocid}" \
-    --config-file "${OCI_CLI_CONFIG_FILE}" \
-    --profile "${OCI_CLI_PROFILE}" \
-    --all 2>/dev/null)" || return 1
+    local target_ocid="$1"
+    local target_name="$2"
 
-  local assessment_ocids
-  assessment_ocids="$(echo "${assessments_json}" | jq -r '.data[]?.id // empty')"
-  
-  if [[ -z "${assessment_ocids}" ]]; then
-    log_debug "  No assessments found for ${target_name}"
-    return 0
-  fi
+    # List and delete security assessments for this target
+    local assessments_json
+    assessments_json="$(oci data-safe security-assessment list \
+        --target-database-id "${target_ocid}" \
+        --config-file "${OCI_CLI_CONFIG_FILE}" \
+        --profile "${OCI_CLI_PROFILE}" \
+        --all 2> /dev/null)" || return 1
 
-  local count=0
-  while IFS= read -r assessment_ocid; do
-    [[ -z "${assessment_ocid}" ]] && continue
-    if oci data-safe security-assessment delete \
-         --security-assessment-id "${assessment_ocid}" \
-         --config-file "${OCI_CLI_CONFIG_FILE}" \
-         --profile "${OCI_CLI_PROFILE}" \
-         --force \
-         >/dev/null 2>&1; then
-      ((count++))
-    else
-      log_error "    Failed to delete assessment: ${assessment_ocid}"
+    local assessment_ocids
+    assessment_ocids="$(echo "${assessments_json}" | jq -r '.data[]?.id // empty')"
+
+    if [[ -z "${assessment_ocids}" ]]; then
+        log_debug "  No assessments found for ${target_name}"
+        return 0
     fi
-  done <<< "${assessment_ocids}"
 
-  log_debug "  Deleted ${count} assessments for ${target_name}"
-  return 0
+    local count=0
+    while IFS= read -r assessment_ocid; do
+        [[ -z "${assessment_ocid}" ]] && continue
+        if oci data-safe security-assessment delete \
+            --security-assessment-id "${assessment_ocid}" \
+            --config-file "${OCI_CLI_CONFIG_FILE}" \
+            --profile "${OCI_CLI_PROFILE}" \
+            --force \
+            > /dev/null 2>&1; then
+            ((count++))
+        else
+            log_error "    Failed to delete assessment: ${assessment_ocid}"
+        fi
+    done <<< "${assessment_ocids}"
+
+    log_debug "  Deleted ${count} assessments for ${target_name}"
+    return 0
 }
 
 delete_security_policies() {
-  local target_ocid="$1" 
-  local target_name="$2"
-  
-  # List and delete security policies for this target
-  local policies_json
-  policies_json="$(oci data-safe security-policy list \
-    --target-database-id "${target_ocid}" \
-    --config-file "${OCI_CLI_CONFIG_FILE}" \
-    --profile "${OCI_CLI_PROFILE}" \
-    --all 2>/dev/null)" || return 1
+    local target_ocid="$1"
+    local target_name="$2"
 
-  local policy_ocids
-  policy_ocids="$(echo "${policies_json}" | jq -r '.data[]?.id // empty')"
-  
-  if [[ -z "${policy_ocids}" ]]; then
-    log_debug "  No security policies found for ${target_name}"
-    return 0
-  fi
+    # List and delete security policies for this target
+    local policies_json
+    policies_json="$(oci data-safe security-policy list \
+        --target-database-id "${target_ocid}" \
+        --config-file "${OCI_CLI_CONFIG_FILE}" \
+        --profile "${OCI_CLI_PROFILE}" \
+        --all 2> /dev/null)" || return 1
 
-  local count=0
-  while IFS= read -r policy_ocid; do
-    [[ -z "${policy_ocid}" ]] && continue
-    if oci data-safe security-policy delete \
-         --security-policy-id "${policy_ocid}" \
-         --config-file "${OCI_CLI_CONFIG_FILE}" \
-         --profile "${OCI_CLI_PROFILE}" \
-         --force \
-         >/dev/null 2>&1; then
-      ((count++))
-    else
-      log_error "    Failed to delete security policy: ${policy_ocid}"
+    local policy_ocids
+    policy_ocids="$(echo "${policies_json}" | jq -r '.data[]?.id // empty')"
+
+    if [[ -z "${policy_ocids}" ]]; then
+        log_debug "  No security policies found for ${target_name}"
+        return 0
     fi
-  done <<< "${policy_ocids}"
 
-  log_debug "  Deleted ${count} security policies for ${target_name}"
-  return 0
+    local count=0
+    while IFS= read -r policy_ocid; do
+        [[ -z "${policy_ocid}" ]] && continue
+        if oci data-safe security-policy delete \
+            --security-policy-id "${policy_ocid}" \
+            --config-file "${OCI_CLI_CONFIG_FILE}" \
+            --profile "${OCI_CLI_PROFILE}" \
+            --force \
+            > /dev/null 2>&1; then
+            ((count++))
+        else
+            log_error "    Failed to delete security policy: ${policy_ocid}"
+        fi
+    done <<< "${policy_ocids}"
+
+    log_debug "  Deleted ${count} security policies for ${target_name}"
+    return 0
 }
 
 # ------------------------------------------------------------------------------
@@ -425,23 +424,23 @@ delete_security_policies() {
 # Purpose.....: Orchestrate the deletion steps
 # ------------------------------------------------------------------------------
 run_deletion() {
-  step_delete_dependencies
-  step_delete_targets
-  
-  # Summary
-  log_info "Deletion summary:"
-  log_info "  Targets processed: ${#RESOLVED_TARGETS[@]}"
-  log_info "  Successfully deleted: ${deleted_count}"
-  log_info "  Failed deletions: ${failed_count}"
-  
-  if [[ "${DRY_RUN}" == "true" ]]; then
-    log_info "  [DRY-RUN] No actual changes were made"
-  fi
-  
-  local exit_code=0
-  [[ ${failed_count} -gt 0 ]] && exit_code=1
-  
-  die "${exit_code}" "Target deletion completed"
+    step_delete_dependencies
+    step_delete_targets
+
+    # Summary
+    log_info "Deletion summary:"
+    log_info "  Targets processed: ${#RESOLVED_TARGETS[@]}"
+    log_info "  Successfully deleted: ${deleted_count}"
+    log_info "  Failed deletions: ${failed_count}"
+
+    if [[ "${DRY_RUN}" == "true" ]]; then
+        log_info "  [DRY-RUN] No actual changes were made"
+    fi
+
+    local exit_code=0
+    [[ ${failed_count} -gt 0 ]] && exit_code=1
+
+    die "${exit_code}" "Target deletion completed"
 }
 
 # =============================================================================
@@ -450,16 +449,16 @@ run_deletion() {
 
 main() {
     # Initialize framework and parse arguments\n    init_config\n    parse_common_opts \"$@\"\n    parse_args \"$@\"\n    \n    log_info \"Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}\"
-    
+
     # Setup error handling
     setup_error_handling
-    
+
     # Validate inputs
     validate_inputs
-    
+
     # Execute main work
     run_deletion
-    
+
     log_info "Deletion completed successfully"
 }
 

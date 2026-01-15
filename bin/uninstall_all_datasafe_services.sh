@@ -46,14 +46,14 @@ print_message() {
     local level="$1"
     shift
     local message="$*"
-    
+
     case "$level" in
-        ERROR)   echo -e "${RED}❌ ERROR:${NC} $message" >&2 ;;
+        ERROR) echo -e "${RED}❌ ERROR:${NC} $message" >&2 ;;
         SUCCESS) echo -e "${GREEN}✅${NC} $message" ;;
         WARNING) echo -e "${YELLOW}⚠️  WARNING:${NC} $message" ;;
-        INFO)    echo -e "${BLUE}ℹ️${NC}  $message" ;;
-        STEP)    echo -e "${BOLD}▶${NC}  $message" ;;
-        *)       echo "$message" ;;
+        INFO) echo -e "${BLUE}ℹ️${NC}  $message" ;;
+        STEP) echo -e "${BOLD}▶${NC}  $message" ;;
+        *) echo "$message" ;;
     esac
 }
 
@@ -113,73 +113,73 @@ check_root() {
 # Discover installed services
 discover_services() {
     local -a services=()
-    
+
     while IFS= read -r service; do
         [[ -n "$service" ]] && services+=("$service")
-    done < <(systemctl list-unit-files 'oracle_datasafe_*.service' --no-legend 2>/dev/null | awk '{print $1}')
-    
+    done < <(systemctl list-unit-files 'oracle_datasafe_*.service' --no-legend 2> /dev/null | awk '{print $1}')
+
     printf '%s\n' "${services[@]}"
 }
 
 # Find sudoers files
 find_sudoers_files() {
     local pattern="$1"
-    find /etc/sudoers.d/ -type f -name "*datasafe*" 2>/dev/null | grep -E "$pattern" || true
+    find /etc/sudoers.d/ -type f -name "*datasafe*" 2> /dev/null | grep -E "$pattern" || true
 }
 
 # Find README files
 find_readme_files() {
     local base="${1:-/appl/oracle/product/dsconnect}"
-    find "$base" -type f -name "SERVICE_README.md" 2>/dev/null || true
+    find "$base" -type f -name "SERVICE_README.md" 2> /dev/null || true
 }
 
 # List services
 list_services() {
     print_message STEP "Discovering installed Data Safe Connector services"
     echo
-    
+
     local -a services
     mapfile -t services < <(discover_services)
-    
+
     if [[ ${#services[@]} -eq 0 ]]; then
         print_message INFO "No Data Safe Connector services found"
         return 1
     fi
-    
+
     echo "Found services:"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    
+
     local idx=1
     for service in "${services[@]}"; do
         local connector_name="${service#oracle_datasafe_}"
         connector_name="${connector_name%.service}"
         local status
-        
-        if systemctl is-active "$service" &>/dev/null; then
+
+        if systemctl is-active "$service" &> /dev/null; then
             status="${GREEN}ACTIVE${NC}"
         else
             status="${YELLOW}INACTIVE${NC}"
         fi
-        
+
         printf "%2d. %-50s [%s]\n" "$idx" "$service" "$status"
-        
+
         # Find related files
         local service_file="/etc/systemd/system/$service"
         [[ -f "$service_file" ]] && echo "    Service: $service_file"
-        
+
         local sudoers_file="/etc/sudoers.d/oracle-datasafe-${connector_name}"
         if [[ ! -f "$sudoers_file" ]]; then
             sudoers_file="/etc/sudoers.d/oracle-datasafe-${connector_name}"
         fi
         [[ -f "$sudoers_file" ]] && echo "    Sudoers: $sudoers_file"
-        
+
         echo
         ((idx++))
     done
-    
+
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "Total: ${#services[@]} service(s) found"
-    
+
     return 0
 }
 
@@ -187,16 +187,16 @@ list_services() {
 remove_all_services() {
     local -a services
     mapfile -t services < <(discover_services)
-    
+
     if [[ ${#services[@]} -eq 0 ]]; then
         print_message INFO "No services to remove"
         return 0
     fi
-    
+
     echo
     print_message STEP "Removing ${#services[@]} Data Safe Connector service(s)"
     echo
-    
+
     if $DRY_RUN; then
         print_message INFO "DRY-RUN MODE - No changes will be made"
         echo
@@ -204,10 +204,10 @@ remove_all_services() {
         for service in "${services[@]}"; do
             echo "  - $service"
             echo "    /etc/systemd/system/$service"
-            
+
             local connector_name="${service#oracle_datasafe_}"
             connector_name="${connector_name%.service}"
-            
+
             local sudoers_files
             sudoers_files="$(find_sudoers_files "$connector_name")"
             if [[ -n "$sudoers_files" ]]; then
@@ -218,7 +218,7 @@ remove_all_services() {
         done
         return 0
     fi
-    
+
     # Confirm if interactive
     if $INTERACTIVE && ! $FORCE; then
         echo "Services to be removed:"
@@ -232,41 +232,41 @@ remove_all_services() {
             return 0
         fi
     fi
-    
+
     # Remove each service
     local success_count=0
     local fail_count=0
-    
+
     for service in "${services[@]}"; do
         echo
         print_message INFO "Removing: $service"
-        
+
         local connector_name="${service#oracle_datasafe_}"
         connector_name="${connector_name%.service}"
-        
+
         # Stop service
-        if systemctl is-active "$service" &>/dev/null; then
+        if systemctl is-active "$service" &> /dev/null; then
             print_message INFO "Stopping service"
-            if systemctl stop "$service" 2>/dev/null; then
+            if systemctl stop "$service" 2> /dev/null; then
                 print_message SUCCESS "Service stopped"
             else
                 print_message WARNING "Failed to stop service"
             fi
         fi
-        
+
         # Disable service
-        if systemctl is-enabled "$service" &>/dev/null; then
+        if systemctl is-enabled "$service" &> /dev/null; then
             print_message INFO "Disabling service"
-            systemctl disable "$service" 2>/dev/null || true
+            systemctl disable "$service" 2> /dev/null || true
         fi
-        
+
         # Remove service file
         local service_file="/etc/systemd/system/$service"
         if [[ -f "$service_file" ]]; then
             print_message INFO "Removing service file"
             rm -f "$service_file"
         fi
-        
+
         # Remove sudoers files
         local sudoers_files
         sudoers_files="$(find_sudoers_files "$connector_name")"
@@ -276,20 +276,20 @@ remove_all_services() {
                 rm -f "$file"
             done <<< "$sudoers_files"
         fi
-        
+
         # Remove README (optional, might want to keep)
         # Commenting out to preserve documentation
         # local readme_pattern="*${connector_name}*/SERVICE_README.md"
         # find /appl/oracle/product/dsconnect -type f -path "$readme_pattern" -delete 2>/dev/null || true
-        
+
         print_message SUCCESS "Removed: $service"
         ((success_count++))
     done
-    
+
     # Reload systemd
     print_message INFO "Reloading systemd daemon"
     systemctl daemon-reload
-    
+
     # Summary
     echo
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -307,12 +307,12 @@ remove_all_services() {
 parse_arguments() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            -f|--force)
+            -f | --force)
                 FORCE=true
                 INTERACTIVE=false
                 shift
                 ;;
-            -d|--dry-run)
+            -d | --dry-run)
                 DRY_RUN=true
                 shift
                 ;;
@@ -320,7 +320,7 @@ parse_arguments() {
                 USE_COLOR=false
                 shift
                 ;;
-            -h|--help)
+            -h | --help)
                 usage
                 ;;
             *)
@@ -337,11 +337,11 @@ main() {
     parse_arguments "$@"
     init_colors
     check_root
-    
+
     if ! list_services; then
         exit 0
     fi
-    
+
     echo
     remove_all_services
 }
