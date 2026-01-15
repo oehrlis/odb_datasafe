@@ -38,10 +38,10 @@ EOF
     cat > "${TEST_TEMP_DIR}/bin/oci" << 'EOF'
 #!/usr/bin/env bash
 case "$*" in
-    "--version")
+    *"--version"*)
         echo "3.45.0"
         ;;
-    "data-safe target-database list --compartment-id"*)
+    *"data-safe target-database list"*)
         cat << 'JSON'
 {
   "data": [
@@ -59,7 +59,7 @@ case "$*" in
 }
 JSON
         ;;
-    "data-safe target-database get --target-database-id"*)
+    *"data-safe target-database get"*)
         cat << 'JSON'
 {
   "data": {
@@ -70,7 +70,7 @@ JSON
 }
 JSON
         ;;
-    "data-safe target-database update --target-database-id"*"--credentials"*)
+    *"data-safe target-database update"*"--credentials"*)
         echo '{"opc-work-request-id": "ocid1.workrequest.oc1..work123"}'
         ;;
     *)
