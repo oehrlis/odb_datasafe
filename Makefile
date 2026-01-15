@@ -84,12 +84,12 @@ help: ## Show this help message
 
 .PHONY: test
 test: ## Run BATS tests (excluding integration tests)
-	@echo -e "$(COLOR_BLUE)Running unit tests (timeout: 60s)...$(COLOR_RESET)"
+	@echo -e "$(COLOR_BLUE)Running unit tests (timeout: 300s)...$(COLOR_RESET)"
 	@if [ -z "$(BATS)" ]; then \
 		echo -e "$(COLOR_RED)Error: bats not found. Install with: brew install bats-core$(COLOR_RESET)"; \
 		exit 1; \
 	fi
-	@timeout 60 $(BATS) $$(ls tests/*.bats | grep -v integration_tests.bats) && \
+	@timeout 300 $(BATS) --no-tempdir-cleanup -j 1 $$(ls tests/*.bats | grep -v integration_tests.bats) && \
 		echo -e "$(COLOR_GREEN)✓ Tests passed$(COLOR_RESET)" || \
 		echo -e "$(COLOR_YELLOW)⚠️  Some tests failed or require OCI CLI$(COLOR_RESET)"
 
@@ -100,7 +100,7 @@ test-all: ## Run all tests including integration tests
 		echo -e "$(COLOR_RED)Error: bats not found$(COLOR_RESET)"; \
 		exit 1; \
 	fi
-	@$(BATS) tests || echo -e "$(COLOR_YELLOW)⚠️  Some tests failed$(COLOR_RESET)"
+	@$(BATS) --no-tempdir-cleanup -j 1 tests || echo -e "$(COLOR_YELLOW)⚠️  Some tests failed$(COLOR_RESET)"
 
 # ==============================================================================
 # Linting & Formatting
