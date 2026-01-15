@@ -25,10 +25,10 @@ setup() {
 # Mock OCI CLI for testing
 
 case "$*" in
-    "--version")
+    *"--version"*)
         echo "3.45.0"
         ;;
-    "iam compartment list --compartment-id ocid1.compartment.oc1..root"*)
+    *"iam compartment list --compartment-id ocid1.compartment.oc1..root"*)
         cat << 'JSON'
 {
   "data": [
@@ -38,7 +38,7 @@ case "$*" in
 }
 JSON
         ;;
-    "iam compartment get --compartment-id ocid1.compartment.oc1..child1"*)
+    *"iam compartment get --compartment-id ocid1.compartment.oc1..child1"*)
         cat << 'JSON'
 {
   "data": {
@@ -49,10 +49,10 @@ JSON
 }
 JSON
         ;;
-    "data-safe target-database list --compartment-id"*"--query data[?\"display-name\"=='test-target'].id"*)
+    *"data-safe target-database list"*"--query data[?\"display-name\"=="*)
         echo '"ocid1.datasafetarget.oc1..target123"'
         ;;
-    "data-safe target-database list --compartment-id"*)
+    *"data-safe target-database list --compartment-id"*)
         cat << 'JSON'
 {
   "data": [
@@ -76,7 +76,7 @@ JSON
 }
 JSON
         ;;
-    "data-safe target-database get --target-database-id"*)
+    *"data-safe target-database get --target-database-id"*)
         cat << 'JSON'
 {
   "data": {
@@ -90,7 +90,7 @@ JSON
 }
 JSON
         ;;
-    "data-safe on-premises-connector list"*)
+    *"data-safe on-premises-connector list"*)
         cat << 'JSON'
 {
   "data": [
@@ -254,7 +254,9 @@ teardown() {
     source "${LIB_DIR}/common.sh"
     source "${LIB_DIR}/oci_helpers.sh"
     
-    run ds_count_by_lifecycle "ocid1.compartment.oc1..root"
-    # May fail in mock environment, allow either success or specific failure
-    [ "$status" -eq 0 ] || [ "$status" -eq 1 ] || [ "$status" -eq 127 ]
+    # Get targets first, then count
+    targets=$(ds_list_targets "ocid1.compartment.oc1..root")
+    run ds_count_by_lifecycle "$targets"
+    # Should succeed with valid JSON input
+    [ "$status" -eq 0 ]
 }
