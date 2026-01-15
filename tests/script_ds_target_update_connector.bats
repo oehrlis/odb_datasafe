@@ -15,8 +15,8 @@ setup() {
     export BIN_DIR="${REPO_ROOT}/bin"
     export TEST_TEMP_DIR="${BATS_TEST_TMPDIR}"
     
-    # Create test environment
-    export TEST_ENV_FILE="${TEST_TEMP_DIR}/.env"
+    # Create test environment in REPO_ROOT so init_config can find it
+    export TEST_ENV_FILE="${REPO_ROOT}/.env"
     cat > "${TEST_ENV_FILE}" << 'EOF'
 DS_ROOT_COMP="ocid1.compartment.oc1..test-root"
 EOF

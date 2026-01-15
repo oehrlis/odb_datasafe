@@ -758,10 +758,10 @@ echo "=== Cleanup Complete ==="
 
 ## Change Log
 
-| Date       | Version | Author        | Changes                                |
-|------------|---------|---------------|----------------------------------------|
-| 2026-01-13 | 1.0.0   | Stefan Oehrli | Initial policy document for production |
-| 2026-01-14 | 1.0.1   | Stefan Oehrli | Fixed resource types, added removal section |
+| Date       | Version | Author        | Changes                                     |
+|------------|---------|---------------|---------------------------------------------|
+| 2026-01-13 | 0.5.1   | Stefan Oehrli | Initial policy document for production      |
+| 2026-01-14 | 0.5.2   | Stefan Oehrli | Fixed resource types, added removal section |
 
 ## Contact
 

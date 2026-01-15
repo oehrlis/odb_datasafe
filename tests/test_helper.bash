@@ -30,3 +30,29 @@ cleanup_test_dir() {
         rm -rf "$test_dir"
     fi
 }
+
+# Helper function to skip tests if OCI CLI is not configured
+# Tests requiring actual OCI CLI access should be skipped when not in a real environment
+skip_if_no_oci_config() {
+    # Check if OCI CLI is installed
+    if ! command -v oci &>/dev/null; then
+        skip "OCI CLI not installed - skipping test requiring OCI access"
+    fi
+    
+    # Check if OCI config file exists
+    local config_file="${OCI_CLI_CONFIG_FILE:-${HOME}/.oci/config}"
+    if [[ ! -f "$config_file" ]]; then
+        skip "OCI CLI config not found at $config_file - skipping test requiring OCI access"
+    fi
+    
+    # Check if running in mock environment (PATH contains test temp dir)
+    if [[ "$PATH" == *"${BATS_TEST_TMPDIR}"* ]] || [[ "$PATH" == *"${TEST_TEMP_DIR}"* ]]; then
+        # We're in a mock environment, allow tests to run
+        return 0
+    fi
+    
+    # Try to validate OCI CLI config by checking version
+    if ! oci --version &>/dev/null; then
+        skip "OCI CLI not working - skipping test requiring OCI access"
+    fi
+}

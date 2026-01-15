@@ -15,8 +15,8 @@ setup() {
     export BIN_DIR="${REPO_ROOT}/bin"
     export TEST_TEMP_DIR="${BATS_TEST_TMPDIR}"
     
-    # Create test environment
-    export TEST_ENV_FILE="${TEST_TEMP_DIR}/.env"
+    # Create test environment in REPO_ROOT so init_config can find it
+    export TEST_ENV_FILE="${REPO_ROOT}/.env"
     cat > "${TEST_ENV_FILE}" << 'EOF'
 DS_ROOT_COMP="ocid1.compartment.oc1..test-root"
 DS_USERNAME="testuser"
@@ -84,9 +84,10 @@ EOF
 }
 
 teardown() {
-    # Clean up sensitive data
+    # Clean up sensitive data and test .env
     unset DS_USERNAME DS_PASSWORD CONFIG_FILE TEST_CRED_FILE
     rm -f "${TEST_CRED_FILE}" 2>/dev/null || true
+    rm -f "${REPO_ROOT}/.env" 2>/dev/null || true
 }
 
 # Test basic script functionality
@@ -137,15 +138,15 @@ teardown() {
 }
 
 @test "ds_target_update_credentials.sh fails without username" {
-    # Unset environment username
-    local saved_user="$DS_USERNAME"
-    unset DS_USERNAME
+    # Remove .env temporarily so DS_USERNAME isn't loaded
+    mv "${REPO_ROOT}/.env" "${REPO_ROOT}/.env.bak"
     
     run "${BIN_DIR}/ds_target_update_credentials.sh" --no-prompt -c "ocid1.compartment.oc1..test-root"
     [ "$status" -ne 0 ]
     [[ "$output" == *"Username not specified"* ]]
     
-    export DS_USERNAME="$saved_user"
+    # Restore .env
+    mv "${REPO_ROOT}/.env.bak" "${REPO_ROOT}/.env"
 }
 
 @test "ds_target_update_credentials.sh fails without password in no-prompt mode" {
