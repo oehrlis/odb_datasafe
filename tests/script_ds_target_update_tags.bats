@@ -31,10 +31,10 @@ EOF
     cat > "${TEST_TEMP_DIR}/bin/oci" << 'EOF'
 #!/usr/bin/env bash
 case "$*" in
-    "--version")
+    *"--version"*)
         echo "3.45.0"
         ;;
-    "iam compartment list --compartment-id"*"cmp-lzp-dbso-prod-projects"*)
+    *"iam compartment list"*"cmp-lzp-dbso-prod-projects"*)
         cat << 'JSON'
 {
   "data": [
@@ -43,7 +43,7 @@ case "$*" in
 }
 JSON
         ;;
-    "iam compartment list --compartment-id"*"cmp-lzp-dbso-test-projects"*)
+    *"iam compartment list"*"cmp-lzp-dbso-test-projects"*)
         cat << 'JSON'
 {
   "data": [
@@ -52,7 +52,7 @@ JSON
 }
 JSON
         ;;
-    "data-safe target-database list --compartment-id"*)
+    *"data-safe target-database list"*)
         cat << 'JSON'
 {
   "data": [
@@ -80,10 +80,10 @@ JSON
 }
 JSON
         ;;
-    "data-safe target-database update --target-database-id"*"--defined-tags"*)
+    *"data-safe target-database update"*"--defined-tags"*)
         echo '{"opc-work-request-id": "ocid1.workrequest.oc1..work123"}'
         ;;
-    "iam compartment get --compartment-id"*)
+    *"iam compartment get"*)
         if [[ "$*" == *"prod-comp"* ]]; then
             echo '{"data": {"name": "cmp-lzp-dbso-prod-projects"}}'
         elif [[ "$*" == *"test-comp"* ]]; then
