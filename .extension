@@ -4,6 +4,7 @@ description: OraDBA Data Safe Extension - Comprehensive OCI Data Safe management
 author: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 enabled: true
 priority: 50
+uses_oradba_libs: false
 provides:
   bin: true
   sql: true
