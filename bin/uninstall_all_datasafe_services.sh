@@ -6,19 +6,24 @@
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
 # Date.......: 2026.01.11
-# Version....: v1.0.0
+# Version....: v1.1.0
 # Purpose....: Uninstall all Oracle Data Safe On-Premises Connector systemd services
-# Notes......: Must be run as root. Discovers and removes all datasafe services.
+# Notes......: Works as regular user for listing. Root only for uninstall operations.
 # License....: Apache License Version 2.0
+# ------------------------------------------------------------------------------
+# Modified...:
+# 2026.01.21 oehrli - refactored to allow non-root listing and checking
 # ------------------------------------------------------------------------------
 
 set -euo pipefail
 
 SCRIPT_NAME="$(basename "$0")"
 # shellcheck disable=SC2034
-SCRIPT_VERSION="v1.0.0"
+SCRIPT_VERSION="v1.1.0"
 
 # Mode flags
+LIST_ONLY=false
+UNINSTALL_MODE=false
 DRY_RUN=false
 INTERACTIVE=true
 FORCE=false
@@ -60,53 +65,75 @@ print_message() {
 # Usage
 usage() {
     cat << EOF
-${BOLD}Usage:${NC}
+Usage:
     $SCRIPT_NAME [OPTIONS]
 
-${BOLD}Description:${NC}
-    Uninstall all Oracle Data Safe On-Premises Connector systemd services.
-    Discovers all installed services and removes them with related configurations.
+Description:
+    Manage Oracle Data Safe On-Premises Connector systemd services.
+    Works in two modes:
+      1. List: View installed services (no root needed)
+      2. Uninstall: Remove services from system (requires root)
 
-${BOLD}Options:${NC}
-    -f, --force               Force removal without confirmation
+Options:
+    -l, --list                List installed services only (no root needed)
+    -u, --uninstall           Uninstall all services (REQUIRES ROOT)
+    -f, --force               Force removal without confirmation (with --uninstall)
     -d, --dry-run             Show what would be done without making changes
         --no-color            Disable colored output
     -h, --help                Show this help message
 
-${BOLD}Examples:${NC}
-    # List what would be removed (dry-run)
-    $SCRIPT_NAME --dry-run
+Examples:
+    # List all installed services (as oracle user)
+    $SCRIPT_NAME --list
+    $SCRIPT_NAME  # same as --list
 
-    # Interactive removal (asks for confirmation)
-    $SCRIPT_NAME
+    # Dry-run uninstall (shows what would be removed)
+    sudo $SCRIPT_NAME --uninstall --dry-run
 
-    # Force removal without confirmation
-    $SCRIPT_NAME --force
+    # Interactive uninstall (asks for confirmation)
+    sudo $SCRIPT_NAME --uninstall
 
-${BOLD}What Gets Removed:${NC}
-    - All oracle_datasafe_*.service files
-    - All related sudoers configurations
-    - All SERVICE_README.md files in connector directories
+    # Force uninstall without confirmation (as root)
+    sudo $SCRIPT_NAME --uninstall --force
 
-${BOLD}Notes:${NC}
-    - Must be run as root
-    - Services are stopped before removal
-    - Original connector files are NOT removed
-    - Only systemd services and configurations are removed
+What Gets Removed:
+    - All oracle_datasafe_*.service files from /etc/systemd/system/
+    - All related sudoers configurations from /etc/sudoers.d/
+    - Services are stopped and disabled before removal
+
+What Is Preserved:
+    - Original connector installations in \$CONNECTOR_BASE
+    - Local configuration files in connector etc/ directories
+    - SERVICE_README.md files
+
+Notes:
+    - REQUIRES ROOT: --uninstall
+    - NO ROOT NEEDED: --list, default behavior
+    - To reinstall: sudo install_datasafe_service.sh --install -n <connector>
 
 EOF
     exit 0
 }
 
-# Check if running as root
+# Check if running as root (only for uninstall operations)
 check_root() {
-    if [[ $EUID -ne 0 ]]; then
-        if $DRY_RUN; then
-            print_message WARNING "Not running as root (dry-run mode)"
-            return 0
+    # Root only required for uninstall
+    if $UNINSTALL_MODE; then
+        if [[ $EUID -ne 0 ]]; then
+            if $DRY_RUN; then
+                print_message WARNING "Not running as root (dry-run mode)"
+                return 0
+            fi
+            print_message ERROR "--uninstall requires root privileges"
+            print_message INFO "Run: sudo $SCRIPT_NAME --uninstall"
+            exit 1
         fi
-        print_message ERROR "This script must be run as root"
-        exit 1
+    else
+        # Not required for list mode
+        if [[ $EUID -eq 0 ]] && ! $DRY_RUN; then
+            print_message WARNING "Running as root for list operation"
+            print_message INFO "Tip: --list works as regular user"
+        fi
     fi
 }
 
@@ -161,17 +188,23 @@ list_services() {
             status="${YELLOW}INACTIVE${NC}"
         fi
 
-        printf "%2d. %-50s [%s]\n" "$idx" "$service" "$status"
+        printf "%2d. %-50s [" "$idx" "$service"
+        echo -e "${status}]"
 
         # Find related files
         local service_file="/etc/systemd/system/$service"
-        [[ -f "$service_file" ]] && echo "    Service: $service_file"
+        [[ -f "$service_file" ]] && echo "    System service: $service_file"
+
+        # Check for local config
+        local connector_base="${CONNECTOR_BASE:-${ORACLE_BASE:-/u01/app/oracle}/product}"
+        local local_config="$connector_base/${connector_name}/etc/systemd/$service"
+        [[ -f "$local_config" ]] && echo "    Local config:   $local_config"
 
         local sudoers_file="/etc/sudoers.d/oracle-datasafe-${connector_name}"
         if [[ ! -f "$sudoers_file" ]]; then
-            sudoers_file="/etc/sudoers.d/oracle-datasafe-${connector_name}"
+            sudoers_file="/etc/sudoers.d/*-datasafe-${connector_name}"
         fi
-        [[ -f "$sudoers_file" ]] && echo "    Sudoers: $sudoers_file"
+        [[ -f "$sudoers_file" ]] && echo "    Sudoers config: $sudoers_file"
 
         echo
         ((idx++))
@@ -299,14 +332,23 @@ remove_all_services() {
     echo "Services removed: $success_count"
     [[ $fail_count -gt 0 ]] && echo "Failed: $fail_count"
     echo
-    print_message INFO "Original connector installations are preserved"
-    print_message INFO "Only systemd services and sudo configurations were removed"
+    print_message INFO "Original connector installations preserved"
+    print_message INFO "Local configuration files preserved in connector etc/ directories"
+    print_message INFO "To reinstall: sudo install_datasafe_service.sh --install -n <connector>"
 }
 
 # Parse arguments
 parse_arguments() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
+            -l | --list)
+                LIST_ONLY=true
+                shift
+                ;;
+            -u | --uninstall)
+                UNINSTALL_MODE=true
+                shift
+                ;;
             -f | --force)
                 FORCE=true
                 INTERACTIVE=false
@@ -330,6 +372,11 @@ parse_arguments() {
                 ;;
         esac
     done
+
+    # Default to list mode if no mode specified
+    if ! $LIST_ONLY && ! $UNINSTALL_MODE; then
+        LIST_ONLY=true
+    fi
 }
 
 # Main
@@ -342,8 +389,15 @@ main() {
         exit 0
     fi
 
-    echo
-    remove_all_services
+    # Only proceed with uninstall if requested
+    if $UNINSTALL_MODE; then
+        echo
+        remove_all_services
+    else
+        # List mode - show helpful message
+        echo
+        print_message INFO "To uninstall services, run: sudo $SCRIPT_NAME --uninstall"
+    fi
 }
 
 main "$@"

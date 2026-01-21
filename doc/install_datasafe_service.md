@@ -1,13 +1,8 @@
 # Oracle Data Safe Connector Service Installer
 
-## Overview
-
-`install_datasafe_service.sh` is a comprehensive utility to install and manage
- Oracle Data Safe On-Premises Connectors as systemd services. It supports
- multiple connectors per server with automatic discovery and configuration.
-
 ## Features
 
+- ✅ **Two-Phase Workflow**: Prepare configs as oracle user, install as root
 - ✅ **Auto-discovery**: Automatically discovers available connectors
 - ✅ **Interactive Mode**: Guided prompts for easy setup
 - ✅ **Non-interactive Mode**: Full CLI support for automation
@@ -15,24 +10,29 @@
 - ✅ **Multiple Connectors**: Each connector gets a unique service
 - ✅ **Auto-configuration**: Detects CMAN instance name from cman.ora
 - ✅ **Sudo Integration**: Configures sudo for non-root management
+- ✅ **Local Config Storage**: Configs saved in connector etc/ directory
 - ✅ **Documentation**: Generates README for each connector
 - ✅ **Validation**: Comprehensive checks before installation
-- ✅ **Service Management**: Start, stop, check, and remove services
+- ✅ **Service Management**: Start, stop, check, install, and uninstall services
 
 ## Requirements
 
-- **Root access**: Script must be run as root
+- **Prepare Phase**: No special privileges (works as oracle/oradba user)
+- **Install Phase**: Root access required
+- **Uninstall Phase**: Root access required
 - **Systemd**: Linux system with systemd
 - **Oracle Data Safe Connector**: Already installed
 - **Standard directory structure**:
 
   ```text
-  /appl/oracle/product/dsconnect/
+  $ORACLE_BASE/product/
   ├── jdk/                          # Java Development Kit
-  └── <connector-name>/             # One or more connectors
+  └── <connector-name>/             # One or more connectors (e.g., dsconnect)
       ├── oracle_cman_home/
       │   ├── bin/cmctl
       │   └── network/admin/cman.ora
+      ├── etc/
+      │   └── systemd/              # Generated configs (prepare phase)
       └── log/
   ```
 
@@ -48,31 +48,67 @@
 2. Or run directly from the repository:
 
    ```bash
-   sudo ./bin/install_datasafe_service.sh
+   ./bin/install_datasafe_service.sh
    ```
+
+## Two-Phase Workflow
+
+### Phase 1: Prepare (as oracle/oradba user)
+
+Generate service configuration files in the connector's etc directory:
+
+```bash
+# Interactive mode
+./install_datasafe_service.sh --prepare
+
+# Or specify connector
+./install_datasafe_service.sh --prepare -n my-connector
+```
+
+This creates:
+
+- `$CONNECTOR_HOME/etc/systemd/oracle_datasafe_<name>.service`
+- `$CONNECTOR_HOME/etc/systemd/<user>-datasafe-<name>` (sudo config)
+- `$CONNECTOR_HOME/SERVICE_README.md` (documentation)
+
+### Phase 2: Install (as root)
+
+Copy prepared configs to system locations:
+
+```bash
+# Install to system
+sudo ./install_datasafe_service.sh --install -n my-connector
+```
+
+This copies files to:
+
+- `/etc/systemd/system/oracle_datasafe_<name>.service`
+- `/etc/sudoers.d/<user>-datasafe-<name>`
+
+And starts the service.
 
 ## Usage
 
 ### Quick Start (Interactive)
 
-Simply run the script as root for interactive mode:
+**As oracle user** - prepare configuration:
 
 ```bash
-sudo install_datasafe_service.sh
+./install_datasafe_service.sh
+# or explicitly:
+./install_datasafe_service.sh --prepare
 ```
 
-The script will:
-
-1. Discover available connectors
-2. Present a selection menu
-3. Validate the selected connector
-4. Install and start the service
-5. Generate documentation
-
-### List Available Connectors
+**As root** - install to system:
 
 ```bash
-sudo install_datasafe_service.sh --list
+sudo ./install_datasafe_service.sh --install -n my-connector
+```
+
+### List Available Connectors (No Root Needed)
+
+```bash
+./install_datasafe_service.sh --list
 ```
 
 Example output:
@@ -142,10 +178,10 @@ sudo install_datasafe_service.sh \
 
 ```text
 -n, --connector <name>    Connector name (directory name under base path)
--b, --base <path>         Connector base directory (default: /appl/oracle/product/dsconnect)
+-b, --base <path>         Connector base directory (default: $ORACLE_BASE/product)
 -u, --user <user>         OS user for service (default: oracle)
 -g, --group <group>       OS group for service (default: dba)
--j, --java-home <path>    JAVA_HOME path (default: /appl/oracle/product/dsconnect/jdk)
+-j, --java-home <path>    JAVA_HOME path (default: $ORACLE_BASE/product/jdk)
 
 -l, --list                List all available connectors
 -c, --check               Check if service is installed for connector

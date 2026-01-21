@@ -1,48 +1,55 @@
 # OraDBA Data Safe Extension (odb_datasafe)
 
-**Version:** 0.4.0  
+**Version:** 0.5.3  
 **Purpose:** Simplified OCI Data Safe target management and operations
 
-## For Root Administrators
+## For Administrators
 
 ### Install Data Safe Connector as Systemd Service
 
-**Quick Install (3 commands):**
+**Two-Phase Workflow:**
 
 ```bash
-# 1. List available connectors
+# 1. List available connectors (as oracle user)
 ./bin/install_datasafe_service.sh --list
 
-# 2. Install service (interactive)
-sudo ./bin/install_datasafe_service.sh
+# 2. Prepare service config (as oracle user)
+./bin/install_datasafe_service.sh --prepare -n my-connector
 
-# 3. Check service status
-sudo systemctl status oracle_datasafe_<connector>.service
+# 3. Install to system (as root)
+sudo ./bin/install_datasafe_service.sh --install -n my-connector
+
+# 4. Check service status
+sudo systemctl status oracle_datasafe_my-connector.service
 ```
 
-**Non-Interactive Install:**
+**Quick Install (Non-Interactive):**
 
 ```bash
-sudo ./bin/install_datasafe_service.sh \
-    --connector ds-conn-exacc-p1312 \
-    --user oracle \
-    --group dba \
-    --yes
+# Prepare (as oracle user)
+./bin/install_datasafe_service.sh --prepare -n ds-conn-exacc-p1312 --yes
+
+# Install (as root)
+sudo ./bin/install_datasafe_service.sh --install -n ds-conn-exacc-p1312 --yes
 ```
 
-**Test Before Installing (no root needed):**
+**Check Without Root:**
 
 ```bash
-./bin/install_datasafe_service.sh --test --connector <name>
+./bin/install_datasafe_service.sh --check -n my-connector
 ```
 
-**Uninstall All Services:**
+**Uninstall Services:**
 
 ```bash
-sudo ./bin/uninstall_all_datasafe_services.sh
+# List services (as oracle user)
+./bin/uninstall_all_datasafe_services.sh --list
+
+# Uninstall all (as root)
+sudo ./bin/uninstall_all_datasafe_services.sh --uninstall
 ```
 
-➡️ **[Complete Service Installer Guide](doc/05_quickstart_root_admin.md)**
+➡️ **[Complete Service Installer Guide](doc/quickstart_root_admin.md)**
 
 ---
 

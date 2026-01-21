@@ -1,6 +1,6 @@
-# Oracle Data Safe Connector Service - Quickstart for Root Admins
+# Oracle Data Safe Connector Service - Quickstart for Administrators
 
-**Quick 5-minute** setup guide for Linux administrators
+**Quick setup guide** for Linux and Oracle administrators
 
 ## What This Does
 
@@ -13,50 +13,84 @@ Installs Oracle Data Safe On-Premises Connector as a systemd service that:
 ## Prerequisites
 
 ✅ Oracle Data Safe Connector already installed
-✅ Root access
-✅ Connectors in: `/appl/oracle/product/dsconnect/<connector-name>/`
+✅ Connectors in: `$ORACLE_BASE/product/<connector-name>/`
 
-## Quick Install (3 commands)
+## Two-Phase Workflow
 
-### 1. List available connectors
+### Phase 1: Prepare (as oracle user - NO root needed)
+
+Generate service configuration files:
 
 ```bash
-sudo install_datasafe_service.sh --list
+# List available connectors
+./install_datasafe_service.sh --list
+
+# Prepare service configs (interactive)
+./install_datasafe_service.sh --prepare
+
+# Or specify connector
+./install_datasafe_service.sh --prepare -n my-connector
 ```
 
-### 2. Install service (interactive - script will ask which connector)
+### Phase 2: Install (as root)
+
+Install prepared configs to system:
 
 ```bash
-sudo install_datasafe_service.sh
-```
+# Install to system
+sudo ./install_datasafe_service.sh --install -n my-connector
 
-### 3. Verify it's running
-
-```bash
-sudo systemctl status oracle_datasafe_<connector-name>.service
+# Verify it's running
+sudo systemctl status oracle_datasafe_my-connector.service
 ```
 
 **Done!** The oracle user can now manage it.
 
-## Common Commands
-
-### For Root Admin
+## Quick Install (All-in-One)
 
 ```bash
-# Install
-sudo install_datasafe_service.sh
+# Prepare (as oracle user)
+./install_datasafe_service.sh -n my-connector
 
-# Check what would be done (preview)
-sudo install_datasafe_service.sh -n my-connector --dry-run
+# Install (as root)
+sudo ./install_datasafe_service.sh --install -n my-connector
+```
 
-# Remove service
-sudo install_datasafe_service.sh -n my-connector --remove
+## Common Commands
+
+### For Oracle User (Prepare Phase)
+
+```bash
+# List connectors
+./install_datasafe_service.sh --list
+
+# Prepare service config
+./install_datasafe_service.sh --prepare -n my-connector
+
+# Check if service is installed
+./install_datasafe_service.sh --check -n my-connector
+
+# Preview what would be done
+./install_datasafe_service.sh --prepare -n my-connector --dry-run
+```
+
+### For Root Admin (Install Phase)
+
+```bash
+# Install to system
+sudo ./install_datasafe_service.sh --install -n my-connector
+
+# Preview install
+sudo ./install_datasafe_service.sh --install -n my-connector --dry-run
+
+# Uninstall service
+sudo ./install_datasafe_service.sh --uninstall -n my-connector
 
 # Check status
 sudo systemctl status oracle_datasafe_my-connector.service
 ```
 
-### For Oracle User (after installation)
+### For Oracle User (Service Management)
 
 ```bash
 # Start
@@ -75,20 +109,38 @@ sudo systemctl status oracle_datasafe_my-connector.service
 sudo journalctl -u oracle_datasafe_my-connector.service -f
 ```
 
-## Non-Interactive Install (For Scripts)
+## Non-Interactive Workflow (For Scripts)
 
 ```bash
-# Install specific connector without prompts
-sudo install_datasafe_service.sh \
-  --connector ds-conn-oradba-prod \
-  --yes
+# As oracle user - prepare
+./install_datasafe_service.sh --prepare -n ds-conn-prod --yes
+
+# As root - install
+sudo ./install_datasafe_service.sh --install -n ds-conn-prod --yes
 ```
 
 ## What Gets Created
 
+### During Prepare Phase (in connector etc/ directory)
+
+1. **Service file**: `<connector>/etc/systemd/oracle_datasafe_<name>.service`
+2. **Sudo config**: `<connector>/etc/systemd/<user>-datasafe-<name>`
+3. **Documentation**: `<connector>/SERVICE_README.md`
+
+### During Install Phase (system locations)
+
 1. **Service file**: `/etc/systemd/system/oracle_datasafe_<name>.service`
-2. **Sudo config**: `/etc/sudoers.d/oracle-datasafe-<name>` (allows oracle user to manage service)
-3. **Documentation**: `<connector-home>/SERVICE_README.md` (detailed guide for operations)
+2. **Sudo config**: `/etc/sudoers.d/<user>-datasafe-<name>`
+
+## Uninstall All Services
+
+```bash
+# List services (as oracle user)
+./uninstall_all_datasafe_services.sh --list
+
+# Uninstall all (as root)
+sudo ./uninstall_all_datasafe_services.sh --uninstall
+```
 
 ## Troubleshooting
 
@@ -137,7 +189,7 @@ sudo install_datasafe_service.sh \
 install_datasafe_service.sh -n my-connector --test
 ```
 
-## Uninstall All Services
+## Batch Uninstall
 
 ```bash
 # Remove all Data Safe services at once

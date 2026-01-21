@@ -60,7 +60,7 @@ teardown() {
 @test "install_datasafe_service.sh shows version in help" {
     run "$SCRIPT_PATH" --help
     [ "$status" -eq 0 ]
-    [[ "$output" == *"v1.0.0"* ]] || [[ "$output" == *"Version"* ]]
+    [[ "$output" == *"v1.1.0"* ]] || [[ "$output" == *"Version"* ]]
 }
 
 @test "install_datasafe_service.sh supports --no-color flag" {
@@ -68,6 +68,28 @@ teardown() {
     [ "$status" -eq 0 ]
     # Should not contain ANSI color codes
     ! [[ "$output" =~ $'\033' ]]
+}
+
+@test "install_datasafe_service.sh list mode works without root" {
+    run "$SCRIPT_PATH" \
+        --base "$CONNECTOR_BASE" \
+        --list
+    
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"connector"* ]]
+}
+
+@test "install_datasafe_service.sh prepare mode works without root" {
+    run "$SCRIPT_PATH" \
+        --base "$CONNECTOR_BASE" \
+        --connector "$TEST_CONNECTOR" \
+        --java-home "$JAVA_HOME" \
+        --prepare \
+        --dry-run \
+        --yes
+    
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"DRY-RUN"* ]] || [[ "$output" == *"TEST"* ]]
 }
 
 @test "install_datasafe_service.sh test mode works without root" {
@@ -86,6 +108,7 @@ teardown() {
         --base "$CONNECTOR_BASE" \
         --connector "$TEST_CONNECTOR" \
         --java-home "$JAVA_HOME" \
+        --prepare \
         --dry-run \
         --yes
     
@@ -98,7 +121,7 @@ teardown() {
         --base "$CONNECTOR_BASE" \
         --connector "nonexistent-connector" \
         --java-home "$JAVA_HOME" \
-        --test \
+        --prepare \
         --yes
     
     [ "$status" -ne 0 ]
@@ -110,7 +133,8 @@ teardown() {
         --base "$CONNECTOR_BASE" \
         --connector "$TEST_CONNECTOR" \
         --java-home "$JAVA_HOME" \
-        --test \
+        --prepare \
+        --dry-run \
         --yes \
         --verbose
     
@@ -118,12 +142,13 @@ teardown() {
     [[ "$output" == *"test_cman"* ]]
 }
 
-@test "install_datasafe_service.sh generates service file in test mode" {
+@test "install_datasafe_service.sh generates service file in prepare mode" {
     run "$SCRIPT_PATH" \
         --base "$CONNECTOR_BASE" \
         --connector "$TEST_CONNECTOR" \
         --java-home "$JAVA_HOME" \
-        --test \
+        --prepare \
+        --dry-run \
         --yes
     
     [ "$status" -eq 0 ]
@@ -132,14 +157,15 @@ teardown() {
     [[ "$output" == *"ExecStart"* ]]
 }
 
-@test "install_datasafe_service.sh shows configuration in test mode" {
+@test "install_datasafe_service.sh shows configuration in prepare mode" {
     run "$SCRIPT_PATH" \
         --base "$CONNECTOR_BASE" \
         --connector "$TEST_CONNECTOR" \
         --java-home "$JAVA_HOME" \
         --user testuser \
         --group testgroup \
-        --test \
+        --prepare \
+        --dry-run \
         --yes
     
     [ "$status" -eq 0 ]

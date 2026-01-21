@@ -376,13 +376,27 @@ load_config() {
 # Usage.......: init_config
 #               init_config "my_script.conf"
 # Notes.......: Call after setting defaults, before parse_common_opts
+#               .env file location: $ODB_DATASAFE_BASE/.env (extension base directory)
 # ------------------------------------------------------------------------------
 init_config() {
     local script_conf="${1:-}"
 
-    # Load .env from project root if exists
-    local env_file="${SCRIPT_DIR}/../.env"
-    load_config "$env_file"
+    # Determine extension base directory
+    local base_dir="${ODB_DATASAFE_BASE:-}"
+    if [[ -z "$base_dir" ]]; then
+        # Auto-detect: script is in bin/, so base is parent directory
+        base_dir="$(cd "${SCRIPT_DIR}/.." && pwd)"
+    fi
+    export ODB_DATASAFE_BASE="$base_dir"
+
+    # Load .env from extension base directory if exists
+    local env_file="${ODB_DATASAFE_BASE}/.env"
+    if [[ -f "$env_file" ]]; then
+        log_debug "Loading environment from: $env_file"
+        load_config "$env_file"
+    else
+        log_debug "No .env file found at: $env_file (optional)"
+    fi
 
     # Load generic config - check ORADBA_ETC first, then local etc/
     if [[ -n "${ORADBA_ETC:-}" && -f "${ORADBA_ETC}/datasafe.conf" ]]; then

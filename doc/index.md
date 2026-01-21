@@ -31,12 +31,15 @@ The extension is automatically discovered and loaded.
 
 ### Configuration
 
-1. **Create environment file** from template:
+1. **Create environment file** from template in extension base directory:
 
    ```bash
-   cd ${ORADBA_LOCAL_BASE}/odb_datasafe
+   cd ${ORADBA_LOCAL_BASE}/odb_datasafe  # Extension base directory
    cp etc/.env.example .env
    ```
+
+   **Important**: The `.env` file must be in the extension base directory
+   (`$ODB_DATASAFE_BASE/.env`), not in the `etc/` directory.
 
 2. **Configure OCI and Data Safe settings** in `.env`:
 
@@ -97,6 +100,13 @@ ds_target_update_credentials.sh <target-id>
 - **Release Notes** - [release_notes/](release_notes/) directory
 
 ## Key Features
+
+### Configuration Management
+
+- **Environment variables**: `$ODB_DATASAFE_BASE/.env` for persistent config
+- **Config files**: Optional `datasafe.conf` for system-wide settings
+- **Configuration cascade**: defaults → .env → config → CLI
+- **ODB_DATASAFE_BASE**: Extension base directory (auto-detected)
 
 ### Target Management Scripts
 

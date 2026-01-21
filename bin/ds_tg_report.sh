@@ -68,7 +68,7 @@ Options:
     --oci-config FILE       OCI config file
 
   Selection:
-    -c, --compartment ID    Compartment OCID or name (default: DS_ROOT_COMP from .env)
+    -c, --compartment ID    Compartment OCID or name (default: DS_ROOT_COMP from \$ODB_DATASAFE_BASE/.env)
 
   Report Options:
     -r, --report TYPE       Report type: all|tags|env|missing|undef (default: ${REPORT_TYPE})
@@ -174,7 +174,7 @@ validate_inputs() {
     # Use DS_ROOT_COMP as default if no compartment specified
     if [[ -z "$COMPARTMENT" ]]; then
         local root_comp
-        root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment. Set DS_ROOT_COMP in .env or use -c/--compartment"
+        root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment. Set DS_ROOT_COMP in \$ODB_DATASAFE_BASE/.env or use -c/--compartment"
         COMPARTMENT="$root_comp"
         log_info "No compartment specified, using DS_ROOT_COMP: $COMPARTMENT"
     fi

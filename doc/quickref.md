@@ -41,13 +41,17 @@ odb_datasafe/                          # OraDBA Extension for Data Safe
 ### 1. Setup Configuration
 
 ```bash
-# Navigate to extension
-cd /path/to/odb_datasafe
+# Navigate to extension base directory
+cd /path/to/odb_datasafe  # This is $ODB_DATASAFE_BASE
 
-# Create environment file
+# Create environment file in base directory (NOT in etc/)
 cp etc/.env.example .env
 vim .env
-  # Set: DS_ROOT_COMP_OCID, OCI_CLI_PROFILE, etc.
+  # Set: DS_ROOT_COMP, OCI_CLI_PROFILE, etc.
+
+# IMPORTANT: .env must be in extension base directory:
+#   odb_datasafe/.env  <-- HERE (correct)
+#   odb_datasafe/etc/.env  <-- WRONG (will not be loaded)
 
 # (Optional) Create config file
 cp etc/datasafe.conf.example etc/datasafe.conf

@@ -9,11 +9,12 @@
 # Version....: v1.0.0
 # Purpose....: Install and manage Oracle Data Safe On-Premises Connector as systemd service
 #              Generic solution for any connector with automatic discovery and configuration
-# Notes......: Must be run as root. Supports multiple connectors per server.
+# Notes......: Works as regular user for config preparation. Root only for system installation.
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
 # Modified...:
 # 2026.01.11 oehrli - initial version with auto-discovery and interactive mode
+# 2026.01.21 oehrli - refactored to allow non-root config generation
 # ------------------------------------------------------------------------------
 
 set -euo pipefail
@@ -22,18 +23,19 @@ set -euo pipefail
 # Default Configuration
 # ------------------------------------------------------------------------------
 SCRIPT_NAME="$(basename "$0")"
-SCRIPT_VERSION="v1.0.0"
+SCRIPT_VERSION="v1.1.0"
 
 # Default paths (can be overridden)
-DEFAULT_CONNECTOR_BASE="/appl/oracle/product/dsconnect"
+DEFAULT_CONNECTOR_BASE="${ORACLE_BASE:-/u01/app/oracle}/product"
 DEFAULT_USER="oracle"
 DEFAULT_GROUP="dba"
-DEFAULT_JAVA_HOME="/appl/oracle/product/dsconnect/jdk"
+DEFAULT_JAVA_HOME="${ORACLE_BASE:-/u01/app/oracle}/product/jdk"
 
 # Runtime variables
 CONNECTOR_BASE="${CONNECTOR_BASE:-$DEFAULT_CONNECTOR_BASE}"
 CONNECTOR_NAME=""
 CONNECTOR_HOME=""
+CONNECTOR_ETC=""
 CMAN_NAME=""
 CMAN_HOME=""
 CMAN_CTL=""
@@ -42,11 +44,13 @@ OS_GROUP="${OS_GROUP:-$DEFAULT_GROUP}"
 JAVA_HOME="${JAVA_HOME:-$DEFAULT_JAVA_HOME}"
 
 # Mode flags
+PREPARE_MODE=false
+INSTALL_MODE=false
+UNINSTALL_MODE=false
 DRY_RUN=false
 TEST_MODE=false
 INTERACTIVE=true
 LIST_MODE=false
-REMOVE_MODE=false
 CHECK_MODE=false
 VERBOSE=false
 SKIP_SUDO=false
@@ -98,102 +102,124 @@ print_message() {
 # Usage information
 usage() {
     cat << EOF
-${BOLD}Oracle Data Safe Service Installer${NC}
+Oracle Data Safe Service Installer
 Version: $SCRIPT_VERSION
 
-${BOLD}Usage:${NC}
+Usage:
     $SCRIPT_NAME [OPTIONS]
 
-${BOLD}Description:${NC}
-    Install Oracle Data Safe On-Premises Connector as a systemd service.
-    Supports multiple connectors per server with automatic configuration.
-t, --test                Test/demo mode (works without root, shows what would happen)
-        --skip-sudo           Skip sudo configuration (useful for testing environments)
-        --no-color            Disable colored output
-    -
-${BOLD}Options:${NC}
+Description:
+    Manage Oracle Data Safe On-Premises Connector as a systemd service.
+    Works in two phases:
+      1. Prepare: Generate config files in connector etc/ directory (as oracle/oradba user)
+      2. Install: Copy configs to system locations (requires root)
+
+Workflow Options:
+    --prepare                 Generate service configs in connector etc/ (default, no root needed)
+    --install                 Install prepared configs to system (REQUIRES ROOT)
+    --uninstall               Remove service from system (REQUIRES ROOT)
+    
+Configuration Options:
     -n, --connector <name>    Connector name (directory name under base path)
-    -b, --base <path>         Connector base directory (default: $DEFAULT_CONNECTOR_BASE)
+    -b, --base <path>         Connector base directory (default: \$ORACLE_BASE/product)
     -u, --user <user>         OS user for service (default: $DEFAULT_USER)
     -g, --group <group>       OS group for service (default: $DEFAULT_GROUP)
-    -j, --java-home <path>    JAVA_HOME path (default: $DEFAULT_JAVA_HOME)
+    -j, --java-home <path>    JAVA_HOME path (default: \$ORACLE_BASE/product/jdk)
     
-    -l, --list                List all available connectors
-    -c, --check               Check if service is installed for connector
-    -r, --remove              Remove service and sudo configuration
+Query Options:
+    -l, --list                List all available connectors (no root needed)
+    -c, --check               Check if service is installed (no root needed)
     
+Control Options:
     -y, --yes                 Non-interactive mode (use defaults/provided values)
     -d, --dry-run             Show what would be done without making changes
+    -t, --test                Test/demo mode (shows what would happen)
     -v, --verbose             Verbose output
+    --skip-sudo               Skip sudo configuration generation
+    --no-color                Disable colored output
     -h, --help                Show this help message
 
-${BOLD}Examples:${NC}
-    # List available connectors
+Examples:
+    # List available connectors (as oracle user)
     $SCRIPT_NAME --list
 
-    # Interactive installation (prompts for connector selection)
+    # Prepare service configuration (as oracle user)
+    $SCRIPT_NAME --prepare -n my-connector
+    $SCRIPT_NAME -n my-connector  # same as --prepare
+
+    # Install to system (as root, after prepare)
+    sudo $SCRIPT_NAME --install -n my-connector
+
+    # Complete workflow (prepare + install)
+    $SCRIPT_NAME --prepare -n my-connector
+    sudo $SCRIPT_NAME --install -n my-connector
+
+    # Check if service is installed (as oracle user)
+    $SCRIPT_NAME --check -n my-connector
+
+    # Remove service (as root)
+    sudo $SCRIPT_NAME --uninstall -n my-connector
+
+    # Interactive preparation (as oracle user)
     $SCRIPT_NAME
 
-    # Non-interactive installation for  (requires root)
-    $SCRIPT_NAME -n my-connector --dry-run
-
-    # Test/demo mode (works without root)
-    $SCRIPT_NAME -n my-connector --test
-
-    # Check if service is installed
-    $SCRIPT_NAME -n my-connector --check
-
-    # Remove service
-    $SCRIPT_NAME -n my-connector --remove
-
     # Custom configuration
     $SCRIPT_NAME -n my-connector -u oracle -g dba -j /opt/java/jdk
 
-    # Install without sudo config (for environments with external sudo management)
-    $SCRIPT_NAME -n my-connector --skip-sudo -y
+    # Dry-run install (as root)
+    sudo $SCRIPT_NAME --install -n my-connector --dry-run
 
-    # Custom configuration
-    $SCRIPT_NAME -n my-connector -u oracle -g dba -j /opt/java/jdk
-
-${BOLD}Environment Variables:${NC}
+Environment Variables:
+    ORACLE_BASE               Oracle base directory (default: /u01/app/oracle)
     CONNECTOR_BASE            Override default connector base path
     OS_USER                   Override default OS user
     OS_GROUP                  Override default OS group
     JAVA_HOME                 Override default Java home
 
-${BOLD}Notes:${NC}
-    - Must be run as root
-    - Connectors must be in: \$CONNECTOR_BASE/<connector-name>/
+Notes:
+    - REQUIRES ROOT: --install, --uninstall
+    - NO ROOT NEEDED: --prepare, --list, --check, default behavior
+    - Default search path: \$ORACLE_BASE/product/<connector-name>/
+    - Config files stored in: \$CONNECTOR_HOME/etc/systemd/
     - Each connector gets a unique service: oracle_datasafe_<connector-name>.service
     - Auto-detects CMAN instance name from cman.ora
-    - Generates sudo config for specified user to manage service
 
 EOF
     exit 0
 }
 
 # ------------------------------------------------------------------------------
-# Check if running as root (unless in dry-run or test mode)
+# Check if running as root (only for install/uninstall operations)
 # ------------------------------------------------------------------------------
 check_root() {
-    if [[ $EUID -ne 0 ]]; then
-        if $DRY_RUN || $TEST_MODE; then
-            print_message WARNING "Not running as root (dry-run/test mode)"
-            return 0
+    # Root only required for install/uninstall
+    if $INSTALL_MODE || $UNINSTALL_MODE; then
+        if [[ $EUID -ne 0 ]]; then
+            if $DRY_RUN || $TEST_MODE; then
+                print_message WARNING "Not running as root (dry-run/test mode)"
+                return 0
+            fi
+            print_message ERROR "--install and --uninstall require root privileges"
+            print_message INFO "Run: sudo $SCRIPT_NAME --install -n $CONNECTOR_NAME"
+            exit 1
         fi
-        print_message ERROR "This script must be run as root"
-        print_message INFO "Tip: Use --dry-run or --test mode to preview without root access"
-        exit 1
+    else
+        # Not required for prepare, list, check
+        if [[ $EUID -eq 0 ]] && ! $DRY_RUN && ! $TEST_MODE; then
+            print_message WARNING "Running as root for non-install operation"
+            print_message INFO "Tip: --prepare, --list, --check work as regular user"
+        fi
     fi
 }
 
 # Discover available connectors
 discover_connectors() {
-    local base="$1"
+    local base="${1:-${CONNECTOR_BASE}}"
     local -a connectors=()
 
     if [[ ! -d "$base" ]]; then
         print_message ERROR "Connector base directory not found: $base"
+        print_message INFO "Tip: Set ORACLE_BASE or use --base /path/to/connectors"
         return 1
     fi
 
@@ -238,7 +264,8 @@ list_connectors() {
             installed="${YELLOW}[NOT INSTALLED]${NC}"
         fi
 
-        printf "%2d. %-50s %s\n" "$idx" "$connector" "$installed"
+        printf "%2d. %-50s " "$idx" "$connector"
+        echo -e "$installed"
         printf "    Path: %s\n" "$conn_path"
 
         # Try to get CMAN name from cman.ora
@@ -262,6 +289,7 @@ validate_connector() {
     local base="$2"
 
     CONNECTOR_HOME="$base/$connector"
+    CONNECTOR_ETC="$CONNECTOR_HOME/etc/systemd"
 
     if [[ ! -d "$CONNECTOR_HOME" ]]; then
         print_message ERROR "Connector directory not found: $CONNECTOR_HOME"
@@ -307,8 +335,8 @@ validate_connector() {
         return 1
     fi
 
-    # Validate user and group (skip in test mode or dry-run)
-    if ! $TEST_MODE && ! $DRY_RUN; then
+    # Validate user and group (only for install operations)
+    if $INSTALL_MODE && ! $TEST_MODE && ! $DRY_RUN; then
         if ! id "$OS_USER" &> /dev/null; then
             print_message ERROR "User does not exist: $OS_USER"
             return 1
@@ -318,6 +346,14 @@ validate_connector() {
             print_message ERROR "Group does not exist: $OS_GROUP"
             return 1
         fi
+    fi
+
+    # Create etc directory for prepare mode
+    if $PREPARE_MODE && [[ ! -d "$CONNECTOR_ETC" ]]; then
+        mkdir -p "$CONNECTOR_ETC" || {
+            print_message ERROR "Cannot create directory: $CONNECTOR_ETC"
+            return 1
+        }
     fi
 
     return 0
@@ -553,16 +589,27 @@ ss -tlnp | grep cmgw
 
 ## Configuration Files
 
-- **Service file**: /etc/systemd/system/$SERVICE_NAME
-- **Sudo config**: /etc/sudoers.d/$OS_USER-datasafe-$CONNECTOR_NAME
+- **Service file (local)**: $CONNECTOR_ETC/$SERVICE_NAME
+- **Service file (system)**: /etc/systemd/system/$SERVICE_NAME
+- **Sudo config (local)**: $CONNECTOR_ETC/$OS_USER-datasafe-$CONNECTOR_NAME
+- **Sudo config (system)**: /etc/sudoers.d/$OS_USER-datasafe-$CONNECTOR_NAME
 - **CMAN config**: $CMAN_HOME/network/admin/cman.ora
 - **This README**: $README_FILE
+
+## Installation Steps
+
+This service was prepared but not yet installed. To install:
+
+\`\`\`bash
+# As root user:
+sudo $SCRIPT_NAME --install -n $CONNECTOR_NAME
+\`\`\`
 
 ## Uninstallation
 
 To remove this service:
 \`\`\`bash
-sudo $SCRIPT_NAME --connector $CONNECTOR_NAME --remove
+sudo $SCRIPT_NAME --uninstall -n $CONNECTOR_NAME
 \`\`\`
 
 ---
@@ -572,33 +619,30 @@ EOF
     chmod 644 "$readme"
 }
 
-# Install service
-install_service() {
-    print_message STEP "Installing Data Safe Connector Service"
+# Prepare service configuration (non-root)
+prepare_service() {
+    print_message STEP "Preparing Data Safe Connector Service Configuration"
     echo
 
     # Set service and file names
     SERVICE_NAME="oracle_datasafe_${CONNECTOR_NAME}.service"
-    SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME"
-    SUDOERS_FILE="/etc/sudoers.d/${OS_USER}-datasafe-${CONNECTOR_NAME}"
+    SERVICE_FILE="$CONNECTOR_ETC/$SERVICE_NAME"
+    SUDOERS_FILE="$CONNECTOR_ETC/${OS_USER}-datasafe-${CONNECTOR_NAME}"
     README_FILE="$CONNECTOR_HOME/SERVICE_README.md"
 
-    # Check if already installed
-    if [[ -f "$SERVICE_FILE" ]] && ! $DRY_RUN; then
-        local answer
-        read -rp "Service already installed. Overwrite? [y/N]: " answer
-        if [[ ! "$answer" =~ ^[Yy]$ ]]; then
-            print_message INFO "Installation cancelled"
-            return 0
-        fi
-        # Stop existing service
-        systemctl stop "$SERVICE_NAME" 2> /dev/null || true
+    # Ensure etc directory exists
+    if [[ ! -d "$CONNECTOR_ETC" ]]; then
+        mkdir -p "$CONNECTOR_ETC" || {
+            print_message ERROR "Cannot create directory: $CONNECTOR_ETC"
+            return 1
+        }
     fi
 
     # Display configuration
     echo "Configuration:"
     echo "  Connector Name....: $CONNECTOR_NAME"
     echo "  Connector Home....: $CONNECTOR_HOME"
+    echo "  Config Directory..: $CONNECTOR_ETC"
     echo "  CMAN Instance.....: $CMAN_NAME"
     echo "  CMAN Home.........: $CMAN_HOME"
     echo "  Service Name......: $SERVICE_NAME"
@@ -638,7 +682,7 @@ install_service() {
     fi
 
     # Create service file
-    print_message INFO "Creating systemd service file: $SERVICE_FILE"
+    print_message INFO "Creating service file: $SERVICE_FILE"
     generate_service_file > "$SERVICE_FILE"
     chmod 644 "$SERVICE_FILE"
 
@@ -646,14 +690,7 @@ install_service() {
     if ! $SKIP_SUDO; then
         print_message INFO "Creating sudoers configuration: $SUDOERS_FILE"
         generate_sudoers_file > "$SUDOERS_FILE"
-        chmod 440 "$SUDOERS_FILE"
-
-        # Validate sudoers syntax
-        if ! visudo -c -f "$SUDOERS_FILE" &> /dev/null; then
-            print_message ERROR "Invalid sudoers syntax, removing file"
-            rm -f "$SUDOERS_FILE"
-            return 1
-        fi
+        chmod 600 "$SUDOERS_FILE"
     else
         print_message INFO "Skipping sudoers configuration (--skip-sudo)"
     fi
@@ -661,6 +698,108 @@ install_service() {
     # Generate README
     print_message INFO "Creating service documentation: $README_FILE"
     generate_readme
+
+    # Print summary
+    echo
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    print_message SUCCESS "Service Configuration Prepared"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo
+    echo "Configuration files created in: $CONNECTOR_ETC"
+    echo "  - $SERVICE_NAME (service definition)"
+    if ! $SKIP_SUDO; then
+        echo "  - ${OS_USER}-datasafe-${CONNECTOR_NAME} (sudo config)"
+    fi
+    echo
+    echo "Documentation: $README_FILE"
+    echo
+    echo -e "${BOLD}Next Steps:${NC}"
+    echo "  1. Review the generated files in: $CONNECTOR_ETC"
+    echo "  2. Install to system (as root):"
+    echo "     sudo $SCRIPT_NAME --install -n $CONNECTOR_NAME"
+    echo
+}
+
+# Install service to system (requires root)
+install_service() {
+    print_message STEP "Installing Data Safe Connector Service to System"
+    echo
+
+    # Set service and file names
+    SERVICE_NAME="oracle_datasafe_${CONNECTOR_NAME}.service"
+    local local_service="$CONNECTOR_ETC/$SERVICE_NAME"
+    local local_sudoers="$CONNECTOR_ETC/${OS_USER}-datasafe-${CONNECTOR_NAME}"
+    local system_service="/etc/systemd/system/$SERVICE_NAME"
+    local system_sudoers="/etc/sudoers.d/${OS_USER}-datasafe-${CONNECTOR_NAME}"
+
+    # Check if configs exist
+    if [[ ! -f "$local_service" ]]; then
+        print_message ERROR "Service file not found: $local_service"
+        print_message INFO "Run: $SCRIPT_NAME --prepare -n $CONNECTOR_NAME"
+        return 1
+    fi
+
+    # Display what will be installed
+    echo "Installation plan:"
+    echo "  Source........: $CONNECTOR_ETC"
+    echo "  Service file..: $local_service"
+    echo "               -> $system_service"
+    if [[ -f "$local_sudoers" ]]; then
+        echo "  Sudo config...: $local_sudoers"
+        echo "               -> $system_sudoers"
+    fi
+    echo
+
+    # Handle dry-run
+    if $DRY_RUN; then
+        print_message INFO "DRY-RUN MODE - No changes will be made"
+        echo
+        echo "Would execute:"
+        echo "  1. Copy $local_service to $system_service"
+        if [[ -f "$local_sudoers" ]]; then
+            echo "  2. Copy $local_sudoers to $system_sudoers"
+            echo "  3. Validate sudoers syntax"
+        fi
+        echo "  4. systemctl daemon-reload"
+        echo "  5. systemctl enable $SERVICE_NAME"
+        echo "  6. systemctl start $SERVICE_NAME"
+        return 0
+    fi
+
+    # Check if already installed
+    if [[ -f "$system_service" ]]; then
+        local answer="y"
+        if $INTERACTIVE; then
+            read -rp "Service already installed. Overwrite? [y/N]: " answer
+        fi
+        if [[ ! "$answer" =~ ^[Yy]$ ]]; then
+            print_message INFO "Installation cancelled"
+            return 0
+        fi
+        # Stop existing service
+        print_message INFO "Stopping existing service"
+        systemctl stop "$SERVICE_NAME" 2> /dev/null || true
+    fi
+
+    # Copy service file
+    print_message INFO "Installing service file to: $system_service"
+    cp "$local_service" "$system_service"
+    chmod 644 "$system_service"
+
+    # Copy sudoers file if exists
+    if [[ -f "$local_sudoers" ]]; then
+        print_message INFO "Installing sudoers configuration to: $system_sudoers"
+        cp "$local_sudoers" "$system_sudoers"
+        chmod 440 "$system_sudoers"
+
+        # Validate sudoers syntax
+        if ! visudo -c -f "$system_sudoers" &> /dev/null; then
+            print_message ERROR "Invalid sudoers syntax, removing file"
+            rm -f "$system_sudoers"
+            return 1
+        fi
+        print_message SUCCESS "Sudoers configuration validated"
+    fi
 
     # Reload systemd
     print_message INFO "Reloading systemd daemon"
@@ -689,72 +828,79 @@ install_service() {
     # Print summary
     echo
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    print_message SUCCESS "Data Safe Connector Service Installation Complete"
+    print_message SUCCESS "Data Safe Connector Service Installed Successfully"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo
     echo "Service Name: $SERVICE_NAME"
-    echo "User: $OS_USER (with sudo privileges configured)"
+    echo "User: $OS_USER"
     echo
-    echo "${BOLD}Quick Commands for $OS_USER:${NC}"
+    echo -e "${BOLD}Management Commands:${NC}"
     echo "  sudo systemctl start $SERVICE_NAME"
     echo "  sudo systemctl stop $SERVICE_NAME"
     echo "  sudo systemctl restart $SERVICE_NAME"
     echo "  sudo systemctl status $SERVICE_NAME"
     echo "  sudo journalctl -u $SERVICE_NAME -f"
     echo
-    echo "${BOLD}Documentation:${NC}"
-    echo "  $README_FILE"
-    echo
-    echo "${BOLD}Configuration Files:${NC}"
-    echo "  Service: $SERVICE_FILE"
-    echo "  Sudo:    $SUDOERS_FILE"
-    echo
 }
 
 # Check service status
 check_service() {
     SERVICE_NAME="oracle_datasafe_${CONNECTOR_NAME}.service"
-    SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME"
-    SUDOERS_FILE="/etc/sudoers.d/${OS_USER}-datasafe-${CONNECTOR_NAME}"
-    README_FILE="$CONNECTOR_HOME/SERVICE_README.md"
+    local local_service="$CONNECTOR_ETC/$SERVICE_NAME"
+    local local_sudoers="$CONNECTOR_ETC/${OS_USER}-datasafe-${CONNECTOR_NAME}"
+    local system_service="/etc/systemd/system/$SERVICE_NAME"
+    local system_sudoers="/etc/sudoers.d/${OS_USER}-datasafe-${CONNECTOR_NAME}"
+    local readme="$CONNECTOR_HOME/SERVICE_README.md"
 
     echo
-    print_message STEP "Checking service installation for connector: $CONNECTOR_NAME"
+    print_message STEP "Checking service status for connector: $CONNECTOR_NAME"
     echo
 
-    local installed=true
-
-    # Check service file
-    echo "Service file: $SERVICE_FILE"
-    if [[ -f "$SERVICE_FILE" ]]; then
-        print_message SUCCESS "Exists"
+    # Check local configs
+    echo "Local Configuration ($CONNECTOR_ETC):"
+    echo "  Service file: $local_service"
+    if [[ -f "$local_service" ]]; then
+        print_message SUCCESS "Exists (prepared)"
     else
-        print_message ERROR "Not found"
-        installed=false
+        print_message WARNING "Not found - run: $SCRIPT_NAME --prepare -n $CONNECTOR_NAME"
     fi
 
-    # Check sudoers file
     echo
-    echo "Sudoers file: $SUDOERS_FILE"
-    if [[ -f "$SUDOERS_FILE" ]]; then
-        print_message SUCCESS "Exists"
-    else
-        print_message ERROR "Not found"
-        installed=false
-    fi
-
-    # Check README
-    echo
-    echo "Documentation: $README_FILE"
-    if [[ -f "$README_FILE" ]]; then
+    echo "  Sudo config: $local_sudoers"
+    if [[ -f "$local_sudoers" ]]; then
         print_message SUCCESS "Exists"
     else
         print_message WARNING "Not found"
     fi
 
     echo
-    if $installed; then
-        # Show service status
+    echo "System Installation:"
+    echo "  Service file: $system_service"
+    if [[ -f "$system_service" ]]; then
+        print_message SUCCESS "Installed"
+    else
+        print_message WARNING "Not installed - run: sudo $SCRIPT_NAME --install -n $CONNECTOR_NAME"
+    fi
+
+    echo
+    echo "  Sudo config: $system_sudoers"
+    if [[ -f "$system_sudoers" ]]; then
+        print_message SUCCESS "Installed"
+    else
+        print_message WARNING "Not installed"
+    fi
+
+    echo
+    echo "Documentation: $readme"
+    if [[ -f "$readme" ]]; then
+        print_message SUCCESS "Exists"
+    else
+        print_message WARNING "Not found"
+    fi
+
+    # Show service status if installed
+    if [[ -f "$system_service" ]]; then
+        echo
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         systemctl status "$SERVICE_NAME" --no-pager -l || true
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -766,40 +912,40 @@ check_service() {
             print_message WARNING "Service is installed but not running"
         fi
     else
-        print_message ERROR "Service is not installed"
-        return 1
+        echo
+        print_message INFO "Service not installed to system yet"
     fi
 }
 
-# Remove service
-remove_service() {
+# Remove service from system (requires root)
+uninstall_service() {
     SERVICE_NAME="oracle_datasafe_${CONNECTOR_NAME}.service"
-    SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME"
-    SUDOERS_FILE="/etc/sudoers.d/${OS_USER}-datasafe-${CONNECTOR_NAME}"
-    README_FILE="$CONNECTOR_HOME/SERVICE_README.md"
+    local system_service="/etc/systemd/system/$SERVICE_NAME"
+    local system_sudoers="/etc/sudoers.d/${OS_USER}-datasafe-${CONNECTOR_NAME}"
 
-    print_message STEP "Removing service for connector: $CONNECTOR_NAME"
+    print_message STEP "Uninstalling service for connector: $CONNECTOR_NAME"
     echo
 
-    if [[ ! -f "$SERVICE_FILE" ]]; then
+    if [[ ! -f "$system_service" ]]; then
         print_message WARNING "Service not installed: $SERVICE_NAME"
         return 0
     fi
 
     if $DRY_RUN; then
         print_message INFO "DRY-RUN MODE - Would remove:"
-        echo "  - $SERVICE_FILE"
-        echo "  - $SUDOERS_FILE"
-        echo "  - $README_FILE"
+        echo "  - $system_service"
+        if [[ -f "$system_sudoers" ]]; then
+            echo "  - $system_sudoers"
+        fi
         return 0
     fi
 
     # Confirm removal
     if $INTERACTIVE; then
         local answer
-        read -rp "Remove service $SERVICE_NAME? [y/N]: " answer
+        read -rp "Uninstall service $SERVICE_NAME? [y/N]: " answer
         if [[ ! "$answer" =~ ^[Yy]$ ]]; then
-            print_message INFO "Removal cancelled"
+            print_message INFO "Uninstall cancelled"
             return 0
         fi
     fi
@@ -813,22 +959,36 @@ remove_service() {
     systemctl disable "$SERVICE_NAME" 2> /dev/null || true
 
     # Remove files
-    print_message INFO "Removing service files"
-    rm -f "$SERVICE_FILE"
-    rm -f "$SUDOERS_FILE"
-    rm -f "$README_FILE"
+    print_message INFO "Removing service files from system"
+    rm -f "$system_service"
+    [[ -f "$system_sudoers" ]] && rm -f "$system_sudoers"
 
     # Reload systemd
     print_message INFO "Reloading systemd daemon"
     systemctl daemon-reload
 
-    print_message SUCCESS "Service removed successfully"
+    print_message SUCCESS "Service uninstalled successfully"
+    echo
+    print_message INFO "Local configuration files preserved in: $CONNECTOR_ETC"
+    print_message INFO "To reinstall: sudo $SCRIPT_NAME --install -n $CONNECTOR_NAME"
 }
 
 # Parse command-line arguments
 parse_arguments() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
+            --prepare)
+                PREPARE_MODE=true
+                shift
+                ;;
+            --install)
+                INSTALL_MODE=true
+                shift
+                ;;
+            --uninstall)
+                UNINSTALL_MODE=true
+                shift
+                ;;
             -n | --connector)
                 CONNECTOR_NAME="$2"
                 shift 2
@@ -870,10 +1030,6 @@ parse_arguments() {
                 USE_COLOR=false
                 shift
                 ;;
-            -r | --remove)
-                REMOVE_MODE=true
-                shift
-                ;;
             -y | --yes)
                 INTERACTIVE=false
                 shift
@@ -896,6 +1052,11 @@ parse_arguments() {
                 ;;
         esac
     done
+
+    # Default to prepare mode if no mode specified
+    if ! $PREPARE_MODE && ! $INSTALL_MODE && ! $UNINSTALL_MODE && ! $LIST_MODE && ! $CHECK_MODE; then
+        PREPARE_MODE=true
+    fi
 }
 
 # Main function
@@ -906,7 +1067,7 @@ main() {
     # Parse arguments
     parse_arguments "$@"
 
-    # Check root
+    # Check root requirements
     check_root
 
     # Handle list mode
@@ -937,10 +1098,12 @@ main() {
     # Handle different modes
     if $CHECK_MODE; then
         check_service
-    elif $REMOVE_MODE; then
-        remove_service
-    else
+    elif $UNINSTALL_MODE; then
+        uninstall_service
+    elif $INSTALL_MODE; then
         install_service
+    elif $PREPARE_MODE; then
+        prepare_service
     fi
 }
 

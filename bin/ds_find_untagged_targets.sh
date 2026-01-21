@@ -140,7 +140,7 @@ validate_inputs() {
     # Use root compartment if none specified
     if [[ -z "$COMPARTMENT" ]]; then
         local root_comp
-        root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment. Set DS_ROOT_COMP in .env or use -c/--compartment"
+        root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment. Set DS_ROOT_COMP in \$ODB_DATASAFE_BASE/.env or use -c/--compartment"
         COMPARTMENT="$root_comp"
         log_info "No compartment specified, using DS_ROOT_COMP: $COMPARTMENT"
     fi
