@@ -15,8 +15,11 @@ odb_datasafe/                          # OraDBA Extension for Data Safe
 │
 ├── bin/                               # Executable scripts (added to PATH)
 │   ├── TEMPLATE.sh                    # Copy this to create new scripts
+│   ├── ds_target_list.sh              # List Data Safe targets
+│   ├── ds_target_list_connector.sh    # List Data Safe connectors
 │   ├── ds_target_refresh.sh           # Refresh Data Safe targets
-│   └── extension_tool.sh              # (legacy, can be removed)
+│   ├── ds_target_update_*.sh          # Update target properties
+│   └── install_datasafe_service.sh    # Install connector as service
 │
 ├── lib/                               # Shared library framework
 │   ├── ds_lib.sh                      # Main loader (2 lines, sources both)
@@ -77,6 +80,9 @@ bin/ds_target_refresh.sh --help
 # List Data Safe targets (default: table view)
 bin/ds_target_list.sh
 
+# List Data Safe on-premises connectors
+bin/ds_target_list_connector.sh
+
 # Show count summary by lifecycle state
 bin/ds_target_list.sh -C
 
@@ -88,10 +94,11 @@ bin/ds_target_list.sh -d
 
 # Filter by lifecycle state
 bin/ds_target_list.sh -L NEEDS_ATTENTION
+bin/ds_target_list_connector.sh -L ACTIVE
 
 # Output as JSON or CSV
 bin/ds_target_list.sh -f json
-bin/ds_target_list.sh -f csv
+bin/ds_target_list_connector.sh -f csv -F display-name,id,time-created
 
 # Refresh specific target (dry-run first)
 bin/ds_target_refresh.sh -T mydb01 --dry-run --debug

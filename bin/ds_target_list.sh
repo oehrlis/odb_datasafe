@@ -232,10 +232,11 @@ validate_inputs() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: list_targets_in_compartment
-# Purpose.....: List all targets in compartment
-# Parameters..: $1 - compartment OCID or name
-# Returns.....: JSON array of targets
+# Function: list_targets_in_compartment
+# Purpose.: List all targets in compartment
+# Args....: $1 - compartment OCID or name
+# Returns.: 0 on success, 1 on error
+# Output..: JSON array of targets to stdout
 # ------------------------------------------------------------------------------
 list_targets_in_compartment() {
     local compartment="$1"
@@ -261,10 +262,11 @@ list_targets_in_compartment() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: get_target_details
-# Purpose.....: Get details for specific target
-# Parameters..: $1 - target OCID
-# Returns.....: JSON object
+# Function: get_target_details
+# Purpose.: Get details for specific target
+# Args....: $1 - target OCID
+# Returns.: 0 on success, 1 on error
+# Output..: JSON object to stdout
 # ------------------------------------------------------------------------------
 get_target_details() {
     local target_ocid="$1"
@@ -277,9 +279,11 @@ get_target_details() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: show_count_summary
-# Purpose.....: Display count summary grouped by lifecycle state
-# Parameters..: $1 - JSON data
+# Function: show_count_summary
+# Purpose.: Display count summary grouped by lifecycle state
+# Args....: $1 - JSON data
+# Returns.: 0 on success
+# Output..: Formatted summary table to stdout
 # ------------------------------------------------------------------------------
 show_count_summary() {
     local json_data="$1"
@@ -312,10 +316,12 @@ show_count_summary() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: show_details_table
-# Purpose.....: Display detailed target information in table format
-# Parameters..: $1 - JSON data
-#               $2 - fields (comma-separated)
+# Function: show_details_table
+# Purpose.: Display detailed target information in table format
+# Args....: $1 - JSON data
+#           $2 - fields (comma-separated)
+# Returns.: 0 on success
+# Output..: Formatted table to stdout
 # ------------------------------------------------------------------------------
 show_details_table() {
     local json_data="$1"
@@ -382,10 +388,12 @@ show_details_table() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: show_details_json
-# Purpose.....: Display detailed target information in JSON format
-# Parameters..: $1 - JSON data
-#               $2 - fields (comma-separated)
+# Function: show_details_json
+# Purpose.: Display detailed target information in JSON format
+# Args....: $1 - JSON data
+#           $2 - fields (comma-separated)
+# Returns.: 0 on success
+# Output..: JSON output to stdout
 # ------------------------------------------------------------------------------
 show_details_json() {
     local json_data="$1"
@@ -407,10 +415,12 @@ show_details_json() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: show_details_csv
-# Purpose.....: Display detailed target information in CSV format
-# Parameters..: $1 - JSON data
-#               $2 - fields (comma-separated)
+# Function: show_details_csv
+# Purpose.: Display detailed target information in CSV format
+# Args....: $1 - JSON data
+#           $2 - fields (comma-separated)
+# Returns.: 0 on success
+# Output..: CSV output to stdout
 # ------------------------------------------------------------------------------
 show_details_csv() {
     local json_data="$1"
@@ -434,8 +444,10 @@ show_details_csv() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: do_work
-# Purpose.....: Main work function
+# Function: do_work
+# Purpose.: Main work function - orchestrates target listing and display
+# Returns.: 0 on success, 1 on error
+# Output..: Target information based on selected format and mode
 # ------------------------------------------------------------------------------
 do_work() {
     local json_data

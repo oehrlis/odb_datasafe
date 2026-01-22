@@ -61,6 +61,9 @@ sudo ./bin/uninstall_all_datasafe_services.sh --uninstall
 # List all Data Safe targets
 ./bin/ds_target_list.sh
 
+# List Data Safe on-premises connectors
+./bin/ds_target_list_connector.sh
+
 # Refresh target database details
 ./bin/ds_target_refresh.sh --target-id <ocid>
 

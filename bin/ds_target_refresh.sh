@@ -43,6 +43,12 @@ SKIPPED_COUNT=0
 # FUNCTIONS
 # =============================================================================
 
+# ------------------------------------------------------------------------------
+# Function: usage
+# Purpose.: Display usage information and help message
+# Returns.: 0 (exits after display)
+# Output..: Usage information to stdout
+# ------------------------------------------------------------------------------
 usage() {
     cat << EOF
 Usage: ${SCRIPT_NAME} [OPTIONS] [TARGETS...]
@@ -100,6 +106,13 @@ EOF
     exit 0
 }
 
+# ------------------------------------------------------------------------------
+# Function: parse_args
+# Purpose.: Parse command-line arguments
+# Args....: $@ - All command-line arguments
+# Returns.: 0 on success, exits on invalid arguments
+# Notes...: Sets global variables for script configuration
+# ------------------------------------------------------------------------------
 parse_args() {
     parse_common_opts "$@"
 
@@ -167,6 +180,12 @@ parse_args() {
     fi
 }
 
+# ------------------------------------------------------------------------------
+# Function: validate_inputs
+# Purpose.: Validate required inputs and dependencies
+# Returns.: 0 on success, exits on validation failure
+# Notes...: Checks for required commands and sets default compartment if needed
+# ------------------------------------------------------------------------------
 validate_inputs() {
     log_debug "Validating inputs..."
 
@@ -181,6 +200,16 @@ validate_inputs() {
     fi
 }
 
+# ------------------------------------------------------------------------------
+# Function: refresh_single_target
+# Purpose.: Refresh a single Data Safe target database
+# Args....: $1 - Target OCID
+#           $2 - Current target number (optional, default: 1)
+#           $3 - Total targets (optional, default: 1)
+# Returns.: 0 on success, 1 on error
+# Output..: Progress and status messages to stdout/stderr
+# Notes...: Updates SUCCESS_COUNT or FAILED_COUNT counters
+# ------------------------------------------------------------------------------
 refresh_single_target() {
     local target_ocid="$1"
     local current="${2:-1}"
@@ -211,6 +240,13 @@ refresh_single_target() {
     fi
 }
 
+# ------------------------------------------------------------------------------
+# Function: do_work
+# Purpose.: Main work function - discovers and refreshes target databases
+# Returns.: 0 on success, exits with error if targets fail
+# Output..: Progress messages and summary statistics to stdout/stderr
+# Notes...: Orchestrates target discovery, refresh operations, and reporting
+# ------------------------------------------------------------------------------
 do_work() {
     local -a target_ocids=()
 
@@ -292,6 +328,13 @@ do_work() {
 # MAIN
 # =============================================================================
 
+# ------------------------------------------------------------------------------
+# Function: main
+# Purpose.: Main entry point for the script
+# Args....: $@ - All command-line arguments
+# Returns.: 0 on success, 1 on error
+# Notes...: Initializes configuration, validates inputs, and executes work
+# ------------------------------------------------------------------------------
 main() {
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
 

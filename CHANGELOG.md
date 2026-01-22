@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.5.3] - 2026-01-22
 
+### Added
+
+- **ds_target_list_connector.sh** - New script to list Data Safe on-premises connectors
+  - List connectors in compartment with sub-compartment support
+  - Filter by lifecycle state (ACTIVE, INACTIVE, etc.)
+  - Support for specific connectors by name or OCID
+  - Multiple output formats: table, json, csv
+  - Customizable field selection (display-name, id, lifecycle-state, time-created, available-version, time-last-used, tags)
+  - Follows ds_target_list.sh pattern with consistent structure
+  - Comprehensive error handling and logging
+  - Standard function headers following OraDBA template
+
 ### Changed
 
 - **Script Versioning** - Switched to .extension file as single source of truth
@@ -48,6 +60,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - ds_target_refresh.sh
     - ds_target_delete.sh
     - ds_find_untagged_targets.sh
+    - ds_tg_report.sh
+- **ds_target_update_tags.sh Script Structure**
+  - Fixed initialization order: moved init_config() from bootstrap to main() function
+  - Moved parse_args() call into main() function (was called before main)
+  - Added proper --help handling before error trap setup
+  - Added explicit 'exit 0' at end to prevent spurious error trap
+  - Now follows proper execution flow: setup_error_handling → main → exit
+  - Consistent with ds_target_list.sh and ds_target_refresh.sh patterns
+- **ds_target_refresh.sh Error Trap**
+  - Added explicit 'exit 0' at end to prevent spurious error trap after successful completion
+  - ERR trap was incorrectly firing even when script completed successfully
     - ds_tg_report.sh
 
 ### Documentation

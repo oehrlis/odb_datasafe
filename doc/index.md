@@ -66,8 +66,15 @@ The extension is automatically discovered and loaded.
 # List all Data Safe targets (table format, default)
 ds_target_list.sh
 
+# List Data Safe on-premises connectors
+ds_target_list_connector.sh
+
 # Show count summary by lifecycle state
 ds_target_list.sh -C
+
+# Filter by lifecycle state
+ds_target_list.sh -L ACTIVE
+ds_target_list_connector.sh -L ACTIVE
 
 # Quiet mode (suppress INFO messages)
 ds_target_list.sh -q

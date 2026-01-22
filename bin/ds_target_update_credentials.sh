@@ -20,6 +20,11 @@ set -euo pipefail
 # Script metadata
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_NAME
+
+# Load library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
+readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 readonly SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.3')"
 
 # Defaults
@@ -31,11 +36,6 @@ readonly SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev
 : "${NO_PROMPT:=false}"
 : "${CRED_FILE:=}"
 : "${APPLY_CHANGES:=false}"
-
-# Load library
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly SCRIPT_DIR
-readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 
 # shellcheck disable=SC1091
 source "${LIB_DIR}/ds_lib.sh" || {
@@ -53,6 +53,12 @@ TMP_CRED_JSON=""
 # FUNCTIONS
 # =============================================================================
 
+# ------------------------------------------------------------------------------
+# Function: usage
+# Purpose.: Display usage information and help message
+# Returns.: 0 (exits after display)
+# Output..: Usage information to stdout
+# ------------------------------------------------------------------------------
 usage() {
     cat << EOF
 Usage: ${SCRIPT_NAME} [OPTIONS]
@@ -113,6 +119,13 @@ EOF
     exit 0
 }
 
+# ------------------------------------------------------------------------------
+# Function: parse_args
+# Purpose.: Parse command-line arguments
+# Args....: $@ - All command-line arguments
+# Returns.: 0 on success, exits on invalid arguments
+# Notes...: Sets global variables for script configuration
+# ------------------------------------------------------------------------------
 parse_args() {
     parse_common_opts "$@"
 
@@ -196,17 +209,27 @@ parse_args() {
     fi
 }
 
+# ------------------------------------------------------------------------------
+# Function: validate_inputs
+# Purpose.: Validate required inputs and dependencies
+# Returns.: 0 on success, exits on validation failure
+# Notes...: Checks for required commands and sets defaults
+# ------------------------------------------------------------------------------
 validate_inputs() {
     log_debug "Validating inputs..."
 
     require_cmd oci jq base64
 
-    # If no scope specified, use DS_ROOT_COMP as default
-    if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
-        local root_comp
-        root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
-        COMPARTMENT="$root_comp"
-        log_info "No scope specified, using DS_ROOT_COMP: $COMPARTMENT"
+    # Show mode
+    if [[ "$APPLY_CHANGES" == "true" ]]; then
+        log_info "Apply mode: Changes will be applied"
+    else
+        log_info "Dry-run mode: Changes will be shown only (use --apply to apply)"
+    fi
+
+    # If neither targets nor compartment specified, show help
+    if [[ -z "$TARGETS" && -z "$COMPARTMENT" && -z "$CRED_FILE" && -z "$DS_USERNAME" ]]; then
+        usage
     fi
 
     # Validate credentials file if provided
@@ -229,9 +252,10 @@ validate_inputs() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: resolve_credentials
-# Purpose.....: Resolve username/password from various sources
-# Returns.....: Sets DS_USERNAME and DS_PASSWORD variables
+# Function: resolve_credentials
+# Purpose.: Resolve username/password from various sources
+# Returns.: 0 on success, exits on error
+# Notes...: Sets DS_USERNAME and DS_PASSWORD global variables
 # ------------------------------------------------------------------------------
 resolve_credentials() {
     log_debug "Resolving credentials..."
@@ -271,9 +295,10 @@ resolve_credentials() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: create_temp_cred_json
-# Purpose.....: Create temporary JSON file with credentials
-# Returns.....: Sets TMP_CRED_JSON variable
+# Function: create_temp_cred_json
+# Purpose.: Create temporary JSON file with credentials
+# Returns.: 0 on success
+# Notes...: Sets TMP_CRED_JSON global variable
 # ------------------------------------------------------------------------------
 create_temp_cred_json() {
     TMP_CRED_JSON=$(mktemp)
@@ -288,8 +313,9 @@ create_temp_cred_json() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: cleanup_temp_files
-# Purpose.....: Clean up temporary credential files
+# Function: cleanup_temp_files
+# Purpose.: Clean up temporary credential files
+# Returns.: 0 on success
 # ------------------------------------------------------------------------------
 cleanup_temp_files() {
     if [[ -n "$TMP_CRED_JSON" && -f "$TMP_CRED_JSON" ]]; then
@@ -300,10 +326,12 @@ cleanup_temp_files() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: update_target_credentials
-# Purpose.....: Update credentials for a single target
-# Parameters..: $1 - target OCID
-#               $2 - target name
+# Function: update_target_credentials
+# Purpose.: Update credentials for a single target
+# Args....: $1 - target OCID
+#           $2 - target name
+# Returns.: 0 on success, 1 on error
+# Output..: Progress and status messages
 # ------------------------------------------------------------------------------
 update_target_credentials() {
     local target_ocid="$1"
@@ -341,10 +369,11 @@ update_target_credentials() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: list_targets_in_compartment
-# Purpose.....: List targets in compartment
-# Parameters..: $1 - compartment OCID or name
-# Returns.....: JSON array of targets
+# Function: list_targets_in_compartment
+# Purpose.: List targets in compartment
+# Args....: $1 - compartment OCID or name
+# Returns.: 0 on success, 1 on error
+# Output..: JSON array of targets to stdout
 # ------------------------------------------------------------------------------
 list_targets_in_compartment() {
     local compartment="$1"
@@ -369,8 +398,11 @@ list_targets_in_compartment() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: do_work
-# Purpose.....: Main work function
+# Function: do_work
+# Purpose.: Main work function - orchestrates credential updates
+# Returns.: 0 on success, 1 if any errors occurred
+# Output..: Progress messages and summary statistics
+# Notes...: Resolves credentials and processes targets
 # ------------------------------------------------------------------------------
 do_work() {
     local success_count=0 error_count=0
@@ -403,18 +435,23 @@ do_work() {
                     --query 'data."display-name"' \
                     --raw-output 2> /dev/null || echo "unknown")
             else
-                # Resolve target name to OCID
-                log_debug "Resolving target name: $target"
-                local resolved
-                if [[ -n "$COMPARTMENT" ]]; then
-                    resolved=$(ds_resolve_target_ocid "$target" "$COMPARTMENT") || die "Failed to resolve target: $target"
-                else
-                    local root_comp
-                    root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment"
-                    resolved=$(ds_resolve_target_ocid "$target" "$root_comp") || die "Failed to resolve target: $target"
+                # Resolve target name to OCID - requires compartment
+                local search_comp="$COMPARTMENT"
+                if [[ -z "$search_comp" ]]; then
+                    # Try to get root compartment, but provide helpful error if not available
+                    if search_comp=$(get_root_compartment_ocid 2>&1); then
+                        log_debug "Using DS_ROOT_COMP as search compartment: $search_comp"
+                    else
+                        local ds_root_msg="${DS_ROOT_COMP:+Current DS_ROOT_COMP='$DS_ROOT_COMP' cannot be resolved. }"
+                        die "Cannot resolve target name '$target' without a valid compartment.\\n${ds_root_msg}Options:\\n  1. Use -c/--compartment OCID to specify search compartment\\n  2. Fix DS_ROOT_COMP in ${ODB_DATASAFE_BASE}/.env file\\n  3. Use target OCID instead (e.g., ocid1.datasafetargetdatabase...)"
+                    fi
                 fi
-
+                
+                log_debug "Resolving target name: $target (searching in compartment)"
+                local resolved
+                resolved=$(ds_resolve_target_ocid "$target" "$search_comp") || die "Failed to resolve target: $target in compartment"
                 [[ -n "$resolved" ]] || die "Target not found: $target"
+                
                 target_ocid="$resolved"
                 target_name="$target"
             fi
@@ -427,6 +464,14 @@ do_work() {
         done
     else
         # Process targets from compartment
+        # Set default compartment if not specified
+        if [[ -z "$COMPARTMENT" ]]; then
+            local root_comp
+            root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment. Set DS_ROOT_COMP or use -c/--compartment"
+            COMPARTMENT="$root_comp"
+            log_info "No compartment specified, using DS_ROOT_COMP: $COMPARTMENT"
+        fi
+        
         log_info "Processing targets from compartment..."
         local json_data
         json_data=$(list_targets_in_compartment "$COMPARTMENT") || die "Failed to list targets"
@@ -465,6 +510,12 @@ do_work() {
 # MAIN
 # =============================================================================
 
+# ------------------------------------------------------------------------------
+# Function: main
+# Purpose.: Main entry point for the script
+# Returns.: 0 on success, 1 on error
+# Notes...: Initializes configuration, validates inputs, and executes work
+# ------------------------------------------------------------------------------
 main() {
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
 

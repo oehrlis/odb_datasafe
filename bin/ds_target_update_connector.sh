@@ -20,6 +20,11 @@ set -euo pipefail
 # Script metadata
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_NAME
+
+# Load library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
+readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 readonly SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.3')"
 
 # Defaults
@@ -31,11 +36,6 @@ readonly SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev
 : "${OPERATION_MODE:=set}"
 : "${APPLY_CHANGES:=false}"
 : "${EXCLUDE_AUTO:=false}"
-
-# Load library
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly SCRIPT_DIR
-readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 
 # shellcheck disable=SC1091
 source "${LIB_DIR}/ds_lib.sh" || {

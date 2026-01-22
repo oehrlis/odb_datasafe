@@ -20,6 +20,11 @@ set -euo pipefail
 # Script metadata
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_NAME
+
+# Load library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
+readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 readonly SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.3')"
 
 # Defaults
@@ -27,11 +32,6 @@ readonly SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev
 : "${REPORT_TYPE:=all}"
 : "${OUTPUT_FORMAT:=table}" # table|json|csv
 : "${TAG_NAMESPACE:=DBSec}"
-
-# Load library
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly SCRIPT_DIR
-readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 
 # shellcheck disable=SC1091
 source "${LIB_DIR}/ds_lib.sh" || {
@@ -46,6 +46,12 @@ init_config
 # FUNCTIONS
 # =============================================================================
 
+# ------------------------------------------------------------------------------
+# Function: usage
+# Purpose.: Display usage information and help message
+# Returns.: 0 (exits after display)
+# Output..: Usage information to stdout
+# ------------------------------------------------------------------------------
 usage() {
     cat << EOF
 Usage: ${SCRIPT_NAME} [OPTIONS]
@@ -99,6 +105,13 @@ EOF
     exit 0
 }
 
+# ------------------------------------------------------------------------------
+# Function: parse_args
+# Purpose.: Parse command-line arguments
+# Args....: $@ - All command-line arguments
+# Returns.: 0 on success, exits on invalid arguments
+# Notes...: Sets global variables for script configuration
+# ------------------------------------------------------------------------------
 parse_args() {
     parse_common_opts "$@"
 
@@ -166,6 +179,12 @@ parse_args() {
     esac
 }
 
+# ------------------------------------------------------------------------------
+# Function: validate_inputs
+# Purpose.: Validate required inputs and dependencies
+# Returns.: 0 on success, exits on validation failure
+# Notes...: Checks for required commands and sets default compartment if needed
+# ------------------------------------------------------------------------------
 validate_inputs() {
     log_debug "Validating inputs..."
 
@@ -181,10 +200,10 @@ validate_inputs() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: get_targets_with_tags
-# Purpose.....: Get all targets with their tag information
-# Parameters..: None
-# Returns.....: JSON array of targets with tags
+# Function: get_targets_with_tags
+# Purpose.: Get all targets with their tag information
+# Returns.: 0 on success, 1 on error
+# Output..: JSON array of targets with tags to stdout
 # ------------------------------------------------------------------------------
 get_targets_with_tags() {
     local comp_ocid
@@ -199,8 +218,10 @@ get_targets_with_tags() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: report_all_tags
-# Purpose.....: Show all targets with their tags
+# Function: report_all_tags
+# Purpose.: Show all targets with their tags
+# Returns.: 0 on success
+# Output..: Formatted report to stdout based on OUTPUT_FORMAT setting
 # ------------------------------------------------------------------------------
 report_all_tags() {
     log_info "All Data Safe targets with ${TAG_NAMESPACE} tags"
@@ -261,8 +282,10 @@ report_all_tags() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: report_environment_distribution
-# Purpose.....: Show environment distribution summary
+# Function: report_environment_distribution
+# Purpose.: Show environment distribution summary
+# Returns.: 0 on success
+# Output..: Environment distribution statistics to stdout
 # ------------------------------------------------------------------------------
 report_environment_distribution() {
     log_info "Environment distribution summary"
@@ -306,8 +329,10 @@ report_environment_distribution() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: report_undefined_tags
-# Purpose.....: Show targets with undefined tag values
+# Function: report_undefined_tags
+# Purpose.: Show targets with undefined tag values
+# Returns.: 0 on success
+# Output..: List of targets with undefined tags to stdout
 # ------------------------------------------------------------------------------
 report_undefined_tags() {
     log_info "Targets with undefined (undef) tag values"
@@ -374,8 +399,10 @@ report_undefined_tags() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: report_missing_tags
-# Purpose.....: Show targets missing tag namespace or specific tags
+# Function: report_missing_tags
+# Purpose.: Show targets missing tag namespace or specific tags
+# Returns.: 0 on success
+# Output..: List of targets missing tags to stdout
 # ------------------------------------------------------------------------------
 report_missing_tags() {
     log_info "Targets missing ${TAG_NAMESPACE} tags"
@@ -415,8 +442,11 @@ report_missing_tags() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: do_work
-# Purpose.....: Main work function
+# Function: do_work
+# Purpose.: Main work function - orchestrates report generation
+# Returns.: 0 on success
+# Output..: Report output based on REPORT_TYPE setting
+# Notes...: Dispatches to appropriate report function based on REPORT_TYPE
 # ------------------------------------------------------------------------------
 do_work() {
     case "$REPORT_TYPE" in
@@ -445,6 +475,12 @@ do_work() {
 # MAIN
 # =============================================================================
 
+# ------------------------------------------------------------------------------
+# Function: main
+# Purpose.: Main entry point for the script
+# Returns.: 0 on success, 1 on error
+# Notes...: Initializes configuration, validates inputs, and executes work
+# ------------------------------------------------------------------------------
 main() {
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
 
