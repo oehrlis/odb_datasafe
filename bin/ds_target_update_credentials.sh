@@ -435,25 +435,38 @@ do_work() {
                     --query 'data."display-name"' \
                     --raw-output 2> /dev/null || echo "unknown")
             else
-                # Resolve target name to OCID - requires compartment
+                # Resolve target name to OCID - try various compartment sources
                 local search_comp="$COMPARTMENT"
+                
                 if [[ -z "$search_comp" ]]; then
-                    # Try to get root compartment, but provide helpful error if not available
-                    if search_comp=$(get_root_compartment_ocid 2>&1); then
+                    # Try to get root compartment first
+                    if search_comp=$(get_root_compartment_ocid 2>/dev/null); then
                         log_debug "Using DS_ROOT_COMP as search compartment: $search_comp"
                     else
-                        local ds_root_msg="${DS_ROOT_COMP:+Current DS_ROOT_COMP='$DS_ROOT_COMP' cannot be resolved. }"
-                        die "Cannot resolve target name '$target' without a valid compartment.\\n${ds_root_msg}Options:\\n  1. Use -c/--compartment OCID to specify search compartment\\n  2. Fix DS_ROOT_COMP in ${ODB_DATASAFE_BASE}/.env file\\n  3. Use target OCID instead (e.g., ocid1.datasafetargetdatabase...)"
+                        # Fall back to tenancy root (search all compartments)
+                        log_debug "DS_ROOT_COMP not available, searching across entire tenancy"
+                        # Get tenancy OCID from OCI config
+                        search_comp=$(oci_exec iam region-subscription list --query 'data[0]."tenancy-id"' --raw-output 2>/dev/null)
+                        
+                        if [[ -z "$search_comp" || "$search_comp" == "null" ]]; then
+                            die "Cannot determine tenancy/compartment for target resolution. Use -c/--compartment OCID"
+                        fi
+                        
+                        log_info "Searching for target '$target' across all compartments in tenancy"
                     fi
                 fi
                 
-                log_debug "Resolving target name: $target (searching in compartment)"
-                local resolved
-                resolved=$(ds_resolve_target_ocid "$target" "$search_comp") || die "Failed to resolve target: $target in compartment"
-                [[ -n "$resolved" ]] || die "Target not found: $target"
+                log_debug "Resolving target name: $target (compartment: $search_comp, with subtree)"
                 
-                target_ocid="$resolved"
-                target_name="$target"
+                # Call ds_resolve_target_ocid with the compartment
+                local resolved
+                if resolved=$(ds_resolve_target_ocid "$target" "$search_comp" 2>&1); then
+                    log_debug "Successfully resolved target: $target -> $resolved"
+                    target_ocid="$resolved"
+                    target_name="$target"
+                else
+                    die "Target not found: $target (searched in compartment and all sub-compartments)"
+                fi
             fi
 
             if update_target_credentials "$target_ocid" "$target_name"; then

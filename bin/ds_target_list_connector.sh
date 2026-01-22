@@ -236,7 +236,7 @@ list_connectors_in_compartment() {
     log_debug "Listing connectors in compartment OCID: $comp_ocid"
 
     local -a cmd=(
-        data-safe on-premises-connector list
+        data-safe on-prem-connector list
         --compartment-id "$comp_ocid"
         --compartment-id-in-subtree true
         --all
@@ -262,8 +262,8 @@ get_connector_details() {
 
     log_debug "Getting details for: $connector_ocid"
 
-    oci_exec data-safe on-premises-connector get \
-        --on-premises-connector-id "$connector_ocid" \
+    oci_exec data-safe on-prem-connector get \
+        --on-prem-connector-id "$connector_ocid" \
         --query 'data'
 }
 
@@ -282,7 +282,7 @@ resolve_connector_ocid() {
     log_debug "Resolving connector name: $connector_name"
 
     local result
-    result=$(oci_exec data-safe on-premises-connector list \
+    result=$(oci_exec data-safe on-prem-connector list \
         --compartment-id "$compartment_ocid" \
         --compartment-id-in-subtree true \
         --all \

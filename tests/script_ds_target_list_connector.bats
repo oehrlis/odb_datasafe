@@ -177,8 +177,8 @@ setup() {
     [[ "$status" -eq 0 ]]
 }
 
-@test "ds_target_list_connector.sh: Uses data-safe on-premises-connector commands" {
-    run grep "data-safe on-premises-connector" "${SCRIPT_UNDER_TEST}"
+@test "ds_target_list_connector.sh: Uses data-safe on-prem-connector commands" {
+    run grep "data-safe on-prem-connector" "${SCRIPT_UNDER_TEST}"
     [[ "$status" -eq 0 ]]
 }
 
