@@ -414,7 +414,6 @@ update_target_connector() {
         current_connector_name="none"
     fi
 
-    log_info "Target: $target_name"
     log_info "  Current connector: $current_connector_name"
     log_info "  New connector: $new_connector_name"
 
@@ -529,9 +528,19 @@ do_set_mode() {
 
         local -a target_list
         IFS=',' read -ra target_list <<< "$TARGETS"
+        
+        local total_targets=${#target_list[@]}
+        local current=0
 
         for target in "${target_list[@]}"; do
-            target="${target// /}" # trim spaces
+            # Trim leading/trailing spaces
+            target="${target#"${target%%[![:space:]]*}"}"
+            target="${target%"${target##*[![:space:]]}"}"
+            
+            # Skip empty entries
+            [[ -z "$target" ]] && continue
+            
+            current=$((current + 1))
 
             local target_ocid target_name
 
@@ -566,6 +575,8 @@ do_set_mode() {
                 fi
             fi
 
+            log_info "[$current/$total_targets] Processing: $target_name"
+            
             if update_target_connector "$target_ocid" "$target_name" "$target_connector_ocid" "$target_connector_name"; then
                 success_count=$((success_count + 1))
             else
