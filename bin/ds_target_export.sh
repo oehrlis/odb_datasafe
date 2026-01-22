@@ -62,7 +62,7 @@ declare -A CONNECTOR_MAP
 # Functions
 # ------------------------------------------------------------------------------
 
-Usage() {
+usage() {
     local exit_code=${1:-0}
     cat << EOF
 USAGE: ${SCRIPT_NAME} [options]

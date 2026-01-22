@@ -25,7 +25,8 @@ readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly LIB_DIR="${SCRIPT_DIR}/../lib"
-readonly SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.3')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.3')"
+readonly SCRIPT_VERSION
 
 # Defaults
 : "${COMPARTMENT:=}"
@@ -426,15 +427,18 @@ update_target_connector() {
     if [[ "$APPLY_CHANGES" == "true" ]]; then
         log_info "  Updating connector..."
 
-        # Build connection option JSON
-        local conn_option
-        conn_option="{\"onPremiseConnectorId\": \"$new_connector_ocid\"}"
+        # Build connection option JSON - write to temp file for proper handling
+        local conn_option_file
+        conn_option_file=$(mktemp)
+        trap 'rm -f "$conn_option_file"' RETURN
+        
+        echo "{\"onPremiseConnectorId\": \"$new_connector_ocid\"}" > "$conn_option_file"
 
         # Build OCI command with optional wait
         local -a oci_cmd=(
             data-safe target-database update
             --target-database-id "$target_ocid"
-            --connection-option "$conn_option"
+            --connection-option "file://$conn_option_file"
         )
 
         # Add wait-for-state if requested
@@ -444,10 +448,10 @@ update_target_connector() {
 
         # Execute update
         if oci_exec "${oci_cmd[@]}" > /dev/null; then
-            log_info "  ✅ Connector updated successfully"
+            log_info "  [OK] Connector updated successfully"
             return 0
         else
-            log_error "  ❌ Failed to update connector"
+            log_error "  [ERROR] Failed to update connector"
             return 1
         fi
     else

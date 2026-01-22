@@ -37,13 +37,13 @@
 #   2 = Registration error
 # ------------------------------------------------------------------------------
 
-# Script identification
-SCRIPT_NAME="ds_target_register"
-SCRIPT_VERSION="0.3.1"
-
-# Bootstrap - locate library files
+# Bootstrap - locate library files (must be before version check)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB_DIR="${SCRIPT_DIR}/../lib"
+
+# Script identification
+SCRIPT_NAME="ds_target_register"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.3')"
 
 # Load framework libraries
 if [[ ! -f "${LIB_DIR}/ds_lib.sh" ]]; then
@@ -80,7 +80,14 @@ CLUSTER_OCID=""
 # Functions
 # ------------------------------------------------------------------------------
 
-Usage() {
+# ------------------------------------------------------------------------------
+# Function: Usage
+# Purpose.: Display usage information and exit
+# Args....: $1 - Exit code (optional, default: 0)
+# Returns.: Exits with specified code
+# Output..: Usage information to stdout
+# ------------------------------------------------------------------------------
+usage() {
     local exit_code=${1:-0}
     cat << EOF
 USAGE: ${SCRIPT_NAME} [options]
@@ -137,6 +144,13 @@ EOF
     exit "$exit_code"
 }
 
+# ------------------------------------------------------------------------------
+# Function: parse_args
+# Purpose.: Parse command-line arguments
+# Args....: $@ - All command-line arguments
+# Returns.: 0 on success
+# Output..: None (sets global variables)
+# ------------------------------------------------------------------------------
 parse_args() {
     local remaining=()
 
@@ -203,15 +217,15 @@ parse_args() {
                 shift
                 ;;
             --oci-config)
-                OCI_CLI_CONFIG_FILE="$2"
+                export OCI_CLI_CONFIG_FILE="$2"
                 shift 2
                 ;;
             --oci-profile)
-                OCI_CLI_PROFILE="$2"
+                export OCI_CLI_PROFILE="$2"
                 shift 2
                 ;;
             -h | --help)
-                Usage 0
+                usage 0
                 ;;
             *)
                 remaining+=("$1")
@@ -221,6 +235,13 @@ parse_args() {
     done
 }
 
+# ------------------------------------------------------------------------------
+# Function: validate_inputs
+# Purpose.: Validate command-line inputs and resolve OCIDs
+# Returns.: 0 on success, exits on error
+# Output..: Info messages about resolved resources
+# Notes...: Sets COMP_OCID, COMP_NAME, CONNECTOR_OCID, SERVICE_NAME, DISPLAY_NAME
+# ------------------------------------------------------------------------------
 validate_inputs() {
     log_debug "Validating inputs..."
 
@@ -246,29 +267,34 @@ validate_inputs() {
         die "Missing required option: --ds-password (not needed with --check)"
     fi
 
-    # Resolve compartment OCID
-    COMP_OCID=$(oci_resolve_compartment_ocid "$COMPARTMENT") || die "Failed to resolve compartment: $COMPARTMENT"
-    log_info "Target compartment: $COMPARTMENT ($COMP_OCID)"
+    # Resolve compartment using helper function (accepts name or OCID)
+    local comp_name comp_ocid
+    resolve_compartment_to_vars "$COMPARTMENT" comp_name comp_ocid || \
+        die "Failed to resolve compartment: $COMPARTMENT"
+    COMP_NAME="$comp_name"
+    COMP_OCID="$comp_ocid"
+    log_info "Target compartment: ${COMP_NAME} (${COMP_OCID})"
 
-    # Resolve connector OCID
+    # Resolve connector OCID (accept name or OCID)
     if [[ "$CONNECTOR" =~ ^ocid1\.datasafeonpremconnector\. ]]; then
         CONNECTOR_OCID="$CONNECTOR"
+        log_debug "Connector OCID provided directly"
     else
-        # Try to find connector by name
+        # Try to find connector by name using read-only operation
+        log_debug "Resolving connector name: ${CONNECTOR}"
         local connectors_json
-        connectors_json=$(oci data-safe on-prem-connector list \
+        connectors_json=$(oci_exec_ro data-safe on-prem-connector list \
             --compartment-id "$COMP_OCID" \
-            --all \
-            --config-file "${OCI_CLI_CONFIG_FILE}" \
-            --profile "${OCI_CLI_PROFILE}" 2> /dev/null) || die "Failed to list connectors"
+            --all) || die "Failed to list connectors"
 
         CONNECTOR_OCID=$(echo "$connectors_json" | jq -r ".data[] | select(.\"display-name\" == \"$CONNECTOR\") | .id" | head -n1)
 
         if [[ -z "$CONNECTOR_OCID" ]]; then
             die "Connector not found: $CONNECTOR"
         fi
+        log_debug "Resolved connector: ${CONNECTOR} -> ${CONNECTOR_OCID}"
     fi
-    log_info "On-premises connector: $CONNECTOR ($CONNECTOR_OCID)"
+    log_info "On-premises connector: ${CONNECTOR} (${CONNECTOR_OCID})"
 
     # Derive service name if not provided
     if [[ -z "$SERVICE_NAME" ]]; then
@@ -300,16 +326,20 @@ validate_inputs() {
     log_info "Registration plan validated"
 }
 
+# ------------------------------------------------------------------------------
+# Function: check_target_exists
+# Purpose.: Check if a target with the display name already exists
+# Returns.: 0 if target exists, 1 if not found
+# Output..: Info messages about target existence
+# ------------------------------------------------------------------------------
 check_target_exists() {
     log_info "Checking if target already exists..."
 
     local targets_json
-    targets_json=$(oci data-safe target-database list \
+    targets_json=$(oci_exec_ro data-safe target-database list \
         --compartment-id "$COMP_OCID" \
         --compartment-id-in-subtree true \
-        --all \
-        --config-file "${OCI_CLI_CONFIG_FILE}" \
-        --profile "${OCI_CLI_PROFILE}" 2> /dev/null) || die "Failed to list targets"
+        --all) || die "Failed to list targets"
 
     local existing_target
     existing_target=$(echo "$targets_json" | jq -r ".data[] | select(.\"display-name\" == \"$DISPLAY_NAME\") | .id" | head -n1)
@@ -323,6 +353,12 @@ check_target_exists() {
     fi
 }
 
+# ------------------------------------------------------------------------------
+# Function: show_registration_plan
+# Purpose.: Display the registration plan summary
+# Returns.: 0
+# Output..: Registration plan details to log
+# ------------------------------------------------------------------------------
 show_registration_plan() {
     local scope
     if [[ "$RUN_ROOT" == "true" ]]; then
@@ -345,6 +381,13 @@ show_registration_plan() {
     [[ -n "$DESCRIPTION" ]] && log_info "  Description:   $DESCRIPTION"
 }
 
+# ------------------------------------------------------------------------------
+# Function: register_target
+# Purpose.: Register the target database in Data Safe
+# Returns.: 0 on success, exits on error
+# Output..: Success/error messages
+# Notes...: Creates JSON payload and executes OCI CLI command
+# ------------------------------------------------------------------------------
 register_target() {
     log_info "Creating Data Safe target registration..."
 
@@ -410,14 +453,12 @@ register_target() {
         return 0
     fi
 
-    # Execute registration
+    # Execute registration using oci_exec (respects dry-run)
     local result
-    result=$(oci data-safe target-database create \
+    result=$(oci_exec data-safe target-database create \
         --from-json "file://$json_file" \
-        --config-file "${OCI_CLI_CONFIG_FILE}" \
-        --profile "${OCI_CLI_PROFILE}" \
         --wait-for-state ACTIVE \
-        --wait-for-state FAILED 2>&1) || {
+        --wait-for-state FAILED) || {
         log_error "Registration failed"
         log_error "$result"
         rm -f "$json_file"
@@ -437,6 +478,13 @@ register_target() {
     rm -f "$json_file"
 }
 
+# ------------------------------------------------------------------------------
+# Function: main
+# Purpose.: Main entry point for the script
+# Args....: $@ - All command-line arguments
+# Returns.: 0 on success, 1-2 on error
+# Output..: Execution status and results
+# ------------------------------------------------------------------------------
 main() {
     # Initialize framework and parse arguments
     init_config

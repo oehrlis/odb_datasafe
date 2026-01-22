@@ -105,6 +105,7 @@ get_root_compartment_ocid() {
 # Parameters..: $@ - oci command and arguments
 # Usage.......: oci_exec data-safe target-database list --compartment-id "$comp"
 # Notes.......: Handles profile, region, config file, dry-run, and error logging
+#               For read-only operations in dry-run mode, use oci_exec_ro
 # ------------------------------------------------------------------------------
 oci_exec() {
     local -a cmd=(oci)
@@ -142,6 +143,44 @@ oci_exec() {
     fi
 }
 
+# ------------------------------------------------------------------------------
+# Function....: oci_exec_ro
+# Purpose.....: Execute read-only OCI CLI (always runs, even in dry-run)
+# Parameters..: $@ - oci command and arguments
+# Returns.....: 0 on success, non-zero on error
+# Usage.......: oci_exec_ro iam compartment list --all
+# Notes.......: Use for lookups/queries that don't modify resources
+# ------------------------------------------------------------------------------
+oci_exec_ro() {
+    local -a cmd=(oci)
+
+    # Add standard options
+    [[ -n "${OCI_CLI_CONFIG_FILE}" ]] && cmd+=(--config-file "${OCI_CLI_CONFIG_FILE}")
+    [[ -n "${OCI_CLI_PROFILE}" ]] && cmd+=(--profile "${OCI_CLI_PROFILE}")
+    [[ -n "${OCI_CLI_REGION}" ]] && cmd+=(--region "${OCI_CLI_REGION}")
+
+    # Add the actual command
+    cmd+=("$@")
+
+    # Log command in debug mode
+    log_debug "OCI command: ${cmd[*]}"
+
+    # Execute command (always, even in dry-run)
+    local output
+    local exit_code=0
+
+    if output=$("${cmd[@]}" 2>&1); then
+        log_trace "OCI command successful"
+        echo "$output"
+        return 0
+    else
+        exit_code=$?
+        log_error "OCI command failed (exit ${exit_code}): ${cmd[*]}"
+        log_debug "Output: $output"
+        return $exit_code
+    fi
+}
+
 # =============================================================================
 # COMPARTMENT OPERATIONS
 # =============================================================================
@@ -150,8 +189,8 @@ oci_exec() {
 # Function....: oci_resolve_compartment_ocid
 # Purpose.....: Resolve compartment name to OCID, or validate OCID
 # Parameters..: $1 - compartment name or OCID
-# Returns.....: OCID on stdout
-# Usage.......: comp_ocid=$(oci_resolve_compartment_ocid "MyCompartment")
+# Returns.....: 0 on success, 1 on error; OCID on stdout
+# Usage.......: comp_ocid=$(oci_resolve_compartment_ocid "MyCompartment") || die "Failed"
 # ------------------------------------------------------------------------------
 oci_resolve_compartment_ocid() {
     local input="$1"
@@ -166,14 +205,15 @@ oci_resolve_compartment_ocid() {
     log_debug "Resolving compartment name: $input"
 
     local result
-    result=$(oci_exec iam compartment list \
+    result=$(oci_exec_ro iam compartment list \
         --all \
         --compartment-id-in-subtree true \
         --query "data[?name=='${input}'].id | [0]" \
         --raw-output)
 
     if [[ -z "$result" || "$result" == "null" ]]; then
-        die "Compartment not found: $input"
+        log_error "Compartment not found: $input"
+        return 1
     fi
 
     log_debug "Resolved compartment: $input -> $result"
@@ -309,8 +349,8 @@ ds_get_target() {
 # Purpose.....: Resolve target name to OCID
 # Parameters..: $1 - target name or OCID
 #               $2 - compartment OCID or name (optional, for name resolution)
-# Returns.....: OCID on stdout
-# Usage.......: target_ocid=$(ds_resolve_target_ocid "my-target" "$comp")
+# Returns.....: 0 on success, 1 on error; OCID on stdout
+# Usage.......: target_ocid=$(ds_resolve_target_ocid "my-target" "$comp") || die "Failed"
 # ------------------------------------------------------------------------------
 ds_resolve_target_ocid() {
     local input="$1"
@@ -324,16 +364,17 @@ ds_resolve_target_ocid() {
 
     # Need compartment to search by name
     if [[ -z "$compartment" ]]; then
-        die "Compartment required to resolve target name: $input"
+        log_error "Compartment required to resolve target name: $input"
+        return 1
     fi
 
     log_debug "Resolving target name: $input"
 
     local comp_ocid
-    comp_ocid=$(oci_resolve_compartment_ocid "$compartment")
+    comp_ocid=$(oci_resolve_compartment_ocid "$compartment") || return 1
 
     local result
-    result=$(oci_exec data-safe target-database list \
+    result=$(oci_exec_ro data-safe target-database list \
         --compartment-id "$comp_ocid" \
         --compartment-id-in-subtree true \
         --all \
@@ -341,7 +382,8 @@ ds_resolve_target_ocid() {
         --raw-output)
 
     if [[ -z "$result" || "$result" == "null" ]]; then
-        die "Target not found: $input"
+        log_error "Target not found: $input"
+        return 1
     fi
 
     log_debug "Resolved target: $input -> $result"
@@ -352,14 +394,15 @@ ds_resolve_target_ocid() {
 # Function....: ds_resolve_target_name
 # Purpose.....: Resolve target OCID to name
 # Parameters..: $1 - target OCID
-# Returns.....: Display name on stdout
+# Returns.....: 0 on success (name on stdout), 1 on error (message on stderr)
 # Usage.......: target_name=$(ds_resolve_target_name "$target_ocid")
 # ------------------------------------------------------------------------------
 ds_resolve_target_name() {
     local ocid="$1"
 
     if ! is_ocid "$ocid"; then
-        die "Invalid target OCID: $ocid"
+        log_error "Invalid target OCID: $ocid" >&2
+        return 1
     fi
 
     log_debug "Resolving target OCID: $ocid"
@@ -368,13 +411,15 @@ ds_resolve_target_name() {
     result=$(oci_exec data-safe target-database get \
         --target-database-id "$ocid" \
         --query 'data."display-name"' \
-        --raw-output)
+        --raw-output 2>/dev/null)
 
     if [[ -z "$result" || "$result" == "null" ]]; then
-        die "Target not found: $ocid"
+        log_error "Target not found: $ocid" >&2
+        return 1
     fi
 
     echo "$result"
+    return 0
 }
 
 # ------------------------------------------------------------------------------
@@ -402,6 +447,88 @@ ds_get_target_compartment() {
     fi
 
     echo "$result"
+}
+
+# =============================================================================
+# COMMON RESOLUTION HELPERS
+# =============================================================================
+
+# ------------------------------------------------------------------------------
+# Function....: resolve_compartment_to_vars
+# Purpose.....: Resolve compartment (name or OCID) to both NAME and OCID variables
+# Parameters..: $1 - compartment name or OCID
+#               $2 - variable name prefix (e.g., "COMPARTMENT" for COMPARTMENT_NAME/COMPARTMENT_OCID)
+# Returns.....: 0 on success, 1 on error
+# Output......: Sets ${prefix}_NAME and ${prefix}_OCID global variables
+# Usage.......: resolve_compartment_to_vars "$comp" "COMPARTMENT" || die "Failed"
+# Notes.......: Use with eval or declare -g in calling function
+# ------------------------------------------------------------------------------
+resolve_compartment_to_vars() {
+    local input="$1"
+    local prefix="$2"
+    
+    if is_ocid "$input"; then
+        # User provided OCID, resolve to name
+        local resolved_comp_name
+        resolved_comp_name=$(oci_get_compartment_name "$input" 2>/dev/null) || resolved_comp_name="$input"
+        eval "${prefix}_OCID=\"$input\""
+        eval "${prefix}_NAME=\"$resolved_comp_name\""
+        log_debug "Resolved compartment OCID to name: $resolved_comp_name"
+    else
+        # User provided name, resolve to OCID
+        local comp_ocid
+        comp_ocid=$(oci_resolve_compartment_ocid "$input") || {
+            log_error "Cannot resolve compartment name '$input' to OCID"
+            return 1
+        }
+        eval "${prefix}_NAME=\"$input\""
+        eval "${prefix}_OCID=\"$comp_ocid\""
+        log_debug "Resolved compartment name to OCID: $comp_ocid"
+    fi
+    
+    return 0
+}
+
+# ------------------------------------------------------------------------------
+# Function....: resolve_target_to_vars
+# Purpose.....: Resolve target (name or OCID) to both name and OCID variables
+# Parameters..: $1 - target name or OCID
+#               $2 - variable name prefix (e.g., "TARGET" for TARGET_NAME/TARGET_OCID)
+#               $3 - compartment OCID for name resolution (optional if input is OCID)
+# Returns.....: 0 on success, 1 on error
+# Output......: Sets ${prefix}_NAME and ${prefix}_OCID global variables
+# Usage.......: resolve_target_to_vars "$target" "TARGET" "$comp_ocid" || die "Failed"
+# ------------------------------------------------------------------------------
+resolve_target_to_vars() {
+    local input="$1"
+    local prefix="$2"
+    local compartment="${3:-}"
+    
+    if is_ocid "$input"; then
+        # User provided OCID, resolve to name
+        local target_name
+        target_name=$(ds_resolve_target_name "$input" 2>/dev/null) || target_name="$input"
+        eval "${prefix}_OCID=\"$input\""
+        eval "${prefix}_NAME=\"$target_name\""
+        log_debug "Resolved target OCID to name: $target_name"
+    else
+        # User provided name, need compartment to resolve
+        if [[ -z "$compartment" ]]; then
+            log_error "Compartment required to resolve target name: $input"
+            return 1
+        fi
+        
+        local target_ocid
+        target_ocid=$(ds_resolve_target_ocid "$input" "$compartment") || {
+            log_error "Cannot resolve target name '$input' to OCID"
+            return 1
+        }
+        eval "${prefix}_NAME=\"$input\""
+        eval "${prefix}_OCID=\"$target_ocid\""
+        log_debug "Resolved target name to OCID: $target_ocid"
+    fi
+    
+    return 0
 }
 
 # =============================================================================
