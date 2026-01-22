@@ -30,10 +30,12 @@ readonly SCRIPT_VERSION
 
 # Defaults
 : "${COMPARTMENT:=}"
+: "${CONNECTOR_COMPARTMENT:=}"
 : "${TARGETS:=}"
 : "${LIFECYCLE_STATE:=ACTIVE}"
 : "${SOURCE_CONNECTOR:=}"
 : "${TARGET_CONNECTOR:=}"
+: "${EXCLUDE_CONNECTORS:=}"
 : "${OPERATION_MODE:=set}"
 : "${APPLY_CHANGES:=false}"
 : "${WAIT_FOR_COMPLETION:=false}" # Default to no-wait for speed
@@ -85,7 +87,7 @@ Options:
     --oci-config FILE       OCI config file
 
   Selection:
-    -c, --compartment ID    Compartment OCID or name (default: DS_ROOT_COMP)
+    -c, --compartment ID    Target compartment OCID or name (default: DS_ROOT_COMP)
                             Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
     -T, --targets LIST      Comma-separated target names or OCIDs
     -L, --lifecycle STATE   Filter by lifecycle state (default: ${LIFECYCLE_STATE})
@@ -94,6 +96,8 @@ Options:
   Connector:
     --source-connector ID   Source connector OCID or name (for migrate mode)
     --target-connector ID   Target connector OCID or name (for set/migrate modes)
+    --connector-compartment ID  Compartment to query connectors from (default: same as -c)
+    --exclude-connectors LIST   Comma-separated connector names to exclude from distribution
 
   Execution:
     --apply                 Apply changes (default: dry-run only)
@@ -116,7 +120,9 @@ Mode Details:
 3. Distribute Mode (distribute):
    Distributes targets evenly across all available on-premises connectors.
    No connector options required (discovers available connectors automatically)
-   Optional: -c/--compartment (scope to specific compartment)
+   Optional: -c/--compartment (target compartment, defaults to DS_ROOT_COMP)
+   Optional: --connector-compartment (where to find connectors, defaults to -c)
+   Optional: --exclude-connectors (ignore specific connectors)
 
 Examples:
 
@@ -130,8 +136,13 @@ Examples:
   ${SCRIPT_NAME} migrate -c my-compartment \
     --source-connector conn-old --target-connector conn-new --apply
 
-  # Distribute all targets across available connectors (dry-run)
-  ${SCRIPT_NAME} distribute -c my-compartment
+  # Distribute targets, exclude specific connectors (dry-run)
+  ${SCRIPT_NAME} distribute -c cmp-targets \
+    --exclude-connectors "conn-old,conn-test"
+
+  # Distribute using different compartments for targets and connectors
+  ${SCRIPT_NAME} distribute -c cmp-targets \
+    --connector-compartment cmp-connectors --apply
 
   # Apply distribution for entire root compartment
   ${SCRIPT_NAME} distribute --apply
@@ -179,6 +190,16 @@ parse_args() {
             --target-connector)
                 need_val "$1" "${2:-}"
                 TARGET_CONNECTOR="$2"
+                shift 2
+                ;;
+            --connector-compartment)
+                need_val "$1" "${2:-}"
+                CONNECTOR_COMPARTMENT="$2"
+                shift 2
+                ;;
+            --exclude-connectors)
+                need_val "$1" "${2:-}"
+                EXCLUDE_CONNECTORS="$2"
                 shift 2
                 ;;
             --exclude-auto)
@@ -371,20 +392,55 @@ get_connector_name() {
 list_available_connectors() {
     log_debug "Listing available on-premises connectors..."
 
-    # Use cached COMPARTMENT_OCID if available
+    # Determine which compartment to query for connectors
     local comp_ocid
-    if [[ -n "${COMPARTMENT_OCID:-}" ]]; then
+    if [[ -n "${CONNECTOR_COMPARTMENT:-}" ]]; then
+        # Use explicit connector compartment if specified
+        if is_ocid "$CONNECTOR_COMPARTMENT"; then
+            comp_ocid="$CONNECTOR_COMPARTMENT"
+        else
+            comp_ocid=$(oci_resolve_compartment_ocid "$CONNECTOR_COMPARTMENT") || return 1
+        fi
+        log_debug "Using connector compartment: $CONNECTOR_COMPARTMENT"
+    elif [[ -n "${COMPARTMENT_OCID:-}" ]]; then
+        # Use target compartment
         comp_ocid="$COMPARTMENT_OCID"
+        log_debug "Using target compartment for connectors"
     else
+        # Fall back to root
         comp_ocid=$(get_root_compartment_ocid) || return 1
+        log_debug "Using root compartment for connectors"
     fi
 
-    # Use oci_exec_ro (read-only) to always execute even in dry-run
-    oci_exec_ro data-safe on-prem-connector list \
+    # Fetch connectors
+    local connectors_json
+    connectors_json=$(oci_exec_ro data-safe on-prem-connector list \
         --compartment-id "$comp_ocid" \
         --compartment-id-in-subtree true \
         --lifecycle-state ACTIVE \
-        --all
+        --all)
+    
+    # Apply exclusion filter if specified
+    if [[ -n "${EXCLUDE_CONNECTORS:-}" ]]; then
+        log_debug "Applying connector exclusion filter: $EXCLUDE_CONNECTORS"
+        local -a exclude_list
+        IFS=',' read -ra exclude_list <<< "$EXCLUDE_CONNECTORS"
+        
+        # Build jq filter to exclude connectors
+        local jq_filter='.data'
+        for excluded in "${exclude_list[@]}"; do
+            # Trim spaces
+            excluded="${excluded#"${excluded%%[![:space:]]*}"}"
+            excluded="${excluded%"${excluded##*[![:space:]]}"}"
+            [[ -z "$excluded" ]] && continue
+            
+            jq_filter+=" | map(select(.\"display-name\" != \"$excluded\"))"
+        done
+        
+        echo "$connectors_json" | jq "{data: ($jq_filter)}"
+    else
+        echo "$connectors_json"
+    fi
 }
 
 # ------------------------------------------------------------------------------
