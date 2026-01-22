@@ -10,16 +10,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Configuration Loading** - Enhanced error messages for missing DS_ROOT_COMP
-  - Updated "Failed to get root compartment" error message to mention both configuration sources
-  - Error now references `-c/--compartment` flag and configuration files (`.env`, `datasafe.conf`)
-  - Clarified configuration cascade order in error messages:
+- **Configuration Loading** - Standardized error messages and help text for DS_ROOT_COMP across all scripts
+  - **Error Messages** - Unified format: `"Failed to get root compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"`
+    - Now mentions both `.env` and `datasafe.conf` configuration files
+    - Includes reference to `--help` for detailed configuration cascade information
+    - Provides immediate CLI workaround with `-c/--compartment` flag
+  - **Help Text** - Standardized two-line format for compartment option:
+    - Line 1: `-c, --compartment ID    Compartment OCID or name (default: DS_ROOT_COMP)`
+    - Line 2: `                        Configure in: $ODB_DATASAFE_BASE/.env or datasafe.conf`
+    - Clearly shows both configuration file locations
+  - **Configuration Cascade Order** (documented in help text):
     1. `$ODB_DATASAFE_BASE/.env` (extension base directory)
     2. `$ORADBA_ETC/datasafe.conf` (OraDBA global config, if ORADBA_ETC is set)
     3. `$ODB_DATASAFE_BASE/etc/datasafe.conf` (extension-local config)
-  - All scripts now consistently reference proper configuration file locations
-  - Affects: ds_target_list.sh, ds_target_update_tags.sh, ds_find_untagged_targets.sh, 
-    ds_tg_report.sh, ds_target_update_credentials.sh, and other target management scripts
+  - **All 9 scripts updated** for consistency:
+    - ds_target_list.sh
+    - ds_target_update_tags.sh
+    - ds_target_update_credentials.sh
+    - ds_target_update_connector.sh
+    - ds_target_update_service.sh
+    - ds_target_refresh.sh
+    - ds_target_delete.sh
+    - ds_find_untagged_targets.sh
+    - ds_tg_report.sh
 
 ### Documentation
 

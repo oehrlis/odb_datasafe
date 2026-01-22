@@ -72,7 +72,8 @@ Options:
     --oci-config FILE       OCI config file (default: ${OCI_CLI_CONFIG_FILE:-~/.oci/config})
 
   Selection:
-    -c, --compartment ID    Compartment OCID or name (default: DS_ROOT_COMP from \$ODB_DATASAFE_BASE/.env)
+    -c, --compartment ID    Compartment OCID or name (default: DS_ROOT_COMP)
+                            Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
     -T, --targets LIST      Comma-separated target names or OCIDs (for details only)
     -L, --lifecycle STATE   Filter by lifecycle state (ACTIVE, NEEDS_ATTENTION, etc.)
 
@@ -213,7 +214,7 @@ validate_inputs() {
     # If neither targets nor compartment specified, use DS_ROOT_COMP as default
     if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
         local root_comp
-        root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment. Set DS_ROOT_COMP in \$ODB_DATASAFE_BASE/.env or use -c/--compartment"
+        root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
         COMPARTMENT="$root_comp"
 
         # Get compartment name for display
