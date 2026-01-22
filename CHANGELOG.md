@@ -6,63 +6,21 @@ All notable changes to the OraDBA Data Safe Extension will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.5.3] - 2026-01-21
-
-### Changed
-
-- **install_datasafe_service.sh (v1.1.0)** - Refactored to two-phase workflow
-  - **Phase 1 (Prepare)**: Generate configs in connector etc/ directory (no root needed)
-  - **Phase 2 (Install)**: Copy configs to system locations (requires root)
-  - Added `--prepare` mode for config generation (default, works as oracle/oradba user)
-  - Added `--install` mode for system installation (requires root)
-  - Added `--uninstall` mode to replace `--remove` (requires root)
-  - `--list` and `--check` now work without root privileges
-  - Config files stored in `$CONNECTOR_HOME/etc/systemd/`
-  - Local configs preserved after uninstall for easy reinstallation
-  - Removed `--test` mode in favor of `--prepare --dry-run`
-  - Updated usage documentation with clear root requirement markers
-
-- **uninstall_all_datasafe_services.sh (v1.1.0)** - Refactored to support non-root listing
-  - Added `--list` mode for viewing services (default, no root needed)
-  - Added `--uninstall` mode for removing services (requires root)
-  - `--list` now shows both system and local configuration files
-  - Enhanced output with installation status for each service
-  - Local configs preserved in connector etc/ directories after uninstall
-  - Removed root requirement for listing and checking operations
-
-- **Configuration System** - Clarified .env file location
-  - Added `ODB_DATASAFE_BASE` variable for extension base directory
-  - `.env` file must be in extension base directory (`$ODB_DATASAFE_BASE/.env`)
-  - Auto-detection of extension base from script location
-  - Updated all scripts to reference `$ODB_DATASAFE_BASE/.env` in error messages
-  - Enhanced `etc/.env.example` with clear location instructions
-  - Updated `lib/common.sh` to set and export `ODB_DATASAFE_BASE`
-
-### Fixed
-
-- Removed color codes from usage functions (both scripts)
-  - Fixed usage output displaying uninitialized color variables
-  - Fixed printf statements with color codes (added `-e` flag to echo)
-  - Usage now displays clean text without escape sequences
+## [0.5.3] - 2026-01-22
 
 ### Documentation
 
-- Updated `doc/install_datasafe_service.md` with two-phase workflow
-- Updated `doc/quickstart_root_admin.md` for administrators
-- Updated `doc/index.md` with `ODB_DATASAFE_BASE` variable and .env location
-- Updated `doc/quickref.md` with explicit .env location instructions
-- Updated `README.md` with new workflow examples
-- Updated `etc/.env.example` with clear location diagram
-- Added clear documentation of root vs non-root operations
-- Updated all examples to reflect new command structure
-- Emphasized that `.env` must be in base directory, not `etc/` subdirectory
-
-### Tests
-
-- Updated `tests/install_datasafe_service.bats` for new workflow
-- Updated `tests/uninstall_all_datasafe_services.bats` for new modes
-- Added tests for prepare/install/uninstall operations
-- Added tests for non-root list and check operations
+- **GitHub Copilot Instructions** - Updated `.github/copilot-instructions.md` to reflect project-specific content
+  - Changed from generic OraDBA Extension Template to OraDBA Data Safe Extension specifics
+  - Restored Data Safe-specific naming conventions (`ds_<action>_<object>.sh`)
+  - Added back all Data Safe management scripts documentation (7 core scripts)
+  - Restored OCI CLI integration patterns and Data Safe-specific examples
+  - Added service installer patterns and root admin documentation
+  - Updated common operations section with Data Safe-specific commands
+  - Added OCI Data Safe documentation links
+  - Restored project overview with complete feature description
+  - Maintained template best practices (function headers, error handling, testing)
+  - Updated resources section with Data Safe and OCI CLI documentation links
 
 ## [0.5.2] - 2026-01-15
 
