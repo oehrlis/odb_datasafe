@@ -25,7 +25,7 @@ source "${SCRIPT_DIR}/../lib/ds_lib.sh"
 
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_NAME
-readonly SCRIPT_VERSION="0.2.0"
+readonly SCRIPT_VERSION="$(cat "${SCRIPT_DIR}/../VERSION" 2>/dev/null | tr -d '\n' || echo '0.5.3')"
 
 # Defaults
 : "${COMPARTMENT:=}"

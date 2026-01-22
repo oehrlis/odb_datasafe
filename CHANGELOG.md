@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.5.3] - 2026-01-22
 
+### Changed
+
+- **Script Versioning** - Dynamic version reading from VERSION file
+  - Updated all scripts to read `SCRIPT_VERSION` from `VERSION` file instead of hardcoding
+  - Pattern: `readonly SCRIPT_VERSION="$(cat "${SCRIPT_DIR}/../VERSION" 2>/dev/null | tr -d '\n' || echo '0.5.3')"`
+  - Eliminates need to update individual script versions when releasing
+  - Falls back to '0.5.3' if VERSION file not found
+  - Applies to 8 scripts: ds_target_list.sh, ds_target_update_tags.sh, ds_target_update_credentials.sh,
+    ds_target_update_connector.sh, ds_target_update_service.sh, ds_target_refresh.sh, 
+    ds_tg_report.sh, TEMPLATE.sh
+
 ### Fixed
 
 - **Configuration Loading** - Standardized error messages and help text for DS_ROOT_COMP across all scripts
