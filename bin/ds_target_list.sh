@@ -18,9 +18,12 @@
 set -euo pipefail
 
 # Script metadata
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_NAME
 readonly SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.3')"
+readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 
 # Defaults
 : "${COMPARTMENT:=}"
@@ -29,11 +32,6 @@ readonly SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev
 : "${OUTPUT_FORMAT:=table}" # table|json|csv
 : "${SHOW_COUNT:=false}"    # Default to list mode
 : "${FIELDS:=display-name,lifecycle-state,infrastructure-type}"
-
-# Load library
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly SCRIPT_DIR
-readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 
 # shellcheck disable=SC1091
 source "${LIB_DIR}/ds_lib.sh" || {
