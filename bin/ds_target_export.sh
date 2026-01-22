@@ -194,11 +194,10 @@ build_connector_map() {
     log_info "Building connector map..."
 
     local connectors_json
-    connectors_json=$(oci data-safe on-prem-connector list \
+    connectors_json=$(oci_exec_ro data-safe on-prem-connector list \
         --compartment-id "$COMP_OCID" \
-        --all \
-        --config-file "${OCI_CLI_CONFIG_FILE}" \
-        --profile "${OCI_CLI_PROFILE}" 2> /dev/null) || {
+        --compartment-id-in-subtree true \
+        --all) || {
         log_warn "Failed to list on-prem connectors; connector names may show as OCID"
         return 0
     }
@@ -246,12 +245,7 @@ export_targets() {
     log_info "Fetching targets from compartment..."
 
     local targets_json
-    targets_json=$(oci data-safe target-database list \
-        --compartment-id "$COMP_OCID" \
-        --compartment-id-in-subtree true \
-        --all \
-        --config-file "${OCI_CLI_CONFIG_FILE}" \
-        --profile "${OCI_CLI_PROFILE}" 2> /dev/null) || die "Failed to list targets"
+    targets_json=$(ds_list_targets "$COMP_OCID" "$LIFECYCLE") || die "Failed to list targets"
 
     local total_count
     total_count=$(echo "$targets_json" | jq '.data | length')
@@ -306,10 +300,8 @@ export_targets() {
 
         # Get target details for service/port
         local details_json service_name listener_port
-        details_json=$(oci data-safe target-database get \
-            --target-database-id "$target_id" \
-            --config-file "${OCI_CLI_CONFIG_FILE}" \
-            --profile "${OCI_CLI_PROFILE}" 2> /dev/null) || {
+        details_json=$(oci_exec_ro data-safe target-database get \
+            --target-database-id "$target_id") || {
             log_warn "Failed to get details for $display_name"
             service_name="N/A"
             listener_port="0"

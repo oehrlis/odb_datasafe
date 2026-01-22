@@ -37,6 +37,7 @@ readonly SCRIPT_VERSION
 : "${NO_PROMPT:=false}"
 : "${CRED_FILE:=}"
 : "${APPLY_CHANGES:=false}"
+: "${WAIT_FOR_STATE:=}" # Empty = async (no wait); "ACCEPTED" or other for sync wait
 
 # shellcheck disable=SC1091
 source "${LIB_DIR}/ds_lib.sh" || {
@@ -100,6 +101,8 @@ Options:
   Execution:
     --apply                 Apply changes (default: dry-run only)
     -n, --dry-run           Dry-run mode (show what would be done)
+    --wait-for-state STATE  Wait for operation completion with state (e.g., ACCEPTED)
+                            Default: async (no wait)
 
 Credential Sources (in order of precedence):
   1. --cred-file JSON file
@@ -111,14 +114,17 @@ Examples:
   # Dry-run with specific username (will prompt for password)
   ${SCRIPT_NAME} -U myuser
 
-  # Apply changes using credentials file
+  # Apply changes using credentials file (async)
   ${SCRIPT_NAME} --cred-file creds.json --apply
+
+  # Apply changes and wait for completion
+  ${SCRIPT_NAME} --cred-file creds.json --apply --wait-for-state ACCEPTED
 
   # Update specific targets with username/password
   ${SCRIPT_NAME} -T target1,target2 -U myuser -P mypass --apply
 
-  # Bulk update for compartment (interactive password)
-  ${SCRIPT_NAME} -c my-compartment -U dbuser --apply
+  # Bulk update for compartment (interactive password, wait for state)
+  ${SCRIPT_NAME} -c my-compartment -U dbuser --apply --wait-for-state ACCEPTED
 
 EOF
     exit 0
@@ -177,6 +183,11 @@ parse_args() {
             --apply)
                 APPLY_CHANGES=true
                 shift
+                ;;
+            --wait-for-state)
+                need_val "$1" "${2:-}"
+                WAIT_FOR_STATE="$2"
+                shift 2
                 ;;
             --oci-profile)
                 need_val "$1" "${2:-}"
@@ -362,9 +373,19 @@ update_target_credentials() {
             --arg pass "$DS_PASSWORD" \
             '{userName: $user, password: $pass}')
 
-        if oci_exec data-safe target-database update \
-            --target-database-id "$target_ocid" \
-            --credentials "$cred_json" > /dev/null; then
+        # Build OCI command
+        local -a cmd=(
+            data-safe target-database update
+            --target-database-id "$target_ocid"
+            --credentials "$cred_json"
+        )
+        
+        # Add wait-for-state if specified
+        if [[ -n "$WAIT_FOR_STATE" ]]; then
+            cmd+=(--wait-for-state "$WAIT_FOR_STATE")
+        fi
+
+        if oci_exec "${cmd[@]}" > /dev/null; then
             log_info "  [OK] Credentials updated successfully"
             return 0
         else
@@ -386,24 +407,8 @@ update_target_credentials() {
 # ------------------------------------------------------------------------------
 list_targets_in_compartment() {
     local compartment="$1"
-    local comp_ocid
 
-    comp_ocid=$(oci_resolve_compartment_ocid "$compartment") || return 1
-
-    log_debug "Listing targets in compartment: $comp_ocid"
-
-    local -a cmd=(
-        data-safe target-database list
-        --compartment-id "$comp_ocid"
-        --compartment-id-in-subtree true
-        --all
-    )
-
-    if [[ -n "$LIFECYCLE_STATE" ]]; then
-        cmd+=(--lifecycle-state "$LIFECYCLE_STATE")
-    fi
-
-    oci_exec "${cmd[@]}"
+    ds_list_targets "$compartment" "$LIFECYCLE_STATE"
 }
 
 # ------------------------------------------------------------------------------
@@ -437,9 +442,13 @@ do_work() {
 
         local -a target_list
         IFS=',' read -ra target_list <<< "$TARGETS"
+        
+        local total_targets=${#target_list[@]}
+        local current_target=0
 
         for target in "${target_list[@]}"; do
             target="${target// /}" # trim spaces
+            ((current_target++))
 
             local target_ocid target_name
 
@@ -484,6 +493,7 @@ do_work() {
                 fi
             fi
 
+            log_info "[$current_target/$total_targets] Updating target: $target_name"
             if update_target_credentials "$target_ocid" "$target_name"; then
                 success_count=$((success_count + 1))
             else

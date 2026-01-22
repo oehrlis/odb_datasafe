@@ -360,10 +360,7 @@ check_target_exists() {
     log_info "Checking if target already exists..."
 
     local targets_json
-    targets_json=$(oci_exec_ro data-safe target-database list \
-        --compartment-id "$COMP_OCID" \
-        --compartment-id-in-subtree true \
-        --all) || die "Failed to list targets"
+    targets_json=$(ds_list_targets "$COMP_OCID") || die "Failed to list targets"
 
     local existing_target
     existing_target=$(echo "$targets_json" | jq -r ".data[] | select(.\"display-name\" == \"$DISPLAY_NAME\") | .id" | head -n1)

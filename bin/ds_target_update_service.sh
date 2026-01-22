@@ -34,6 +34,7 @@ readonly SCRIPT_VERSION
 : "${LIFECYCLE_STATE:=ACTIVE}"
 : "${DB_DOMAIN:=oradba.ch}"
 : "${APPLY_CHANGES:=false}"
+: "${WAIT_FOR_STATE:=}"
 
 # shellcheck disable=SC1091
 source "${LIB_DIR}/ds_lib.sh" || {
@@ -83,6 +84,7 @@ Options:
 
   Service Update:
     --domain DOMAIN         Domain for new service names (default: ${DB_DOMAIN})
+        --wait-for-state STATE  Wait for target update to reach state (e.g. ACCEPTED)
     --apply                 Apply changes (default: dry-run only)
     -n, --dry-run           Dry-run mode (show what would be done)
 
@@ -145,6 +147,11 @@ parse_args() {
                 DB_DOMAIN="$2"
                 shift 2
                 ;;
+            --wait-for-state)
+                need_val "$1" "${2:-}"
+                WAIT_FOR_STATE="$2"
+                shift 2
+                ;;
             --apply)
                 APPLY_CHANGES=true
                 shift
@@ -197,12 +204,16 @@ validate_inputs() {
 
     require_cmd oci jq
 
-    # If no scope specified, use DS_ROOT_COMP as default
+    # If no scope specified, use DS_ROOT_COMP as default when available
     if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
-        local root_comp
-        root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
-        COMPARTMENT="$root_comp"
-        log_info "No scope specified, using DS_ROOT_COMP: $COMPARTMENT"
+        if [[ -n "${DS_ROOT_COMP:-}" ]]; then
+            local root_comp
+            root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
+            COMPARTMENT="$root_comp"
+            log_info "No scope specified, using DS_ROOT_COMP: $COMPARTMENT"
+        else
+            usage
+        fi
     fi
 
     # Resolve compartment if specified (accept name or OCID)
@@ -298,10 +309,18 @@ update_target_service() {
     if [[ "$APPLY_CHANGES" == "true" ]]; then
         log_info "  Updating service name..."
 
-        if oci_exec data-safe target-database update \
-            --target-database-id "$target_ocid" \
-            --connection-option "{\"connectionType\": \"PRIVATE_ENDPOINT\", \"datasafePrivateEndpointId\": null}" \
-            --database-details "{\"serviceName\": \"$new_service\"}" > /dev/null; then
+        local -a cmd=(
+            data-safe target-database update
+            --target-database-id "$target_ocid"
+            --connection-option "{\"connectionType\": \"PRIVATE_ENDPOINT\", \"datasafePrivateEndpointId\": null}"
+            --database-details "{\"serviceName\": \"$new_service\"}"
+        )
+
+        if [[ -n "$WAIT_FOR_STATE" ]]; then
+            cmd+=(--wait-for-state "$WAIT_FOR_STATE")
+        fi
+
+        if oci_exec "${cmd[@]}" > /dev/null; then
             log_info "  [OK] Service updated successfully"
             return 0
         else
@@ -322,24 +341,8 @@ update_target_service() {
 # ------------------------------------------------------------------------------
 list_targets_in_compartment() {
     local compartment="$1"
-    local comp_ocid
 
-    comp_ocid=$(oci_resolve_compartment_ocid "$compartment") || return 1
-
-    log_debug "Listing targets in compartment: $comp_ocid"
-
-    local -a cmd=(
-        data-safe target-database list
-        --compartment-id "$comp_ocid"
-        --compartment-id-in-subtree true
-        --all
-    )
-
-    if [[ -n "$LIFECYCLE_STATE" ]]; then
-        cmd+=(--lifecycle-state "$LIFECYCLE_STATE")
-    fi
-
-    oci_exec_ro "${cmd[@]}"
+    ds_list_targets "$compartment" "$LIFECYCLE_STATE"
 }
 
 # ------------------------------------------------------------------------------
@@ -382,8 +385,13 @@ do_work() {
         local -a target_list
         IFS=',' read -ra target_list <<< "$TARGETS"
 
+        local total_targets=${#target_list[@]}
+        local current_target=0
+
         for target in "${target_list[@]}"; do
             target="${target// /}" # trim spaces
+            current_target=$((current_target + 1))
+            log_info "[$current_target/$total_targets] Processing target: $target"
 
             local target_ocid target_data target_name current_service
 
@@ -392,16 +400,26 @@ do_work() {
             else
                 # Resolve target name to OCID
                 log_debug "Resolving target name: $target"
-                local resolved
+                local resolved search_compartment
+
                 if [[ -n "$COMPARTMENT" ]]; then
-                    resolved=$(ds_resolve_target_ocid "$target" "$COMPARTMENT") || die "Failed to resolve target: $target"
+                    search_compartment="$COMPARTMENT"
                 else
-                    local root_comp
-                    root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment"
-                    resolved=$(ds_resolve_target_ocid "$target" "$root_comp") || die "Failed to resolve target: $target"
+                    search_compartment=$(get_root_compartment_ocid) || die "Failed to get root compartment"
                 fi
 
-                [[ -n "$resolved" ]] || die "Target not found: $target"
+                if ! resolved=$(ds_resolve_target_ocid "$target" "$search_compartment"); then
+                    log_error "Failed to resolve target: $target (compartment: $search_compartment)"
+                    error_count=$((error_count + 1))
+                    continue
+                fi
+
+                if [[ -z "$resolved" ]] || ! is_ocid "$resolved"; then
+                    log_error "Target not found: $target (compartment: $search_compartment)"
+                    error_count=$((error_count + 1))
+                    continue
+                fi
+
                 target_ocid="$resolved"
             fi
 
@@ -478,6 +496,10 @@ main() {
 }
 
 # Parse arguments and run
+if [[ $# -eq 0 ]]; then
+    usage
+fi
+
 parse_args "$@"
 main
 

@@ -244,7 +244,7 @@ validate_inputs() {
         # Get targets from compartment by lifecycle state
         log_debug "Scanning compartment for targets with state: $STATE_FILTERS"
         local targets_json
-        targets_json=$(oci data-safe target-database list --compartment-id "$COMP_OCID" --compartment-id-in-subtree true --all --lifecycle-state "$STATE_FILTERS" 2> /dev/null) || die "Failed to list targets in compartment"
+        targets_json=$(ds_list_targets "$COMP_OCID" "$STATE_FILTERS") || die "Failed to list targets in compartment"
 
         mapfile -t RESOLVED_TARGETS < <(echo "$targets_json" | jq -r '.data[]?.id // empty')
     fi

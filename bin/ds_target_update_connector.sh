@@ -550,23 +550,12 @@ list_targets_in_compartment() {
 
     log_debug "Listing targets in compartment: $comp_ocid"
 
-    local -a cmd=(
-        data-safe target-database list
-        --compartment-id "$comp_ocid"
-        --compartment-id-in-subtree true
-        --all
-    )
-
-    if [[ -n "$LIFECYCLE_STATE" ]]; then
-        cmd+=(--lifecycle-state "$LIFECYCLE_STATE")
-    fi
-
     local json_data
-    json_data=$(oci_exec_ro "${cmd[@]}")
+    json_data=$(ds_list_targets "$comp_ocid" "$LIFECYCLE_STATE") || return 1
 
     # Apply additional filtering if needed
     if [[ "$EXCLUDE_AUTO" == "true" ]]; then
-        echo "$json_data" | jq '.data = (.data | map(select(.["display-name"] | test("_auto$") | not)))'
+        echo "$json_data" | jq '.data = (.data | map(select(."display-name" | test("_auto$") | not)))'
     else
         echo "$json_data"
     fi

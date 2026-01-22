@@ -212,10 +212,7 @@ get_targets_with_tags() {
 
     log_debug "Fetching targets with tags from compartment: $comp_ocid"
 
-    oci_exec data-safe target-database list \
-        --compartment-id "$comp_ocid" \
-        --compartment-id-in-subtree true \
-        --all
+    ds_list_targets "$comp_ocid"
 }
 
 # ------------------------------------------------------------------------------

@@ -266,11 +266,7 @@ do_work() {
 
         # Use oci_exec_ro() for read-only operations (works even in dry-run)
         local targets_json
-        targets_json=$(oci_exec_ro data-safe target-database list \
-            --compartment-id "$COMP_OCID" \
-            --compartment-id-in-subtree true \
-            --lifecycle-state "$LIFECYCLE_STATE" \
-            --all) || die "Failed to list targets"
+        targets_json=$(ds_list_targets "$COMP_OCID" "$LIFECYCLE_STATE") || die "Failed to list targets"
 
         # Process targets
         local count

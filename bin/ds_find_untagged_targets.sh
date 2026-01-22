@@ -200,11 +200,7 @@ find_untagged_targets() {
     log_info "Retrieving targets from compartment..."
 
     local targets_json
-    targets_json=$(oci_exec_ro data-safe target-database list \
-        --compartment-id "$COMP_OCID" \
-        --compartment-id-in-subtree true \
-        --lifecycle-state "$STATE_FILTERS" \
-        --all) || die "Failed to list targets"
+    targets_json=$(ds_list_targets "$COMP_OCID" "$STATE_FILTERS") || die "Failed to list targets"
 
     local total_count
     total_count=$(echo "$targets_json" | jq '.data | length')

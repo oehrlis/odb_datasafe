@@ -30,6 +30,34 @@ fi
 
 # Global cache for resolved root compartment OCID
 _DS_ROOT_COMP_OCID_CACHE=""
+# Cache for target listings to avoid repeated full-list calls per compartment
+_DS_TARGET_CACHE_COMP_OCID=""
+_DS_TARGET_CACHE_LIFECYCLE=""
+_DS_TARGET_CACHE_JSON=""
+_DS_TARGET_CACHE_FILE=""
+
+# ----------------------------------------------------------------------------
+# Function....: _ds_target_cache_file_path
+# Purpose.....: Deterministic cache path for target lists
+# Parameters..: $1 - compartment OCID
+#               $2 - lifecycle filter (may be empty)
+# Returns.....: Echoes cache file path
+# Notes.......: Stable path allows reuse across subshells/command substitutions
+# ----------------------------------------------------------------------------
+_ds_target_cache_file_path() {
+    local comp_ocid="$1"
+    local lifecycle="$2"
+
+    # Use cksum to build a stable, portable hash (works on macOS and Linux)
+    local cache_hash
+    cache_hash=$(printf '%s|%s' "$comp_ocid" "$lifecycle" | cksum | awk '{print $1}')
+
+    local cache_dir
+    cache_dir="${TMPDIR:-/tmp}/datasafe_target_cache"
+    mkdir -p "$cache_dir"
+
+    echo "${cache_dir}/targets_${cache_hash}.json"
+}
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -158,15 +186,13 @@ get_connector_compartment_ocid() {
 #               For read-only operations in dry-run mode, use oci_exec_ro
 # ------------------------------------------------------------------------------
 oci_exec() {
-    local -a cmd=(oci)
+    # Build command with subcommand first, global options afterwards (matches user expectation)
+    local -a cmd=(oci "$@")
 
-    # Add standard options
+    # Append global options after subcommand
     [[ -n "${OCI_CLI_CONFIG_FILE}" ]] && cmd+=(--config-file "${OCI_CLI_CONFIG_FILE}")
     [[ -n "${OCI_CLI_PROFILE}" ]] && cmd+=(--profile "${OCI_CLI_PROFILE}")
     [[ -n "${OCI_CLI_REGION}" ]] && cmd+=(--region "${OCI_CLI_REGION}")
-
-    # Add the actual command
-    cmd+=("$@")
 
     # Log command in debug mode
     log_debug "OCI command: ${cmd[*]}"
@@ -202,15 +228,13 @@ oci_exec() {
 # Notes.......: Use for lookups/queries that don't modify resources
 # ------------------------------------------------------------------------------
 oci_exec_ro() {
-    local -a cmd=(oci)
+    # Build command with subcommand first, global options afterwards (matches user expectation)
+    local -a cmd=(oci "$@")
 
-    # Add standard options
+    # Append global options after subcommand
     [[ -n "${OCI_CLI_CONFIG_FILE}" ]] && cmd+=(--config-file "${OCI_CLI_CONFIG_FILE}")
     [[ -n "${OCI_CLI_PROFILE}" ]] && cmd+=(--profile "${OCI_CLI_PROFILE}")
     [[ -n "${OCI_CLI_REGION}" ]] && cmd+=(--region "${OCI_CLI_REGION}")
-
-    # Add the actual command
-    cmd+=("$@")
 
     # Log command in debug mode
     log_debug "OCI command: ${cmd[*]}"
@@ -352,26 +376,28 @@ oci_get_compartment_name() {
 # ------------------------------------------------------------------------------
 ds_list_targets() {
     local compartment="$1"
-    local lifecycle="${2:-}"
+    local lifecycle_input="${2:-}"
+
+    # Normalize lifecycle (remove spaces, uppercase) and build CLI options (supports comma-separated states)
+    local lifecycle_norm=""
+    local -a lifecycle_opts=()
+    local -a __states=()
+    local __state=""
+
+    if [[ -n "$lifecycle_input" ]]; then
+        lifecycle_norm=$(echo "$lifecycle_input" | tr '[:lower:]' '[:upper:]' | tr -d ' ')
+        IFS=',' read -ra __states <<< "$lifecycle_norm"
+        for __state in "${__states[@]}"; do
+            [[ -n "$__state" ]] && lifecycle_opts+=(--lifecycle-state "$__state")
+        done
+    fi
 
     local comp_ocid
     comp_ocid=$(oci_resolve_compartment_ocid "$compartment")
 
-    log_debug "Listing Data Safe targets in compartment: $comp_ocid"
+    log_debug "Listing Data Safe targets in compartment: $comp_ocid (lifecycle: ${lifecycle_norm:-none})"
 
-    local -a cmd=(
-        data-safe target-database list
-        --compartment-id "$comp_ocid"
-        --compartment-id-in-subtree true
-        --all
-    )
-
-    # Add lifecycle filter if provided
-    if [[ -n "$lifecycle" ]]; then
-        cmd+=(--lifecycle-state "$lifecycle")
-    fi
-
-    oci_exec "${cmd[@]}"
+    _ds_get_target_list_cached "$comp_ocid" "$lifecycle_norm" "${lifecycle_opts[@]}"
 }
 
 # ------------------------------------------------------------------------------
@@ -392,6 +418,70 @@ ds_get_target() {
 
     oci_exec data-safe target-database get \
         --target-database-id "$target_ocid"
+}
+
+# ----------------------------------------------------------------------------
+# Function....: _ds_get_target_list_cached
+# Purpose.....: Fetch target list with caching per compartment+lifecycle
+# Parameters..: $1 - compartment OCID
+#               $2 - lifecycle filter (optional)
+# Returns.....: JSON of target list to stdout
+# Notes.......: Internal helper used by ds_list_targets and ds_resolve_target_ocid
+# ----------------------------------------------------------------------------
+_ds_get_target_list_cached() {
+    local comp_ocid="$1"
+    local lifecycle="$2"
+    shift 2
+    local -a lifecycle_opts=("$@")
+
+    local cache_file
+    cache_file=$(_ds_target_cache_file_path "$comp_ocid" "$lifecycle")
+
+        # Reuse cache if compartment and lifecycle match
+        if [[ -n "$_DS_TARGET_CACHE_JSON" && \
+                    "$_DS_TARGET_CACHE_COMP_OCID" == "$comp_ocid" && \
+                    "$_DS_TARGET_CACHE_LIFECYCLE" == "$lifecycle" ]]; then
+                log_debug "Using cached target list for compartment: $comp_ocid (lifecycle: ${lifecycle:-none}) [memory]"
+                printf '%s' "$_DS_TARGET_CACHE_JSON"
+                return 0
+        fi
+
+        if [[ -f "$cache_file" ]]; then
+            log_debug "Using cached target list for compartment: $comp_ocid (lifecycle: ${lifecycle:-none}) [file]"
+            _DS_TARGET_CACHE_COMP_OCID="$comp_ocid"
+            _DS_TARGET_CACHE_LIFECYCLE="$lifecycle"
+            _DS_TARGET_CACHE_FILE="$cache_file"
+            _DS_TARGET_CACHE_JSON=$(cat "$cache_file")
+            printf '%s' "$_DS_TARGET_CACHE_JSON"
+            return 0
+        fi
+
+    log_debug "Fetching target list for compartment: $comp_ocid (lifecycle: ${lifecycle:-none})"
+
+    local -a cmd=(
+        data-safe target-database list
+        --compartment-id "$comp_ocid"
+        --compartment-id-in-subtree true
+        --all
+    )
+
+    if [[ ${#lifecycle_opts[@]} -gt 0 ]]; then
+        cmd+=("${lifecycle_opts[@]}")
+    fi
+
+    local targets_json
+    if ! targets_json=$(oci_exec_ro "${cmd[@]}"); then
+        log_error "Failed to list targets for compartment: $comp_ocid"
+        return 1
+    fi
+
+    _DS_TARGET_CACHE_COMP_OCID="$comp_ocid"
+    _DS_TARGET_CACHE_LIFECYCLE="$lifecycle"
+    _DS_TARGET_CACHE_FILE="$cache_file"
+    _DS_TARGET_CACHE_JSON="$targets_json"
+
+    printf '%s' "$targets_json" > "$cache_file"
+    printf '%s' "$targets_json"
 }
 
 # ------------------------------------------------------------------------------
@@ -423,17 +513,62 @@ ds_resolve_target_ocid() {
     local comp_ocid
     comp_ocid=$(oci_resolve_compartment_ocid "$compartment") || return 1
 
+    # Retrieve targets JSON once per compartment (and lifecycle) and cache to reduce repeated large downloads
+    # Populate cache (suppress stdout to avoid polluting command substitution in callers)
+    if ! _ds_get_target_list_cached "$comp_ocid" "" > /dev/null; then
+        log_error "Failed to list targets for resolution: $input"
+        return 1
+    fi
+
+    local targets_json
+    if [[ -n "$_DS_TARGET_CACHE_JSON" ]]; then
+        targets_json="$_DS_TARGET_CACHE_JSON"
+    elif [[ -n "$_DS_TARGET_CACHE_FILE" && -f "$_DS_TARGET_CACHE_FILE" ]]; then
+        targets_json=$(cat "$_DS_TARGET_CACHE_FILE")
+    else
+        log_error "Target cache unavailable after fetch for: $input"
+        return 1
+    fi
+
+    # First try case-sensitive exact match, then case-insensitive
     local result
-    result=$(oci_exec_ro data-safe target-database list \
-        --compartment-id "$comp_ocid" \
-        --compartment-id-in-subtree true \
-        --all \
-        --query "data[?\"display-name\"=='${input}'].id | [0]" \
-        --raw-output)
+    result=$(echo "$targets_json" | jq -r --arg name "$input" '
+        .data[] | select(."display-name" == $name) | .id' | head -n1)
 
     if [[ -z "$result" || "$result" == "null" ]]; then
-        log_error "Target not found: $input"
-        return 1
+        log_debug "Exact match not found for target: $input (case-sensitive). Trying case-insensitive match."
+
+        result=$(echo "$targets_json" | jq -r --arg name "$input" '
+            .data[] | select((."display-name" | ascii_downcase) == ($name | ascii_downcase)) | .id' | head -n1)
+    fi
+
+    if [[ -z "$result" || "$result" == "null" ]]; then
+        log_debug "No exact match found for target: $input. Trying partial (substring) match."
+
+        local matches
+        matches=$(echo "$targets_json" | jq -r --arg name "$input" '
+            .data[] | select((."display-name" | ascii_downcase) | contains($name | ascii_downcase)) | ."display-name" + "|" + .id')
+
+        if [[ -z "$matches" ]]; then
+            log_error "Target not found: $input"
+            return 1
+        fi
+
+        # If exactly one partial match, use it; otherwise ask to disambiguate
+        local match_count
+        match_count=$(echo "$matches" | wc -l | tr -d ' ')
+
+        if [[ "$match_count" -eq 1 ]]; then
+            result=$(echo "$matches" | cut -d'|' -f2)
+            log_info "Target '$input' not found by exact name; using partial match: $(echo "$matches" | cut -d'|' -f1)"
+        else
+            log_error "Target not found or ambiguous: $input"
+            log_error "Candidates (partial match):"
+            echo "$matches" | while IFS='|' read -r disp ocid; do
+                log_error "  ${disp} -> ${ocid}"
+            done
+            return 1
+        fi
     fi
 
     log_debug "Resolved target: $input -> $result"

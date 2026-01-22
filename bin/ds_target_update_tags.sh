@@ -32,6 +32,8 @@ readonly SCRIPT_VERSION
 : "${COMPARTMENT:=}"
 : "${TARGETS:=}"
 : "${APPLY_CHANGES:=false}"
+: "${LIFECYCLE_STATE:=ACTIVE}"
+: "${WAIT_FOR_STATE:=}"
 : "${TAG_NAMESPACE:=DBSec}"
 : "${ENVIRONMENT_TAG:=Environment}"
 : "${CONTAINER_STAGE_TAG:=ContainerStage}"
@@ -86,6 +88,8 @@ Options:
   Execution:
     --apply                 Apply changes (default: dry-run only)
     -n, --dry-run           Dry-run mode (show what would be done)
+        -L, --lifecycle STATE   Lifecycle state filter (default: ${LIFECYCLE_STATE})
+        --wait-for-state STATE  Wait for target update to reach state (e.g. ACCEPTED)
 
   Tag Configuration:
     --namespace NS          Tag namespace (default: ${TAG_NAMESPACE})
@@ -168,6 +172,16 @@ parse_args() {
                 CLASSIFICATION_TAG="$2"
                 shift 2
                 ;;
+            -L | --lifecycle)
+                need_val "$1" "${2:-}"
+                LIFECYCLE_STATE="$2"
+                shift 2
+                ;;
+            --wait-for-state)
+                need_val "$1" "${2:-}"
+                WAIT_FOR_STATE="$2"
+                shift 2
+                ;;
             --oci-profile)
                 need_val "$1" "${2:-}"
                 export OCI_CLI_PROFILE="$2"
@@ -216,12 +230,16 @@ validate_inputs() {
 
     require_cmd oci jq
 
-    # If no scope specified, use DS_ROOT_COMP as default
+    # Require either targets or compartment (or DS_ROOT_COMP)
     if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
-        local root_comp
-        root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
-        COMPARTMENT="$root_comp"
-        log_info "No scope specified, using DS_ROOT_COMP: $COMPARTMENT"
+        if [[ -n "${DS_ROOT_COMP:-}" ]]; then
+            local root_comp
+            root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
+            COMPARTMENT="$root_comp"
+            log_info "No scope specified, using DS_ROOT_COMP: $COMPARTMENT"
+        else
+            usage
+        fi
     fi
 
     # Resolve compartment if specified (accept name or OCID)
@@ -349,9 +367,17 @@ update_target_tags() {
     if [[ "$APPLY_CHANGES" == "true" ]]; then
         log_info "  Applying tags..."
 
-        if oci_exec data-safe target-database update \
-            --target-database-id "$target_ocid" \
-            --defined-tags "$update_json" > /dev/null; then
+        local -a cmd=(
+            data-safe target-database update
+            --target-database-id "$target_ocid"
+            --defined-tags "$update_json"
+        )
+
+        if [[ -n "$WAIT_FOR_STATE" ]]; then
+            cmd+=(--wait-for-state "$WAIT_FOR_STATE")
+        fi
+
+        if oci_exec "${cmd[@]}" > /dev/null; then
             log_info "  [OK] Tags updated successfully"
             return 0
         else
@@ -372,16 +398,8 @@ update_target_tags() {
 # ------------------------------------------------------------------------------
 list_targets_in_compartment() {
     local compartment="$1"
-    local comp_ocid
 
-    comp_ocid=$(oci_resolve_compartment_ocid "$compartment") || return 1
-
-    log_debug "Listing targets in compartment: $comp_ocid"
-
-    oci_exec_ro data-safe target-database list \
-        --compartment-id "$comp_ocid" \
-        --compartment-id-in-subtree true \
-        --all
+    ds_list_targets "$compartment" "$LIFECYCLE_STATE"
 }
 
 # ------------------------------------------------------------------------------
@@ -408,31 +426,52 @@ do_work() {
         local -a target_list
         IFS=',' read -ra target_list <<< "$TARGETS"
 
+        local total_targets=${#target_list[@]}
+        local current_target=0
+
         for target in "${target_list[@]}"; do
             target="${target// /}" # trim spaces
+            [[ -z "$target" ]] && continue
+
+            current_target=$((current_target + 1))
+            log_info "[$current_target/$total_targets] Processing target: $target"
+
+            local target_ocid target_data target_name target_comp
 
             if is_ocid "$target"; then
-                # Get target details
-                local target_data
-                if target_data=$(oci_exec data-safe target-database get \
-                    --target-database-id "$target" \
-                    --query 'data' 2> /dev/null); then
-
-                    local target_name target_comp
-                    target_name=$(echo "$target_data" | jq -r '."display-name"')
-                    target_comp=$(echo "$target_data" | jq -r '."compartment-id"')
-
-                    if update_target_tags "$target" "$target_name" "$target_comp"; then
-                        success_count=$((success_count + 1))
-                    else
-                        error_count=$((error_count + 1))
-                    fi
+                target_ocid="$target"
+            else
+                # Resolve target name to OCID using specified compartment or DS_ROOT_COMP
+                local search_compartment
+                if [[ -n "${COMPARTMENT_OCID:-}" ]]; then
+                    search_compartment="$COMPARTMENT_OCID"
+                elif [[ -n "$COMPARTMENT" ]]; then
+                    search_compartment=$(oci_resolve_compartment_ocid "$COMPARTMENT") || die "Failed to resolve compartment: $COMPARTMENT"
                 else
-                    log_error "Failed to get details for target: $target"
+                    search_compartment=$(get_root_compartment_ocid) || die "Failed to get root compartment"
+                fi
+
+                target_ocid=$(ds_resolve_target_ocid "$target" "$search_compartment") || {
+                    log_error "Failed to resolve target: $target (compartment: $search_compartment)"
+                    error_count=$((error_count + 1))
+                    continue
+                }
+            fi
+
+            if target_data=$(oci_exec_ro data-safe target-database get \
+                --target-database-id "$target_ocid" \
+                --query 'data'); then
+
+                target_name=$(echo "$target_data" | jq -r '."display-name"')
+                target_comp=$(echo "$target_data" | jq -r '."compartment-id"')
+
+                if update_target_tags "$target_ocid" "$target_name" "$target_comp"; then
+                    success_count=$((success_count + 1))
+                else
                     error_count=$((error_count + 1))
                 fi
             else
-                log_error "Target name resolution not implemented yet: $target"
+                log_error "Failed to get details for target: $target_ocid"
                 error_count=$((error_count + 1))
             fi
         done
@@ -493,6 +532,10 @@ main() {
 }
 
 # Parse arguments and run
+if [[ $# -eq 0 ]]; then
+    usage
+fi
+
 parse_args "$@"
 main
 

@@ -2,381 +2,407 @@
 # ------------------------------------------------------------------------------
 # OraDBA - Oracle Database Infrastructure and Security, 5630 Muri, Switzerland
 # ------------------------------------------------------------------------------
-# Name.......: ds_target_audit_trail.sh
+# Script.....: ds_target_audit_trail.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Editor.....: Stefan Oehrli
-# Date.......: 2026.01.09
+# Date.......: 2026.01.22
 # Version....: v0.5.4
-# Purpose....: Start Oracle Data Safe audit trails for one or many targets
-#              for given target names/OCIDs or all targets in a compartment.
-# Requires...: bash (>=4), oci, jq, lib/ds_lib.sh
-# Notes......: Config precedence → CLI > etc/ds_target_audit_trail.conf
-#              > DEFAULT_CONF > .env > code
+# Purpose....: Start Oracle Data Safe audit trails for target databases.
+#              Supports single/multiple targets by name/OCID, or compartment scan.
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
-# Modified...:
-# 2026.01.09 oehrli - migrate to v0.2.0 framework pattern
-# ------------------------------------------------------------------------------
 
-# --- Code defaults (lowest precedence; overridden by .env/CONF/CLI) ----------
-: "${OCI_CLI_CONFIG_FILE:=${HOME}/.oci/config}"
-: "${OCI_CLI_PROFILE:=DEFAULT}"
+set -euo pipefail
 
-: "${COMPARTMENT:=}"         # name or OCID
-: "${TARGETS:=}"             # CSV names/OCIDs (overrides compartment mode)
-: "${STATE_FILTERS:=ACTIVE}" # CSV lifecycle states when scanning compartment
-: "${TRAIL_LOCATION:=}"      # specific trail location (optional)
+# Script metadata
+SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
+readonly SCRIPT_NAME
 
-# Audit trail configuration
-: "${AUDIT_TYPE:=UNIFIED_AUDIT}"   # UNIFIED_AUDIT | DATABASE_VAULT | OS_AUDIT
-: "${START_TIME:=}"                # RFC3339 timestamp or 'now' (default: now)
-: "${AUTO_PURGE:=true}"            # enable auto-purge
-: "${RETENTION_DAYS:=90}"          # retention period in days
-: "${UPDATE_LAST_ARCHIVE:=true}"   # update last archive time
-: "${COLLECTION_FREQUENCY:=DAILY}" # DAILY | WEEKLY | MONTHLY
+# Load library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
+readonly LIB_DIR="${SCRIPT_DIR}/../lib"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.4')"
+readonly SCRIPT_VERSION
 
+# Defaults
+: "${COMPARTMENT:=}"
+: "${TARGETS:=}"
+: "${LIFECYCLE:=ACTIVE}"
+: "${AUDIT_TYPE:=UNIFIED_AUDIT}"
+: "${START_TIME:=now}"
+: "${AUTO_PURGE:=true}"
+: "${RETENTION_DAYS:=90}"
+: "${UPDATE_LAST_ARCHIVE:=true}"
+: "${COLLECTION_FREQUENCY:=DAILY}"
+
+# Runtime globals
 RESOLVED_TARGETS=()
 started_count=0
 failed_count=0
 
-# --- Minimal bootstrap: ensure SCRIPT_BASE and libraries ----------------------
-if [[ -z "${SCRIPT_BASE:-}" || -z "${SCRIPT_LIB_DIR:-}" ]]; then
-    _SRC="${BASH_SOURCE[0]}"
-    SCRIPT_BASE="$(cd "$(dirname "${_SRC}")/.." > /dev/null 2>&1 && pwd)"
-    SCRIPT_LIB_DIR="${SCRIPT_BASE}/lib"
-    unset _SRC
-fi
-
-# Load the odb_datasafe v0.2.0 framework
-if [[ -r "${SCRIPT_LIB_DIR}/ds_lib.sh" ]]; then
-    # shellcheck disable=SC1090
-    source "${SCRIPT_LIB_DIR}/ds_lib.sh" || {
-        echo "ERROR: ds_lib.sh failed to load." >&2
-        exit 1
-    }
-else
-    echo "ERROR: ds_lib.sh not found (tried: ${SCRIPT_LIB_DIR}/ds_lib.sh)" >&2
+# shellcheck disable=SC1091
+source "${LIB_DIR}/ds_lib.sh" || {
+    echo "ERROR: Failed to load ds_lib.sh" >&2
     exit 1
-fi
+}
+
+# Initialize configuration
+init_config
+
+# =============================================================================
+# FUNCTIONS
+# =============================================================================
 
 # ------------------------------------------------------------------------------
-# Function....: Usage
-# Purpose.....: Display command-line usage instructions and exit
+# Function: usage
+# Purpose.: Display script usage information
+# Returns.: 0 (exits script)
+# Output..: Usage text to stdout
 # ------------------------------------------------------------------------------
-Usage() {
-    local exit_code="${1:-0}"
-
+usage() {
     cat << EOF
+Usage: ${SCRIPT_NAME} [OPTIONS]
 
-Usage:
-  ds_target_audit_trail.sh (-T <CSV> | -c <OCID|NAME>) [options]
+Description:
+  Start Data Safe audit trails for target database(s). Supports single/multiple
+  targets by name/OCID, or scan entire compartment by lifecycle state.
 
-Start Data Safe audit trails for target databases. Either provide explicit 
-targets (-T) or scan a compartment (-c). If both are provided, -T takes precedence.
+Options:
+  Common:
+    -h, --help              Show this help message
+    -V, --version           Show version
+    -v, --verbose           Enable verbose output
+    -d, --debug             Enable debug output
+    --log-file FILE         Log to file
 
-Target selection (choose one):
-  -T, --targets <LIST>            Comma-separated target names or OCIDs
-  (or) use lifecycle-state filtering:
-  -s, --state <LIST>              Comma-separated states (default: ${STATE_FILTERS})
+  OCI:
+    --oci-profile PROFILE   OCI CLI profile (default: ${OCI_CLI_PROFILE:-DEFAULT})
+    --oci-region REGION     OCI region
+    --oci-config FILE       OCI config file
 
-Scope:
-  -c, --compartment <OCID|NAME>   Compartment OCID or name (env: COMPARTMENT/COMP_OCID)
-      --trail-location <LOC>      Specific trail location name/OCID (optional)
+  Target Selection (choose one):
+    -T, --targets LIST      Comma-separated target names/OCIDs
+    -c, --compartment COMP  Compartment OCID or name (scan all targets)
 
-Audit trail configuration:
-      --audit-type <TYPE>         Audit type: UNIFIED_AUDIT|DATABASE_VAULT|OS_AUDIT
-                                  (default: ${AUDIT_TYPE})
-      --start-time <TIME>         Start time (RFC3339 or 'now'; default: now)
-      --auto-purge true|false     Enable auto-purge (default: ${AUTO_PURGE})
-      --retention-days <DAYS>     Retention period in days (default: ${RETENTION_DAYS})
-      --update-last-archive true|false Update last archive time (default: ${UPDATE_LAST_ARCHIVE})
-      --collection-frequency <FREQ> Collection frequency: DAILY|WEEKLY|MONTHLY 
-                                  (default: ${COLLECTION_FREQUENCY})
+  Filtering:
+    -L, --lifecycle STATES  Lifecycle state filter (default: ACTIVE)
+                            Use comma-separated values: ACTIVE,NEEDS_ATTENTION
 
-OCI CLI:
-      --oci-config <file>         OCI CLI config file (default: ${OCI_CLI_CONFIG_FILE})
-      --oci-profile <name>        OCI CLI profile     (default: ${OCI_CLI_PROFILE})
+  Audit Configuration:
+    --audit-type TYPE       UNIFIED_AUDIT|DATABASE_VAULT|OS_AUDIT (default: UNIFIED_AUDIT)
+    --start-time TIME       Start time (RFC3339 or 'now', default: now)
+    --auto-purge true|false Enable auto-purge (default: true)
+    --retention-days N      Retention days (default: 90)
+    --update-archive true|false Update last archive time (default: true)
+    --collection-freq FREQ  DAILY|WEEKLY|MONTHLY (default: DAILY)
 
-Logging / generic:
-  -n, --dry-run                   Show what would be started without making changes
-  -l, --log-file <file>           Write logs to <file>
-  -v, --verbose                   Set log level to INFO
-  -d, --debug                     Set log level to DEBUG
-  -q, --quiet                     Suppress INFO/DEBUG/TRACE stdout
-  -h, --help                      Show this help and exit
+  Execution:
+    -n, --dry-run           Show plan without starting trails
 
 Examples:
-  ds_target_audit_trail.sh -T exa118r05c15_cdb09a15_HRPDB --dry-run
-  ds_target_audit_trail.sh -c my-compartment --audit-type UNIFIED_AUDIT
-  ds_target_audit_trail.sh -T test-target-1 --retention-days 180 --collection-frequency WEEKLY
+  # Start audit trail for specific target
+  ${SCRIPT_NAME} -T my-target --audit-type UNIFIED_AUDIT
+
+  # Start trails for all ACTIVE targets in compartment
+  ${SCRIPT_NAME} -c my-compartment -L ACTIVE
+
+  # Multiple targets (dry-run)
+  ${SCRIPT_NAME} -T target1,target2 --dry-run
 
 EOF
-    die "${exit_code}" ""
+    exit 0
 }
 
 # ------------------------------------------------------------------------------
-# Function....: parse_args
-# Purpose.....: Parse script-specific arguments from REM_ARGS
+# Function: parse_args
+# Purpose.: Parse command-line arguments
+# Args....: $@ - All command-line arguments
+# Returns.: 0 on success, exits on error
+# Output..: Sets global variables based on arguments
 # ------------------------------------------------------------------------------
 parse_args() {
-    local -a args=("${REM_ARGS[@]}")
-    POSITIONAL=()
+    parse_common_opts "$@"
 
-    for ((i = 0; i < ${#args[@]}; i++)); do
-        case "${args[i]}" in
-            -T | --targets) TARGETS="${args[++i]:-}" ;;
-            -s | --state) STATE_FILTERS="${args[++i]:-}" ;;
-            -c | --compartment) COMPARTMENT="${args[++i]:-}" ;;
-            --trail-location) TRAIL_LOCATION="${args[++i]:-}" ;;
-            --audit-type) AUDIT_TYPE="${args[++i]:-}" ;;
-            --start-time) START_TIME="${args[++i]:-}" ;;
-            --auto-purge) AUTO_PURGE="${args[++i]:-}" ;;
-            --retention-days) RETENTION_DAYS="${args[++i]:-}" ;;
-            --update-last-archive) UPDATE_LAST_ARCHIVE="${args[++i]:-}" ;;
-            --collection-frequency) COLLECTION_FREQUENCY="${args[++i]:-}" ;;
-            --oci-config) OCI_CLI_CONFIG_FILE="${args[++i]:-}" ;;
-            --oci-profile) OCI_CLI_PROFILE="${args[++i]:-}" ;;
-            -h | --help) Usage 0 ;;
-            --)
-                ((i++))
-                while ((i < ${#args[@]})); do POSITIONAL+=("${args[i++]}"); done
+    local -a remaining=()
+    set -- "${ARGS[@]}"
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -T | --targets)
+                need_val "$1" "${2:-}"
+                TARGETS="$2"
+                shift 2
+                ;;
+            -c | --compartment)
+                need_val "$1" "${2:-}"
+                COMPARTMENT="$2"
+                shift 2
+                ;;
+            -L | --lifecycle)
+                need_val "$1" "${2:-}"
+                LIFECYCLE="$2"
+                shift 2
+                ;;
+            --audit-type)
+                need_val "$1" "${2:-}"
+                AUDIT_TYPE="$2"
+                shift 2
+                ;;
+            --start-time)
+                need_val "$1" "${2:-}"
+                START_TIME="$2"
+                shift 2
+                ;;
+            --auto-purge)
+                need_val "$1" "${2:-}"
+                AUTO_PURGE="$2"
+                shift 2
+                ;;
+            --retention-days)
+                need_val "$1" "${2:-}"
+                RETENTION_DAYS="$2"
+                shift 2
+                ;;
+            --update-archive)
+                need_val "$1" "${2:-}"
+                UPDATE_LAST_ARCHIVE="$2"
+                shift 2
+                ;;
+            --collection-freq)
+                need_val "$1" "${2:-}"
+                COLLECTION_FREQUENCY="$2"
+                shift 2
+                ;;
+            --oci-profile)
+                need_val "$1" "${2:-}"
+                export OCI_CLI_PROFILE="$2"
+                shift 2
+                ;;
+            --oci-region)
+                need_val "$1" "${2:-}"
+                export OCI_CLI_REGION="$2"
+                shift 2
+                ;;
+            --oci-config)
+                need_val "$1" "${2:-}"
+                export OCI_CLI_CONFIG_FILE="$2"
+                shift 2
                 ;;
             -*)
-                log_error "Unknown option: ${args[i]}"
-                Usage 2
+                die "Unknown option: $1 (use --help for usage)"
                 ;;
-            *) POSITIONAL+=("${args[i]}") ;;
+            *)
+                remaining+=("$1")
+                shift
+                ;;
         esac
     done
+
+    # Handle positional arguments as additional targets
+    if [[ ${#remaining[@]} -gt 0 ]]; then
+        if [[ -z "$TARGETS" ]]; then
+            TARGETS="${remaining[*]}"
+        else
+            TARGETS="${TARGETS},${remaining[*]}"
+        fi
+    fi
 }
 
 # ------------------------------------------------------------------------------
-# Function....: preflight_checks
-# Purpose.....: Validate inputs and resolve targets
+# Function: validate_inputs
+# Purpose.: Validate command-line arguments and required conditions
+# Returns.: 0 on success, exits on error via die()
+# Output..: Log messages for validation steps
 # ------------------------------------------------------------------------------
-preflight_checks() {
-    # Build target list from -T and positionals
-    ds_build_target_list TARGET_LIST "${TARGETS:-}" POSITIONAL
+validate_inputs() {
+    log_debug "Validating inputs..."
 
-    # Validate/augment from compartment + filters
-    ds_validate_and_fill_targets \
-        TARGET_LIST "${COMPARTMENT:-}" "${STATE_FILTERS:-}" "" \
-        COMP_OCID COMP_NAME
+    require_cmd oci jq
 
-    # Resolve names → OCIDs
-    ds_resolve_targets_to_ocids TARGET_LIST RESOLVED_TARGETS \
-        || die 1 "Failed to resolve targets to OCIDs."
+    # Must have either targets or compartment
+    if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
+        die "Must specify either -T/--targets or -c/--compartment"
+    fi
 
-    log_info "Targets selected for audit trail start: ${#RESOLVED_TARGETS[@]}"
-
-    if [[ ${#RESOLVED_TARGETS[@]} -eq 0 ]]; then
-        die 1 "No targets found to start audit trails."
+    # Resolve compartment if specified
+    if [[ -n "$COMPARTMENT" ]]; then
+        local comp_ocid
+        comp_ocid=$(oci_resolve_compartment_ocid "$COMPARTMENT") || die "Failed to resolve compartment: $COMPARTMENT"
+        COMPARTMENT="$comp_ocid"
+        log_debug "Resolved compartment: $COMPARTMENT"
+    else
+        # Use DS_ROOT_COMP if available for target resolution
+        if [[ -z "${DS_ROOT_COMP:-}" ]]; then
+            DS_ROOT_COMP=$(get_root_compartment_ocid) || log_debug "DS_ROOT_COMP not available"
+        fi
     fi
 
     # Validate audit type
     case "${AUDIT_TYPE^^}" in
-        UNIFIED_AUDIT | DATABASE_VAULT | OS_AUDIT)
-            AUDIT_TYPE="${AUDIT_TYPE^^}"
-            ;;
-        *)
-            die 2 "Invalid audit type '${AUDIT_TYPE}'. Use UNIFIED_AUDIT|DATABASE_VAULT|OS_AUDIT."
-            ;;
+        UNIFIED_AUDIT | DATABASE_VAULT | OS_AUDIT) AUDIT_TYPE="${AUDIT_TYPE^^}" ;;
+        *) die "Invalid audit type: $AUDIT_TYPE. Use: UNIFIED_AUDIT, DATABASE_VAULT, OS_AUDIT" ;;
     esac
 
     # Validate collection frequency
     case "${COLLECTION_FREQUENCY^^}" in
-        DAILY | WEEKLY | MONTHLY)
-            COLLECTION_FREQUENCY="${COLLECTION_FREQUENCY^^}"
-            ;;
-        *)
-            die 2 "Invalid collection frequency '${COLLECTION_FREQUENCY}'. Use DAILY|WEEKLY|MONTHLY."
-            ;;
+        DAILY | WEEKLY | MONTHLY) COLLECTION_FREQUENCY="${COLLECTION_FREQUENCY^^}" ;;
+        *) die "Invalid collection frequency: $COLLECTION_FREQUENCY. Use: DAILY, WEEKLY, MONTHLY" ;;
     esac
 
     # Validate boolean flags
-    case "${AUTO_PURGE,,}" in
-        true | false) : ;;
-        *) die 2 "Invalid auto-purge value '${AUTO_PURGE}'. Use true|false." ;;
-    esac
-
-    case "${UPDATE_LAST_ARCHIVE,,}" in
-        true | false) : ;;
-        *) die 2 "Invalid update-last-archive value '${UPDATE_LAST_ARCHIVE}'. Use true|false." ;;
-    esac
-
-    # Validate retention days
-    if ! [[ "${RETENTION_DAYS}" =~ ^[0-9]+$ ]] || [[ ${RETENTION_DAYS} -lt 1 ]]; then
-        die 2 "Invalid retention days '${RETENTION_DAYS}'. Must be a positive integer."
-    fi
-
-    # Set default start time if not provided
-    [[ -z "${START_TIME}" ]] && START_TIME="now"
+    for flag in AUTO_PURGE UPDATE_LAST_ARCHIVE; do
+        local val_var="${!flag}"
+        case "${val_var,,}" in
+            true | false) : ;;
+            *) die "Invalid $flag value: $val_var. Use: true or false" ;;
+        esac
+    done
 
     log_info "Audit trail configuration:"
-    log_info "  Type: ${AUDIT_TYPE}"
-    log_info "  Start time: ${START_TIME}"
-    log_info "  Auto-purge: ${AUTO_PURGE}"
-    log_info "  Retention: ${RETENTION_DAYS} days"
-    log_info "  Collection frequency: ${COLLECTION_FREQUENCY}"
+    log_info "  Type: $AUDIT_TYPE"
+    log_info "  Start time: $START_TIME"
+    log_info "  Auto-purge: $AUTO_PURGE"
+    log_info "  Retention: $RETENTION_DAYS days"
+    log_info "  Collection frequency: $COLLECTION_FREQUENCY"
 }
 
-# --- Steps --------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+# Function: resolve_targets
+# Purpose.: Resolve target names/OCIDs to list of target OCIDs
+# Returns.: 0 on success, 1 on error
+# Output..: Populates RESOLVED_TARGETS array
+# ------------------------------------------------------------------------------
+resolve_targets() {
+    log_debug "Resolving targets..."
 
-# Step 1: Start audit trails for each target
-step_start_audit_trails() {
-    log_info "Starting audit trails for targets..."
+    if [[ -n "$TARGETS" ]]; then
+        # Explicit targets provided: resolve by name or use as OCID
+        local -a target_array
+        IFS=',' read -ra target_array <<< "$TARGETS"
 
-    for target_ocid in "${RESOLVED_TARGETS[@]}"; do
-        local target_name
-        target_name="$(ds_resolve_target_name "${target_ocid}" 2> /dev/null || echo "${target_ocid}")"
+        for target in "${target_array[@]}"; do
+            target=$(echo "$target" | xargs)  # trim whitespace
+            [[ -z "$target" ]] && continue
 
-        if [[ "${DRY_RUN}" == "true" ]]; then
-            log_info "  [DRY-RUN] Would start ${AUDIT_TYPE} audit trail for: ${target_name}"
-            ((started_count++))
-            continue
-        fi
-
-        log_info "Starting ${AUDIT_TYPE} audit trail for: ${target_name}"
-
-        if start_audit_trail_for_target "${target_ocid}" "${target_name}"; then
-            log_info "  ✓ Successfully started audit trail for: ${target_name}"
-            ((started_count++))
-        else
-            log_error "  ✗ Failed to start audit trail for: ${target_name}"
-            ((failed_count++))
-        fi
-    done
-}
-
-# --- Audit trail management helpers ------------------------------------------
-
-start_audit_trail_for_target() {
-    local target_ocid="$1"
-    local target_name="$2"
-
-    # Check if audit trail already exists and is active
-    if check_existing_audit_trail "${target_ocid}"; then
-        log_info "    Audit trail already active for ${target_name}"
-        return 0
-    fi
-
-    # Prepare start time
-    local start_time_formatted
-    if [[ "${START_TIME}" == "now" ]]; then
-        start_time_formatted="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            log_debug "  Resolving: $target"
+            local target_ocid
+            target_ocid=$(ds_resolve_target_ocid "$target" "${COMPARTMENT:-}") || {
+                log_warn "Failed to resolve target: $target"
+                ((failed_count++))
+                continue
+            }
+            RESOLVED_TARGETS+=("$target_ocid")
+        done
     else
-        start_time_formatted="${START_TIME}"
+        # Compartment mode: list targets with lifecycle filter
+        log_debug "  Scanning compartment: $COMPARTMENT with lifecycle: $LIFECYCLE"
+        local target_data
+        target_data=$(ds_list_targets "$COMPARTMENT" "$LIFECYCLE") || {
+            log_error "Failed to list targets in compartment"
+            return 1
+        }
+
+        # Extract target IDs from JSON array
+        while IFS= read -r target_ocid; do
+            [[ -z "$target_ocid" ]] && continue
+            RESOLVED_TARGETS+=("$target_ocid")
+        done < <(echo "$target_data" | jq -r '.[] | .id // empty')
     fi
 
-    # Build audit trail start command
-    local cmd_args=(
-        "oci" "data-safe" "audit-trail" "start"
-        "--target-database-id" "${target_ocid}"
-        "--audit-collection-start-time" "${start_time_formatted}"
-        "--config-file" "${OCI_CLI_CONFIG_FILE}"
-        "--profile" "${OCI_CLI_PROFILE}"
-        "--wait-for-state" "ACCEPTED"
-    )
-
-    # Add optional parameters
-    [[ -n "${TRAIL_LOCATION}" ]] && cmd_args+=("--trail-location" "${TRAIL_LOCATION}")
-
-    # Add audit trail configuration parameters
-    if [[ "${AUTO_PURGE,,}" == "true" ]]; then
-        cmd_args+=("--auto-purge-enabled")
-    fi
-
-    # Note: Some parameters might need to be set via separate update calls
-    # depending on OCI CLI version and availability
-
-    log_debug "    Executing: ${cmd_args[*]}"
-
-    # Execute the start command
-    if "${cmd_args[@]}" > /dev/null 2>&1; then
-        # Try to configure additional parameters if they're supported
-        configure_audit_trail_parameters "${target_ocid}"
-        return 0
-    else
-        return 1
-    fi
-}
-
-check_existing_audit_trail() {
-    local target_ocid="$1"
-
-    # List existing audit trails for this target
-    local trails_json
-    trails_json="$(oci data-safe audit-trail list \
-        --target-database-id "${target_ocid}" \
-        --config-file "${OCI_CLI_CONFIG_FILE}" \
-        --profile "${OCI_CLI_PROFILE}" \
-        --all 2> /dev/null)" || return 1
-
-    # Check if any trail is already in ACTIVE or STARTING state
-    local active_trails
-    active_trails="$(echo "${trails_json}" | jq -r '
-    .data[]? | 
-    select(.["lifecycle-state"] == "ACTIVE" or .["lifecycle-state"] == "STARTING") | 
-    .id')"
-
-    [[ -n "${active_trails}" ]]
-}
-
-configure_audit_trail_parameters() {
-    local target_ocid="$1"
-
-    # This function would configure additional parameters like retention,
-    # collection frequency, etc. The exact implementation depends on the
-    # OCI CLI capabilities and API endpoints available.
-
-    log_debug "    Configuring additional audit trail parameters for ${target_ocid}"
-
-    # Example configuration (adapt based on actual OCI CLI capabilities):
-    # - Set retention policy
-    # - Configure collection frequency
-    # - Update other audit trail settings
-
-    # For now, log the intended configuration
-    log_debug "    - Retention days: ${RETENTION_DAYS}"
-    log_debug "    - Collection frequency: ${COLLECTION_FREQUENCY}"
-    log_debug "    - Update last archive: ${UPDATE_LAST_ARCHIVE}"
-
+    log_info "Found ${#RESOLVED_TARGETS[@]} target(s) for audit trail start"
     return 0
 }
 
 # ------------------------------------------------------------------------------
-# Function....: run_audit_trail_start
-# Purpose.....: Orchestrate the audit trail start process
+# Function: start_audit_trails
+# Purpose.: Start audit trails for resolved targets
+# Returns.: 0 on partial/full success, 1 on all failures
+# Output..: Log messages and error counters
 # ------------------------------------------------------------------------------
-run_audit_trail_start() {
-    step_start_audit_trails
+start_audit_trails() {
+    log_info "Starting audit trails for targets..."
 
-    # Summary
-    log_info "Audit trail start summary:"
-    log_info "  Targets processed: ${#RESOLVED_TARGETS[@]}"
-    log_info "  Successfully started: ${started_count}"
-    log_info "  Failed starts: ${failed_count}"
+    started_count=0
+    failed_count=0
 
-    if [[ "${DRY_RUN}" == "true" ]]; then
-        log_info "  [DRY-RUN] No actual changes were made"
-    fi
+    for target_ocid in "${RESOLVED_TARGETS[@]}"; do
+        log_debug "  Processing: $target_ocid"
 
-    local exit_code=0
-    [[ ${failed_count} -gt 0 ]] && exit_code=1
+        # Fetch target details for logging
+        local target_name
+        target_name=$(oci_exec_ro data-safe target-database get \
+            --target-database-id "$target_ocid" \
+            --query 'data."display-name"' \
+            --raw-output 2>/dev/null || echo "$target_ocid")
 
-    die "${exit_code}" "Audit trail start completed"
+        if [[ "${DRY_RUN}" == "true" ]]; then
+            log_info "[DRY-RUN] Start audit trail for: $target_name (${target_ocid})"
+            ((started_count++))
+            continue
+        fi
+
+        # Start audit trail via OCI
+        if oci_exec data-safe audit-trail start \
+            --target-database-id "$target_ocid" \
+            --is-auto-queries-enabled "$AUTO_PURGE" \
+            --update-last-archive-timestamp "$UPDATE_LAST_ARCHIVE" \
+            --audit-collection-start-time "$START_TIME" \
+            --audit-trail-type "$AUDIT_TYPE" \
+            --collection-frequency "$COLLECTION_FREQUENCY" > /dev/null 2>&1; then
+            log_info "Started audit trail for: $target_name"
+            ((started_count++))
+        else
+            log_error "Failed to start audit trail for: $target_name"
+            ((failed_count++))
+        fi
+    done
+
+    return 0
 }
 
-# ------------------------------------------------------------------------------
-# Function....: main
-# Purpose.....: Entry point
-# ------------------------------------------------------------------------------
+# =============================================================================
+# MAIN
+# =============================================================================
+
 main() {
-    init_script_env "$@" # standardized init per odb_datasafe framework
-    parse_args
-    preflight_checks
-    run_audit_trail_start
+    log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
+
+    # Setup error handling
+    setup_error_handling
+
+    # Parse arguments and validate
+    parse_args "$@"
+    validate_inputs
+
+    # Resolve and start audit trails
+    if resolve_targets && [[ ${#RESOLVED_TARGETS[@]} -gt 0 ]]; then
+        start_audit_trails
+
+        # Summary
+        log_info "Audit trail start summary:"
+        log_info "  Targets processed: ${#RESOLVED_TARGETS[@]}"
+        log_info "  Successfully started: ${started_count}"
+        log_info "  Failed starts: ${failed_count}"
+
+        if [[ "${DRY_RUN}" == "true" ]]; then
+            log_info "  [DRY-RUN] No actual changes were made"
+        fi
+
+        if [[ ${failed_count} -eq 0 ]]; then
+            log_info "All audit trails started successfully"
+            exit 0
+        else
+            die 1 "${failed_count} audit trail(s) failed to start"
+        fi
+    else
+        die 1 "No targets available for audit trail start"
+    fi
 }
 
-# --- Entry point --------------------------------------------------------------
-main "$@"
+# Parse arguments and run
+if [[ $# -eq 0 ]]; then
+    usage
+fi
+
+parse_args "$@"
+main
