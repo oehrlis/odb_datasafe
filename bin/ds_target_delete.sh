@@ -63,10 +63,13 @@ source "${LIB_DIR}/ds_lib.sh" || {
 init_config
 
 # ------------------------------------------------------------------------------
-# Function....: Usage
-# Purpose.....: Display command-line usage instructions and exit
+# Function: usage
+# Purpose.: Display command-line usage instructions and exit
+# Args....: $1 - Exit code (optional, default: 0)
+# Returns.: Exits with specified code
+# Output..: Usage information to stdout
 # ------------------------------------------------------------------------------
-Usage() {
+usage() {
     local exit_code="${1:-0}"
 
     cat << EOF
@@ -110,9 +113,16 @@ Examples:
   ${SCRIPT_NAME} -T ocid1.datasafetargetdatabase... --no-delete-dependencies
 
 EOF
-    die "${exit_code}" ""
+    exit "${exit_code}"
 }
 
+# ------------------------------------------------------------------------------
+# Function: parse_args
+# Purpose.: Parse command-line arguments
+# Args....: $@ - All command-line arguments  
+# Returns.: 0 on success, exits on invalid arguments
+# Notes...: Sets global variables for script configuration
+# ------------------------------------------------------------------------------
 parse_args() {
     local remaining=()
 
@@ -158,7 +168,7 @@ parse_args() {
                 shift 2
                 ;;
             -h | --help)
-                Usage 0
+                usage 0
                 ;;
             *)
                 remaining+=("$1")
@@ -178,30 +188,61 @@ parse_args() {
     fi
 }
 
+# ------------------------------------------------------------------------------
+# Function: validate_inputs
+# Purpose.: Validate required inputs and dependencies
+# Returns.: 0 on success, exits on validation failure
+# Notes...: Checks for required commands, resolves compartment, builds target list
+# ------------------------------------------------------------------------------
 validate_inputs() {
     log_debug "Validating inputs..."
 
     require_cmd oci jq
 
-    # If neither targets nor compartment specified, use DS_ROOT_COMP as default
+    # At least one scope must be specified
     if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
-        local root_comp
-        root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
-        COMPARTMENT="$root_comp"
-        log_info "No compartment specified, using DS_ROOT_COMP: $COMPARTMENT"
+        die "Either -T/--targets or -c/--compartment must be specified. Use -h for help."
     fi
 
-    # Resolve compartment if specified
+    # Resolve compartment if specified or use root compartment for target lookup
     if [[ -n "$COMPARTMENT" ]]; then
         COMP_OCID=$(oci_resolve_compartment_ocid "$COMPARTMENT") || die "Failed to resolve compartment: $COMPARTMENT"
         log_info "Using compartment: $COMPARTMENT ($COMP_OCID)"
+    elif [[ -z "$TARGETS" ]]; then
+        # No targets specified, use DS_ROOT_COMP for compartment scanning
+        COMP_OCID=$(get_root_compartment_ocid) || die "Failed to get root compartment. Set DS_ROOT_COMP or use -c."
+        log_info "Using root compartment from config: $COMP_OCID"
     fi
 
     # Build target list
     if [[ -n "$TARGETS" ]]; then
-        IFS=',' read -ra RESOLVED_TARGETS <<< "$TARGETS"
+        # Resolve target names/OCIDs to OCIDs
+        local -a target_inputs
+        IFS=',' read -ra target_inputs <<< "$TARGETS"
+        log_debug "Explicit targets specified: ${#target_inputs[@]}"
+        
+        # Get search compartment (for name resolution)
+        local search_comp_ocid
+        if [[ -n "$COMP_OCID" ]]; then
+            search_comp_ocid="$COMP_OCID"
+        else
+            search_comp_ocid=$(get_root_compartment_ocid) || die "Failed to get search compartment"
+        fi
+        
+        # Resolve each target
+        for target in "${target_inputs[@]}"; do
+            [[ -z "$target" ]] && continue
+            local resolved
+            if resolved=$(ds_resolve_target_ocid "$target" "$search_comp_ocid" 2>&1); then
+                RESOLVED_TARGETS+=("$resolved")
+                log_debug "Resolved target: $target -> $resolved"
+            else
+                die "Failed to resolve target: $target"
+            fi
+        done
     elif [[ -n "$COMP_OCID" ]]; then
-        # Get targets from compartment
+        # Get targets from compartment by lifecycle state
+        log_debug "Scanning compartment for targets with state: $STATE_FILTERS"
         local targets_json
         targets_json=$(oci data-safe target-database list --compartment-id "$COMP_OCID" --compartment-id-in-subtree true --all --lifecycle-state "$STATE_FILTERS" 2> /dev/null) || die "Failed to list targets in compartment"
 
@@ -221,7 +262,8 @@ validate_inputs() {
         echo -n "Continue? [y/N]: "
         read -r confirm
         if [[ ! "${confirm}" =~ ^[Yy]$ ]]; then
-            die 0 "Deletion cancelled by user."
+            log_info "Deletion cancelled by user."
+            exit 0
         fi
     fi
 }
@@ -277,7 +319,7 @@ step_delete_targets() {
 
         if [[ "${DRY_RUN}" == "true" ]]; then
             log_info "  [DRY-RUN] Would delete target: ${target_name}"
-            ((deleted_count++))
+            ((deleted_count++)) || true
             continue
         fi
 
@@ -291,13 +333,15 @@ step_delete_targets() {
             --wait-for-state SUCCEEDED \
             > /dev/null 2>&1; then
             log_info "  ✓ Successfully deleted: ${target_name}"
-            ((deleted_count++))
+            ((deleted_count++)) || true
         else
             log_error "  ✗ Failed to delete: ${target_name}"
-            ((failed_count++))
+            ((failed_count++)) || true
             [[ "${CONTINUE_ON_ERROR}" != "true" ]] && die 1 "Stopping on error"
         fi
     done
+
+    return 0
 }
 
 # --- Dependency deletion helpers ----------------------------------------------
@@ -440,15 +484,21 @@ run_deletion() {
     local exit_code=0
     [[ ${failed_count} -gt 0 ]] && exit_code=1
 
-    die "${exit_code}" "Target deletion completed"
+    log_info "Target deletion completed"
+    exit "${exit_code}"
 }
 
-# =============================================================================
+# =========================================================================================================================================================
 # MAIN
 # =============================================================================
 
 main() {
-    # Initialize framework and parse arguments\n    init_config\n    parse_common_opts \"$@\"\n    parse_args \"$@\"\n    \n    log_info \"Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}\"
+    # Initialize framework and parse arguments
+    init_config
+    parse_common_opts "$@"
+    parse_args "${ARGS[@]}"
+    
+    log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
 
     # Setup error handling
     setup_error_handling
@@ -463,4 +513,18 @@ main() {
 }
 
 # Run the script
+# Handle --help before any processing
+for arg in "$@"; do
+    if [[ "$arg" == "--help" || "$arg" == "-h" ]]; then
+        usage 0
+    fi
+done
+
+# Show usage if no arguments provided
+if [[ $# -eq 0 ]]; then
+    usage 0
+fi
+
 main "$@"
+
+exit 0
