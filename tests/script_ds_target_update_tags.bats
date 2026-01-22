@@ -205,7 +205,7 @@ teardown() {
 @test "ds_target_update_tags.sh shows version information" {
     run "${BIN_DIR}/ds_target_update_tags.sh" --version  
     [ "$status" -eq 0 ]
-    [[ "$output" == *"0.2.0"* ]]
+    [[ "$output" == *"0.5.4"* ]]
 }
 
 # Test dry-run mode (default)

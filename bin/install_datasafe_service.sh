@@ -6,7 +6,7 @@
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
 # Date.......: 2026.01.11
-# Version....: v0.5.3
+# Version....: v0.5.4
 # Purpose....: Install and manage Oracle Data Safe On-Premises Connector as systemd service
 #              Generic solution for any connector with automatic discovery and configuration
 # Notes......: Works as regular user for config preparation. Root only for system installation.
@@ -90,10 +90,10 @@ print_message() {
     local message="$*"
 
     case "$level" in
-        ERROR) echo -e "${RED}❌ ERROR:${NC} $message" >&2 ;;
-        SUCCESS) echo -e "${GREEN}✅${NC} $message" ;;
-        WARNING) echo -e "${YELLOW}⚠️  WARNING:${NC} $message" ;;
-        INFO) echo -e "${BLUE}ℹ️${NC}  $message" ;;
+        ERROR) echo -e "${RED}[ERROR]:${NC} $message" >&2 ;;
+        SUCCESS) echo -e "${GREEN}[OK]${NC} $message" ;;
+        WARNING) echo -e "${YELLOW}[WARNING]:${NC} $message" ;;
+        INFO) echo -e "${BLUE}[INFO]${NC}  $message" ;;
         STEP) echo -e "${BOLD}▶${NC}  $message" ;;
         *) echo "$message" ;;
     esac

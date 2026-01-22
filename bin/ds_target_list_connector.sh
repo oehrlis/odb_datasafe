@@ -5,7 +5,7 @@
 # Script.....: ds_target_list_connector.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.01.22
-# Version....: v0.5.3
+# Version....: v0.5.4
 # Purpose....: List Oracle Data Safe on-premises connectors
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
@@ -22,7 +22,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_NAME
-readonly SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.3')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.4')"
+readonly SCRIPT_VERSION
 readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 
 # Defaults

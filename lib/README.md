@@ -50,7 +50,7 @@ lib/
 
 ```bash
 # Copy the template
-cp bin/TEMPLATE.sh bin/my_script.sh
+cp bin/template.sh bin/my_script.sh
 
 # Edit and implement your logic in do_work()
 vim bin/my_script.sh
@@ -470,7 +470,7 @@ done
 
 ### Step 1: New Script from Scratch
 
-1. Copy TEMPLATE.sh
+1. Copy template.sh
 2. Implement `do_work()`
 3. Test
 
@@ -539,7 +539,7 @@ log_debug "OCI_CLI_PROFILE=$OCI_CLI_PROFILE"
 
 ## Need Help?
 
-1. Check [TEMPLATE.sh](../bin/TEMPLATE.sh) for structure
+1. Check [template.sh](../bin/template.sh) for structure
 2. Check [ds_target_refresh.sh](../bin/ds_target_refresh.sh) for real example
 3. Read function comments in library files
 4. Use `--debug` mode to see what's happening

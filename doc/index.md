@@ -159,7 +159,7 @@ odb_datasafe/
 ├── Makefile                # Development tasks
 │
 ├── bin/                    # Executable scripts (19 scripts)
-│   ├── TEMPLATE.sh         # Template for new scripts
+│   ├── template.sh         # Template for new scripts
 │   ├── ds_target_*.sh      # Target management scripts
 │   ├── install_datasafe_service.sh
 │   └── uninstall_all_datasafe_services.sh

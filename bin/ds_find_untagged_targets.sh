@@ -2,7 +2,7 @@
 # ------------------------------------------------------------------------------
 # Script Name : ds_find_untagged_targets.sh
 # Description : Find Data Safe target databases without tags in specified namespace
-# Version....: v0.5.3
+# Version....: v0.5.4
 # Author      : Generated for odb_datasafe framework
 #
 # Purpose:
@@ -33,7 +33,7 @@ LIB_DIR="${SCRIPT_DIR}/../lib"
 
 # Script identification
 SCRIPT_NAME="ds_find_untagged_targets"
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.3')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.4')"
 
 # Load framework libraries
 if [[ ! -f "${LIB_DIR}/ds_lib.sh" ]]; then
@@ -132,11 +132,11 @@ parse_args() {
                 shift 2
                 ;;
             --oci-config)
-                OCI_CLI_CONFIG_FILE="$2"
+                export OCI_CLI_CONFIG_FILE="$2"
                 shift 2
                 ;;
             --oci-profile)
-                OCI_CLI_PROFILE="$2"
+                export OCI_CLI_PROFILE="$2"
                 shift 2
                 ;;
             -h | --help)

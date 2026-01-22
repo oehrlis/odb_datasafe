@@ -1,6 +1,6 @@
 # OraDBA Data Safe Extension (odb_datasafe)
 
-**Version:** 0.5.3  
+**Version:** 0.5.4  
 **Purpose:** Simplified OCI Data Safe target management and operations
 
 ## For Administrators

@@ -102,7 +102,7 @@ teardown() {
 @test "ds_target_update_credentials.sh shows version information" {
     run "${BIN_DIR}/ds_target_update_credentials.sh" --version
     [ "$status" -eq 0 ]
-    [[ "$output" == *"0.2.0"* ]]
+    [[ "$output" == *"0.5.4"* ]]
 }
 
 # Test credential file source
@@ -138,15 +138,21 @@ teardown() {
 }
 
 @test "ds_target_update_credentials.sh fails without username" {
-    # Remove .env temporarily so DS_USERNAME isn't loaded
-    mv "${REPO_ROOT}/.env" "${REPO_ROOT}/.env.bak"
+    # Remove .env temporarily so DS_USERNAME isn't loaded (if it exists)
+    ENV_BACKUP=""
+    if [[ -f "${REPO_ROOT}/.env" ]]; then
+        mv "${REPO_ROOT}/.env" "${REPO_ROOT}/.env.bak"
+        ENV_BACKUP="yes"
+    fi
     
     run "${BIN_DIR}/ds_target_update_credentials.sh" --no-prompt -c "ocid1.compartment.oc1..test-root"
     [ "$status" -ne 0 ]
     [[ "$output" == *"Username not specified"* ]]
     
-    # Restore .env
-    mv "${REPO_ROOT}/.env.bak" "${REPO_ROOT}/.env"
+    # Restore .env if we backed it up
+    if [[ "$ENV_BACKUP" == "yes" ]]; then
+        mv "${REPO_ROOT}/.env.bak" "${REPO_ROOT}/.env"
+    fi
 }
 
 @test "ds_target_update_credentials.sh fails without password in no-prompt mode" {

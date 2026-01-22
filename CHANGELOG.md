@@ -6,6 +6,173 @@ All notable changes to the OraDBA Data Safe Extension will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+_No changes yet._
+
+## [0.5.4] - 2026-01-22
+
+### Added
+
+- **Connector Compartment Configuration** in `lib/oci_helpers.sh`
+  - New `get_connector_compartment_ocid()` helper function with fallback chain
+  - Support for `DS_CONNECTOR_COMP` environment variable to override connector compartment
+  - Fallback chain: `DS_CONNECTOR_COMP` → `DS_ROOT_COMP` → error if not set
+  - Enables flexible connector scoping across different compartments
+
+- **ds_target_register.sh Updates** (2026-01-22)
+  - Added `--connector-compartment` parameter for explicit connector compartment specification
+  - Integrated `get_connector_compartment_ocid()` for flexible compartment resolution
+
+### Changed
+
+- **Standardized Scripts** - Applied consistent patterns across scripts:
+  - `TEMPLATE.sh` - Fully updated to latest bootstrap/order patterns with clear examples
+  - `ds_find_untagged_targets.sh` - Updated help display to show usage when no parameters provided
+  - `ds_target_register.sh` - Updated help display to show usage when no parameters provided
+  - Documentation refreshed to reflect latest script initialization order
+
+- **Configuration** 
+  - Updated `etc/datasafe.conf.example` with `DS_CONNECTOR_COMP` documentation
+
+- **Test Suite** (2026-01-22)
+  - Fixed version assertions to expect 0.5.4 instead of 0.2.x
+  - Updated test patterns to align with current script output format (USAGE vs Usage)
+  - Hardened `.env` handling for environments where file may not exist
+  - Adjusted CSV output test to gracefully handle non-OCI environments
+  - Fixed TEMPLATE.sh test to detect correct SCRIPT_VERSION line pattern
+
+### Fixed
+
+- **Linting Issues**
+  - Removed duplicate "Testing Status" heading in `doc/script_standardization_status.md`
+  - All shell and markdown linting now passes cleanly
+
+- **Test Compatibility**
+  - Updated BATS tests to work properly in non-OCI environments
+  - Fixed function header pattern detection (Output..: vs Output.:)
+  - Made test teardown more robust for missing temporary files
+    - Namespace filtering
+    - Output format support (table, csv, json)
+    - State filtering
+  - `tests/script_template.bats` - New test suite with 39 tests
+    - Comprehensive standardization compliance verification
+    - Function header format validation
+    - Resolution pattern usage
+    - Documentation completeness
+    - Code quality checks
+  - `tests/README.md` - Updated documentation with new test categories
+
+### Changed
+
+- **Library Functions Return Error Codes**
+  - `oci_resolve_compartment_ocid()` - Now returns error code instead of calling `die`
+  - `ds_resolve_target_ocid()` - Now returns error code instead of calling `die`
+  - Enables graceful error handling by calling scripts
+  - Scripts can provide context-specific error messages
+
+- **Read-Only Operations Use `oci_exec_ro()`**
+  - Added `oci_exec_ro()` function that always executes (even in dry-run mode)
+  - Updated compartment/target resolution to use `oci_exec_ro()` 
+  - Lookups and queries now work correctly in dry-run mode
+  - Only write operations respect dry-run flag
+
+- **Standardized Scripts** - Applied consistent patterns across all scripts:
+  - **ds_target_update_credentials.sh**
+    - Implemented compartment/target resolution pattern (accepts name or OCID)
+    - Fixed duplicate "Dry-run mode" messages
+    - Improved error messages with actionable guidance
+    - Read-only operations work in dry-run mode
+  
+  - **ds_target_register.sh** (2026-01-22)
+    - Updated to read version from `.extension` file
+    - Fixed SCRIPT_DIR initialization order (must be before SCRIPT_VERSION)
+    - Implemented compartment/connector resolution using helper functions
+    - Added standardized function headers for all functions
+    - Updated to use `oci_exec()` and `oci_exec_ro()` for OCI operations
+    - Stores both compartment NAME and OCID internally
+  
+  - **ds_find_untagged_targets.sh** (2026-01-22)
+    - Updated to read version from `.extension` file (was hardcoded 0.3.0)
+    - Fixed SCRIPT_DIR initialization order
+    - Implemented compartment resolution using helper function
+    - Added standardized function headers for all functions
+    - Updated to use `oci_exec_ro()` for read-only operations
+    - Stores both compartment NAME and OCID internally
+  
+  - **TEMPLATE.sh** (2026-01-22)
+    - Complete refresh to reflect latest standardization patterns
+    - Updated bootstrap section with correct order (SCRIPT_DIR before version)
+    - Added runtime variables (COMP_NAME, COMP_OCID, TARGET_NAME, TARGET_OCID)
+    - Implemented resolution pattern examples using helper functions
+    - Added comprehensive examples using `oci_exec()` and `oci_exec_ro()`
+    - Enhanced usage documentation with resolution pattern explanation
+    - Updated all function headers to standardized format
+    - Added clear examples for compartment/target resolution
+  
+  - **ds_target_update_connector.sh**
+    - Added function headers (usage, parse_args, validate_inputs, do_work)
+    - Implemented compartment resolution pattern
+    - Updated list operations to use `oci_exec_ro()`
+    - Dry-run mode message now in do_work()
+  - **ds_target_update_service.sh**
+    - Added function headers for all functions
+    - Implemented compartment resolution pattern
+    - Updated list operations to use `oci_exec_ro()`
+    - Dry-run mode message now in do_work()
+  - **ds_target_update_tags.sh**
+    - Added function headers for all functions
+    - Implemented compartment resolution pattern
+    - Updated list operations to use `oci_exec_ro()`
+    - Dry-run mode message now in do_work()
+
+- **Function Headers** - Standardized format across all scripts:
+  ```bash
+  # Function: function_name
+  # Purpose.: Brief description
+  # Args....: $1 - Description (if applicable)
+  # Returns.: 0 on success, 1 on error
+  # Output..: Description of stdout/stderr (if applicable)
+  # Notes...: Additional context (optional)
+  ```
+
+### Fixed
+
+- **SCRIPT_DIR Initialization Order** (affected multiple scripts)
+  - Fixed "unbound variable" errors when using `set -euo pipefail`
+  - SCRIPT_DIR must be defined before SCRIPT_VERSION
+  - SCRIPT_VERSION uses SCRIPT_DIR in its grep command
+  - Fixed in: ds_tg_report.sh, ds_target_update_tags.sh, ds_target_update_connector.sh, 
+    ds_target_update_service.sh, ds_target_update_credentials.sh
+
+- **Debug Message Contamination**
+  - Removed `2>&1` from variable captures that were including stderr in output
+  - Debug messages now correctly go to stderr only
+  - Variables capture only intended stdout values
+  - Fixed in ds_target_update_credentials.sh target resolution
+
+- **Dry-Run Mode Issues**
+  - Fixed read-only operations (compartment/target lookups) being blocked in dry-run mode
+  - Separated `oci_exec()` (respects DRY_RUN) from `oci_exec_ro()` (always executes)
+  - Removed duplicate dry-run mode messages (now shown once in do_work())
+  - Fixed in: ds_target_update_credentials.sh, ds_target_update_connector.sh, 
+    ds_target_update_service.sh, ds_target_update_tags.sh
+
+- **Compartment Resolution**
+  - Scripts now accept both compartment names and OCIDs
+  - Internally resolve and store both COMPARTMENT_NAME and COMPARTMENT_OCID
+  - Consistent error messages when resolution fails
+  - All scripts validate and log resolved compartment names
+
+- **Usage Function Behavior**
+  - Fixed usage() functions exiting via die() showing "[ERROR] 0" message
+  - Now exit cleanly with `exit 0` directly
+  - Fixed in: ds_target_delete.sh
+
+### Deprecated
+
+- Direct use of `die` in library functions (replaced with return codes)
+
 ## [0.5.3] - 2026-01-22
 
 ### Added

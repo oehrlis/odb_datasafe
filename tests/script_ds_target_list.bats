@@ -162,7 +162,7 @@ teardown() {
 @test "ds_target_list.sh shows version information" {
     run "${BIN_DIR}/ds_target_list.sh" --version
     [ "$status" -eq 0 ]
-    [[ "$output" =~ 0\.2\.[0-9]+ ]]
+    [[ "$output" =~ 0\.5\.[0-9]+ ]]
 }
 
 # Test list mode (default)

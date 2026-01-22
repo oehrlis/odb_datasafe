@@ -117,7 +117,7 @@ lint-shell: ## Lint shell scripts with shellcheck
 		while IFS= read -r -d '' file; do \
 			echo -e "  Checking $$file..."; \
 			if [[ "$$file" == tests/* ]]; then \
-				$(SHELLCHECK) -x -e SC2155,SC2315,SC2126,SC2207,SC2030,SC2031,SC2181,SC1091 "$$file" || FAILED=1; \
+				$(SHELLCHECK) -x -e SC2155,SC2315,SC2126,SC2207,SC2030,SC2031,SC2181,SC1091,SC2076 "$$file" || FAILED=1; \
 			else \
 				$(SHELLCHECK) -x -S warning "$$file" || FAILED=1; \
 			fi; \

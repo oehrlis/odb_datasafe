@@ -6,7 +6,7 @@
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
 # Date.......: 2026.01.22
-# Version....: v0.5.3
+# Version....: v0.5.4
 # Purpose....: Show/export detailed info for Oracle Data Safe target databases
 #              for given target names/OCIDs or all targets in a compartment.
 #              Output formats: table | json | csv.
@@ -19,9 +19,12 @@
 # ------------------------------------------------------------------------------
 
 # Script identification
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
-readonly SCRIPT_VERSION="$(grep -E '^\s*version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' || echo 'v0.5.3')"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
+SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
+readonly SCRIPT_NAME
+SCRIPT_VERSION="$(grep -E '^\s*version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' || echo 'v0.5.4')"
+readonly SCRIPT_VERSION
 
 # Library directory
 readonly LIB_DIR="${SCRIPT_DIR}/../lib"
@@ -174,16 +177,16 @@ parse_arguments() {
                 shift 2
                 ;;
             -v|--verbose)
-                LOG_LEVEL="INFO"
+                export LOG_LEVEL="INFO"
                 shift
                 ;;
             -d|--debug)
-                LOG_LEVEL="DEBUG"
+                export LOG_LEVEL="DEBUG"
                 shift
                 ;;
             --log-file)
                 need_val "$1" "${2:-}"
-                LOG_FILE="$2"
+                export LOG_FILE="$2"
                 shift 2
                 ;;
             *)

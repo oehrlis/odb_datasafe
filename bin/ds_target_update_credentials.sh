@@ -5,7 +5,7 @@
 # Script.....: ds_target_update_credentials.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.01.09
-# Version....: v0.5.3
+# Version....: v0.5.4
 # Purpose....: Update Oracle Data Safe target database credentials
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
@@ -25,7 +25,8 @@ readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly LIB_DIR="${SCRIPT_DIR}/../lib"
-readonly SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.3')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.4')"
+readonly SCRIPT_VERSION
 
 # Defaults
 : "${COMPARTMENT:=}"
@@ -48,6 +49,10 @@ init_config
 
 # Runtime variables
 TMP_CRED_JSON=""
+
+# Resolved variables (set during validation)
+COMPARTMENT_OCID=""
+COMPARTMENT_NAME=""
 
 # =============================================================================
 # FUNCTIONS
@@ -220,16 +225,27 @@ validate_inputs() {
 
     require_cmd oci jq base64
 
-    # Show mode
-    if [[ "$APPLY_CHANGES" == "true" ]]; then
-        log_info "Apply mode: Changes will be applied"
-    else
-        log_info "Dry-run mode: Changes will be shown only (use --apply to apply)"
-    fi
-
     # If neither targets nor compartment specified, show help
     if [[ -z "$TARGETS" && -z "$COMPARTMENT" && -z "$CRED_FILE" && -z "$DS_USERNAME" ]]; then
         usage
+    fi
+
+    # Resolve compartment if specified (accept name or OCID)
+    if [[ -n "$COMPARTMENT" ]]; then
+        if is_ocid "$COMPARTMENT"; then
+            # User provided OCID, resolve to name
+            COMPARTMENT_OCID="$COMPARTMENT"
+            COMPARTMENT_NAME=$(oci_get_compartment_name "$COMPARTMENT_OCID" 2>/dev/null) || COMPARTMENT_NAME="$COMPARTMENT_OCID"
+            log_debug "Resolved compartment OCID to name: $COMPARTMENT_NAME"
+        else
+            # User provided name, resolve to OCID
+            COMPARTMENT_NAME="$COMPARTMENT"
+            COMPARTMENT_OCID=$(oci_resolve_compartment_ocid "$COMPARTMENT") || {
+                die "Cannot resolve compartment name '$COMPARTMENT' to OCID.\nVerify compartment name or use OCID directly."
+            }
+            log_debug "Resolved compartment name to OCID: $COMPARTMENT_OCID"
+        fi
+        log_info "Using compartment: $COMPARTMENT_NAME"
     fi
 
     # Validate credentials file if provided
@@ -241,13 +257,6 @@ validate_inputs() {
         if ! jq -r '.userName // empty' "$CRED_FILE" > /dev/null 2>&1; then
             die "Invalid credentials file format. Expected JSON with userName/password fields"
         fi
-    fi
-
-    # Show mode
-    if [[ "$APPLY_CHANGES" == "true" ]]; then
-        log_info "Apply mode: Changes will be applied"
-    else
-        log_info "Dry-run mode: Changes will be shown only (use --apply to apply)"
     fi
 }
 
@@ -356,10 +365,10 @@ update_target_credentials() {
         if oci_exec data-safe target-database update \
             --target-database-id "$target_ocid" \
             --credentials "$cred_json" > /dev/null; then
-            log_info "  ✅ Credentials updated successfully"
+            log_info "  [OK] Credentials updated successfully"
             return 0
         else
-            log_error "  ❌ Failed to update credentials"
+            log_error "  [ERROR] Failed to update credentials"
             return 1
         fi
     else
@@ -407,6 +416,13 @@ list_targets_in_compartment() {
 do_work() {
     local success_count=0 error_count=0
 
+    # Show mode
+    if [[ "$APPLY_CHANGES" == "true" ]]; then
+        log_info "Apply mode: Changes will be applied"
+    else
+        log_info "Dry-run mode: Changes will be shown only (use --apply to apply)"
+    fi
+
     # Resolve and validate credentials
     resolve_credentials
     create_temp_cred_json
@@ -435,37 +451,36 @@ do_work() {
                     --query 'data."display-name"' \
                     --raw-output 2> /dev/null || echo "unknown")
             else
-                # Resolve target name to OCID - try various compartment sources
-                local search_comp="$COMPARTMENT"
+                # Resolve target name to OCID - need compartment for search
+                local search_comp_ocid="$COMPARTMENT_OCID"
                 
-                if [[ -z "$search_comp" ]]; then
-                    # Try to get root compartment first
-                    if search_comp=$(get_root_compartment_ocid 2>/dev/null); then
-                        log_debug "Using DS_ROOT_COMP as search compartment: $search_comp"
-                    else
-                        # Fall back to tenancy root (search all compartments)
-                        log_debug "DS_ROOT_COMP not available, searching across entire tenancy"
-                        # Get tenancy OCID from OCI config
-                        search_comp=$(oci_exec iam region-subscription list --query 'data[0]."tenancy-id"' --raw-output 2>/dev/null)
-                        
-                        if [[ -z "$search_comp" || "$search_comp" == "null" ]]; then
-                            die "Cannot determine tenancy/compartment for target resolution. Use -c/--compartment OCID"
-                        fi
-                        
-                        log_info "Searching for target '$target' across all compartments in tenancy"
+                # If compartment not provided via -c, try DS_ROOT_COMP
+                if [[ -z "$search_comp_ocid" ]]; then
+                    log_debug "No compartment specified, trying DS_ROOT_COMP"
+                    
+                    if [[ -z "${DS_ROOT_COMP:-}" ]]; then
+                        die "Target name '$target' requires compartment for resolution.\n\nOptions:\n  1. Use target OCID: -T ocid1.datasafetargetdatabase...\n  2. Specify compartment: -c <compartment-ocid-or-name>\n  3. Configure DS_ROOT_COMP in ${ODB_DATASAFE_BASE}/.env\n\nDS_ROOT_COMP is not set."
                     fi
+                    
+                    # Try to resolve DS_ROOT_COMP
+                    if ! search_comp_ocid=$(get_root_compartment_ocid); then
+                        die "Cannot resolve DS_ROOT_COMP='${DS_ROOT_COMP}' for target name resolution.\n\nOptions:\n  1. Use target OCID: -T ocid1.datasafetargetdatabase...\n  2. Specify compartment: -c <compartment-ocid-or-name>\n  3. Fix DS_ROOT_COMP in ${ODB_DATASAFE_BASE}/.env to valid compartment OCID or name\n  4. Verify compartment exists: oci iam compartment list --all | jq '.data[] | {name, id}'"
+                    fi
+                    
+                    log_debug "Using DS_ROOT_COMP for target search: $search_comp_ocid"
                 fi
                 
-                log_debug "Resolving target name: $target (compartment: $search_comp, with subtree)"
+                log_debug "Resolving target name: $target in compartment: $search_comp_ocid (with subtree search)"
                 
-                # Call ds_resolve_target_ocid with the compartment
+                # Resolve target name to OCID
                 local resolved
-                if resolved=$(ds_resolve_target_ocid "$target" "$search_comp" 2>&1); then
+                if resolved=$(ds_resolve_target_ocid "$target" "$search_comp_ocid"); then
                     log_debug "Successfully resolved target: $target -> $resolved"
                     target_ocid="$resolved"
                     target_name="$target"
                 else
-                    die "Target not found: $target (searched in compartment and all sub-compartments)"
+                    log_error "Target not found: $target"
+                    die "Could not resolve target name. Try:\n  1. Use OCID instead: -T ocid1.datasafetargetdatabase...\n  2. Verify target name is exact (case-sensitive)\n  3. Ensure target is in compartment or sub-compartments\n  4. List targets: oci data-safe target-database list --compartment-id $search_comp_ocid --compartment-id-in-subtree true --all | jq '.data[] | {name: .\"display-name\", id: .id}'"
                 fi
             fi
 
@@ -477,17 +492,17 @@ do_work() {
         done
     else
         # Process targets from compartment
-        # Set default compartment if not specified
-        if [[ -z "$COMPARTMENT" ]]; then
-            local root_comp
-            root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment. Set DS_ROOT_COMP or use -c/--compartment"
-            COMPARTMENT="$root_comp"
-            log_info "No compartment specified, using DS_ROOT_COMP: $COMPARTMENT"
+        # Ensure we have a compartment OCID
+        if [[ -z "$COMPARTMENT_OCID" ]]; then
+            log_debug "No compartment specified, trying DS_ROOT_COMP"
+            COMPARTMENT_OCID=$(get_root_compartment_ocid) || die "Failed to get compartment. Set DS_ROOT_COMP or use -c/--compartment"
+            COMPARTMENT_NAME=$(oci_get_compartment_name "$COMPARTMENT_OCID" 2>/dev/null) || COMPARTMENT_NAME="$COMPARTMENT_OCID"
+            log_info "Using DS_ROOT_COMP: $COMPARTMENT_NAME"
         fi
         
-        log_info "Processing targets from compartment..."
+        log_info "Processing targets from compartment: $COMPARTMENT_NAME..."
         local json_data
-        json_data=$(list_targets_in_compartment "$COMPARTMENT") || die "Failed to list targets"
+        json_data=$(list_targets_in_compartment "$COMPARTMENT_OCID") || die "Failed to list targets"
 
         local total_count
         total_count=$(echo "$json_data" | jq '.data | length')

@@ -5,7 +5,7 @@
 # Script.....: ds_target_update_tags.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.01.09
-# Version....: v0.5.3
+# Version....: v0.5.4
 # Purpose....: Update Oracle Data Safe target database tags based on compartment
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
@@ -18,12 +18,15 @@
 set -euo pipefail
 
 # Script metadata
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_NAME
-readonly SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.3')"
+
+# Load library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
 readonly LIB_DIR="${SCRIPT_DIR}/../lib"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.4')"
+readonly SCRIPT_VERSION
 
 # Defaults
 : "${COMPARTMENT:=}"
@@ -41,10 +44,19 @@ source "${LIB_DIR}/ds_lib.sh" || {
     exit 1
 }
 
+# Initialize configuration
+init_config
+
 # =============================================================================
 # FUNCTIONS
 # =============================================================================
 
+# ------------------------------------------------------------------------------
+# Function: usage
+# Purpose.: Display script usage information
+# Returns.: 0 (exits script)
+# Output..: Usage text to stdout
+# ------------------------------------------------------------------------------
 usage() {
     cat << EOF
 Usage: ${SCRIPT_NAME} [OPTIONS]
@@ -101,6 +113,13 @@ EOF
     exit 0
 }
 
+# ------------------------------------------------------------------------------
+# Function: parse_args
+# Purpose.: Parse command-line arguments
+# Args....: $@ - All command-line arguments
+# Returns.: 0 on success, exits on error
+# Output..: Sets global variables based on arguments
+# ------------------------------------------------------------------------------
 parse_args() {
     parse_common_opts "$@"
 
@@ -185,6 +204,13 @@ parse_args() {
     fi
 }
 
+# ------------------------------------------------------------------------------
+# Function: validate_inputs
+# Purpose.: Validate command-line arguments and required conditions
+# Returns.: 0 on success, exits on error via die()
+# Output..: Log messages for validation steps
+# Notes...: Resolves compartments to both name and OCID
+# ------------------------------------------------------------------------------
 validate_inputs() {
     log_debug "Validating inputs..."
 
@@ -198,11 +224,22 @@ validate_inputs() {
         log_info "No scope specified, using DS_ROOT_COMP: $COMPARTMENT"
     fi
 
-    # Show mode
-    if [[ "$APPLY_CHANGES" == "true" ]]; then
-        log_info "Apply mode: Changes will be applied"
-    else
-        log_info "Dry-run mode: Changes will be shown only (use --apply to apply)"
+    # Resolve compartment if specified (accept name or OCID)
+    if [[ -n "$COMPARTMENT" ]]; then
+        if is_ocid "$COMPARTMENT"; then
+            # User provided OCID, resolve to name
+            COMPARTMENT_OCID="$COMPARTMENT"
+            COMPARTMENT_NAME=$(oci_get_compartment_name "$COMPARTMENT_OCID" 2>/dev/null) || COMPARTMENT_NAME="$COMPARTMENT_OCID"
+            log_debug "Resolved compartment OCID to name: $COMPARTMENT_NAME"
+        else
+            # User provided name, resolve to OCID
+            COMPARTMENT_NAME="$COMPARTMENT"
+            COMPARTMENT_OCID=$(oci_resolve_compartment_ocid "$COMPARTMENT") || {
+                die "Cannot resolve compartment name '$COMPARTMENT' to OCID.\nVerify compartment name or use OCID directly."
+            }
+            log_debug "Resolved compartment name to OCID: $COMPARTMENT_OCID"
+        fi
+        log_info "Using compartment: $COMPARTMENT_NAME"
     fi
 }
 
@@ -315,10 +352,10 @@ update_target_tags() {
         if oci_exec data-safe target-database update \
             --target-database-id "$target_ocid" \
             --defined-tags "$update_json" > /dev/null; then
-            log_info "  ✅ Tags updated successfully"
+            log_info "  [OK] Tags updated successfully"
             return 0
         else
-            log_error "  ❌ Failed to update tags"
+            log_error "  [ERROR] Failed to update tags"
             return 1
         fi
     else
@@ -341,7 +378,7 @@ list_targets_in_compartment() {
 
     log_debug "Listing targets in compartment: $comp_ocid"
 
-    oci_exec data-safe target-database list \
+    oci_exec_ro data-safe target-database list \
         --compartment-id "$comp_ocid" \
         --compartment-id-in-subtree true \
         --all
@@ -349,9 +386,18 @@ list_targets_in_compartment() {
 
 # ------------------------------------------------------------------------------
 # Function....: do_work
-# Purpose.....: Main work function
+# Purpose.....: Main work function - processes targets and updates tags
+# Returns.....: 0 on success, 1 if any errors occurred
+# Output......: Progress messages and summary statistics
 # ------------------------------------------------------------------------------
 do_work() {
+    # Set DRY_RUN flag and show mode
+    if [[ "$APPLY_CHANGES" == "true" ]]; then
+        log_info "Apply mode: Changes will be applied"
+    else
+        log_info "Dry-run mode: Changes will be shown only (use --apply to apply)"
+    fi
+
     local json_data success_count=0 error_count=0
 
     # Collect target data
@@ -432,27 +478,22 @@ do_work() {
 main() {
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
 
-    init_config "${SCRIPT_NAME}.conf"
-    parse_args "$@"
-    validate_inputs
-    do_work
+    # Setup error handling
+    setup_error_handling
 
-    log_info "Tag update completed successfully"
+    # Validate inputs
+    validate_inputs
+
+    # Execute main work
+    if do_work; then
+        log_info "Tag update completed successfully"
+    else
+        die "Tag update failed with errors"
+    fi
 }
 
-# Handle --help before setting up error traps
-for arg in "$@"; do
-    if [[ "$arg" == "--help" || "$arg" == "-h" ]]; then
-        usage
-    fi
-done
-
-# Setup error handling before main execution
-setup_error_handling
-
-main "$@"
-
-# Explicit exit to prevent spurious error trap
-exit 0
+# Parse arguments and run
+parse_args "$@"
+main
 
 # --- End of ds_target_update_tags.sh ------------------------------------------

@@ -60,7 +60,7 @@ setup() {
 @test "scripts show version correctly" {
     run "${BIN_DIR}/ds_target_list.sh" --version
     [ "$status" -eq 0 ]
-    [[ "$output" =~ 0\.2\.[0-9]+ ]]
+    [[ "$output" =~ 0\.5\.[0-9]+ ]]
 }
 
 @test "libraries can be sourced without errors" {

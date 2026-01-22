@@ -5,7 +5,7 @@
 # Script.....: ds_target_update_connector.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.01.09
-# Version....: v0.5.3
+# Version....: v0.5.4
 # Purpose....: Manage Oracle Data Safe on-premises connector assignments
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
@@ -25,7 +25,7 @@ readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly LIB_DIR="${SCRIPT_DIR}/../lib"
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.3')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.4')"
 readonly SCRIPT_VERSION
 
 # Defaults
@@ -267,6 +267,12 @@ validate_inputs() {
     log_debug "Validating inputs..."
 
     require_cmd oci jq
+
+    # Show help if no operation mode specified
+    if [[ -z "$OPERATION_MODE" ]]; then
+        usage
+        exit 0
+    fi
 
     # Validate operation mode
     case "$OPERATION_MODE" in

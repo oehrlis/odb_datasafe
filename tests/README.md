@@ -10,18 +10,27 @@ Extension v0.2.0, built using the [BATS (Bash Automated Testing System)](https:/
 1. **Library Tests** (`lib_*.bats`)
    - `lib_common.bats` - Tests for `lib/common.sh` utility functions
    - `lib_oci_helpers.bats` - Tests for `lib/oci_helpers.sh` OCI integration functions
+     - Resolution helper functions (`resolve_compartment_to_vars`, `resolve_target_to_vars`)
+     - `oci_exec_ro()` function for read-only operations
+     - Error handling (functions return error codes instead of die)
 
 2. **Script Tests** (`script_*.bats`)
    - `script_ds_target_list.bats` - Tests for target listing functionality
+   - `script_ds_target_list_connector.bats` - Tests for connector-based target listing
    - `script_ds_target_update_tags.bats` - Tests for tag management
    - `script_ds_target_update_credentials.bats` - Tests for credential updates
    - `script_ds_target_update_connector.bats` - Tests for connector management
+   - `script_ds_target_register.bats` - Tests for target registration (new 2026-01-22)
+   - `script_ds_find_untagged_targets.bats` - Tests for untagged target discovery (new 2026-01-22)
+   - `script_template.bats` - Tests for TEMPLATE.sh standardization compliance (new 2026-01-22)
 
 3. **Integration Tests** (`integration_*.bats`)
    - `integration_tests.bats` - End-to-end workflow and cross-component tests
 
-4. **Template Tests** (`template_*.bats`)
+4. **Utility Tests** (`*_helpers.bats`)
    - `template_helpers.bats` - Build and framework validation tests
+   - `basic_functionality.bats` - Core functionality and smoke tests
+   - `quick_validation.bats` - Fast validation tests for CI/CD
 
 ## 🚀 Running Tests
 
@@ -88,11 +97,16 @@ The test suite provides comprehensive coverage across multiple dimensions:
 - ✅ **Data Safe Operations** - Target management, tag updates, connector assignments
 - ✅ **Output Formats** - JSON, CSV, table, count modes
 - ✅ **Error Handling** - Invalid inputs, missing resources, API failures
+- ✅ **Resolution Patterns** - Name/OCID dual resolution for compartments and targets (new 2026-01-22)
+- ✅ **Dry-Run Mode** - Read-only operations work, write operations blocked (new 2026-01-22)
 
 ### Library Function Coverage
 
 - ✅ **common.sh functions**: `log_*`, `is_ocid`, `require_cmd`, `init_config`, etc.
-- ✅ **oci_helpers.sh functions**: `oci_exec`, `oci_resolve_*`, `ds_*`, etc.
+- ✅ **oci_helpers.sh functions**: `oci_exec`, `oci_exec_ro`, `oci_resolve_*`, `ds_*`, etc.
+- ✅ **Resolution helpers** (new 2026-01-22):
+  - `resolve_compartment_to_vars()` - Resolves compartment name or OCID to both NAME and OCID
+  - `resolve_target_to_vars()` - Resolves target name or OCID to both NAME and OCID
 - ✅ **Integration patterns**: Library loading, function composition, error propagation
 
 ### Script Coverage
@@ -101,6 +115,9 @@ The test suite provides comprehensive coverage across multiple dimensions:
 - ✅ **ds_target_update_tags.sh**: Environment detection, tag application, dry-run/apply
 - ✅ **ds_target_update_credentials.sh**: Credential sources, security, target selection
 - ✅ **ds_target_update_connector.sh**: Set/migrate/distribute modes, connector resolution
+- ✅ **ds_target_register.sh**: Registration validation, OCID resolution, dry-run (new 2026-01-22)
+- ✅ **ds_find_untagged_targets.sh**: Tag namespace filtering, output formats (new 2026-01-22)
+- ✅ **TEMPLATE.sh**: Standardization compliance verification (new 2026-01-22)
 
 ## 🔧 Test Architecture
 

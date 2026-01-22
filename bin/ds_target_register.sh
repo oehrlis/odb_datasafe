@@ -2,7 +2,7 @@
 # ------------------------------------------------------------------------------
 # Script Name : ds_target_register.sh
 # Description : Register a database as Oracle Data Safe target
-# Version....: v0.5.3
+# Version....: v0.5.4
 # Author      : Migrated to odb_datasafe v0.2.0 framework
 #
 # Purpose:
@@ -43,7 +43,7 @@ LIB_DIR="${SCRIPT_DIR}/../lib"
 
 # Script identification
 SCRIPT_NAME="ds_target_register"
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.3')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.4')"
 
 # Load framework libraries
 if [[ ! -f "${LIB_DIR}/ds_lib.sh" ]]; then

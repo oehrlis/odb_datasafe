@@ -14,7 +14,7 @@ odb_datasafe/                          # OraDBA Extension for Data Safe
 ├── LICENSE                            # Apache 2.0
 │
 ├── bin/                               # Executable scripts (added to PATH)
-│   ├── TEMPLATE.sh                    # Copy this to create new scripts
+│   ├── template.sh                    # Copy this to create new scripts
 │   ├── ds_target_list.sh              # List Data Safe targets
 │   ├── ds_target_list_connector.sh    # List Data Safe connectors
 │   ├── ds_target_refresh.sh           # Refresh Data Safe targets
@@ -167,14 +167,14 @@ oci_wait_for_state "$resource_ocid" "ACTIVE" [max_wait]
 
 ```bash
 # 1. Copy template
-cp bin/TEMPLATE.sh bin/ds_new_feature.sh
+cp bin/template.sh bin/ds_new_feature.sh
 
 # 2. Edit metadata (top of file)
 vim bin/ds_new_feature.sh
   # Update: SCRIPT_NAME, SCRIPT_PURPOSE, VERSION
 
 # 3. Implement parse_args() for script-specific flags
-#    (See TEMPLATE.sh for examples)
+#    (See template.sh for examples)
 
 # 4. Add your business logic in main section
 
@@ -304,7 +304,7 @@ bin/ds_target_refresh.sh --profile test --region eu-frankfurt-1 ...
 
 - **Extension README**: [README.md](README.md)
 - **Library Docs**: [lib/README.md](lib/README.md)
-- **Template**: [bin/TEMPLATE.sh](bin/TEMPLATE.sh)
+- **Template**: [bin/template.sh](bin/template.sh)
 - **Config Examples**: [etc/](etc/)
 - **Legacy Project**: [../datasafe/](../datasafe/)
 
@@ -331,7 +331,7 @@ bin/ds_target_refresh.sh --profile test --region eu-frankfurt-1 ...
 7. **Check return codes** - Don't assume success
 8. **Clean up resources** - Use cleanup_temp_files
 9. **Validate inputs early** - Fail fast, fail clear
-10. **Copy TEMPLATE.sh** - Don't start from scratch
+10. **Copy template.sh** - Don't start from scratch
 
 ---
 

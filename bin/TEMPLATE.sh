@@ -2,49 +2,67 @@
 # ------------------------------------------------------------------------------
 # OraDBA - Oracle Database Infrastructure and Security, 5630 Muri, Switzerland
 # ------------------------------------------------------------------------------
-# Script.....: TEMPLATE.sh (v4.0.0)
+# Script.....: TEMPLATE.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.01.09
-# Version....: v4.0.0
-# Purpose....: Template for new Data Safe scripts using v4 libraries
+# Date.......: 2026.01.22
+# Version....: v0.5.4
+# Purpose....: Template for new Data Safe scripts using standardized patterns
 # Usage......: Copy this template and modify for your needs
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
 
 # =============================================================================
-# BOOTSTRAP
+# BOOTSTRAP (must be before version check)
 # =============================================================================
 
-# Source the v4 library (handles error setup automatically)
+# Locate script and library directories
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIB_DIR="${SCRIPT_DIR}/../lib"
+
+# Script metadata (version read from .extension file)
+SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
+readonly SCRIPT_NAME
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.4')"
+readonly SCRIPT_VERSION
+
+# Load framework libraries
+if [[ ! -f "${LIB_DIR}/ds_lib.sh" ]]; then
+    echo "[ERROR] Cannot find ds_lib.sh in ${LIB_DIR}" >&2
+    exit 1
+fi
 # shellcheck disable=SC1091
-source "${SCRIPT_DIR}/../lib/ds_lib.sh"
+source "${LIB_DIR}/ds_lib.sh"
 
 # =============================================================================
 # SCRIPT CONFIGURATION
 # =============================================================================
 
-# Script metadata
-SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
-readonly SCRIPT_NAME
-readonly SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.3')"
-
 # Default configuration (can be overridden by config files and CLI)
-: "${COMPARTMENT:=}"     # Compartment name or OCID
-: "${TARGETS:=}"         # Comma-separated target names/OCIDs
-: "${LIFECYCLE_STATE:=}" # Filter by lifecycle (e.g., ACTIVE,NEEDS_ATTENTION)
-: "${DRY_RUN:=false}"    # Dry-run mode (set by --dry-run flag)
+: "${COMPARTMENT:=}"       # Compartment name or OCID
+: "${TARGETS:=}"           # Comma-separated target names/OCIDs
+: "${LIFECYCLE_STATE:=}"   # Filter by lifecycle (e.g., ACTIVE,NEEDS_ATTENTION)
+: "${DRY_RUN:=false}"      # Dry-run mode (set by --dry-run flag)
 
 # Script-specific defaults (add your own here)
 # : "${MY_CUSTOM_OPTION:=default_value}"
+
+# Runtime variables (populated during execution)
+COMP_NAME=""      # Resolved compartment name
+COMP_OCID=""      # Resolved compartment OCID
+# shellcheck disable=SC2034  # Used in derived scripts
+TARGET_NAME=""    # Resolved target name
+# shellcheck disable=SC2034  # Used in derived scripts
+TARGET_OCID=""    # Resolved target OCID
 
 # =============================================================================
 # FUNCTIONS
 # =============================================================================
 
 # ------------------------------------------------------------------------------
-# Function....: usage
-# Purpose.....: Display usage information
+# Function: usage
+# Purpose.: Display usage information and exit
+# Returns.: Exits with code 0
+# Output..: Usage information to stdout
 # ------------------------------------------------------------------------------
 usage() {
     cat << EOF
@@ -77,14 +95,14 @@ Options:
     [Add your script-specific options here]
 
 Examples:
-  # Example 1
+  # Example 1: Process all targets in compartment
   ${SCRIPT_NAME} -c MyCompartment
 
-  # Example 2
+  # Example 2: Process specific targets with dry-run
   ${SCRIPT_NAME} -T target1,target2 --dry-run
 
-  # Example 3
-  ${SCRIPT_NAME} -L ACTIVE -v
+  # Example 3: Filter by lifecycle state with verbose logging
+  ${SCRIPT_NAME} -c MyCompartment -L ACTIVE -v
 
 Environment:
   OCI_CLI_PROFILE         Default OCI profile
@@ -96,14 +114,23 @@ Config Files (loaded in order):
   2. ${SCRIPT_DIR}/../etc/datasafe.conf
   3. ${SCRIPT_DIR}/../etc/\${SCRIPT_NAME}.conf (if exists)
 
+Resolution Pattern:
+  Compartments and targets accept both names and OCIDs. The script will:
+  1. Accept input as provided (name or OCID)
+  2. Resolve to both NAME and OCID internally
+  3. Use OCID for API calls
+  4. Use NAME for user-friendly messages
+
 EOF
     exit 0
 }
 
 # ------------------------------------------------------------------------------
-# Function....: parse_args
-# Purpose.....: Parse command-line arguments
-# Parameters..: $@ - command line arguments
+# Function: parse_args
+# Purpose.: Parse command-line arguments
+# Args....: $@ - All command-line arguments
+# Returns.: 0 on success, exits on invalid args
+# Output..: None (sets global variables)
 # ------------------------------------------------------------------------------
 parse_args() {
     # First, parse common options (sets ARGS with remaining args)
@@ -174,8 +201,11 @@ parse_args() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: validate_inputs
-# Purpose.....: Validate required inputs and configuration
+# Function: validate_inputs
+# Purpose.: Validate required inputs and resolve compartment/target OCIDs
+# Returns.: 0 on success, exits on error
+# Output..: Info messages about resolved resources
+# Notes...: Sets COMP_NAME, COMP_OCID, TARGET_NAME, TARGET_OCID as needed
 # ------------------------------------------------------------------------------
 validate_inputs() {
     log_debug "Validating inputs..."
@@ -187,35 +217,60 @@ validate_inputs() {
     # require_var COMPARTMENT
     # require_var TARGETS
 
-    # Example: Get root compartment OCID (resolves name if needed)
-    # local root_comp
-    # root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment"
-    # log_debug "Using root compartment: $root_comp"
-
     # Custom validation logic
     if [[ -z "$COMPARTMENT" && -z "$TARGETS" ]]; then
         die "Either --compartment or --targets must be specified"
     fi
 
+    # Example: Resolve compartment (accepts name or OCID)
+    if [[ -n "$COMPARTMENT" ]]; then
+        local comp_name comp_ocid
+        resolve_compartment_to_vars "$COMPARTMENT" comp_name comp_ocid || \
+            die "Failed to resolve compartment: $COMPARTMENT"
+        COMP_NAME="$comp_name"
+        COMP_OCID="$comp_ocid"
+        log_info "Compartment: ${COMP_NAME} (${COMP_OCID})"
+    fi
+
+    # Example: Resolve target (accepts name or OCID)
+    # if [[ -n "$TARGETS" ]]; then
+    #     local target_name target_ocid
+    #     resolve_target_to_vars "$TARGETS" target_name target_ocid || \
+    #         die "Failed to resolve target: $TARGETS"
+    #     TARGET_NAME="$target_name"
+    #     TARGET_OCID="$target_ocid"
+    #     log_info "Target: ${TARGET_NAME} (${TARGET_OCID})"
+    # fi
+
     # Add your validation here
 }
 
 # ------------------------------------------------------------------------------
-# Function....: do_work
-# Purpose.....: Main work function - implement your logic here
+# Function: do_work
+# Purpose.: Main work function - implement your logic here
+# Returns.: 0 on success, exits on error
+# Output..: Work progress and results
+# Notes...: Use oci_exec() for write operations, oci_exec_ro() for reads
 # ------------------------------------------------------------------------------
 do_work() {
     log_info "Starting work..."
 
-    # Example: List targets
+    # Show dry-run message if applicable
+    if [[ "${DRY_RUN}" == "true" ]]; then
+        log_info "DRY-RUN MODE: No changes will be made"
+    fi
+
+    # Example 1: List targets using read-only operation
     if [[ -n "$COMPARTMENT" ]]; then
-        log_info "Listing targets in compartment: $COMPARTMENT"
+        log_info "Listing targets in compartment: ${COMP_NAME}"
 
-        local comp_ocid
-        comp_ocid=$(oci_resolve_compartment_ocid "$COMPARTMENT")
-
+        # Use oci_exec_ro() for read-only operations (works even in dry-run)
         local targets_json
-        targets_json=$(ds_list_targets "$comp_ocid" "$LIFECYCLE_STATE")
+        targets_json=$(oci_exec_ro data-safe target-database list \
+            --compartment-id "$COMP_OCID" \
+            --compartment-id-in-subtree true \
+            --lifecycle-state "$LIFECYCLE_STATE" \
+            --all) || die "Failed to list targets"
 
         # Process targets
         local count
@@ -223,30 +278,32 @@ do_work() {
         log_info "Found $count targets"
 
         # Example: iterate over targets
-        echo "$targets_json" | jq -r '.data[].id' | while read -r target_ocid; do
-            local target_name
-            target_name=$(ds_resolve_target_name "$target_ocid")
-            log_info "Processing: $target_name"
+        echo "$targets_json" | jq -r '.data[] | "\(.id)|\(."display-name")"' | while IFS='|' read -r target_ocid target_name; do
+            log_info "Processing: ${target_name} (${target_ocid})"
 
-            # Do something with each target
-            # ds_refresh_target "$target_ocid"
+            # Example: Do write operation (respects dry-run)
+            # oci_exec data-safe target-database refresh \
+            #     --target-database-id "$target_ocid" || log_warn "Failed to refresh $target_name"
         done
     fi
 
-    # Example: Process specific targets
+    # Example 2: Process specific targets
     if [[ -n "$TARGETS" ]]; then
         IFS=',' read -ra target_list <<< "$TARGETS"
         for target in "${target_list[@]}"; do
             log_info "Processing target: $target"
 
-            # Resolve to OCID if needed
-            local target_ocid="$target"
-            if ! is_ocid "$target"; then
-                target_ocid=$(ds_resolve_target_ocid "$target" "${COMPARTMENT:-}")
-            fi
+            # Resolve to both name and OCID
+            local tgt_name tgt_ocid
+            resolve_target_to_vars "$target" tgt_name tgt_ocid || \
+                die "Failed to resolve target: $target"
+
+            log_info "Resolved: ${tgt_name} (${tgt_ocid})"
 
             # Do something with the target
-            # ds_refresh_target "$target_ocid"
+            # Use oci_exec_ro() for reads, oci_exec() for writes
+            # oci_exec data-safe target-database refresh \
+            #     --target-database-id "$tgt_ocid" || log_warn "Failed to refresh $tgt_name"
         done
     fi
 
@@ -254,9 +311,11 @@ do_work() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: cleanup (optional)
-# Purpose.....: Cleanup function called on exit
-# Notes.......: Override the default cleanup from common.sh if needed
+# Function: cleanup
+# Purpose.: Cleanup function called on exit
+# Returns.: 0
+# Output..: Debug message
+# Notes...: Override the default cleanup from common.sh if needed
 # ------------------------------------------------------------------------------
 cleanup() {
     # Add cleanup logic here (temp files, etc.)
@@ -267,6 +326,13 @@ cleanup() {
 # MAIN
 # =============================================================================
 
+# ------------------------------------------------------------------------------
+# Function: main
+# Purpose.: Main entry point for the script
+# Args....: $@ - All command-line arguments
+# Returns.: 0 on success, 1 on error
+# Output..: Execution status and results
+# ------------------------------------------------------------------------------
 main() {
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
 

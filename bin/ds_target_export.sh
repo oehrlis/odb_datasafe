@@ -2,7 +2,7 @@
 # ------------------------------------------------------------------------------
 # Script Name : ds_target_export.sh
 # Description : Export Oracle Data Safe target databases to CSV or JSON
-# Version....: v0.5.3
+# Version....: v0.5.4
 # Author      : Migrated to odb_datasafe v0.2.0 framework
 #
 # Purpose:

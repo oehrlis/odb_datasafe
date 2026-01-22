@@ -36,7 +36,7 @@ setup() {
 @test "ds_target_list_connector.sh: Version option shows version" {
     run "${SCRIPT_UNDER_TEST}" --version
     [[ "$status" -eq 0 ]]
-    [[ "$output" =~ "0.5.3" ]]
+    [[ "$output" =~ "0.5.4" ]]
 }
 
 @test "ds_target_list_connector.sh: Help shows compartment configuration info" {
@@ -218,6 +218,6 @@ setup() {
 }
 
 @test "ds_target_list_connector.sh: Version in header matches extension" {
-    run grep "Version....: v0.5.3" "${SCRIPT_UNDER_TEST}"
+    run grep "Version....: v0.5.4" "${SCRIPT_UNDER_TEST}"
     [[ "$status" -eq 0 ]]
 }

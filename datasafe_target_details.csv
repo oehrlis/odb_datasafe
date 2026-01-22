@@ -1,1 +1,2 @@
 datasafe_ocid,display_name,lifecycle,created_at,infra_type,target_type,host,port,service_name,connector_name,compartment_id,cluster,cdb,pdb
+"ocid1.datasafetargetdatabase.oc1.eu-frankfurt-1.amaaaaaae7mmzkiawh3fpij4cusgevv2gjkz5e2nc6cghdq65yzokltmarqa","exa101r04c08_cdb07b081_EPLSQ","ACTIVE","2025-11-04T12:20:42.431000+00:00","","","","","","ds-conn-exacc-p1312-wob-vwg-i3","ocid1.compartment.oc1..aaaaaaaafyfgav7nybhqzndtmu6zzaekm7bpxocktgips5ldrt4my6nyf6ra","exa101r04c08","cdb07b081","EPLSQ"

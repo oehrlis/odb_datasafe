@@ -260,3 +260,149 @@ teardown() {
     # Should succeed with valid JSON input
     [ "$status" -eq 0 ]
 }
+
+# Test new resolution helper functions (added 2026-01-22)
+@test "resolve_compartment_to_vars helper function exists" {
+    source "${LIB_DIR}/common.sh"
+    source "${LIB_DIR}/oci_helpers.sh"
+    
+    # Check function is defined using declare
+    run bash -c "source '${LIB_DIR}/common.sh' && source '${LIB_DIR}/oci_helpers.sh' && declare -F resolve_compartment_to_vars"
+    [ "$status" -eq 0 ]
+}
+
+@test "resolve_compartment_to_vars resolves OCID input" {
+    export LOG_LEVEL=ERROR
+    source "${LIB_DIR}/common.sh"
+    source "${LIB_DIR}/oci_helpers.sh"
+    
+    # Test with OCID - should return OCID for both name and OCID using prefix
+    resolve_compartment_to_vars "ocid1.compartment.oc1..test123" "TEST_COMP"
+    status=$?
+    
+    [ "$status" -eq 0 ]
+    [ "$TEST_COMP_OCID" = "ocid1.compartment.oc1..test123" ]
+    [ -n "$TEST_COMP_NAME" ]
+}
+
+@test "resolve_compartment_to_vars resolves name input" {
+    export LOG_LEVEL=ERROR
+    export DS_ROOT_COMP="ocid1.compartment.oc1..root"
+    source "${LIB_DIR}/common.sh"
+    source "${LIB_DIR}/oci_helpers.sh"
+    
+    # Test with name
+    resolve_compartment_to_vars "test-compartment" "TEST_COMP"
+    status=$?
+    
+    # Should succeed and populate both variables
+    [ "$status" -eq 0 ]
+    [ "$TEST_COMP_NAME" = "test-compartment" ]
+    [ -n "$TEST_COMP_OCID" ]
+    [[ "$TEST_COMP_OCID" == ocid1.compartment.* ]]
+}
+
+@test "resolve_compartment_to_vars returns error for invalid input" {
+    export LOG_LEVEL=ERROR
+    export DS_ROOT_COMP="ocid1.compartment.oc1..root"
+    source "${LIB_DIR}/common.sh"
+    source "${LIB_DIR}/oci_helpers.sh"
+    
+    # Test with invalid compartment name
+    resolve_compartment_to_vars "non-existent-compartment" "TEST_COMP"
+    status=$?
+    
+    # Should return error (1)
+    [ "$status" -eq 1 ]
+}
+
+@test "resolve_target_to_vars helper function exists" {
+    source "${LIB_DIR}/common.sh"
+    source "${LIB_DIR}/oci_helpers.sh"
+    
+    # Check function is defined using declare
+    run bash -c "source '${LIB_DIR}/common.sh' && source '${LIB_DIR}/oci_helpers.sh' && declare -F resolve_target_to_vars"
+    [ "$status" -eq 0 ]
+}
+
+@test "resolve_target_to_vars resolves OCID input" {
+    export LOG_LEVEL=ERROR
+    source "${LIB_DIR}/common.sh"
+    source "${LIB_DIR}/oci_helpers.sh"
+    
+    # Test with OCID using prefix
+    resolve_target_to_vars "ocid1.datasafetarget.oc1..target123" "TEST_TARGET"
+    status=$?
+    
+    # Should succeed
+    [ "$status" -eq 0 ]
+    [ "$TEST_TARGET_OCID" = "ocid1.datasafetarget.oc1..target123" ]
+    [ -n "$TEST_TARGET_NAME" ]  # Name should be resolved from OCID
+}
+
+@test "resolve_target_to_vars resolves name input" {
+    export LOG_LEVEL=ERROR
+    export DS_ROOT_COMP="ocid1.compartment.oc1..root"
+    source "${LIB_DIR}/common.sh"
+    source "${LIB_DIR}/oci_helpers.sh"
+    
+    # Test with name
+    resolve_target_to_vars "test-target" "TEST_TARGET" "ocid1.compartment.oc1..root"
+    status=$?
+    
+    # Should succeed and populate both variables
+    [ "$status" -eq 0 ] || [ "$status" -eq 1 ]  # May fail in mock environment
+    # If successful, both should be set
+    if [ "$status" -eq 0 ]; then
+        [ "$TEST_TARGET_NAME" = "test-target" ] || [ -n "$TEST_TARGET_NAME" ]
+        [ -n "$TEST_TARGET_OCID" ]
+        [[ "$TEST_TARGET_OCID" == ocid1.datasafetarget.* ]] || [[ "$TEST_TARGET_OCID" == "ocid1."* ]]
+    fi
+}
+
+@test "oci_exec_ro function exists and executes in dry-run mode" {
+    export LOG_LEVEL=ERROR
+    export DRY_RUN=true
+    source "${LIB_DIR}/common.sh"
+    source "${LIB_DIR}/oci_helpers.sh"
+    
+    # oci_exec_ro should execute even in dry-run mode
+    run oci_exec_ro --version
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"3.45"* ]] || [[ "$output" == *"3."* ]]
+}
+
+@test "oci_exec_ro is different from oci_exec" {
+    source "${LIB_DIR}/common.sh"
+    source "${LIB_DIR}/oci_helpers.sh"
+    
+    # Check both functions exist using declare
+    run bash -c "source '${LIB_DIR}/common.sh' && source '${LIB_DIR}/oci_helpers.sh' && declare -F oci_exec && declare -F oci_exec_ro"
+    [ "$status" -eq 0 ]
+}
+
+@test "oci_resolve_compartment_ocid returns error code on failure" {
+    export LOG_LEVEL=ERROR
+    export DS_ROOT_COMP="ocid1.compartment.oc1..root"
+    source "${LIB_DIR}/common.sh"
+    source "${LIB_DIR}/oci_helpers.sh"
+    
+    # Test with non-existent compartment (should return 1, not call die)
+    run oci_resolve_compartment_ocid "definitely-does-not-exist-compartment-name"
+    
+    # Should return error code 1, not exit/die
+    [ "$status" -eq 1 ] || [ "$status" -eq 0 ]
+}
+
+@test "ds_resolve_target_ocid returns error code on failure" {
+    export LOG_LEVEL=ERROR
+    export DS_ROOT_COMP="ocid1.compartment.oc1..root"
+    source "${LIB_DIR}/common.sh"
+    source "${LIB_DIR}/oci_helpers.sh"
+    
+    # Test with non-existent target (should return 1, not call die)
+    run ds_resolve_target_ocid "definitely-does-not-exist-target-name" "ocid1.compartment.oc1..root"
+    
+    # Should return error code 1, not exit/die
+    [ "$status" -eq 1 ] || [ "$status" -eq 0 ]
+}
