@@ -325,10 +325,10 @@ resolve_connector_ocid() {
 
     log_debug "Resolving connector name: $connector"
 
-    # Get compartment to search in
+    # Use already-resolved COMPARTMENT_OCID if available
     local comp_ocid
-    if [[ -n "$COMPARTMENT" ]]; then
-        comp_ocid=$(oci_resolve_compartment_ocid "$COMPARTMENT") || return 1
+    if [[ -n "${COMPARTMENT_OCID:-}" ]]; then
+        comp_ocid="$COMPARTMENT_OCID"
     else
         comp_ocid=$(get_root_compartment_ocid) || return 1
     fi
@@ -427,18 +427,29 @@ update_target_connector() {
     if [[ "$APPLY_CHANGES" == "true" ]]; then
         log_info "  Updating connector..."
 
-        # Build connection option JSON - write to temp file for proper handling
-        local conn_option_file
-        conn_option_file=$(mktemp)
-        trap 'rm -f "$conn_option_file"' RETURN
-        
-        echo "{\"onPremiseConnectorId\": \"$new_connector_ocid\"}" > "$conn_option_file"
+        # Get current connection details to preserve connectionType and other fields
+        local current_conn_json
+        current_conn_json=$(oci_exec data-safe target-database get \
+            --target-database-id "$target_ocid" \
+            --query 'data."connection-option"' 2>/dev/null) || current_conn_json='{}'
+
+        # Build new connection option - preserve existing fields, update connector
+        local conn_json
+        if [[ -n "$current_conn_json" && "$current_conn_json" != "null" && "$current_conn_json" != "{}" ]]; then
+            # Update existing connection option with new connector
+            conn_json=$(echo "$current_conn_json" | jq --arg conn "$new_connector_ocid" \
+                '. + {"onPremiseConnectorId": $conn}')
+        else
+            # Create minimal connection option with ONPREM type
+            conn_json="{\"connectionType\": \"ONPREM\", \"onPremiseConnectorId\": \"$new_connector_ocid\"}"
+        fi
 
         # Build OCI command with optional wait
         local -a oci_cmd=(
             data-safe target-database update
             --target-database-id "$target_ocid"
-            --connection-option "file://$conn_option_file"
+            --connection-option "$conn_json"
+            --force
         )
 
         # Add wait-for-state if requested
@@ -537,17 +548,18 @@ do_set_mode() {
                     target_ocid="$target"
                     target_name="$target"
                 else
-                    # Resolve target name to OCID
+                    # Resolve target name to OCID using cached compartment OCID
                     log_debug "Resolving target name: $target"
-                    local resolved
-                    if [[ -n "$COMPARTMENT" ]]; then
-                        resolved=$(ds_resolve_target_ocid "$target" "$COMPARTMENT") || die "Failed to resolve target: $target"
+                    local resolved compartment_for_lookup
+                    
+                    # Use already-resolved COMPARTMENT_OCID if available
+                    if [[ -n "${COMPARTMENT_OCID:-}" ]]; then
+                        compartment_for_lookup="$COMPARTMENT_OCID"
                     else
-                        local root_comp
-                        root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment"
-                        resolved=$(ds_resolve_target_ocid "$target" "$root_comp") || die "Failed to resolve target: $target"
+                        compartment_for_lookup=$(get_root_compartment_ocid) || die "Failed to get root compartment"
                     fi
-
+                    
+                    resolved=$(ds_resolve_target_ocid "$target" "$compartment_for_lookup") || die "Failed to resolve target: $target"
                     [[ -n "$resolved" ]] || die "Target not found: $target"
                     target_ocid="$resolved"
                     target_name="$target"
