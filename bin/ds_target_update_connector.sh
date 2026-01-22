@@ -35,6 +35,7 @@ readonly SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev
 : "${TARGET_CONNECTOR:=}"
 : "${OPERATION_MODE:=set}"
 : "${APPLY_CHANGES:=false}"
+: "${WAIT_FOR_COMPLETION:=false}" # Default to no-wait for speed
 : "${EXCLUDE_AUTO:=false}"
 
 # shellcheck disable=SC1091
@@ -50,6 +51,12 @@ init_config
 # FUNCTIONS
 # =============================================================================
 
+# ------------------------------------------------------------------------------
+# Function: usage
+# Purpose.: Display script usage information
+# Returns.: 0 (exits script)
+# Output..: Usage text to stdout
+# ------------------------------------------------------------------------------
 usage() {
     cat << EOF
 Usage: ${SCRIPT_NAME} [OPTIONS] MODE
@@ -90,6 +97,8 @@ Options:
   Execution:
     --apply                 Apply changes (default: dry-run only)
     -n, --dry-run           Dry-run mode (show what would be done)
+    --wait                  Wait for each update to complete (slower but shows status)
+    --no-wait               Don't wait for completion (faster, default)
 
 Mode Details:
 
@@ -130,6 +139,13 @@ EOF
     exit 0
 }
 
+# ------------------------------------------------------------------------------
+# Function: parse_args
+# Purpose.: Parse command-line arguments
+# Args....: $@ - All command-line arguments
+# Returns.: 0 on success, exits on error
+# Output..: Sets global variables based on arguments
+# ------------------------------------------------------------------------------
 parse_args() {
     parse_common_opts "$@"
 
@@ -166,6 +182,14 @@ parse_args() {
                 ;;
             --exclude-auto)
                 EXCLUDE_AUTO=true
+                shift
+                ;;
+            --wait)
+                WAIT_FOR_COMPLETION=true
+                shift
+                ;;
+            --no-wait)
+                WAIT_FOR_COMPLETION=false
                 shift
                 ;;
             --apply)
@@ -210,6 +234,13 @@ parse_args() {
     fi
 }
 
+# ------------------------------------------------------------------------------
+# Function: validate_inputs
+# Purpose.: Validate command-line arguments and required conditions
+# Returns.: 0 on success, exits on error via die()
+# Output..: Log messages for validation steps
+# Notes...: Resolves compartments and validates operation mode requirements
+# ------------------------------------------------------------------------------
 validate_inputs() {
     log_debug "Validating inputs..."
 
@@ -236,7 +267,7 @@ validate_inputs() {
             ;;
     esac
 
-    # If no scope specified, use DS_ROOT_COMP as default (except for set mode with specific targets)
+    # If no scope specified, use DS_ROOT_COMP as default
     if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
         local root_comp
         root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
@@ -244,16 +275,27 @@ validate_inputs() {
         log_info "No scope specified, using DS_ROOT_COMP: $COMPARTMENT"
     fi
 
+    # Resolve compartment if specified (accept name or OCID)
+    if [[ -n "$COMPARTMENT" ]]; then
+        if is_ocid "$COMPARTMENT"; then
+            # User provided OCID, resolve to name
+            COMPARTMENT_OCID="$COMPARTMENT"
+            COMPARTMENT_NAME=$(oci_get_compartment_name "$COMPARTMENT_OCID" 2>/dev/null) || COMPARTMENT_NAME="$COMPARTMENT_OCID"
+            log_debug "Resolved compartment OCID to name: $COMPARTMENT_NAME"
+        else
+            # User provided name, resolve to OCID
+            COMPARTMENT_NAME="$COMPARTMENT"
+            COMPARTMENT_OCID=$(oci_resolve_compartment_ocid "$COMPARTMENT") || {
+                die "Cannot resolve compartment name '$COMPARTMENT' to OCID.\nVerify compartment name or use OCID directly."
+            }
+            log_debug "Resolved compartment name to OCID: $COMPARTMENT_OCID"
+        fi
+        log_info "Using compartment: $COMPARTMENT_NAME"
+    fi
+
     # For set mode, require either targets or compartment
     if [[ "$OPERATION_MODE" == "set" && -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
         die "Set mode requires either --targets or --compartment to be specified"
-    fi
-
-    # Show mode
-    if [[ "$APPLY_CHANGES" == "true" ]]; then
-        log_info "Apply mode: Changes will be applied"
-    else
-        log_info "Dry-run mode: Changes will be shown only (use --apply to apply)"
     fi
 
     log_info "Operation mode: $OPERATION_MODE"
@@ -384,10 +426,24 @@ update_target_connector() {
     if [[ "$APPLY_CHANGES" == "true" ]]; then
         log_info "  Updating connector..."
 
-        # Update target with new connector
-        if oci_exec data-safe target-database update \
-            --target-database-id "$target_ocid" \
-            --connection-option "{\"onPremiseConnectorId\": \"$new_connector_ocid\"}" > /dev/null; then
+        # Build connection option JSON
+        local conn_option
+        conn_option="{\"onPremiseConnectorId\": \"$new_connector_ocid\"}"
+
+        # Build OCI command with optional wait
+        local -a oci_cmd=(
+            data-safe target-database update
+            --target-database-id "$target_ocid"
+            --connection-option "$conn_option"
+        )
+
+        # Add wait-for-state if requested
+        if [[ "$WAIT_FOR_COMPLETION" == "true" ]]; then
+            oci_cmd+=(--wait-for-state SUCCEEDED --wait-for-state FAILED)
+        fi
+
+        # Execute update
+        if oci_exec "${oci_cmd[@]}" > /dev/null; then
             log_info "  ✅ Connector updated successfully"
             return 0
         else
@@ -426,7 +482,7 @@ list_targets_in_compartment() {
     fi
 
     local json_data
-    json_data=$(oci_exec "${cmd[@]}")
+    json_data=$(oci_exec_ro "${cmd[@]}")
 
     # Apply additional filtering if needed
     if [[ "$EXCLUDE_AUTO" == "true" ]]; then
@@ -677,10 +733,21 @@ do_distribute_mode() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: do_work
-# Purpose.....: Main work function
+# Function: do_work
+# Purpose.: Main work orchestration function - dispatches to mode-specific handlers
+# Returns.: 0 on success, 1 on error
+# Output..: Progress messages and results from mode-specific functions
 # ------------------------------------------------------------------------------
 do_work() {
+    # Set DRY_RUN flag and show mode
+    if [[ "$APPLY_CHANGES" == "true" ]]; then
+        DRY_RUN=false
+        log_info "Apply mode: Changes will be applied"
+    else
+        DRY_RUN=true
+        log_info "Dry-run mode: Changes will be shown only (use --apply to apply)"
+    fi
+
     case "$OPERATION_MODE" in
         set)
             do_set_mode
