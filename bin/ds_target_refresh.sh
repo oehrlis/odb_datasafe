@@ -314,3 +314,6 @@ done
 setup_error_handling
 
 main "$@"
+
+# Explicit exit to prevent spurious error trap
+exit 0
