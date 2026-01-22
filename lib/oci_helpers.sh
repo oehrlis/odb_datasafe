@@ -95,6 +95,56 @@ get_root_compartment_ocid() {
     return 0
 }
 
+# ------------------------------------------------------------------------------
+# Function....: get_connector_compartment_ocid
+# Purpose.....: Get connector compartment OCID (resolves name if needed)
+# Returns.....: Connector compartment OCID on stdout
+# Environment.: Uses DS_CONNECTOR_COMP (falls back to DS_ROOT_COMP)
+# Usage.......: conn_comp=$(get_connector_compartment_ocid) || die "Failed"
+# Notes.......: Defaults to DS_ROOT_COMP if DS_CONNECTOR_COMP not set
+# ------------------------------------------------------------------------------
+get_connector_compartment_ocid() {
+    # Return cached value if available
+    if [[ -n "${_DS_CONNECTOR_COMP_OCID_CACHE:-}" ]]; then
+        echo "$_DS_CONNECTOR_COMP_OCID_CACHE"
+        return 0
+    fi
+
+    # Use DS_CONNECTOR_COMP if set, otherwise fall back to DS_ROOT_COMP
+    local connector_comp="${DS_CONNECTOR_COMP:-${DS_ROOT_COMP:-}}"
+
+    if [[ -z "$connector_comp" ]]; then
+        log_error "Neither DS_CONNECTOR_COMP nor DS_ROOT_COMP is set"
+        return 1
+    fi
+
+    # If already an OCID, use it directly
+    if is_ocid "$connector_comp"; then
+        log_debug "Connector compartment is already an OCID: $connector_comp"
+        _DS_CONNECTOR_COMP_OCID_CACHE="$connector_comp"
+        echo "$connector_comp"
+        return 0
+    fi
+
+    # It's a name, resolve it
+    log_debug "Resolving connector compartment name to OCID: $connector_comp"
+    local resolved
+    resolved=$(oci_resolve_compartment_ocid "$connector_comp") || {
+        log_error "Failed to resolve connector compartment: $connector_comp"
+        return 1
+    }
+
+    if [[ -z "$resolved" ]]; then
+        log_error "Connector compartment not found: $connector_comp"
+        return 1
+    fi
+
+    log_debug "Resolved connector compartment '$connector_comp' to OCID: $resolved"
+    _DS_CONNECTOR_COMP_OCID_CACHE="$resolved"
+    echo "$resolved"
+    return 0
+}
+
 # =============================================================================
 # OCI CLI WRAPPER
 # =============================================================================

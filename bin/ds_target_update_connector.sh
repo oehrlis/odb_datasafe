@@ -346,12 +346,18 @@ resolve_connector_ocid() {
 
     log_debug "Resolving connector name: $connector"
 
-    # Use already-resolved COMPARTMENT_OCID if available
+    # Use connector compartment (with fallback chain)
     local comp_ocid
-    if [[ -n "${COMPARTMENT_OCID:-}" ]]; then
-        comp_ocid="$COMPARTMENT_OCID"
+    if [[ -n "${CONNECTOR_COMPARTMENT:-}" ]]; then
+        # Explicit connector compartment specified
+        if is_ocid "$CONNECTOR_COMPARTMENT"; then
+            comp_ocid="$CONNECTOR_COMPARTMENT"
+        else
+            comp_ocid=$(oci_resolve_compartment_ocid "$CONNECTOR_COMPARTMENT") || return 1
+        fi
     else
-        comp_ocid=$(get_root_compartment_ocid) || return 1
+        # Use helper which falls back DS_CONNECTOR_COMP -> DS_ROOT_COMP
+        comp_ocid=$(get_connector_compartment_ocid) || return 1
     fi
 
     # Search for connector by display name
@@ -401,15 +407,11 @@ list_available_connectors() {
         else
             comp_ocid=$(oci_resolve_compartment_ocid "$CONNECTOR_COMPARTMENT") || return 1
         fi
-        log_debug "Using connector compartment: $CONNECTOR_COMPARTMENT"
-    elif [[ -n "${COMPARTMENT_OCID:-}" ]]; then
-        # Use target compartment
-        comp_ocid="$COMPARTMENT_OCID"
-        log_debug "Using target compartment for connectors"
+        log_debug "Using explicit connector compartment: $CONNECTOR_COMPARTMENT"
     else
-        # Fall back to root
-        comp_ocid=$(get_root_compartment_ocid) || return 1
-        log_debug "Using root compartment for connectors"
+        # Use helper function which falls back DS_CONNECTOR_COMP -> DS_ROOT_COMP
+        comp_ocid=$(get_connector_compartment_ocid) || return 1
+        log_debug "Using default connector compartment"
     fi
 
     # Fetch connectors

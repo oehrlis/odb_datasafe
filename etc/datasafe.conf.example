@@ -25,10 +25,15 @@
 # Data Safe Common Settings
 # -----------------------------------------------------------------------------
 
-# Default root compartment for Data Safe operations
+# Default root compartment for Data Safe targets
 # Override with -c/--compartment or DS_ROOT_COMP_OCID env var
 #COMPARTMENT="ocid1.compartment.oc1..aaaa..."
 #DS_ROOT_COMP_OCID="ocid1.compartment.oc1..aaaa..."
+
+# Default compartment for on-premises connectors
+# If not set, uses DS_ROOT_COMP. Override with --connector-compartment
+#DS_CONNECTOR_COMP="ocid1.compartment.oc1..aaaa..."
+#DS_CONNECTOR_COMP_OCID="ocid1.compartment.oc1..aaaa..."
 
 # Default lifecycle states to filter
 #LIFECYCLE_STATE="NEEDS_ATTENTION"

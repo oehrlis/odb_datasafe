@@ -61,6 +61,7 @@ PDB=""
 RUN_ROOT=false
 COMPARTMENT=""
 CONNECTOR=""
+CONNECTOR_COMPARTMENT=""
 LISTENER_PORT="1521"
 SERVICE_NAME=""
 DS_USER="DS_ADMIN"
@@ -111,6 +112,7 @@ CONNECTION:
   --port PORT                 Listener port (default: 1521)
   --service SERVICE           Service name (default: auto-derived from PDB/SID)
   --ds-user USER              Data Safe user (default: DS_ADMIN)
+  --connector-compartment COMP Compartment to search for connector (default: same as -c)
 
 METADATA:
   -N, --display-name NAME     Display name (default: <cluster>_<sid>_<pdb|CDBROOT>)
@@ -178,6 +180,10 @@ parse_args() {
                 ;;
             --connector)
                 CONNECTOR="$2"
+                shift 2
+                ;;
+            --connector-compartment)
+                CONNECTOR_COMPARTMENT="$2"
                 shift 2
                 ;;
             --port)
@@ -280,17 +286,35 @@ validate_inputs() {
         CONNECTOR_OCID="$CONNECTOR"
         log_debug "Connector OCID provided directly"
     else
+        # Determine which compartment to search for connector
+        local connector_search_comp
+        if [[ -n "${CONNECTOR_COMPARTMENT:-}" ]]; then
+            # Use explicit connector compartment
+            if is_ocid "$CONNECTOR_COMPARTMENT"; then
+                connector_search_comp="$CONNECTOR_COMPARTMENT"
+            else
+                connector_search_comp=$(oci_resolve_compartment_ocid "$CONNECTOR_COMPARTMENT") || \
+                    die "Failed to resolve connector compartment: $CONNECTOR_COMPARTMENT"
+            fi
+            log_debug "Using explicit connector compartment: $CONNECTOR_COMPARTMENT"
+        else
+            # Use helper function (DS_CONNECTOR_COMP -> DS_ROOT_COMP -> target compartment)
+            connector_search_comp=$(get_connector_compartment_ocid 2>/dev/null || echo "$COMP_OCID")
+            log_debug "Using default connector compartment"
+        fi
+
         # Try to find connector by name using read-only operation
         log_debug "Resolving connector name: ${CONNECTOR}"
         local connectors_json
         connectors_json=$(oci_exec_ro data-safe on-prem-connector list \
-            --compartment-id "$COMP_OCID" \
+            --compartment-id "$connector_search_comp" \
+            --compartment-id-in-subtree true \
             --all) || die "Failed to list connectors"
 
         CONNECTOR_OCID=$(echo "$connectors_json" | jq -r ".data[] | select(.\"display-name\" == \"$CONNECTOR\") | .id" | head -n1)
 
         if [[ -z "$CONNECTOR_OCID" ]]; then
-            die "Connector not found: $CONNECTOR"
+            die "Connector not found: $CONNECTOR in compartment"
         fi
         log_debug "Resolved connector: ${CONNECTOR} -> ${CONNECTOR_OCID}"
     fi
