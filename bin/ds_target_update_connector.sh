@@ -273,6 +273,13 @@ resolve_connector_ocid() {
         return 0
     fi
 
+    # In dry-run mode, allow connector name to pass through
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
+        log_debug "Dry-run mode: Using connector name as-is: $connector"
+        echo "$connector"
+        return 0
+    fi
+
     log_debug "Resolving connector name: $connector"
 
     # Get compartment to search in
@@ -285,7 +292,7 @@ resolve_connector_ocid() {
 
     # Search for connector by display name
     local connector_ocid
-    connector_ocid=$(oci_exec data-safe on-premises-connector list \
+    connector_ocid=$(oci_exec data-safe on-prem-connector list \
         --compartment-id "$comp_ocid" \
         --compartment-id-in-subtree true \
         --query "data[?\"display-name\"=='$connector'].id | [0]" \
@@ -307,8 +314,8 @@ resolve_connector_ocid() {
 get_connector_name() {
     local connector_ocid="$1"
 
-    oci_exec data-safe on-premises-connector get \
-        --on-premises-connector-id "$connector_ocid" \
+    oci_exec data-safe on-prem-connector get \
+        --on-prem-connector-id "$connector_ocid" \
         --query 'data."display-name"' \
         --raw-output 2> /dev/null || echo "unknown"
 }
@@ -328,7 +335,7 @@ list_available_connectors() {
         comp_ocid=$(get_root_compartment_ocid) || return 1
     fi
 
-    oci_exec data-safe on-premises-connector list \
+    oci_exec data-safe on-prem-connector list \
         --compartment-id "$comp_ocid" \
         --compartment-id-in-subtree true \
         --lifecycle-state ACTIVE \
@@ -464,20 +471,27 @@ do_set_mode() {
                     --query 'data."display-name"' \
                     --raw-output 2> /dev/null || echo "unknown")
             else
-                # Resolve target name to OCID
-                log_debug "Resolving target name: $target"
-                local resolved
-                if [[ -n "$COMPARTMENT" ]]; then
-                    resolved=$(ds_resolve_target_ocid "$target" "$COMPARTMENT") || die "Failed to resolve target: $target"
+                # In dry-run mode, use target name as-is without resolution
+                if [[ "${DRY_RUN:-false}" == "true" ]]; then
+                    log_debug "Dry-run mode: Using target name as-is: $target"
+                    target_ocid="$target"
+                    target_name="$target"
                 else
-                    local root_comp
-                    root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment"
-                    resolved=$(ds_resolve_target_ocid "$target" "$root_comp") || die "Failed to resolve target: $target"
-                fi
+                    # Resolve target name to OCID
+                    log_debug "Resolving target name: $target"
+                    local resolved
+                    if [[ -n "$COMPARTMENT" ]]; then
+                        resolved=$(ds_resolve_target_ocid "$target" "$COMPARTMENT") || die "Failed to resolve target: $target"
+                    else
+                        local root_comp
+                        root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment"
+                        resolved=$(ds_resolve_target_ocid "$target" "$root_comp") || die "Failed to resolve target: $target"
+                    fi
 
-                [[ -n "$resolved" ]] || die "Target not found: $target"
-                target_ocid="$resolved"
-                target_name="$target"
+                    [[ -n "$resolved" ]] || die "Target not found: $target"
+                    target_ocid="$resolved"
+                    target_name="$target"
+                fi
             fi
 
             if update_target_connector "$target_ocid" "$target_name" "$target_connector_ocid" "$target_connector_name"; then
