@@ -10,14 +10,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Script Versioning** - Dynamic version reading from VERSION file
-  - Updated all scripts to read `SCRIPT_VERSION` from `VERSION` file instead of hardcoding
-  - Pattern: `readonly SCRIPT_VERSION="$(cat "${SCRIPT_DIR}/../VERSION" 2>/dev/null | tr -d '\n' || echo '0.5.3')"`
-  - Eliminates need to update individual script versions when releasing
-  - Falls back to '0.5.3' if VERSION file not found
+- **Script Versioning** - Switched to .extension file as single source of truth
+  - Changed from reading VERSION file to reading .extension metadata file
+  - Pattern: `readonly SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.3')"`
+  - **Rationale**: .extension is the authoritative metadata file for OraDBA extensions
+  - Benefits:
+    - Single source of truth for all extension metadata (version, name, description, author)
+    - Follows OraDBA extension template standard
+    - Eliminates need to sync VERSION and .extension files
+    - Could be extended to read other metadata (name, description, etc.)
   - Applies to 8 scripts: ds_target_list.sh, ds_target_update_tags.sh, ds_target_update_credentials.sh,
     ds_target_update_connector.sh, ds_target_update_service.sh, ds_target_refresh.sh, 
     ds_tg_report.sh, TEMPLATE.sh
+  - Updated .extension version: 0.5.2 → 0.5.3
 
 ### Fixed
 
