@@ -9,6 +9,7 @@ setup() {
     export REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/.." && pwd)"
     export BIN_DIR="${REPO_ROOT}/bin"
     export SCRIPT_UNDER_TEST="${BIN_DIR}/ds_target_list_connector.sh"
+    export SCRIPT_VERSION="$(cat "${REPO_ROOT}/VERSION" 2>/dev/null | tr -d '\n' || echo '0.0.0')"
     
     # Skip tests if script doesn't exist
     if [[ ! -f "${SCRIPT_UNDER_TEST}" ]]; then
@@ -36,7 +37,7 @@ setup() {
 @test "ds_target_list_connector.sh: Version option shows version" {
     run "${SCRIPT_UNDER_TEST}" --version
     [[ "$status" -eq 0 ]]
-    [[ "$output" =~ "0.5.4" ]]
+    [[ "$output" =~ "${SCRIPT_VERSION}" ]]
 }
 
 @test "ds_target_list_connector.sh: Help shows compartment configuration info" {

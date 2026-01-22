@@ -18,6 +18,7 @@ setup() {
     export BIN_DIR="${REPO_ROOT}/bin"
     export LIB_DIR="${REPO_ROOT}/lib"
     export TEST_TEMP_DIR="${BATS_TEST_TMPDIR}"
+    export SCRIPT_VERSION="$(cat "${REPO_ROOT}/VERSION" 2>/dev/null | tr -d '\n' || echo '0.0.0')"
     
     # Create comprehensive test environment
     export TEST_ENV_FILE="${TEST_TEMP_DIR}/.env"
@@ -122,7 +123,7 @@ teardown() {
     # 2. Test version functions work
     run "${BIN_DIR}/ds_target_update_tags.sh" --version
     [ "$status" -eq 0 ]
-    [[ "$output" == *"0.2.0"* ]]
+    [[ "$output" == *"${SCRIPT_VERSION}"* ]]
     
     # 3. Test basic error handling
     run "${BIN_DIR}/ds_target_update_connector.sh" invalid-mode
@@ -164,7 +165,7 @@ teardown() {
         # Test version
         run "${BIN_DIR}/${script}" --version
         [ "$status" -eq 0 ]
-        [[ "$output" == *"0.2.0"* ]]
+        [[ "$output" == *"${SCRIPT_VERSION}"* ]]
     done
 }
 

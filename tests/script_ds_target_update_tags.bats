@@ -14,6 +14,7 @@ setup() {
     export REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/.." && pwd)"
     export BIN_DIR="${REPO_ROOT}/bin"
     export TEST_TEMP_DIR="${BATS_TEST_TMPDIR}"
+    export SCRIPT_VERSION="$(cat "${REPO_ROOT}/VERSION" 2>/dev/null | tr -d '\n' || echo '0.0.0')"
     
     # Create test environment in REPO_ROOT so init_config can find it
     export TEST_ENV_FILE="${REPO_ROOT}/.env"
@@ -205,7 +206,7 @@ teardown() {
 @test "ds_target_update_tags.sh shows version information" {
     run "${BIN_DIR}/ds_target_update_tags.sh" --version  
     [ "$status" -eq 0 ]
-    [[ "$output" == *"0.5.4"* ]]
+    [[ "$output" == *"${SCRIPT_VERSION}"* ]]
 }
 
 # Test dry-run mode (default)
