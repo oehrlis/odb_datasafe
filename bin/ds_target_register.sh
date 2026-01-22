@@ -2,7 +2,7 @@
 # ------------------------------------------------------------------------------
 # Script Name : ds_target_register.sh
 # Description : Register a database as Oracle Data Safe target
-# Version     : 0.3.1
+# Version....: v0.5.3
 # Author      : Migrated to odb_datasafe v0.2.0 framework
 #
 # Purpose:

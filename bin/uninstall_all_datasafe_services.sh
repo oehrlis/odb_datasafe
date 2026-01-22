@@ -6,7 +6,7 @@
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
 # Date.......: 2026.01.11
-# Version....: v1.1.0
+# Version....: v0.5.3
 # Purpose....: Uninstall all Oracle Data Safe On-Premises Connector systemd services
 # Notes......: Works as regular user for listing. Root only for uninstall operations.
 # License....: Apache License Version 2.0

@@ -6,7 +6,7 @@
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
 # Date.......: 2026.01.11
-# Version....: v1.0.0
+# Version....: v0.5.3
 # Purpose....: Install and manage Oracle Data Safe On-Premises Connector as systemd service
 #              Generic solution for any connector with automatic discovery and configuration
 # Notes......: Works as regular user for config preparation. Root only for system installation.

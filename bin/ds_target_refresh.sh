@@ -5,7 +5,7 @@
 # Script.....: ds_target_refresh.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.01.09
-# Version....: v0.2.0
+# Version....: v0.5.3
 # Purpose....: Refresh Oracle Data Safe target databases
 # Usage......: ds_target_refresh.sh [OPTIONS] [TARGETS...]
 # License....: Apache License Version 2.0

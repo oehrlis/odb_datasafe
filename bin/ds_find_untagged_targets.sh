@@ -2,7 +2,7 @@
 # ------------------------------------------------------------------------------
 # Script Name : ds_find_untagged_targets.sh
 # Description : Find Data Safe target databases without tags in specified namespace
-# Version     : 0.3.0
+# Version....: v0.5.3
 # Author      : Generated for odb_datasafe framework
 #
 # Purpose:

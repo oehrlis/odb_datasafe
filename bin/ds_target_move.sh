@@ -6,7 +6,7 @@
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
 # Date.......: 2026.01.09
-# Version....: v0.2.0
+# Version....: v0.5.3
 # Purpose....: Move Oracle Data Safe targets and their referencing objects
 #              to another compartment for given target names/OCIDs.
 # Requires...: bash (>=4), oci, jq, lib/ds_lib.sh

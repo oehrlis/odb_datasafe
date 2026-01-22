@@ -6,7 +6,7 @@
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
 # Date.......: 2026.01.10
-# Version....: v0.2.0
+# Version....: v0.5.3
 # Purpose....: Display connection details for Oracle Data Safe target database.
 #              Fetches target info, resolves hosts, and shows connection strings,
 #              ports, service names, and credential information.
