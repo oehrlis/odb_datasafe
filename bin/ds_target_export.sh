@@ -132,11 +132,11 @@ parse_args() {
                 shift 2
                 ;;
             --oci-config)
-                OCI_CLI_CONFIG_FILE="$2"
+                export OCI_CLI_CONFIG_FILE="$2"
                 shift 2
                 ;;
             --oci-profile)
-                OCI_CLI_PROFILE="$2"
+                export OCI_CLI_PROFILE="$2"
                 shift 2
                 ;;
             -h | --help)

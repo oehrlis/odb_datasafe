@@ -310,13 +310,12 @@ display_connection_details() {
 # =============================================================================
 
 main() {
-    log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
+    log_info \"Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}\"
 
     # Setup error handling
     setup_error_handling
 
-    # Parse arguments and validate
-    parse_args "$@"
+    # Validate inputs
     validate_inputs
 
     # Display connection details

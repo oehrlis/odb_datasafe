@@ -90,8 +90,7 @@ bin/ds_target_refresh.sh -T mydb01 --dry-run
 
 ## Available Scripts
 
-| Script | Purpose |
-|--------|---------|
+| Script        | Purpose                              |
 | `ds_target_list.sh` | List Data Safe targets with filtering |
 | `ds_target_list_connector.sh` | List Data Safe on-premises connectors |
 | `ds_target_details.sh` | Show detailed target information |
@@ -113,7 +112,7 @@ bin/ds_target_refresh.sh -T mydb01 --dry-run
 
 ## Project Structure
 
-```
+```text
 odb_datasafe/
 ├── bin/           # 16+ executable scripts
 ├── lib/           # Library framework (ds_lib.sh, common.sh, oci_helpers.sh)

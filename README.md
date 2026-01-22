@@ -102,6 +102,7 @@ export DS_ROOT_COMP="ocid1.compartment.oc1....."
 - **Bash 4.0+** - Shell interpreter
 
 **Optional (for development):**
+
 - **BATS** - For running tests
 - **shellcheck** - For code linting
 - **markdownlint** - For documentation linting
@@ -167,11 +168,10 @@ make test-verbose
 ## Support & Contributing
 
 **Author:** Stefan Oehrli (oes)  
-**Email:** stefan.oehrli@oradba.ch
+**Email:** stefan.oehrli(at)oradba.ch
 
 For issues, feature requests, or contributions, please contact the maintainer.
 
 ---
 
 **Getting Started:** See [Installation & Setup](doc/install_datasafe_service.md) for detailed instructions.
-
