@@ -5,434 +5,608 @@
 # Name.......: ds_target_details.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
-# Date.......: 2026.01.09
+# Date.......: 2026.01.22
 # Version....: v0.5.3
 # Purpose....: Show/export detailed info for Oracle Data Safe target databases
 #              for given target names/OCIDs or all targets in a compartment.
 #              Output formats: table | json | csv.
 # Requires...: bash (>=4), oci, jq, lib/ds_lib.sh
-# Notes......: Config precedence → CLI > etc/ds_target_details.conf
-#              > DEFAULT_CONF > .env > code
+# Notes......: Config precedence → CLI > .env > datasafe.conf > code defaults
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
 # Modified...:
-# 2026.01.09 oehrli - migrate to v0.2.0 framework pattern
+# 2026.01.22 oehrli - Complete rewrite to use v0.2.0 framework pattern
 # ------------------------------------------------------------------------------
 
-# --- Code defaults (lowest precedence; overridden by .env/CONF/CLI) ----------
-: "${OCI_CLI_CONFIG_FILE:=${HOME}/.oci/config}"
-: "${OCI_CLI_PROFILE:=DEFAULT}"
+# Script identification
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
+readonly SCRIPT_VERSION="$(grep -E '^\s*version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' || echo 'v0.5.3')"
 
-: "${COMPARTMENT:=}" # name or OCID
-: "${TARGETS:=}"     # CSV names/OCIDs (overrides compartment mode)
-: "${STATE_FILTERS:=ACTIVE,NEEDS_ATTENTION}"# CSV lifecycle states when scanning compartment
-: "${RAW_SINCE_DATE:=}" # e.g. 2025-01-01 or -2w/-3m (normalized)
+# Library directory
+readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 
-: "${OUTPUT_TYPE:=csv}" # csv | json | table
+# Defaults
+: "${COMPARTMENT:=}"
+: "${TARGETS:=}"
+: "${LIFECYCLE_STATE:=ACTIVE,NEEDS_ATTENTION}"
+: "${OUTPUT_TYPE:=csv}"
 : "${OUTPUT_FILE:=./datasafe_target_details.csv}"
 
-# shellcheck disable=SC2034  # DEFAULT_CONF may be used for configuration loading in future
-DEFAULT_CONF="${SCRIPT_ETC_DIR:-./etc}/ds_target_details.conf"
-
-# Runtime
-SINCE_DATE=""
-COMP_OCID=""
-COMP_NAME=""
-# shellcheck disable=SC2034  # TARGET_LIST may be used for target resolution in future
-TARGET_LIST=()
-RESOLVED_TARGETS=()
+# Runtime variables
 DETAILS_JSON='[]'
-exported_count=0
+declare -A CONNECTOR_MAP
 
-# --- Minimal bootstrap: ensure SCRIPT_BASE and libraries ----------------------
-if [[ -z "${SCRIPT_BASE:-}" || -z "${SCRIPT_LIB_DIR:-}" ]]; then
-    _SRC="${BASH_SOURCE[0]}"
-    SCRIPT_BASE="$(cd "$(dirname "${_SRC}")/.." > /dev/null 2>&1 && pwd)"
-    SCRIPT_LIB_DIR="${SCRIPT_BASE}/lib"
-    unset _SRC
-fi
-
-# Load the odb_datasafe v0.2.0 framework
-if [[ -r "${SCRIPT_LIB_DIR}/ds_lib.sh" ]]; then
-    # shellcheck disable=SC1090
-    source "${SCRIPT_LIB_DIR}/ds_lib.sh" || {
-        echo "ERROR: ds_lib.sh failed to load." >&2
-        exit 1
-    }
-else
-    echo "ERROR: ds_lib.sh not found (tried: ${SCRIPT_LIB_DIR}/ds_lib.sh)" >&2
+# shellcheck disable=SC1091
+source "${LIB_DIR}/ds_lib.sh" || {
+    echo "ERROR: Failed to load ds_lib.sh" >&2
     exit 1
-fi
+}
+
+# Initialize configuration
+init_config
+
+# =============================================================================
+# FUNCTIONS
+# =============================================================================
 
 # ------------------------------------------------------------------------------
-# Function....: Usage
-# Purpose.....: Display command-line usage instructions and exit
+# Function: usage
+# Purpose.: Display usage information and help message
+# Returns.: 0 (exits after display)
+# Output..: Usage information to stdout
 # ------------------------------------------------------------------------------
-Usage() {
-    local exit_code="${1:-0}"
-
+usage() {
     cat << EOF
+Usage: ${SCRIPT_NAME} [OPTIONS]
 
-Usage:
-  ds_target_details.sh (-T <CSV> | -c <OCID|NAME>) [options]
+Description:
+  Show/export detailed information for Oracle Data Safe target databases.
+  Either provide explicit targets (-T) or scan a compartment (-c).
 
-Show detailed info for Data Safe target databases. Either provide explicit 
-targets (-T) or scan a compartment (-c). If both are provided, -T takes precedence.
+Options:
+  Target Selection:
+    -T, --targets LIST          Comma-separated target names or OCIDs
+    -c, --compartment ID        Compartment OCID or name (default: DS_ROOT_COMP)
+    -L, --lifecycle STATE       Filter by lifecycle state (default: ${LIFECYCLE_STATE})
+                                Comma-separated: ACTIVE,NEEDS_ATTENTION,DELETED
 
-Target selection (choose one):
-  -T, --targets <LIST>            Comma-separated target names or OCIDs
-  (or) use lifecycle-state filtering (default: ACTIVE,NEEDS_ATTENTION):
-  -s, --state <LIST>              Comma-separated states (e.g. NEEDS_ATTENTION,ACTIVE)
+  Output:
+    -O, --output-type TYPE      Output format: csv|json|table (default: ${OUTPUT_TYPE})
+    -o, --output FILE           Output file path for csv (default: ${OUTPUT_FILE})
 
-Scope:
-  -c, --compartment <OCID|NAME>   Compartment OCID or name (env: COMPARTMENT/COMP_OCID)
-  -D, --since-date <STR>          Only targets created >= date
-                                  (YYYY-MM-DD, RFC3339, or -2d/-1w/-3m)
+  OCI:
+    --oci-profile PROFILE       OCI CLI profile (default: ${OCI_CLI_PROFILE:-DEFAULT})
+    --oci-region REGION         OCI region
+    --oci-config FILE           OCI config file
 
-Output:
-  -O, --output-type csv|json|table Output format (default: ${OUTPUT_TYPE})
-  -o, --output <file>             Output CSV path (for csv; default: ${OUTPUT_FILE})
+  General:
+    -h, --help                  Show this help
+    -V, --version               Show version
+    -v, --verbose               Verbose output
+    -d, --debug                 Debug output
+    --log-file FILE             Log to file
 
-OCI CLI:
-      --oci-config <file>         OCI CLI config file (default: ${OCI_CLI_CONFIG_FILE})
-      --oci-profile <name>        OCI CLI profile     (default: ${OCI_CLI_PROFILE})
-
-Logging / generic:
-  -l, --log-file <file>           Write logs to <file>
-  -v, --verbose                   Set log level to INFO
-  -d, --debug                     Set log level to DEBUG
-  -t, --trace                     Set log level to TRACE
-  -q, --quiet                     Suppress INFO/DEBUG/TRACE stdout
-      --log-level <LEVEL>         ERROR|WARN|INFO|DEBUG|TRACE
-  -h, --help                      Show this help and exit
-
-CSV columns:
-  datasafe_ocid,display_name,lifecycle,created_at,infra_type,target_type,
-  host,port,service_name,connector_name,compartment_id,cluster,cdb,pdb
+CSV Columns:
+  datasafe_ocid, display_name, lifecycle, created_at, infra_type, target_type,
+  host, port, service_name, connector_name, compartment_id, cluster, cdb, pdb
 
 Examples:
-  ds_target_details.sh -T exa118r05c15_cdb09a15_HRPDB,ocid1.datasafetargetdatabase...
-  ds_target_details.sh -c my-compartment -O json
-  ds_target_details.sh -c test-compartment -s ACTIVE -O table
+  # Get details for specific target (CSV)
+  ${SCRIPT_NAME} -T exa118r05c15_cdb09a15_HRPDB
+
+  # Get all ACTIVE targets in compartment as JSON
+  ${SCRIPT_NAME} -c my-compartment -L ACTIVE -O json
+
+  # Get details for multiple targets as table
+  ${SCRIPT_NAME} -T target1,target2,target3 -O table
+
+  # Export all targets in compartment to custom file
+  ${SCRIPT_NAME} -c prod-compartment -o /tmp/targets.csv
 
 EOF
-    die "${exit_code}" ""
+    exit 0
 }
 
 # ------------------------------------------------------------------------------
-# Function....: parse_args
-# Purpose.....: Parse script-specific arguments from REM_ARGS
+# Function: need_val
+# Purpose.: Check if option has a value
+# Args....: $1 - option name, $2 - value
+# Returns.: 0 on success, exits on error
 # ------------------------------------------------------------------------------
-parse_args() {
-    local -a args=("${REM_ARGS[@]}")
-    POSITIONAL=()
+need_val() {
+    [[ -n "${2:-}" ]] || die "Option $1 requires a value"
+}
 
-    for ((i = 0; i < ${#args[@]}; i++)); do
-        case "${args[i]}" in
-            -T | --targets) TARGETS="${args[++i]:-}" ;;
-            -s | --state) STATE_FILTERS="${args[++i]:-}" ;;
-            -D | --since-date) RAW_SINCE_DATE="${args[++i]:-}" ;;
-            -c | --compartment) COMPARTMENT="${args[++i]:-}" ;;
-            -O | --output-type) OUTPUT_TYPE="${args[++i]:-}" ;;
-            -o | --output) OUTPUT_FILE="${args[++i]:-}" ;;
-            --oci-config) OCI_CLI_CONFIG_FILE="${args[++i]:-}" ;;
-            --oci-profile) OCI_CLI_PROFILE="${args[++i]:-}" ;;
-            -h | --help) Usage 0 ;;
-            --)
-                ((i++))
-                while ((i < ${#args[@]})); do POSITIONAL+=("${args[i++]}"); done
+# ------------------------------------------------------------------------------
+# Function: parse_arguments
+# Purpose.: Parse command-line arguments
+# Returns.: 0 on success, exits on error
+# ------------------------------------------------------------------------------
+parse_arguments() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -h|--help)
+                usage
                 ;;
-            -*)
-                log_error "Unknown option: ${args[i]}"
-                Usage 2
+            -V|--version)
+                echo "${SCRIPT_NAME} ${SCRIPT_VERSION}"
+                exit 0
                 ;;
-            *) POSITIONAL+=("${args[i]}") ;;
+            -T|--targets)
+                need_val "$1" "${2:-}"
+                TARGETS="$2"
+                shift 2
+                ;;
+            -c|--compartment)
+                need_val "$1" "${2:-}"
+                COMPARTMENT="$2"
+                shift 2
+                ;;
+            -L|--lifecycle)
+                need_val "$1" "${2:-}"
+                LIFECYCLE_STATE="$2"
+                shift 2
+                ;;
+            -O|--output-type)
+                need_val "$1" "${2:-}"
+                OUTPUT_TYPE="$2"
+                shift 2
+                ;;
+            -o|--output)
+                need_val "$1" "${2:-}"
+                OUTPUT_FILE="$2"
+                shift 2
+                ;;
+            --oci-profile)
+                need_val "$1" "${2:-}"
+                OCI_CLI_PROFILE="$2"
+                shift 2
+                ;;
+            --oci-region)
+                need_val "$1" "${2:-}"
+                export OCI_CLI_REGION="$2"
+                shift 2
+                ;;
+            --oci-config)
+                need_val "$1" "${2:-}"
+                export OCI_CLI_CONFIG_FILE="$2"
+                shift 2
+                ;;
+            -v|--verbose)
+                LOG_LEVEL="INFO"
+                shift
+                ;;
+            -d|--debug)
+                LOG_LEVEL="DEBUG"
+                shift
+                ;;
+            --log-file)
+                need_val "$1" "${2:-}"
+                LOG_FILE="$2"
+                shift 2
+                ;;
+            *)
+                log_error "Unknown option: $1"
+                echo "Use --help for usage information" >&2
+                exit 1
+                ;;
         esac
     done
 }
 
 # ------------------------------------------------------------------------------
-# Function....: preflight_checks
-# Purpose.....: Validate/normalize inputs and resolve target list → OCIDs
+# Function: validate_inputs
+# Purpose.: Validate required inputs and dependencies
+# Returns.: 0 on success, exits on validation failure
 # ------------------------------------------------------------------------------
-preflight_checks() {
-    # Normalize since-date
-    SINCE_DATE=""
-    if [[ -n "${RAW_SINCE_DATE}" ]]; then
-        # Simple date normalization (could be enhanced)
-        if [[ "${RAW_SINCE_DATE}" =~ ^-[0-9]+[dwm]$ ]]; then
-            # Relative date format (-2d, -1w, -3m)
-            local amount="${RAW_SINCE_DATE:1:-1}"
-            local unit="${RAW_SINCE_DATE: -1}"
-            case "${unit}" in
-                d) SINCE_DATE="$(date -u -v-"${amount}"d +%Y-%m-%dT%H:%M:%SZ 2> /dev/null || date -u -d "${amount} days ago" +%Y-%m-%dT%H:%M:%SZ 2> /dev/null || echo "")" ;;
-                w) SINCE_DATE="$(date -u -v-"$((amount * 7))"d +%Y-%m-%dT%H:%M:%SZ 2> /dev/null || date -u -d "$((amount * 7)) days ago" +%Y-%m-%dT%H:%M:%SZ 2> /dev/null || echo "")" ;;
-                m) SINCE_DATE="$(date -u -v-"$((amount * 30))"d +%Y-%m-%dT%H:%M:%SZ 2> /dev/null || date -u -d "$((amount * 30)) days ago" +%Y-%m-%dT%H:%M:%SZ 2> /dev/null || echo "")" ;;
-            esac
-        else
-            SINCE_DATE="${RAW_SINCE_DATE}"
-        fi
-    fi
+validate_inputs() {
+    log_debug "Validating inputs..."
 
-    # Build target list from -T and positionals
-    ds_build_target_list TARGET_LIST "${TARGETS:-}" POSITIONAL
+    require_cmd oci jq
 
-    # Validate/augment from compartment + filters
-    ds_validate_and_fill_targets \
-        TARGET_LIST "${COMPARTMENT:-}" "${STATE_FILTERS:-}" "${SINCE_DATE:-}" \
-        COMP_OCID COMP_NAME
-
-    # Resolve names → OCIDs
-    ds_resolve_targets_to_ocids TARGET_LIST RESOLVED_TARGETS \
-        || die 1 "Failed to resolve targets to OCIDs."
-
-    log_info "Targets selected for details: ${#RESOLVED_TARGETS[@]}"
-
-    if [[ ${#RESOLVED_TARGETS[@]} -eq 0 ]]; then
-        log_warn "No targets found matching criteria"
-        die 0 "No targets to process"
-    fi
-
-    # Output type sanity
+    # Validate output type
     OUTPUT_TYPE="${OUTPUT_TYPE,,}"
     case "${OUTPUT_TYPE}" in
-        csv | json | table) : ;;
-        *) die 2 "Unsupported --output-type '${OUTPUT_TYPE}'. Use csv|json|table." ;;
+        csv|json|table) ;;
+        *) die "Unsupported output type: ${OUTPUT_TYPE}. Use csv, json, or table." ;;
     esac
 
-    # Ensure CSV path if csv mode
+    # Ensure output directory exists for CSV
     if [[ "${OUTPUT_TYPE}" == "csv" ]]; then
-        mkdir -p "$(dirname "${OUTPUT_FILE}")" 2> /dev/null || true
+        local output_dir
+        output_dir="$(dirname "${OUTPUT_FILE}")"
+        mkdir -p "${output_dir}" 2>/dev/null || true
+    fi
+
+    # If neither targets nor compartment specified, use DS_ROOT_COMP
+    if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
+        local root_comp
+        root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
+        COMPARTMENT="$root_comp"
+        log_info "No compartment specified, using DS_ROOT_COMP: $COMPARTMENT"
     fi
 }
 
-# --- Steps --------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+# Function: build_connector_map
+# Purpose.: Build mapping of connector OCIDs to names for the compartment
+# Args....: $1 - compartment OCID
+# Returns.: 0 on success
+# Output..: Populates CONNECTOR_MAP associative array
+# ------------------------------------------------------------------------------
+build_connector_map() {
+    local compartment_ocid="$1"
+    
+    log_debug "Building connector mapping for compartment"
 
-# Step 1: Build connector mapping for the compartment (for connector name resolution)
-step_build_connector_map() {
-    declare -gA CONNECTOR_MAP=()
-
-    [[ -z "${COMP_OCID}" ]] && return 0
-
-    log_debug "Building connector mapping for compartment: ${COMP_NAME}"
-
+    # Query connectors in compartment
     local connectors_json
-    connectors_json="$(oci data-safe on-premises-connector list \
-        --compartment-id "${COMP_OCID}" \
-        --config-file "${OCI_CLI_CONFIG_FILE}" \
-        --profile "${OCI_CLI_PROFILE}" \
-        --all \
-        --raw-output 2> /dev/null)" || return 0
+    connectors_json=$(oci_exec data-safe on-prem-connector list \
+        --compartment-id "$compartment_ocid" \
+        --all) || {
+        log_debug "No connectors found or query failed"
+        return 0
+    }
 
+    # Parse and store in map
     while IFS=$'\t' read -r ocid name; do
-        [[ -n "${ocid}" ]] && CONNECTOR_MAP["${ocid}"]="${name:-Unknown}"
-    done < <(echo "${connectors_json}" | jq -r '.data[]? | [(.id // ""), (."display-name" // .displayName // "")] | @tsv')
+        if [[ -n "$ocid" ]]; then
+            CONNECTOR_MAP["$ocid"]="${name:-Unknown}"
+        fi
+    done < <(echo "$connectors_json" | jq -r '.data[]? | [.id, (."display-name" // "")] | @tsv')
 
     log_debug "Mapped ${#CONNECTOR_MAP[@]} connectors"
+    return 0
 }
 
-# Step 2: Collect per-target details into DETAILS_JSON (array of enriched objects)
-step_collect_details() {
-    log_info "Collecting target details..."
-    DETAILS_JSON='[]'
-    local processed=0 failed=0
+# ------------------------------------------------------------------------------
+# Function: collect_target_details
+# Purpose.: Fetch detailed information for target and add to DETAILS_JSON
+# Args....: $1 - target OCID
+# Returns.: 0 on success, 1 on error
+# ------------------------------------------------------------------------------
+collect_target_details() {
+    local target_ocid="$1"
+    local target_name
 
-    for target_ocid in "${RESOLVED_TARGETS[@]}"; do
-        # Resolve identity
-        local target_name
-        target_name="$(ds_resolve_target_name "${target_ocid}" 2> /dev/null || echo "${target_ocid}")"
+    target_name=$(ds_resolve_target_name "$target_ocid" 2>/dev/null) || target_name="$target_ocid"
+    
+    log_debug "Processing: $target_name"
 
-        log_debug "Processing: ${target_name}"
+    # Fetch target details
+    local target_json
+    target_json=$(oci_exec data-safe target-database get \
+        --target-database-id "$target_ocid") || {
+        log_error "Failed to get details for $target_name"
+        return 1
+    }
 
-        # Fetch target details
-        local target_json
-        target_json="$(oci data-safe target-database get \
-            --target-database-id "${target_ocid}" \
-            --config-file "${OCI_CLI_CONFIG_FILE}" \
-            --profile "${OCI_CLI_PROFILE}" \
-            --raw-output 2> /dev/null)" || {
-            log_error "Failed to get details for ${target_name}"
-            ((failed++))
-            continue
-        }
+    # Extract fields
+    local data
+    data=$(echo "$target_json" | jq -r '.data')
 
-        # Extract fields from the response
-        local data disp lcst created infra ttype host port svc compid conn_ocid conn_name
-        data="$(echo "${target_json}" | jq -r '.data')"
-        disp="$(echo "${data}" | jq -r '."display-name" // .displayName // empty')"
-        lcst="$(echo "${data}" | jq -r '."lifecycle-state" // empty' | tr '[:lower:]' '[:upper:]')"
-        created="$(echo "${data}" | jq -r '."time-created" // empty')"
-        infra="$(echo "${data}" | jq -r '."infrastructure-type" // empty')"
-        ttype="$(echo "${data}" | jq -r '."target-database-type" // empty')"
-        host="$(echo "${data}" | jq -r '."database-details"."host-name" // empty')"
-        port="$(echo "${data}" | jq -r '."database-details"."listener-port" // empty | tostring')"
-        svc="$(echo "${data}" | jq -r '."database-details"."service-name" // empty')"
-        compid="$(echo "${data}" | jq -r '."compartment-id" // empty')"
+    local disp lcst created infra ttype host port svc compid
+    disp=$(echo "$data" | jq -r '."display-name" // ""')
+    lcst=$(echo "$data" | jq -r '."lifecycle-state" // ""' | tr '[:lower:]' '[:upper:]')
+    created=$(echo "$data" | jq -r '."time-created" // ""')
+    infra=$(echo "$data" | jq -r '."infrastructure-type" // ""')
+    ttype=$(echo "$data" | jq -r '."database-type" // ""')
+    
+    # Connection details
+    local conn_option
+    conn_option=$(echo "$data" | jq -r '."connection-option" // {}')
+    
+    # Try to parse connection string
+    local conn_string
+    conn_string=$(echo "$conn_option" | jq -r '."connection-string" // empty')
+    
+    if [[ -n "$conn_string" ]]; then
+        # Parse connection string format: host:port/service
+        host=$(echo "$conn_string" | cut -d: -f1)
+        port=$(echo "$conn_string" | cut -d: -f2 | cut -d/ -f1)
+        svc=$(echo "$conn_string" | cut -d/ -f2-)
+    else
+        host=""
+        port=""
+        svc=""
+    fi
+    
+    compid=$(echo "$data" | jq -r '."compartment-id" // ""')
 
-        # Connector OCID → name (if any)
-        conn_ocid="$(echo "${data}" | jq -r '.["associated-resource-ids"]?[]? | select(startswith("ocid1.datasafeonpremconnector")) // empty' | head -n1)"
-        if [[ -n "${conn_ocid}" && -n "${CONNECTOR_MAP["${conn_ocid}"]:-}" ]]; then
-            conn_name="${CONNECTOR_MAP["${conn_ocid}"]}"
-        elif [[ -n "${conn_ocid}" ]]; then
-            conn_name="Unknown"
-        else
-            conn_name="N/A"
-        fi
+    # Get connector info
+    local conn_ocid conn_name
+    conn_ocid=$(echo "$conn_option" | jq -r '."on-prem-connector-id" // empty')
+    
+    if [[ -n "$conn_ocid" && -n "${CONNECTOR_MAP[$conn_ocid]:-}" ]]; then
+        conn_name="${CONNECTOR_MAP[$conn_ocid]}"
+    elif [[ -n "$conn_ocid" ]]; then
+        conn_name="Unknown"
+    else
+        conn_name="N/A"
+    fi
 
-        # Derive cluster/cdb/pdb from display-name (best-effort parsing)
-        local cluster cdb pdb
-        if [[ "${disp}" =~ ^([^_]+)_([^_]+)_(.+)$ ]]; then
-            cluster="${BASH_REMATCH[1]}"
-            cdb="${BASH_REMATCH[2]}"
-            pdb="${BASH_REMATCH[3]}"
-        elif [[ "${disp}" =~ ^([^_]+)_(.+)$ ]]; then
-            cluster=""
-            cdb="${BASH_REMATCH[1]}"
-            pdb="${BASH_REMATCH[2]}"
-        else
-            cluster=""
-            cdb="${disp}"
-            pdb=""
-        fi
+    # Parse display name for cluster/cdb/pdb
+    local cluster cdb pdb
+    if [[ "$disp" =~ ^([^_]+)_([^_]+)_(.+)$ ]]; then
+        cluster="${BASH_REMATCH[1]}"
+        cdb="${BASH_REMATCH[2]}"
+        pdb="${BASH_REMATCH[3]}"
+    elif [[ "$disp" =~ ^([^_]+)_(.+)$ ]]; then
+        cluster=""
+        cdb="${BASH_REMATCH[1]}"
+        pdb="${BASH_REMATCH[2]}"
+    else
+        cluster=""
+        cdb="$disp"
+        pdb=""
+    fi
 
-        # Build record
-        local record
-        record="$(jq -n \
-            --arg ocid "${target_ocid}" \
-            --arg disp "${disp}" \
-            --arg lcst "${lcst}" \
-            --arg created "${created}" \
-            --arg infra "${infra}" \
-            --arg ttype "${ttype}" \
-            --arg host "${host}" \
-            --arg port "${port}" \
-            --arg svc "${svc}" \
-            --arg conn "${conn_name}" \
-            --arg comp "${compid}" \
-            --arg cluster "${cluster}" \
-            --arg cdb "${cdb}" \
-            --arg pdb "${pdb}" \
-            '{
-        datasafe_ocid: $ocid,
-        display_name: $disp,
-        lifecycle: $lcst,
-        created_at: $created,
-        infra_type: $infra,
-        target_type: $ttype,
-        host: $host,
-        port: $port,
-        service_name: $svc,
-        connector_name: $conn,
-        compartment_id: $comp,
-        cluster: $cluster,
-        cdb: $cdb,
-        pdb: $pdb
-      }')"
+    # Build JSON record
+    local record
+    record=$(jq -n \
+        --arg ocid "$target_ocid" \
+        --arg disp "$disp" \
+        --arg lcst "$lcst" \
+        --arg created "$created" \
+        --arg infra "$infra" \
+        --arg ttype "$ttype" \
+        --arg host "$host" \
+        --arg port "$port" \
+        --arg svc "$svc" \
+        --arg conn "$conn_name" \
+        --arg comp "$compid" \
+        --arg cluster "$cluster" \
+        --arg cdb "$cdb" \
+        --arg pdb "$pdb" \
+        '{
+            datasafe_ocid: $ocid,
+            display_name: $disp,
+            lifecycle: $lcst,
+            created_at: $created,
+            infra_type: $infra,
+            target_type: $ttype,
+            host: $host,
+            port: $port,
+            service_name: $svc,
+            connector_name: $conn,
+            compartment_id: $comp,
+            cluster: $cluster,
+            cdb: $cdb,
+            pdb: $pdb
+        }')
 
-        DETAILS_JSON="$(echo "${DETAILS_JSON}" | jq -c --argjson row "${record}" '. + [$row]')"
-        ((processed++))
-    done
-
-    exported_count="${processed}"
-    log_info "Collected details for ${processed} targets (${failed} failed)"
+    # Add to array
+    DETAILS_JSON=$(echo "$DETAILS_JSON" | jq -c --argjson row "$record" '. + [$row]')
+    
+    return 0
 }
 
-# Step 3: Emit output (json | table | csv)
-step_emit_output() {
-    case "${OUTPUT_TYPE}" in
+# ------------------------------------------------------------------------------
+# Function: emit_output
+# Purpose.: Output collected details in requested format
+# Returns.: 0 on success
+# Output..: Details to stdout or file depending on format
+# ------------------------------------------------------------------------------
+emit_output() {
+    local count
+    count=$(echo "$DETAILS_JSON" | jq 'length')
+    
+    case "$OUTPUT_TYPE" in
         json)
-            echo "${DETAILS_JSON}" | jq .
+            echo "$DETAILS_JSON" | jq .
+            log_info "Output $count targets as JSON"
             ;;
+            
         table)
-            # If no rows, say so and exit early
-            if [[ "${DETAILS_JSON}" == "[]" ]]; then
+            if [[ "$count" -eq 0 ]]; then
                 log_info "No target details to display"
                 return 0
             fi
 
             local i=0
-            echo "${DETAILS_JSON}" | jq -r '
-        .[] |
-        [
-          (.display_name    // ""),
-          (.datasafe_ocid   // ""),
-          (.lifecycle       // ""),
-          (.created_at      // ""),
-          (.infra_type      // ""),
-          (.target_type     // ""),
-          (.host            // ""),
-          ((.port // "") | tostring),
-          (.service_name    // ""),
-          (.connector_name  // ""),
-          (.compartment_id  // ""),
-          (.cluster         // ""),
-          (.cdb             // ""),
-          (.pdb             // "")
-        ] | @tsv
-      ' | while IFS=$'\t' read -r \
+            echo "$DETAILS_JSON" | jq -r '.[] | [
+                .display_name, .datasafe_ocid, .lifecycle, .created_at,
+                .infra_type, .target_type, .host, (.port // ""), .service_name,
+                .connector_name, .compartment_id, .cluster, .cdb, .pdb
+            ] | @tsv' | while IFS=$'\t' read -r \
                 disp ocid lifecycle created infra ttype host port svc conn comp cluster cdb pdb; do
-                ((i += 1))
+                ((i++)) || true
                 printf "\n"
                 printf "== Target %d ======================================================\n" "$i"
-                printf "Display Name   : %s\n" "${disp}"
-                printf "OCID           : %s\n" "${ocid}"
-                printf "Lifecycle      : %s\n" "${lifecycle}"
-                printf "Created        : %s\n" "${created}"
-                printf "Infra/Type     : %s / %s\n" "${infra}" "${ttype}"
-                printf "Connection     : %s@%s:%s (via %s)\n" "${host}" "${host}" "${port}" "${conn}"
-                printf "Service Name   : %s\n" "${svc}"
-                printf "Compartment    : %s\n" "${comp}"
-                printf "Cluster/CDB/PDB: %s / %s / %s\n" "${cluster}" "${cdb}" "${pdb}"
+                printf "Display Name   : %s\n" "$disp"
+                printf "OCID           : %s\n" "$ocid"
+                printf "Lifecycle      : %s\n" "$lifecycle"
+                printf "Created        : %s\n" "$created"
+                printf "Infra/Type     : %s / %s\n" "$infra" "$ttype"
+                printf "Connection     : %s:%s/%s\n" "$host" "$port" "$svc"
+                printf "Connector      : %s\n" "$conn"
+                printf "Compartment    : %s\n" "$comp"
+                printf "Cluster/CDB/PDB: %s / %s / %s\n" "$cluster" "$cdb" "$pdb"
             done
             printf "\n"
+            log_info "Displayed $count targets"
             ;;
-        csv | *)
+            
+        csv)
             {
                 echo 'datasafe_ocid,display_name,lifecycle,created_at,infra_type,target_type,host,port,service_name,connector_name,compartment_id,cluster,cdb,pdb'
-                echo "${DETAILS_JSON}" | jq -r '.[] | [
-          .datasafe_ocid,
-          .display_name,
-          .lifecycle,
-          .created_at,
-          .infra_type,
-          .target_type,
-          .host,
-          (.port|tostring),
-          .service_name,
-          .connector_name,
-          .compartment_id,
-          .cluster,
-          .cdb,
-          .pdb
-        ] | @csv'
-            } > "${OUTPUT_FILE}"
-
-            log_info "Wrote ${exported_count} target details to ${OUTPUT_FILE}"
+                echo "$DETAILS_JSON" | jq -r '.[] | [
+                    .datasafe_ocid, .display_name, .lifecycle, .created_at,
+                    .infra_type, .target_type, .host, (.port // ""),
+                    .service_name, .connector_name, .compartment_id,
+                    .cluster, .cdb, .pdb
+                ] | @csv'
+            } > "$OUTPUT_FILE"
+            
+            log_info "Wrote $count target details to $OUTPUT_FILE"
             ;;
     esac
+    
+    return 0
 }
 
 # ------------------------------------------------------------------------------
-# Function....: run_details
-# Purpose.....: Orchestrate the steps
+# Function: list_targets_in_compartment
+# Purpose.: List targets in compartment matching lifecycle state filter
+# Args....: $1 - compartment OCID
+# Returns.: 0 on success
+# Output..: Tab-separated target OCIDs and names
 # ------------------------------------------------------------------------------
-run_details() {
-    step_build_connector_map
-    step_collect_details
-    step_emit_output
-    die 0 "Target details collection completed"
+list_targets_in_compartment() {
+    local compartment_ocid="$1"
+    
+    log_debug "Listing targets in compartment with lifecycle filter: $LIFECYCLE_STATE"
+    
+    # Build lifecycle filter
+    local -a lifecycle_filters=()
+    IFS=',' read -ra states <<< "$LIFECYCLE_STATE"
+    for state in "${states[@]}"; do
+        lifecycle_filters+=(--lifecycle-state "${state// /}")
+    done
+    
+    # Query targets
+    local targets_json
+    targets_json=$(oci_exec data-safe target-database list \
+        --compartment-id "$compartment_ocid" \
+        "${lifecycle_filters[@]}" \
+        --all) || {
+        log_error "Failed to list targets in compartment"
+        return 1
+    }
+    
+    # Output OCID and name
+    echo "$targets_json" | jq -r '.data[]? | [.id, (."display-name" // "")] | @tsv'
+    
+    return 0
 }
 
 # ------------------------------------------------------------------------------
-# Function....: main
-# Purpose.....: Entry point
+# Function: do_work
+# Purpose.: Main work function - discover targets and collect details
+# Returns.: 0 on success, 1 on error
 # ------------------------------------------------------------------------------
+do_work() {
+    local -a target_ocids=()
+    local compartment_ocid=""
+    
+    # Collect target OCIDs
+    if [[ -n "$TARGETS" ]]; then
+        # Process explicit targets
+        log_info "Processing explicit targets"
+        
+        # Get compartment OCID for target resolution
+        if [[ -n "$COMPARTMENT" ]]; then
+            if is_ocid "$COMPARTMENT"; then
+                compartment_ocid="$COMPARTMENT"
+            else
+                compartment_ocid=$(resolve_compartment_ocid "$COMPARTMENT") || \
+                    die "Failed to resolve compartment: $COMPARTMENT"
+            fi
+        else
+            # Use DS_ROOT_COMP for target resolution
+            local root_comp
+            root_comp=$(get_root_compartment_ocid) || die "Failed to get DS_ROOT_COMP"
+            compartment_ocid="$root_comp"
+        fi
+        
+        IFS=',' read -ra target_list <<< "$TARGETS"
+        for target in "${target_list[@]}"; do
+            target="${target// /}" # trim spaces
+            
+            if is_ocid "$target"; then
+                target_ocids+=("$target")
+            else
+                # Resolve name to OCID in compartment
+                local target_ocid
+                target_ocid=$(ds_resolve_target_ocid "$target" "$compartment_ocid") || {
+                    log_error "Failed to resolve target: $target"
+                    continue
+                }
+                target_ocids+=("$target_ocid")
+            fi
+        done
+    else
+        # Scan compartment
+        log_info "Scanning compartment for targets"
+        
+        # Resolve compartment
+        if is_ocid "$COMPARTMENT"; then
+            compartment_ocid="$COMPARTMENT"
+        else
+            compartment_ocid=$(resolve_compartment_ocid "$COMPARTMENT") || \
+                die "Failed to resolve compartment: $COMPARTMENT"
+        fi
+        
+        # List targets in compartment
+        local targets_data
+        targets_data=$(list_targets_in_compartment "$compartment_ocid") || \
+            die "Failed to list targets in compartment"
+        
+        while IFS=$'\t' read -r ocid name; do
+            [[ -n "$ocid" ]] && target_ocids+=("$ocid")
+        done <<< "$targets_data"
+    fi
+    
+    # Check if we have targets
+    if [[ ${#target_ocids[@]} -eq 0 ]]; then
+        log_warn "No targets found matching criteria"
+        return 0
+    fi
+    
+    log_info "Found ${#target_ocids[@]} targets to process"
+    
+    # Build connector map if we have a compartment
+    if [[ -n "$compartment_ocid" ]]; then
+        build_connector_map "$compartment_ocid"
+    fi
+    
+    # Collect details for each target
+    log_info "Collecting target details..."
+    DETAILS_JSON='[]'
+    local success_count=0
+    local error_count=0
+    
+    for target_ocid in "${target_ocids[@]}"; do
+        if collect_target_details "$target_ocid"; then
+            ((success_count++)) || true
+        else
+            ((error_count++)) || true
+        fi
+    done
+    
+    log_info "Collection completed: $success_count successful, $error_count errors"
+    
+    # Emit output
+    emit_output
+    
+    return 0
+}
+
+# =============================================================================
+# MAIN
+# =============================================================================
+
 main() {
-    init_script_env "$@" # standardized init per odb_datasafe framework
-    parse_args
-    preflight_checks
-    run_details
+    log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
+    
+    # Setup error handling
+    setup_error_handling
+    
+    # Parse arguments
+    parse_arguments "$@"
+    
+    # Validate inputs
+    validate_inputs
+    
+    # Execute main work
+    if do_work; then
+        log_info "Target details collection completed successfully"
+    else
+        die "Target details collection failed"
+    fi
 }
 
-# --- Entry point --------------------------------------------------------------
 main "$@"
+
+exit 0
