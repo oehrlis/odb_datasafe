@@ -18,9 +18,12 @@
 set -euo pipefail
 
 # Script metadata
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_NAME
 readonly SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.3')"
+readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 
 # Defaults
 : "${COMPARTMENT:=}"
@@ -32,19 +35,11 @@ readonly SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev
 : "${CONTAINER_TYPE_TAG:=ContainerType}"
 : "${CLASSIFICATION_TAG:=Classification}"
 
-# Load library
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly SCRIPT_DIR
-readonly LIB_DIR="${SCRIPT_DIR}/../lib"
-
 # shellcheck disable=SC1091
 source "${LIB_DIR}/ds_lib.sh" || {
     echo "ERROR: Failed to load ds_lib.sh" >&2
     exit 1
 }
-
-# Initialize configuration
-init_config
 
 # =============================================================================
 # FUNCTIONS
@@ -437,22 +432,27 @@ do_work() {
 main() {
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
 
-    # Setup error handling
-    setup_error_handling
-
-    # Validate inputs
+    init_config "${SCRIPT_NAME}.conf"
+    parse_args "$@"
     validate_inputs
+    do_work
 
-    # Execute main work
-    if do_work; then
-        log_info "Tag update completed successfully"
-    else
-        die "Tag update failed with errors"
-    fi
+    log_info "Tag update completed successfully"
 }
 
-# Parse arguments and run
-parse_args "$@"
-main
+# Handle --help before setting up error traps
+for arg in "$@"; do
+    if [[ "$arg" == "--help" || "$arg" == "-h" ]]; then
+        usage
+    fi
+done
+
+# Setup error handling before main execution
+setup_error_handling
+
+main "$@"
+
+# Explicit exit to prevent spurious error trap
+exit 0
 
 # --- End of ds_target_update_tags.sh ------------------------------------------
