@@ -276,7 +276,7 @@ list_connectors() {
             printf "    CMAN: %s\n" "$cman_name"
         fi
         echo
-        ((idx++))
+        idx=$((idx + 1))
     done
 
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -376,7 +376,7 @@ select_connector_interactive() {
     local idx=1
     for connector in "${connectors[@]}"; do
         printf "%2d. %s\n" "$idx" "$connector"
-        ((idx++))
+        idx=$((idx + 1))
     done
 
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

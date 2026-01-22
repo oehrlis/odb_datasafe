@@ -224,18 +224,9 @@ validate_inputs() {
         die "Must specify either -T/--targets or -c/--compartment"
     fi
 
-    # Resolve compartment if specified
-    if [[ -n "$COMPARTMENT" ]]; then
-        local comp_ocid
-        comp_ocid=$(oci_resolve_compartment_ocid "$COMPARTMENT") || die "Failed to resolve compartment: $COMPARTMENT"
-        COMPARTMENT="$comp_ocid"
-        log_debug "Resolved compartment: $COMPARTMENT"
-    else
-        # Use DS_ROOT_COMP if available for target resolution
-        if [[ -z "${DS_ROOT_COMP:-}" ]]; then
-            DS_ROOT_COMP=$(get_root_compartment_ocid) || log_debug "DS_ROOT_COMP not available"
-        fi
-    fi
+    # Resolve compartment using standard pattern: explicit > DS_ROOT_COMP > error
+    COMPARTMENT=$(resolve_compartment_for_operation "$COMPARTMENT") || die "Failed to resolve compartment"
+    log_debug "Resolved compartment: $COMPARTMENT"
 
     # Validate audit type
     case "${AUDIT_TYPE^^}" in
@@ -286,15 +277,16 @@ resolve_targets() {
 
             log_debug "  Resolving: $target"
             local target_ocid
-            target_ocid=$(ds_resolve_target_ocid "$target" "${COMPARTMENT:-}") || {
+            # Use COMPARTMENT (already resolved in validate_inputs)
+            target_ocid=$(ds_resolve_target_ocid "$target" "$COMPARTMENT") || {
                 log_warn "Failed to resolve target: $target"
-                ((failed_count++))
+                failed_count=$((failed_count + 1))
                 continue
             }
             RESOLVED_TARGETS+=("$target_ocid")
         done
     else
-        # Compartment mode: list targets with lifecycle filter
+        # Compartment mode: list all targets with lifecycle filter
         log_debug "  Scanning compartment: $COMPARTMENT with lifecycle: $LIFECYCLE"
         local target_data
         target_data=$(ds_list_targets "$COMPARTMENT" "$LIFECYCLE") || {
@@ -337,7 +329,7 @@ start_audit_trails() {
 
         if [[ "${DRY_RUN}" == "true" ]]; then
             log_info "[DRY-RUN] Start audit trail for: $target_name (${target_ocid})"
-            ((started_count++))
+            started_count=$((started_count + 1))
             continue
         fi
 
@@ -350,10 +342,10 @@ start_audit_trails() {
             --audit-trail-type "$AUDIT_TYPE" \
             --collection-frequency "$COLLECTION_FREQUENCY" > /dev/null 2>&1; then
             log_info "Started audit trail for: $target_name"
-            ((started_count++))
+            started_count=$((started_count + 1))
         else
             log_error "Failed to start audit trail for: $target_name"
-            ((failed_count++))
+            failed_count=$((failed_count + 1))
         fi
     done
 
@@ -402,7 +394,7 @@ main() {
 # Parse arguments and run
 if [[ $# -eq 0 ]]; then
     usage
+    exit 0
 fi
 
-parse_args "$@"
-main
+main "$@"

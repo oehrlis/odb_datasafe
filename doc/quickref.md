@@ -1,20 +1,20 @@
 # OraDBA Data Safe Extension - Quick Reference
 
-**Version:** 1.0.0 | **Date:** 2026-01-09
+**Version:** 0.6.0 | **Date:** 2026-01-22
 
 ## 📁 Project Structure
 
 ```text
 odb_datasafe/                          # OraDBA Extension for Data Safe
-├── .extension                         # Extension metadata (v1.0.0)
-├── VERSION                            # 1.0.0
+├── .extension                         # Extension metadata (v0.6.0)
+├── VERSION                            # 0.6.0
 ├── README.md                          # Complete documentation
 ├── CHANGELOG.md                       # Release history
 ├── QUICKREF.md                        # This file
 ├── LICENSE                            # Apache 2.0
 │
 ├── bin/                               # Executable scripts (added to PATH)
-│   ├── template.sh                    # Copy this to create new scripts
+│   ├── TEMPLATE.sh                    # Copy this to create new scripts
 │   ├── ds_target_list.sh              # List Data Safe targets
 │   ├── ds_target_list_connector.sh    # List Data Safe connectors
 │   ├── ds_target_refresh.sh           # Refresh Data Safe targets
@@ -28,9 +28,8 @@ odb_datasafe/                          # OraDBA Extension for Data Safe
 │   └── README.md                      # Library API documentation
 │
 ├── etc/                               # Configuration examples
-│   ├── .env.example                   # Environment variables template
 │   ├── datasafe.conf.example          # Main config template
-│   └── odb_datasafe.conf.example      # (old template, can be removed)
+│   └── odb_datasafe.conf.example      # OCI IAM config template
 │
 ├── sql/                               # SQL scripts (added to SQLPATH)
 ├── tests/                             # Test suite (BATS)

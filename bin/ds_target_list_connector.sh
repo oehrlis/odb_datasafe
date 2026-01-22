@@ -206,15 +206,13 @@ validate_inputs() {
 
     require_cmd oci jq
 
-    # If neither connectors nor compartment specified, use DS_ROOT_COMP as default
+    # Resolve compartment using new pattern: explicit -c > DS_ROOT_COMP > error
     if [[ -z "$CONNECTORS" && -z "$COMPARTMENT" ]]; then
-        local root_comp
-        root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
-        COMPARTMENT="$root_comp"
+        COMPARTMENT=$(resolve_compartment_for_operation "$COMPARTMENT") || die "Failed to get root compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
 
         # Get compartment name for display
         local comp_name
-        comp_name=$(oci_get_compartment_name "$root_comp") || comp_name="<unknown>"
+        comp_name=$(oci_get_compartment_name "$COMPARTMENT") || comp_name="<unknown>"
 
         log_debug "Using root compartment OCID: $COMPARTMENT"
         log_info "Using root compartment: $comp_name (includes sub-compartments)"
@@ -459,7 +457,7 @@ do_work() {
                     resolved=$(resolve_connector_ocid "$connector" "$comp_ocid") || die "Failed to resolve connector: $connector"
                 else
                     local root_comp
-                    root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment"
+                    root_comp=$(resolve_compartment_for_operation "") || die "Failed to get root compartment"
                     resolved=$(resolve_connector_ocid "$connector" "$root_comp") || die "Failed to resolve connector: $connector"
                 fi
 

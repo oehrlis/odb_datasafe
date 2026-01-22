@@ -266,7 +266,7 @@ export_targets() {
 
     # Process each target
     while IFS= read -r target; do
-        ((count++))
+        count=$((count + 1))
         [[ -z "$target" || "$target" == "null" ]] && continue
 
         local target_id display_name created lcstate
@@ -374,7 +374,7 @@ export_targets() {
                 ;;
         esac
 
-        ((EXPORTED_COUNT++))
+        EXPORTED_COUNT=$((EXPORTED_COUNT + 1))
     done < <(echo "$targets_json" | jq -c '.data[]')
 
     # Finalize output

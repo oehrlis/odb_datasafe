@@ -191,11 +191,9 @@ validate_inputs() {
 
     require_cmd oci jq
 
-    # Use DS_ROOT_COMP as default if no compartment specified
+    # Resolve compartment using new pattern: explicit -c > DS_ROOT_COMP > error
     if [[ -z "$COMPARTMENT" ]]; then
-        local root_comp
-        root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
-        COMPARTMENT="$root_comp"
+        COMPARTMENT=$(resolve_compartment_for_operation "$COMPARTMENT") || die "Failed to get root compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
         log_info "No compartment specified, using DS_ROOT_COMP: $COMPARTMENT"
     fi
 }

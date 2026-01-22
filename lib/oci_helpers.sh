@@ -502,20 +502,18 @@ ds_resolve_target_ocid() {
         return 0
     fi
 
-    # Need compartment to search by name
+    # Resolve compartment using standard pattern: explicit > DS_ROOT_COMP > error
     if [[ -z "$compartment" ]]; then
-        log_error "Compartment required to resolve target name: $input"
-        return 1
+        compartment=$(resolve_compartment_for_operation "") || return 1
+    else
+        compartment=$(oci_resolve_compartment_ocid "$compartment") || return 1
     fi
 
-    log_debug "Resolving target name: $input"
-
-    local comp_ocid
-    comp_ocid=$(oci_resolve_compartment_ocid "$compartment") || return 1
+    log_debug "Resolving target name: $input (compartment: $compartment)"
 
     # Retrieve targets JSON once per compartment (and lifecycle) and cache to reduce repeated large downloads
     # Populate cache (suppress stdout to avoid polluting command substitution in callers)
-    if ! _ds_get_target_list_cached "$comp_ocid" "" > /dev/null; then
+    if ! _ds_get_target_list_cached "$compartment" "" > /dev/null; then
         log_error "Failed to list targets for resolution: $input"
         return 1
     fi
@@ -916,4 +914,30 @@ ds_count_by_lifecycle() {
     '
 }
 
-log_trace "oci_helpers.sh loaded (v4.0.0)"
+# ------------------------------------------------------------------------------
+# Function: resolve_compartment_for_operation
+# Purpose.: Resolve compartment for target operations following standard pattern:
+#           - If compartment param provided: use it
+#           - Else if DS_ROOT_COMP set: use it
+#           - Else error
+# Args....: $1 - compartment (can be name or OCID, can be empty)
+# Returns.: 0 on success (sets resolved compartment OCID), 1 on error
+# Output..: Resolved OCID to stdout
+# Notes...: Follows pattern: -c flag overrides DS_ROOT_COMP
+# ------------------------------------------------------------------------------
+resolve_compartment_for_operation() {
+    local compartment="${1:-}"
+
+    if [[ -n "$compartment" ]]; then
+        # Explicit compartment provided: resolve and use it
+        oci_resolve_compartment_ocid "$compartment" || return 1
+    elif [[ -n "${DS_ROOT_COMP:-}" ]]; then
+        # Use DS_ROOT_COMP as fallback
+        echo "$DS_ROOT_COMP"
+    else
+        # Neither provided: error
+        log_error "Compartment required. Use -c/--compartment or set DS_ROOT_COMP environment variable"
+        return 1
+    fi
+}
+

@@ -204,15 +204,9 @@ validate_inputs() {
         die "Either -T/--targets or -c/--compartment must be specified. Use -h for help."
     fi
 
-    # Resolve compartment if specified or use root compartment for target lookup
-    if [[ -n "$COMPARTMENT" ]]; then
-        COMP_OCID=$(oci_resolve_compartment_ocid "$COMPARTMENT") || die "Failed to resolve compartment: $COMPARTMENT"
-        log_info "Using compartment: $COMPARTMENT ($COMP_OCID)"
-    elif [[ -z "$TARGETS" ]]; then
-        # No targets specified, use DS_ROOT_COMP for compartment scanning
-        COMP_OCID=$(get_root_compartment_ocid) || die "Failed to get root compartment. Set DS_ROOT_COMP or use -c."
-        log_info "Using root compartment from config: $COMP_OCID"
-    fi
+    # Resolve compartment using standard pattern: explicit > DS_ROOT_COMP > error
+    COMP_OCID=$(resolve_compartment_for_operation "$COMPARTMENT") || die "Failed to resolve compartment"
+    log_info "Using compartment: $COMP_OCID"
 
     # Build target list
     if [[ -n "$TARGETS" ]]; then
@@ -226,7 +220,7 @@ validate_inputs() {
         if [[ -n "$COMP_OCID" ]]; then
             search_comp_ocid="$COMP_OCID"
         else
-            search_comp_ocid=$(get_root_compartment_ocid) || die "Failed to get search compartment"
+            search_comp_ocid=$(resolve_compartment_for_operation "") || die "Failed to get search compartment"
         fi
         
         # Resolve each target
@@ -319,7 +313,7 @@ step_delete_targets() {
 
         if [[ "${DRY_RUN}" == "true" ]]; then
             log_info "  [DRY-RUN] Would delete target: ${target_name}"
-            ((deleted_count++)) || true
+            deleted_count=$((deleted_count + 1)) || true
             continue
         fi
 
@@ -333,10 +327,10 @@ step_delete_targets() {
             --wait-for-state SUCCEEDED \
             > /dev/null 2>&1; then
             log_info "  ✓ Successfully deleted: ${target_name}"
-            ((deleted_count++)) || true
+            deleted_count=$((deleted_count + 1)) || true
         else
             log_error "  ✗ Failed to delete: ${target_name}"
-            ((failed_count++)) || true
+            failed_count=$((failed_count + 1)) || true
             [[ "${CONTINUE_ON_ERROR}" != "true" ]] && die 1 "Stopping on error"
         fi
     done
@@ -375,7 +369,7 @@ delete_audit_trails() {
             --profile "${OCI_CLI_PROFILE}" \
             --force \
             > /dev/null 2>&1; then
-            ((count++))
+            count=$((count + 1))
         else
             log_error "    Failed to delete audit trail: ${trail_ocid}"
         fi
@@ -414,7 +408,7 @@ delete_assessments() {
             --profile "${OCI_CLI_PROFILE}" \
             --force \
             > /dev/null 2>&1; then
-            ((count++))
+            count=$((count + 1))
         else
             log_error "    Failed to delete assessment: ${assessment_ocid}"
         fi
@@ -453,7 +447,7 @@ delete_security_policies() {
             --profile "${OCI_CLI_PROFILE}" \
             --force \
             > /dev/null 2>&1; then
-            ((count++))
+            count=$((count + 1))
         else
             log_error "    Failed to delete security policy: ${policy_ocid}"
         fi

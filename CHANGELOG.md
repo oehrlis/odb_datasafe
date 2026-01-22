@@ -10,6 +10,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _No changes yet._
 
+## [0.6.0] - 2026-01-22
+
+### Added
+
+- **Standardized Compartment/Target Selection Pattern** across all 16+ scripts
+  - New `resolve_compartment_for_operation()` helper in `lib/oci_helpers.sh`
+  - Consistent pattern: explicit `-c` > `DS_ROOT_COMP` environment variable > error
+  - Enables powerful usage: `-T target-name` without `-c` when `DS_ROOT_COMP` is set
+  - Applied to all target management scripts for consistency
+
+### Fixed
+
+- **Shell Arithmetic Expressions under `set -e`**
+  - Replaced all `((count++))` expressions with `count=$((count + 1))` pattern
+  - Fixes critical failures when arithmetic evaluates to 0 with `set -e`
+  - Affects: ds_target_audit_trail.sh, ds_target_delete.sh, ds_target_details.sh, ds_target_export.sh, ds_target_move.sh, ds_target_update_credentials.sh, install_datasafe_service.sh, uninstall_all_datasafe_services.sh
+
+- **ds_target_audit_trail.sh**
+  - Fixed double argument parsing (parse_args called twice)
+  - Fixed arithmetic expressions in counter increments
+  - Removed redundant parse_args call in main function
+  - Now works correctly with: `ds_target_audit_trail.sh -T target --dry-run`
+
+- **All Target Management Scripts**
+  - Updated to use `resolve_compartment_for_operation()` for consistent compartment handling
+  - Removed duplicate code for `get_root_compartment_ocid()` calls
+  - Scripts: ds_target_refresh.sh, ds_target_list.sh, ds_target_update_connector.sh, ds_target_list_connector.sh, ds_find_untagged_targets.sh, ds_tg_report.sh, and others
+
+### Changed
+
+- **Script Initialization Pattern**
+  - Standardized main() function to accept arguments directly
+  - Consistent error handling across all target management scripts
+  - Improved argument validation and compartment resolution
+
+### Improved
+
+- **Reliability and Consistency**
+  - All 18+ scripts pass bash syntax checks (bash -n)
+  - Verified end-to-end functionality with actual OCI calls
+  - Consistent behavior across target registration, updates, and operations
+
 ## [0.5.4] - 2026-01-22
 
 ### Added

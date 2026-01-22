@@ -240,20 +240,9 @@ preflight_checks() {
         # Process explicit targets
         log_info "Processing explicit targets"
         
-        # Get compartment OCID for target resolution
-        if [[ -n "$COMPARTMENT" ]]; then
-            if is_ocid "$COMPARTMENT"; then
-                compartment_ocid="$COMPARTMENT"
-            else
-                compartment_ocid=$(oci_resolve_compartment_ocid "$COMPARTMENT") || \
-                    die "Failed to resolve compartment: $COMPARTMENT"
-            fi
-        else
-            # Use DS_ROOT_COMP for target resolution
-            local root_comp
-            root_comp=$(get_root_compartment_ocid) || die "Failed to get DS_ROOT_COMP"
-            compartment_ocid="$root_comp"
-        fi
+        # Resolve compartment using standard pattern: explicit > DS_ROOT_COMP > error
+        compartment_ocid=$(resolve_compartment_for_operation "$COMPARTMENT") || \
+            die "Failed to resolve compartment for target resolution"
         
         IFS=',' read -ra target_list <<< "$TARGETS"
         for target in "${target_list[@]}"; do
@@ -265,16 +254,9 @@ preflight_checks() {
             if is_ocid "$target"; then
                 target_ocid="$target"
             else
-                # Resolve target name to OCID using provided compartment or DS_ROOT_COMP
-                local search_compartment
-                if [[ -n "$compartment_ocid" ]]; then
-                    search_compartment="$compartment_ocid"
-                else
-                    search_compartment=$(get_root_compartment_ocid) || die "Failed to get root compartment"
-                fi
-
-                target_ocid=$(ds_resolve_target_ocid "$target" "$search_compartment") || {
-                    log_error "Failed to resolve target: $target (compartment: $search_compartment)"
+                # Resolve target name to OCID using resolved compartment
+                target_ocid=$(ds_resolve_target_ocid "$target" "$compartment_ocid") || {
+                    log_error "Failed to resolve target: $target"
                     continue
                 }
             fi
@@ -396,7 +378,7 @@ step_move_targets() {
 
         if [[ "${DRY_RUN}" == "true" ]]; then
             log_info "  [DRY-RUN] Would move target: ${target_name}"
-            ((moved_count++))
+            moved_count=$((moved_count + 1))
             continue
         fi
 
@@ -407,10 +389,10 @@ step_move_targets() {
             --compartment-id "${DEST_COMP_OCID}" \
             > /dev/null; then
             log_info "  ✓ Successfully moved: ${target_name}"
-            ((moved_count++))
+            moved_count=$((moved_count + 1))
         else
             log_error "  ✗ Failed to move: ${target_name}"
-            ((failed_count++))
+            failed_count=$((failed_count + 1))
             [[ "${CONTINUE_ON_ERROR}" != "true" ]] && die 1 "Stopping on error"
         fi
     done

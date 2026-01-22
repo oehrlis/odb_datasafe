@@ -232,33 +232,15 @@ validate_inputs() {
 
     # Require either targets or compartment (or DS_ROOT_COMP)
     if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
-        if [[ -n "${DS_ROOT_COMP:-}" ]]; then
-            local root_comp
-            root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
-            COMPARTMENT="$root_comp"
-            log_info "No scope specified, using DS_ROOT_COMP: $COMPARTMENT"
-        else
-            usage
-        fi
+        # Try to use DS_ROOT_COMP as fallback
+        COMPARTMENT=$(resolve_compartment_for_operation "") || usage
+        log_info "No scope specified, using resolved compartment: $COMPARTMENT"
     fi
 
-    # Resolve compartment if specified (accept name or OCID)
-    if [[ -n "$COMPARTMENT" ]]; then
-        if is_ocid "$COMPARTMENT"; then
-            # User provided OCID, resolve to name
-            COMPARTMENT_OCID="$COMPARTMENT"
-            COMPARTMENT_NAME=$(oci_get_compartment_name "$COMPARTMENT_OCID" 2>/dev/null) || COMPARTMENT_NAME="$COMPARTMENT_OCID"
-            log_debug "Resolved compartment OCID to name: $COMPARTMENT_NAME"
-        else
-            # User provided name, resolve to OCID
-            COMPARTMENT_NAME="$COMPARTMENT"
-            COMPARTMENT_OCID=$(oci_resolve_compartment_ocid "$COMPARTMENT") || {
-                die "Cannot resolve compartment name '$COMPARTMENT' to OCID.\nVerify compartment name or use OCID directly."
-            }
-            log_debug "Resolved compartment name to OCID: $COMPARTMENT_OCID"
-        fi
-        log_info "Using compartment: $COMPARTMENT_NAME"
-    fi
+    # Resolve compartment using standard pattern: explicit > DS_ROOT_COMP > error
+    COMPARTMENT_OCID=$(resolve_compartment_for_operation "$COMPARTMENT") || die "Failed to resolve compartment"
+    COMPARTMENT_NAME=$(oci_get_compartment_name "$COMPARTMENT_OCID" 2>/dev/null) || COMPARTMENT_NAME="$COMPARTMENT_OCID"
+    log_info "Using compartment: $COMPARTMENT_NAME ($COMPARTMENT_OCID)"
 }
 
 # ------------------------------------------------------------------------------
@@ -435,24 +417,14 @@ do_work() {
 
             current_target=$((current_target + 1))
             log_info "[$current_target/$total_targets] Processing target: $target"
-
             local target_ocid target_data target_name target_comp
 
             if is_ocid "$target"; then
                 target_ocid="$target"
             else
-                # Resolve target name to OCID using specified compartment or DS_ROOT_COMP
-                local search_compartment
-                if [[ -n "${COMPARTMENT_OCID:-}" ]]; then
-                    search_compartment="$COMPARTMENT_OCID"
-                elif [[ -n "$COMPARTMENT" ]]; then
-                    search_compartment=$(oci_resolve_compartment_ocid "$COMPARTMENT") || die "Failed to resolve compartment: $COMPARTMENT"
-                else
-                    search_compartment=$(get_root_compartment_ocid) || die "Failed to get root compartment"
-                fi
-
-                target_ocid=$(ds_resolve_target_ocid "$target" "$search_compartment") || {
-                    log_error "Failed to resolve target: $target (compartment: $search_compartment)"
+                # Resolve target name to OCID using resolved compartment
+                target_ocid=$(ds_resolve_target_ocid "$target" "$COMPARTMENT_OCID") || {
+                    log_error "Failed to resolve target: $target"
                     error_count=$((error_count + 1))
                     continue
                 }

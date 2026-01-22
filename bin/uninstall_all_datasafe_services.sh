@@ -207,7 +207,7 @@ list_services() {
         [[ -f "$sudoers_file" ]] && echo "    Sudoers config: $sudoers_file"
 
         echo
-        ((idx++))
+        idx=$((idx + 1))
     done
 
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -316,7 +316,7 @@ remove_all_services() {
         # find /appl/oracle/product/dsconnect -type f -path "$readme_pattern" -delete 2>/dev/null || true
 
         print_message SUCCESS "Removed: $service"
-        ((success_count++))
+        success_count=$((success_count + 1))
     done
 
     # Reload systemd

@@ -210,15 +210,13 @@ validate_inputs() {
 
     require_cmd oci jq
 
-    # If neither targets nor compartment specified, use DS_ROOT_COMP as default
+    # Resolve compartment using new pattern: explicit -c > DS_ROOT_COMP > error
     if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
-        local root_comp
-        root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
-        COMPARTMENT="$root_comp"
+        COMPARTMENT=$(resolve_compartment_for_operation "$COMPARTMENT") || die "Failed to resolve compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
 
         # Get compartment name for display
         local comp_name
-        comp_name=$(oci_get_compartment_name "$root_comp") || comp_name="<unknown>"
+        comp_name=$(oci_get_compartment_name "$COMPARTMENT") || comp_name="<unknown>"
 
         log_debug "Using root compartment OCID: $COMPARTMENT"
         log_info "Using root compartment: $comp_name (includes sub-compartments)"
@@ -468,13 +466,7 @@ do_work() {
             else
                 log_debug "Resolving target name: $target"
                 local resolved
-                if [[ -n "$COMPARTMENT" ]]; then
-                    resolved=$(ds_resolve_target_ocid "$target" "$COMPARTMENT") || die "Failed to resolve target: $target"
-                else
-                    local root_comp
-                    root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment"
-                    resolved=$(ds_resolve_target_ocid "$target" "$root_comp") || die "Failed to resolve target: $target"
-                fi
+                resolved=$(ds_resolve_target_ocid "$target" "$COMPARTMENT") || die "Failed to resolve target: $target"
 
                 if [[ -z "$resolved" ]]; then
                     die "Target not found: $target"

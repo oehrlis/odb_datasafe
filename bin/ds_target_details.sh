@@ -507,7 +507,7 @@ emit_output() {
                     .connector_name, .compartment_id, .cluster, .cdb, .pdb
                 ] | @tsv' | while IFS=$'\t' read -r \
                     disp ocid lifecycle created infra ttype host port svc conn comp cluster cdb pdb; do
-                    ((i++)) || true
+                    i=$((i + 1)) || true
                     printf "\n"
                     printf "== Target %d ======================================================\n" "$i"
                     printf "Display Name   : %s\n" "$disp"
@@ -581,20 +581,9 @@ do_work() {
         # Process explicit targets
         log_info "Processing explicit targets"
         
-        # Get compartment OCID for target resolution
-        if [[ -n "$COMPARTMENT" ]]; then
-            if is_ocid "$COMPARTMENT"; then
-                compartment_ocid="$COMPARTMENT"
-            else
-                compartment_ocid=$(resolve_compartment_ocid "$COMPARTMENT") || \
-                    die "Failed to resolve compartment: $COMPARTMENT"
-            fi
-        else
-            # Use DS_ROOT_COMP for target resolution
-            local root_comp
-            root_comp=$(get_root_compartment_ocid) || die "Failed to get DS_ROOT_COMP"
-            compartment_ocid="$root_comp"
-        fi
+        # Resolve compartment using standard pattern: explicit > DS_ROOT_COMP > error
+        compartment_ocid=$(resolve_compartment_for_operation "$COMPARTMENT") || \
+            die "Failed to resolve compartment for target resolution"
         
         IFS=',' read -ra target_list <<< "$TARGETS"
         for target in "${target_list[@]}"; do
@@ -616,13 +605,9 @@ do_work() {
         # Scan compartment
         log_info "Scanning compartment for targets"
         
-        # Resolve compartment
-        if is_ocid "$COMPARTMENT"; then
-            compartment_ocid="$COMPARTMENT"
-        else
-            compartment_ocid=$(resolve_compartment_ocid "$COMPARTMENT") || \
-                die "Failed to resolve compartment: $COMPARTMENT"
-        fi
+        # Resolve compartment using standard pattern: explicit > DS_ROOT_COMP > error
+        compartment_ocid=$(resolve_compartment_for_operation "$COMPARTMENT") || \
+            die "Failed to resolve compartment for target scan"
         
         # List targets in compartment
         local targets_data

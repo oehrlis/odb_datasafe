@@ -207,9 +207,7 @@ validate_inputs() {
     # If no scope specified, use DS_ROOT_COMP as default when available
     if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
         if [[ -n "${DS_ROOT_COMP:-}" ]]; then
-            local root_comp
-            root_comp=$(get_root_compartment_ocid) || die "Failed to get root compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
-            COMPARTMENT="$root_comp"
+            COMPARTMENT=$(resolve_compartment_for_operation "$COMPARTMENT") || die "Failed to get root compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
             log_info "No scope specified, using DS_ROOT_COMP: $COMPARTMENT"
         else
             usage
@@ -405,7 +403,7 @@ do_work() {
                 if [[ -n "$COMPARTMENT" ]]; then
                     search_compartment="$COMPARTMENT"
                 else
-                    search_compartment=$(get_root_compartment_ocid) || die "Failed to get root compartment"
+                    search_compartment=$(resolve_compartment_for_operation "") || die "Failed to get root compartment"
                 fi
 
                 if ! resolved=$(ds_resolve_target_ocid "$target" "$search_compartment"); then

@@ -173,16 +173,9 @@ validate_inputs() {
         die "Target (-T/--target) is mandatory"
     fi
 
-    # Resolve compartment if specified
-    if [[ -n "$COMPARTMENT" ]]; then
-        local comp_ocid
-        comp_ocid=$(oci_resolve_compartment_ocid "$COMPARTMENT") || die "Failed to resolve compartment: $COMPARTMENT"
-        COMPARTMENT="$comp_ocid"
-        log_debug "Resolved compartment: $COMPARTMENT"
-    else
-        # Use DS_ROOT_COMP for target resolution if available
-        COMPARTMENT=$(get_root_compartment_ocid) || die "No compartment specified and DS_ROOT_COMP not set"
-    fi
+    # Resolve compartment using standard pattern: explicit > DS_ROOT_COMP > error
+    COMPARTMENT=$(resolve_compartment_for_operation "$COMPARTMENT") || die "Failed to resolve compartment"
+    log_debug "Resolved compartment: $COMPARTMENT"
 
     # Validate format
     case "$FORMAT" in

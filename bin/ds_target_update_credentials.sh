@@ -448,7 +448,7 @@ do_work() {
 
         for target in "${target_list[@]}"; do
             target="${target// /}" # trim spaces
-            ((current_target++))
+            current_target=$((current_target + 1))
 
             local target_ocid target_name
 
@@ -471,8 +471,8 @@ do_work() {
                         die "Target name '$target' requires compartment for resolution.\n\nOptions:\n  1. Use target OCID: -T ocid1.datasafetargetdatabase...\n  2. Specify compartment: -c <compartment-ocid-or-name>\n  3. Configure DS_ROOT_COMP in ${ODB_DATASAFE_BASE}/.env\n\nDS_ROOT_COMP is not set."
                     fi
                     
-                    # Try to resolve DS_ROOT_COMP
-                    if ! search_comp_ocid=$(get_root_compartment_ocid); then
+                    # Try to resolve DS_ROOT_COMP using new pattern
+                    if ! search_comp_ocid=$(resolve_compartment_for_operation "${DS_ROOT_COMP}"); then
                         die "Cannot resolve DS_ROOT_COMP='${DS_ROOT_COMP}' for target name resolution.\n\nOptions:\n  1. Use target OCID: -T ocid1.datasafetargetdatabase...\n  2. Specify compartment: -c <compartment-ocid-or-name>\n  3. Fix DS_ROOT_COMP in ${ODB_DATASAFE_BASE}/.env to valid compartment OCID or name\n  4. Verify compartment exists: oci iam compartment list --all | jq '.data[] | {name, id}'"
                     fi
                     
@@ -505,7 +505,7 @@ do_work() {
         # Ensure we have a compartment OCID
         if [[ -z "$COMPARTMENT_OCID" ]]; then
             log_debug "No compartment specified, trying DS_ROOT_COMP"
-            COMPARTMENT_OCID=$(get_root_compartment_ocid) || die "Failed to get compartment. Set DS_ROOT_COMP or use -c/--compartment"
+            COMPARTMENT_OCID=$(resolve_compartment_for_operation "$COMPARTMENT_OCID") || die "Failed to get compartment. Set DS_ROOT_COMP or use -c/--compartment"
             COMPARTMENT_NAME=$(oci_get_compartment_name "$COMPARTMENT_OCID" 2>/dev/null) || COMPARTMENT_NAME="$COMPARTMENT_OCID"
             log_info "Using DS_ROOT_COMP: $COMPARTMENT_NAME"
         fi
