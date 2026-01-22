@@ -48,4 +48,6 @@ test/test_results/
 # Environment specific
 .env
 .env.local
+etc/datasafe.conf
 # --- EOF ----------------------------------------------------------------------
+
