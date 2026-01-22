@@ -371,14 +371,16 @@ get_connector_name() {
 list_available_connectors() {
     log_debug "Listing available on-premises connectors..."
 
+    # Use cached COMPARTMENT_OCID if available
     local comp_ocid
-    if [[ -n "$COMPARTMENT" ]]; then
-        comp_ocid=$(oci_resolve_compartment_ocid "$COMPARTMENT") || return 1
+    if [[ -n "${COMPARTMENT_OCID:-}" ]]; then
+        comp_ocid="$COMPARTMENT_OCID"
     else
         comp_ocid=$(get_root_compartment_ocid) || return 1
     fi
 
-    oci_exec data-safe on-prem-connector list \
+    # Use oci_exec_ro (read-only) to always execute even in dry-run
+    oci_exec_ro data-safe on-prem-connector list \
         --compartment-id "$comp_ocid" \
         --compartment-id-in-subtree true \
         --lifecycle-state ACTIVE \
