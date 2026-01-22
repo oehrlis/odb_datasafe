@@ -18,7 +18,7 @@ setup() {
     export BIN_DIR="${REPO_ROOT}/bin"
     export LIB_DIR="${REPO_ROOT}/lib"
     export TEST_TEMP_DIR="${BATS_TEST_TMPDIR}"
-    export SCRIPT_VERSION="$(cat "${REPO_ROOT}/VERSION" 2>/dev/null | tr -d '\n' || echo '0.0.0')"
+    export SCRIPT_VERSION="$(tr -d '\n' < "${REPO_ROOT}/VERSION" 2>/dev/null || echo '0.0.0')"
     
     # Create comprehensive test environment
     export TEST_ENV_FILE="${TEST_TEMP_DIR}/.env"

@@ -14,7 +14,7 @@ setup() {
     export REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/.." && pwd)"
     export BIN_DIR="${REPO_ROOT}/bin"
     export TEST_TEMP_DIR="${BATS_TEST_TMPDIR}"
-    export SCRIPT_VERSION="$(cat "${REPO_ROOT}/VERSION" 2>/dev/null | tr -d '\n' || echo '0.0.0')"
+    export SCRIPT_VERSION="$(tr -d '\n' < "${REPO_ROOT}/VERSION" 2>/dev/null || echo '0.0.0')"
     
     # Create test environment in REPO_ROOT so init_config can find it
     export TEST_ENV_FILE="${REPO_ROOT}/.env"

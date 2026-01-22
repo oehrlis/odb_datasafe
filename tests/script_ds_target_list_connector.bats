@@ -9,7 +9,7 @@ setup() {
     export REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/.." && pwd)"
     export BIN_DIR="${REPO_ROOT}/bin"
     export SCRIPT_UNDER_TEST="${BIN_DIR}/ds_target_list_connector.sh"
-    export SCRIPT_VERSION="$(cat "${REPO_ROOT}/VERSION" 2>/dev/null | tr -d '\n' || echo '0.0.0')"
+    export SCRIPT_VERSION="$(tr -d '\n' < "${REPO_ROOT}/VERSION" 2>/dev/null || echo '0.0.0')"
     
     # Skip tests if script doesn't exist
     if [[ ! -f "${SCRIPT_UNDER_TEST}" ]]; then
