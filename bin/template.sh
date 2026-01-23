@@ -2,10 +2,10 @@
 # ------------------------------------------------------------------------------
 # OraDBA - Oracle Database Infrastructure and Security, 5630 Muri, Switzerland
 # ------------------------------------------------------------------------------
-# Script.....: TEMPLATE.sh
+# Script.....: template.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.01.22
-# Version....: v0.5.4
+# Version....: v0.6.0
 # Purpose....: Template for new Data Safe scripts using standardized patterns
 # Usage......: Copy this template and modify for your needs
 # License....: Apache License Version 2.0
@@ -22,7 +22,7 @@ LIB_DIR="${SCRIPT_DIR}/../lib"
 # Script metadata (version read from .extension file)
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_NAME
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.4')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.6.0')"
 readonly SCRIPT_VERSION
 
 # Load framework libraries
