@@ -211,7 +211,7 @@ validate_inputs() {
     log_debug "Validating inputs..."
 
     # Check required commands
-    require_cmd oci jq
+    require_oci_cli
 
     # Check required variables (uncomment as needed)
     # require_var COMPARTMENT

@@ -36,6 +36,9 @@ _DS_TARGET_CACHE_LIFECYCLE=""
 _DS_TARGET_CACHE_JSON=""
 _DS_TARGET_CACHE_FILE=""
 
+# Global cache for OCI CLI authentication check
+_OCI_CLI_AUTH_CHECKED=""
+
 # ----------------------------------------------------------------------------
 # Function....: _ds_target_cache_file_path
 # Purpose.....: Deterministic cache path for target lists
@@ -72,6 +75,79 @@ _ds_target_cache_file_path() {
 is_ocid() {
     local str="$1"
     [[ "$str" =~ ^ocid1\. ]]
+}
+
+# ------------------------------------------------------------------------------
+# Function....: check_oci_cli_auth
+# Purpose.....: Verify OCI CLI is authenticated and working
+# Returns.....: 0 if authenticated, 1 if not
+# Output......: Error message to stderr if authentication fails
+# Notes.......: Uses 'oci os ns get' as a lightweight test command
+#               Results are cached to avoid repeated checks
+# ------------------------------------------------------------------------------
+check_oci_cli_auth() {
+    # Return cached result if available
+    if [[ -n "$_OCI_CLI_AUTH_CHECKED" ]]; then
+        [[ "$_OCI_CLI_AUTH_CHECKED" == "success" ]] && return 0 || return 1
+    fi
+
+    log_debug "Checking OCI CLI authentication..."
+
+    # Build test command with OCI config options
+    local -a cmd=(oci os ns get)
+    [[ -n "${OCI_CLI_CONFIG_FILE}" ]] && cmd+=(--config-file "${OCI_CLI_CONFIG_FILE}")
+    [[ -n "${OCI_CLI_PROFILE}" ]] && cmd+=(--profile "${OCI_CLI_PROFILE}")
+    [[ -n "${OCI_CLI_REGION}" ]] && cmd+=(--region "${OCI_CLI_REGION}")
+
+    # Try to execute authentication test
+    local output
+    local exit_code=0
+
+    if output=$("${cmd[@]}" 2>&1); then
+        log_debug "OCI CLI authentication successful"
+        _OCI_CLI_AUTH_CHECKED="success"
+        return 0
+    else
+        exit_code=$?
+        log_error "OCI CLI authentication failed (exit ${exit_code})"
+        log_debug "Test command: ${cmd[*]}"
+        log_debug "Error output: $output"
+        
+        # Provide helpful error messages
+        if [[ "$output" =~ "ConfigFileNotFound" ]]; then
+            log_error "OCI config file not found: ${OCI_CLI_CONFIG_FILE}"
+            log_error "Run 'oci setup config' to create it"
+        elif [[ "$output" =~ "ProfileNotFound" ]]; then
+            log_error "OCI profile '${OCI_CLI_PROFILE}' not found in config"
+            log_error "Available profiles: $(grep '^\[' "${OCI_CLI_CONFIG_FILE}" 2>/dev/null | tr -d '[]' | tr '\n' ' ' || echo 'none')"
+        elif [[ "$output" =~ "NotAuthenticated" ]] || [[ "$output" =~ "InvalidKeyFile" ]]; then
+            log_error "OCI authentication credentials are invalid or expired"
+            log_error "Check your API key configuration in ${OCI_CLI_CONFIG_FILE}"
+        else
+            log_error "OCI CLI test command failed. Ensure proper authentication setup."
+        fi
+        
+        _OCI_CLI_AUTH_CHECKED="failed"
+        return 1
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# Function....: require_oci_cli
+# Purpose.....: Check OCI CLI availability and authentication
+# Returns.....: 0 if all checks pass, exits with error otherwise
+# Usage.......: require_oci_cli
+# Notes.......: Combines tool existence check and authentication test
+#               This is the recommended function for scripts to use
+# ------------------------------------------------------------------------------
+require_oci_cli() {
+    # Check if oci command exists
+    require_cmd oci jq
+    
+    # Check authentication
+    if ! check_oci_cli_auth; then
+        die "OCI CLI is not properly authenticated. Please run 'oci setup config' or check your credentials."
+    fi
 }
 
 # ------------------------------------------------------------------------------

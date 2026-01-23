@@ -251,7 +251,7 @@ parse_args() {
 validate_inputs() {
     log_debug "Validating inputs..."
 
-    require_cmd oci jq
+    require_oci_cli
 
     # Required fields
     [[ -z "$HOST" ]] && die "Missing required option: --host"

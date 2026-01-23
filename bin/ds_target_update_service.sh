@@ -202,7 +202,7 @@ parse_args() {
 validate_inputs() {
     log_debug "Validating inputs..."
 
-    require_cmd oci jq
+    require_oci_cli
 
     # If no scope specified, use DS_ROOT_COMP as default when available
     if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
