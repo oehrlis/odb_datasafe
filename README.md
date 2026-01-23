@@ -54,6 +54,9 @@ sudo ./bin/uninstall_all_datasafe_services.sh --uninstall
 # List connectors
 ./bin/ds_target_list_connector.sh
 
+# Show targets grouped by connector (new in v0.6.0)
+./bin/ds_target_connector_summary.sh
+
 # Refresh target database
 ./bin/ds_target_refresh.sh -T my-target
 
