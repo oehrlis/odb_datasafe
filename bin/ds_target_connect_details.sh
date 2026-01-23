@@ -187,6 +187,36 @@ validate_inputs() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: fetch_cluster_nodes
+# Purpose.: Fetch cluster node information from OCI
+# Args....: $1 - VM Cluster OCID
+# Returns.: 0 on success, 1 on error
+# Output..: JSON array of cluster nodes
+# ------------------------------------------------------------------------------
+fetch_cluster_nodes() {
+    local vm_cluster_id="$1"
+    
+    if [[ -z "$vm_cluster_id" || "$vm_cluster_id" == "null" ]]; then
+        echo "[]"
+        return 0
+    fi
+    
+    log_debug "Fetching cluster nodes for VM cluster: $vm_cluster_id"
+    
+    # Fetch DB nodes for the VM cluster
+    local nodes_data
+    nodes_data=$(oci_exec_ro db node list \
+        --vm-cluster-id "$vm_cluster_id" \
+        --query 'data' 2>/dev/null) || {
+        log_warn "Failed to fetch cluster nodes"
+        echo "[]"
+        return 0
+    }
+    
+    echo "$nodes_data"
+}
+
+# ------------------------------------------------------------------------------
 # Function: display_connection_details
 # Purpose.: Fetch and display target connection details
 # Returns.: 0 on success, 1 on error
@@ -224,8 +254,13 @@ display_connection_details() {
     target_status=$(echo "$target_data" | jq -r '."lifecycle-state" // ""')
     target_details=$(echo "$target_data" | jq -r '."lifecycle-details" // ""')
     target_comp_ocid=$(echo "$target_data" | jq -r '."compartment-id" // ""')
-    target_conn_type=$(echo "$target_data" | jq -r '.connection-option."connection-type" // ""')
-    target_onprem_ocid=$(echo "$target_data" | jq -r '.connection-option."on-prem-connector-id" // ""')
+    
+    # Extract connection-option first to avoid jq errors
+    local conn_option
+    conn_option=$(echo "$target_data" | jq -r '."connection-option" // {}')
+    target_conn_type=$(echo "$conn_option" | jq -r '."connection-type" // ""')
+    target_onprem_ocid=$(echo "$conn_option" | jq -r '."on-prem-connector-id" // ""')
+    
     target_username=$(echo "$target_data" | jq -r '.credentials."user-name" // ""')
     freeform_tags=$(echo "$target_data" | jq -c '.["freeform-tags"] // {}')
 
@@ -243,6 +278,22 @@ display_connection_details() {
             --on-prem-connector-id "$target_onprem_ocid" \
             --query 'data."display-name"' \
             --raw-output 2>/dev/null || echo "")
+    
+    # Fetch cluster nodes if VM cluster exists
+    local cluster_nodes cluster_nodes_json
+    cluster_nodes="[]"
+    if [[ -n "$db_vm_cluster_id" && "$db_vm_cluster_id" != "null" ]]; then
+        cluster_nodes=$(fetch_cluster_nodes "$db_vm_cluster_id")
+    fi
+    
+    # Process cluster nodes for display
+    cluster_nodes_json=$(echo "$cluster_nodes" | jq -c 'map({
+        id: .id,
+        hostname: .hostname,
+        vnic_id: ."vnic-id",
+        backup_vnic_id: ."backup-vnic-id",
+        lifecycle_state: ."lifecycle-state"
+    })')
 
     # Format output
     if [[ "$FORMAT" == "json" ]]; then
@@ -263,7 +314,8 @@ display_connection_details() {
             --arg service_name "$db_service_name" \
             --arg vm_cluster_id "$db_vm_cluster_id" \
             --arg db_system_id "$db_system_id" \
-            --argjson freeform_tags "$freeform_tags" '{
+            --argjson freeform_tags "$freeform_tags" \
+            --argjson cluster_nodes "$cluster_nodes_json" '{
               target: {
                 id: $id,
                 name: $name,
@@ -280,7 +332,8 @@ display_connection_details() {
                 listener_port: ($listener_port | if . == "" then null else tonumber end),
                 service_name: $service_name,
                 vm_cluster_id: $vm_cluster_id,
-                db_system_id: (if $db_system_id == "" then null else $db_system_id end)
+                db_system_id: (if $db_system_id == "" then null else $db_system_id end),
+                cluster_nodes: $cluster_nodes
               }
             }'
     else
@@ -299,6 +352,15 @@ display_connection_details() {
         printf '%-25s : %s\n' "Service Name" "$db_service_name"
         [[ -n "$db_vm_cluster_id" ]] && printf '%-25s : %s\n' "VM Cluster ID" "$db_vm_cluster_id"
         [[ -n "$db_system_id" ]] && printf '%-25s : %s\n' "DB System ID" "$db_system_id"
+        
+        # Display cluster nodes if available
+        local node_count
+        node_count=$(echo "$cluster_nodes" | jq 'length')
+        if [[ "$node_count" -gt 0 ]]; then
+            printf '%-25s : %s\n' "Cluster Nodes" "$node_count node(s)"
+            echo "$cluster_nodes" | jq -r '.[] | "  Node: \(.hostname // .id)\n    State: \(."lifecycle-state")\n    VNIC ID: \(."vnic-id")\n    Backup VNIC ID: \(."backup-vnic-id" // "N/A")"'
+        fi
+        
         printf '%-25s : %s\n' "Freeform Tags" "$(echo "$freeform_tags" | jq -c '.')"
     fi
 
