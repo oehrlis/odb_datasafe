@@ -208,7 +208,7 @@ parse_args() {
 validate_inputs() {
     log_debug "Validating inputs..."
 
-    require_cmd oci jq
+    require_oci_cli
 
     # Resolve compartment using new pattern: explicit -c > DS_ROOT_COMP > error
     if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then

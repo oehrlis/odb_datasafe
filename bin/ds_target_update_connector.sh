@@ -266,7 +266,7 @@ parse_args() {
 validate_inputs() {
     log_debug "Validating inputs..."
 
-    require_cmd oci jq
+    require_oci_cli
 
     # Show help if no operation mode specified
     if [[ -z "$OPERATION_MODE" ]]; then

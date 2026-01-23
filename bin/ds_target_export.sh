@@ -153,7 +153,7 @@ parse_args() {
 validate_inputs() {
     log_debug "Validating inputs..."
 
-    require_cmd oci jq
+    require_oci_cli
 
     # Compartment is required
     if [[ -z "$COMPARTMENT" ]]; then

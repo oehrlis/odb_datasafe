@@ -228,7 +228,7 @@ parse_args() {
 validate_inputs() {
     log_debug "Validating inputs..."
 
-    require_cmd oci jq
+    require_oci_cli
 
     # Require either targets or compartment (or DS_ROOT_COMP)
     if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then

@@ -234,7 +234,7 @@ parse_args() {
 validate_inputs() {
     log_debug "Validating inputs..."
 
-    require_cmd oci jq base64
+    require_oci_cli base64
 
     # If neither targets nor compartment specified, show help
     if [[ -z "$TARGETS" && -z "$COMPARTMENT" && -z "$CRED_FILE" && -z "$DS_USERNAME" ]]; then
