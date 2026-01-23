@@ -190,7 +190,7 @@ validate_inputs() {
 # Function: fetch_cluster_nodes
 # Purpose.: Fetch cluster node information from OCI
 # Args....: $1 - VM Cluster OCID
-# Returns.: 0 on success, 1 on error
+# Returns.: 0 always (returns empty array on error)
 # Output..: JSON array of cluster nodes
 # ------------------------------------------------------------------------------
 fetch_cluster_nodes() {
