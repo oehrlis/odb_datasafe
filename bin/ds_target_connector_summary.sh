@@ -73,7 +73,7 @@ Options:
 
   Selection:
     -c, --compartment ID    Compartment OCID or name (default: DS_ROOT_COMP)
-                            Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
+                            Configure in: .env or datasafe.conf
     -L, --lifecycle STATE   Filter by lifecycle state (ACTIVE, NEEDS_ATTENTION, etc.)
 
   Output:
@@ -199,15 +199,16 @@ validate_inputs() {
 
     # Resolve compartment
     if [[ -z "$COMPARTMENT" ]]; then
-        COMPARTMENT=$(resolve_compartment_for_operation "$COMPARTMENT") || \
+        COMPARTMENT=$(resolve_compartment_for_operation "") || \
             die "Failed to resolve compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
-
-        local comp_name
-        comp_name=$(oci_get_compartment_name "$COMPARTMENT") || comp_name="<unknown>"
-
-        log_debug "Using root compartment OCID: $COMPARTMENT"
-        log_info "Using root compartment: $comp_name (includes sub-compartments)"
     fi
+
+    # Get compartment name for display
+    local comp_name
+    comp_name=$(oci_get_compartment_name "$COMPARTMENT") || comp_name="<unknown>"
+
+    log_debug "Using root compartment OCID: $COMPARTMENT"
+    log_info "Using root compartment: $comp_name (includes sub-compartments)"
 }
 
 # ------------------------------------------------------------------------------
