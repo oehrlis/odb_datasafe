@@ -8,7 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_No changes yet._
+### Added
+
+- **OCI CLI Authentication Checks** - Robust verification of OCI CLI availability and authentication
+  - New `check_oci_cli_auth()` function in `lib/oci_helpers.sh` verifies authentication using `oci os ns get` test command
+  - New `require_oci_cli()` convenience function combines tool availability and authentication checks
+  - Results are cached to avoid repeated authentication tests
+  - Provides helpful error messages for common authentication issues (config not found, profile not found, invalid credentials)
+  - Updated all 16 scripts in `bin/` to use `require_oci_cli` instead of `require_cmd oci jq`
+  - Added comprehensive test suite in `tests/lib_oci_cli_auth.bats`
+  - Prevents unexpected failures during script execution due to missing tool or authentication issues
 
 ## [0.6.0] - 2026-01-22
 
