@@ -17,6 +17,7 @@ odb_datasafe/                          # OraDBA Extension for Data Safe
 │   ├── TEMPLATE.sh                    # Copy this to create new scripts
 │   ├── ds_target_list.sh              # List Data Safe targets
 │   ├── ds_target_list_connector.sh    # List Data Safe connectors
+│   ├── ds_target_connector_summary.sh # Group targets by connector
 │   ├── ds_target_refresh.sh           # Refresh Data Safe targets
 │   ├── ds_target_update_*.sh          # Update target properties
 │   └── install_datasafe_service.sh    # Install connector as service
@@ -82,6 +83,12 @@ bin/ds_target_list.sh
 # List Data Safe on-premises connectors
 bin/ds_target_list_connector.sh
 
+# Show summary of targets grouped by connector
+bin/ds_target_connector_summary.sh
+
+# Show detailed targets per connector
+bin/ds_target_connector_summary.sh -D
+
 # Show count summary by lifecycle state
 bin/ds_target_list.sh -C
 
@@ -110,6 +117,54 @@ bin/ds_target_refresh.sh -T db1,db2,db3
 
 # Refresh all NEEDS_ATTENTION in compartment
 bin/ds_target_refresh.sh -c "MyCompartment" -L NEEDS_ATTENTION
+```
+
+### 4. Target-Connector Summary (New in v0.6.0)
+
+The `ds_target_connector_summary.sh` script provides enhanced visibility of the relationship
+between targets and on-premises connectors:
+
+```bash
+# Show summary of targets grouped by connector (default)
+bin/ds_target_connector_summary.sh
+
+# Output shows:
+# - Connector name
+# - Lifecycle state breakdown per connector
+# - Count per lifecycle state
+# - Subtotals per connector
+# - Grand total of all targets
+
+# Example output:
+# Connector                                          Lifecycle State      Count
+# -------------------------------------------------- -------------------- ----------
+# prod-connector                                     ACTIVE                      5
+#                                                    NEEDS_ATTENTION             2
+#                                                    Subtotal                    7
+#
+# test-connector                                     ACTIVE                      3
+#                                                    CREATING                    1
+#                                                    Subtotal                    4
+#
+# No Connector (Cloud)                               ACTIVE                     10
+#                                                    Subtotal                   10
+# -------------------------------------------------- -------------------- ----------
+# GRAND TOTAL                                                                   21
+
+# Show detailed list of targets under each connector
+bin/ds_target_connector_summary.sh -D
+
+# Filter by lifecycle state (applies to all connectors)
+bin/ds_target_connector_summary.sh -L ACTIVE
+
+# Output as JSON (useful for automation)
+bin/ds_target_connector_summary.sh -f json
+
+# Output as CSV (useful for reporting)
+bin/ds_target_connector_summary.sh -f csv
+
+# Detailed view with custom fields
+bin/ds_target_connector_summary.sh -D -F display-name,lifecycle-state,id
 ```
 
 ## 📚 Library Functions (Quick Reference)

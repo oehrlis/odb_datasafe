@@ -10,6 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Target-Connector Summary Script** - New `ds_target_connector_summary.sh` for enhanced visibility
+  - Groups targets by on-premises connector with lifecycle state breakdown
+  - Summary mode shows count per connector with subtotals and grand total
+  - Detailed mode displays full target list under each connector
+  - Includes "No Connector (Cloud)" group for cloud-based targets
+  - Supports multiple output formats: table (default), JSON, CSV
+  - Filtering by lifecycle state across all connectors
+  - Custom field selection in detailed mode
+  - Comprehensive test suite with 25+ test cases
+  - Addresses GitHub issue for connector and target relationship visibility
+
 - **OCI CLI Authentication Checks** - Robust verification of OCI CLI availability and authentication
   - New `check_oci_cli_auth()` function in `lib/oci_helpers.sh` verifies authentication using `oci os ns get` test command
   - New `require_oci_cli()` convenience function combines tool availability and authentication checks
