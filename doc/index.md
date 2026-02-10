@@ -3,7 +3,7 @@
 Oracle Data Safe management extension for OraDBA - comprehensive tools for managing
 OCI Data Safe targets, connectors, and operations.
 
-Version: **0.6.0** | [Release Notes](release_notes/v0.6.0.md)
+Version: **0.6.1** | [Release Notes](release_notes/v0.6.1.md)
 
 ## Overview
 
@@ -31,7 +31,7 @@ Extract the extension to your OraDBA local directory:
 
 ```bash
 cd ${ORADBA_LOCAL_BASE}
-tar -xzf odb_datasafe-0.6.0.tar.gz
+tar -xzf odb_datasafe-0.6.1.tar.gz
 
 # Source OraDBA environment
 source oraenv.sh
@@ -78,15 +78,14 @@ bin/ds_target_refresh.sh --help
 bin/ds_target_refresh.sh -T mydb01 --dry-run
 ```
 
-## Key Features (v0.6.0)
+## Key Features (v0.6.1)
 
-✅ **Standardized Compartment Handling** - Consistent `-c` and `DS_ROOT_COMP` pattern  
-✅ **Reliable Arithmetic** - Fixed shell expressions under `set -e`  
-✅ **Flexible Target Selection** - Works with names, OCIDs, or compartment scans  
-✅ **Dry-Run Support** - All scripts support `--dry-run`  
-✅ **Debug Support** - Enhanced logging with `--debug`  
-✅ **Consistent Error Handling** - Standardized error messages and exit codes  
-✅ **Comprehensive Tests** - 127+ BATS tests covering all scripts  
+- ✅ **Connector visibility** — `ds_target_connector_summary.sh` groups targets by connector with lifecycle breakdowns.
+   Provides summary and detailed views with table, JSON, and CSV output.
+- ✅ **Authenticated CLI usage** — `require_oci_cli` verifies OCI CLI auth with cached checks and clear error guidance.
+- ✅ **Standardized compartment handling** — Consistent `-c` and `DS_ROOT_COMP` pattern across scripts.
+- ✅ **Safe dry-runs and debugging** — Uniform `--dry-run`, `--debug`, and logging behaviors.
+- ✅ **Comprehensive tests** — 127+ BATS tests covering scripts and libraries.
 
 ## Available Scripts
 
@@ -195,4 +194,4 @@ bin/uninstall_all_datasafe_services.sh
 - See [quickref.md](quickref.md) for detailed command reference
 - See [install_datasafe_service.md](install_datasafe_service.md) for installation details
 - See [oci-iam-policies.md](oci-iam-policies.md) for required IAM policies
-- See [release_notes/v0.6.0.md](release_notes/v0.6.0.md) for v0.6.0 release details
+- See [release_notes/v0.6.1.md](release_notes/v0.6.1.md) for v0.6.1 release details

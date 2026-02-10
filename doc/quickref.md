@@ -1,20 +1,20 @@
 # OraDBA Data Safe Extension - Quick Reference
 
-**Version:** 0.6.0 | **Date:** 2026-01-22
+**Version:** 0.6.1 | **Date:** 2026-01-23
 
 ## 📁 Project Structure
 
 ```text
 odb_datasafe/                          # OraDBA Extension for Data Safe
-├── .extension                         # Extension metadata (v0.6.0)
-├── VERSION                            # 0.6.0
+├── .extension                         # Extension metadata (v0.6.1)
+├── VERSION                            # 0.6.1
 ├── README.md                          # Complete documentation
 ├── CHANGELOG.md                       # Release history
 ├── QUICKREF.md                        # This file
 ├── LICENSE                            # Apache 2.0
 │
 ├── bin/                               # Executable scripts (added to PATH)
-│   ├── TEMPLATE.sh                    # Copy this to create new scripts
+│   ├── template.sh                    # Copy this to create new scripts
 │   ├── ds_target_list.sh              # List Data Safe targets
 │   ├── ds_target_list_connector.sh    # List Data Safe connectors
 │   ├── ds_target_connector_summary.sh # Group targets by connector
@@ -119,7 +119,7 @@ bin/ds_target_refresh.sh -T db1,db2,db3
 bin/ds_target_refresh.sh -c "MyCompartment" -L NEEDS_ATTENTION
 ```
 
-### 4. Target-Connector Summary (New in v0.6.0)
+### 4. Target-Connector Summary (New in v0.6.1)
 
 The `ds_target_connector_summary.sh` script provides enhanced visibility of the relationship
 between targets and on-premises connectors:

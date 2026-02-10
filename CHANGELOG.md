@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- _No changes yet._
+
+## [0.6.1] - 2026-01-23
+
+### Added
+
 - **Target-Connector Summary Script** - New `ds_target_connector_summary.sh` for enhanced visibility
   - Groups targets by on-premises connector with lifecycle state breakdown
   - Summary mode shows count per connector with subtotals and grand total

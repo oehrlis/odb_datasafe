@@ -1,6 +1,6 @@
 # OraDBA Data Safe Extension (odb_datasafe)
 
-**Version:** 0.6.0  
+**Version:** 0.6.1  
 **Purpose:** Simplified OCI Data Safe target and connector management
 
 ## Overview
@@ -54,7 +54,7 @@ sudo ./bin/uninstall_all_datasafe_services.sh --uninstall
 # List connectors
 ./bin/ds_target_list_connector.sh
 
-# Show targets grouped by connector (new in v0.6.0)
+# Show targets grouped by connector (new in v0.6.1)
 ./bin/ds_target_connector_summary.sh
 
 # Refresh target database
@@ -90,13 +90,14 @@ export DS_ROOT_COMP="ocid1.compartment.oc1....."
 - **[Release Notes](doc/release_notes/)** - Version history
 - **[CHANGELOG](CHANGELOG.md)** - Detailed change log
 
-## Key Features (v0.6.0)
+## Key Features (v0.6.1)
 
-✅ **Standardized Compartment Handling** - Consistent `-c` and `DS_ROOT_COMP` pattern across all scripts  
-✅ **Reliable Arithmetic** - Fixed shell expressions under `set -e`  
-✅ **Flexible Target Selection** - Works with target names, OCIDs, or compartment scans  
-✅ **Dry-Run Support** - All scripts support `--dry-run` for safe testing  
-✅ **Comprehensive Testing** - 127+ BATS tests for reliability  
+- ✅ **Connector visibility** — `ds_target_connector_summary.sh` groups targets by connector with lifecycle breakdowns.
+  Provides summary and detailed modes with table, JSON, and CSV output.
+- ✅ **Authenticated CLI usage** — `require_oci_cli` validates OCI CLI authentication with cached checks and helpful errors.
+- ✅ **Standardized compartment handling** — Consistent `-c` and `DS_ROOT_COMP` pattern across scripts.
+- ✅ **Safe dry-runs and debugging** — Uniform `--dry-run`, `--debug`, and logging behaviors.
+- ✅ **Comprehensive testing** — 127+ BATS tests for reliability.
 
 ## Requirements
 
