@@ -1,27 +1,27 @@
-# Issue Title: Develop script to update On-Premises Connector
+## Using oradba_base's etc Directory
 
-### Description
-Develop a new script to update the Oracle Data Safe on-premises connector.
+When integrating configurations, it is essential to leverage the `etc` directory found in the `oradba_base` repository if it exists. This provides a centralized management of configuration files, ensuring consistency across deployments.
 
-### Requirements
-- Use existing scripts as a reference.
-- Add a **dry run mode**.
-- Allow the specification of Oracle Data Safe base or install directory.
-- Accept OCI name/ID of the connector as input parameter or retrieve from `oradba_homes.conf` (e.g., description field formatted as `oci=name/id`).
-- Generate a temporary bundle password, store it in `/etc/<name>_pwd.b64`, and reuse it if it already exists.
+### Check for oradba_base's etc Directory
 
-### Update Process
-The process to update the connector includes:
-1. Downloading the install bundle from the On-Premises Connector details page in the Oracle Data Safe service.
-2. Uploading the bundle to the host where the connector is to be updated.
-3. Unzipping the bundle into the directory where the on-premises connector is installed. This overwrites the existing files.
-4. Running `setup.py` with the `update` argument (run as a non-root user):
-   ```
-   $ python setup.py update
-   ```
-5. Entering the bundle password when prompted.
+You can script the check for the existence of the `etc` directory in `oradba_base`. If it does not exist, default to using the `odb_datasafe/etc` directory. Here’s a Bash script implementation:
 
-**Note**: During the update, the connector cannot connect to target databases, but connections are re-established after the update is complete.
+```bash
+#!/bin/bash
 
-### Additional Notes
-- Follow the documented procedure for updating an Oracle Data Safe On-Premises Connector.
+# Check if oradba_base’s etc directory exists
+ORADB_BASE_PATH="/path/to/oradba_base"
+
+if [ -d "$ORADB_BASE_PATH/etc" ]; then
+    CONFIG_PATH="$ORADB_BASE_PATH/etc"
+else
+    CONFIG_PATH="/path/to/odb_datasafe/etc"
+fi
+
+# Now you can use CONFIG_PATH for your configurations
+echo "Using configuration path: $CONFIG_PATH"
+```
+
+### Integration with oehrlis/oradba Practices
+
+This implementation aligns with the standard practices of the `oehrlis/oradba` repository, promoting a cleaner configuration management process. Always ensure that the path is correctly set to avoid misconfigurations when deploying your application.
