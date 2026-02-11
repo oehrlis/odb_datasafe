@@ -1039,8 +1039,8 @@ resolve_compartment_for_operation() {
         # Explicit compartment provided: resolve and use it
         oci_resolve_compartment_ocid "$compartment" || return 1
     elif [[ -n "${DS_ROOT_COMP:-}" ]]; then
-        # Use DS_ROOT_COMP as fallback
-        echo "$DS_ROOT_COMP"
+        # Use DS_ROOT_COMP as fallback (resolve name to OCID if needed)
+        oci_resolve_compartment_ocid "$DS_ROOT_COMP" || return 1
     else
         # Neither provided: error
         log_error "Compartment required. Use -c/--compartment or set DS_ROOT_COMP environment variable"

@@ -33,6 +33,7 @@ readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 : "${OUTPUT_FORMAT:=table}" # table|json|csv
 : "${SHOW_COUNT:=false}"    # Default to list mode
 : "${FIELDS:=display-name,lifecycle-state,infrastructure-type}"
+: "${SHOW_PROBLEMS:=false}"
 
 # shellcheck disable=SC1091
 source "${LIB_DIR}/ds_lib.sh" || {
@@ -81,6 +82,7 @@ Options:
     -D, --details           Show detailed target information (default)
     -f, --format FMT        Output format: table|json|csv (default: table)
     -F, --fields FIELDS     Comma-separated fields for details (default: ${FIELDS})
+        --problems              Show NEEDS_ATTENTION targets with lifecycle details
 
 Examples:
   # Show detailed list for DS_ROOT_COMP (default)
@@ -106,6 +108,9 @@ Examples:
 
   # Show details for specific targets
   ${SCRIPT_NAME} -D -T target1,target2
+
+    # Show problem targets (NEEDS_ATTENTION) with details
+    ${SCRIPT_NAME} --problems
 
 EOF
     exit 0
@@ -162,6 +167,12 @@ parse_args() {
                 FIELDS="$2"
                 FIELDS_OVERRIDE=true
                 shift 2
+                ;;
+            --problems)
+                SHOW_PROBLEMS=true
+                SHOW_COUNT=false
+                SHOW_COUNT_OVERRIDE=true
+                shift
                 ;;
             --oci-profile)
                 need_val "$1" "${2:-}"
@@ -225,6 +236,26 @@ validate_inputs() {
     # Count mode doesn't work with specific targets
     if [[ "$SHOW_COUNT" == "true" && -n "$TARGETS" ]]; then
         die "Count mode (-C) cannot be used with specific targets (-T). Use --details instead."
+    fi
+
+    # Problems mode does not support explicit targets
+    if [[ "$SHOW_PROBLEMS" == "true" && -n "$TARGETS" ]]; then
+        die "Problems mode (--problems) cannot be used with specific targets (-T)."
+    fi
+
+    # Normalize fields
+    local fields_lower
+    fields_lower=$(echo "$FIELDS" | tr '[:upper:]' '[:lower:]')
+    if [[ "$fields_lower" == "all" ]]; then
+        FIELDS="all"
+        if [[ "$OUTPUT_FORMAT" != "json" ]]; then
+            die "-F all is only supported with --format json"
+        fi
+    fi
+
+    if [[ "$SHOW_PROBLEMS" == "true" ]]; then
+        LIFECYCLE_STATE="NEEDS_ATTENTION"
+        FIELDS="display-name,lifecycle-details"
     fi
 }
 

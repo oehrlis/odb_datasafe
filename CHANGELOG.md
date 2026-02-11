@@ -47,8 +47,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Target activation flow** in `ds_target_activate.sh`
   - Requires explicit targets or compartment
   - Adds `--apply` for real execution (default: dry-run)
-  - Supports `--wait-for-state` for synchronous activation
+  - Supports `--wait-for-state` for synchronous activation- **Target listing enhancements** in `ds_target_list.sh`
+  - `-F all` (or `-F ALL`) now only allowed with JSON output, prevents empty table/CSV
+  - Added `--problems` mode to show NEEDS_ATTENTION targets with lifecycle-details
 
+### Fixed
+
+- **Connector grouping** in `ds_target_connector_summary.sh` now uses `associated-resource-ids` for accurate mapping
+- **Compartment resolution** in `resolve_compartment_for_operation()` now resolves `DS_ROOT_COMP` names to OCIDs
 ## [0.6.1] - 2026-01-23
 
 ### Added

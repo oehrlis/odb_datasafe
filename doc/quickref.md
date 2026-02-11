@@ -127,6 +127,15 @@ bin/ds_target_activate.sh -c "MyCompartment" -L INACTIVE --apply --wait-for-stat
 
 # Activate specific targets by name (requires compartment for resolution)
 bin/ds_target_activate.sh -c "MyCompartment" -T db1,db2 --apply
+
+# Show targets with problems (NEEDS_ATTENTION state)
+bin/ds_target_list.sh --problems
+
+# Show problems in JSON format for automation
+bin/ds_target_list.sh --problems -f json
+
+# Show all fields for a target (JSON only)
+bin/ds_target_list.sh -T mydb01 -F all -f json
 ```
 
 ### 4. Target-Connector Summary (New in v0.6.1)

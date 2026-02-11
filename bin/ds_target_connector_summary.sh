@@ -33,6 +33,7 @@ readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 : "${OUTPUT_FORMAT:=table}"    # table|json|csv
 : "${SHOW_DETAILED:=false}"    # Summary by default
 : "${FIELDS:=display-name,lifecycle-state,infrastructure-type}"
+: "${SHOW_OCID:=false}"
 
 # shellcheck disable=SC1091
 source "${LIB_DIR}/ds_lib.sh" || {
@@ -82,6 +83,7 @@ Options:
     -f, --format FMT        Output format: table|json|csv (default: table)
     -F, --fields FIELDS     Comma-separated fields for detailed mode
                             (default: ${FIELDS})
+        --show-ocid             Show connector OCIDs (table output)
 
 Examples:
   # Show summary of targets by connector (default)
@@ -154,6 +156,10 @@ parse_args() {
                 FIELDS="$2"
                 FIELDS_OVERRIDE=true
                 shift 2
+                ;;
+            --show-ocid)
+                SHOW_OCID=true
+                shift
                 ;;
             --oci-profile)
                 need_val "$1" "${2:-}"
@@ -267,6 +273,65 @@ list_targets_in_compartment() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: enrich_targets_with_connector
+# Purpose.: Fetch per-target details to ensure connector IDs are present
+# Args....: $1 - targets JSON data
+# Returns.: 0 on success
+# Output..: Enriched targets JSON to stdout
+# Notes...: Falls back to per-target get when list output omits connection-option
+# ------------------------------------------------------------------------------
+enrich_targets_with_connector() {
+    local targets_json="$1"
+    local -a target_ids
+
+    mapfile -t target_ids < <(echo "$targets_json" | jq -r '.data[].id')
+    local total=${#target_ids[@]}
+
+    if [[ $total -eq 0 ]]; then
+        printf '%s' "$targets_json"
+        return 0
+    fi
+
+    log_info "No connector IDs found in list output; fetching target details for $total targets (may take a while)"
+
+    local tmp_file
+    tmp_file=$(mktemp)
+
+    echo '{"data":[' > "$tmp_file"
+    local first=true
+    local count=0
+
+    for target_id in "${target_ids[@]}"; do
+        count=$((count + 1))
+
+        local detail
+        detail=$(oci_exec_ro data-safe target-database get \
+            --target-database-id "$target_id" \
+            --query 'data' 2> /dev/null) || {
+            log_warn "Failed to fetch target details: $target_id"
+            continue
+        }
+
+        if [[ "$first" == "true" ]]; then
+            first=false
+        else
+            echo "," >> "$tmp_file"
+        fi
+
+        echo "$detail" >> "$tmp_file"
+
+        if (( count % 200 == 0 )); then
+            log_info "Fetched details for $count/$total targets"
+        fi
+    done
+
+    echo ']}' >> "$tmp_file"
+
+    cat "$tmp_file"
+    rm -f "$tmp_file"
+}
+
+# ------------------------------------------------------------------------------
 # Function: group_targets_by_connector
 # Purpose.: Group targets by their on-premises connector
 # Args....: $1 - connectors JSON data
@@ -285,16 +350,37 @@ group_targets_by_connector() {
         .data | map({(.id): ."display-name"}) | add // {}
     ')
 
-    # Group targets by connector
-    echo "$targets_json" | jq --argjson conn_map "$connector_map" '
-        .data | group_by(.["connection-option"]["on-prem-connector-id"] // "no-connector") |
+    # Build connector id list for matching associated-resource-ids
+    local connector_ids
+    connector_ids=$(echo "$connectors_json" | jq -r '[.data[].id]')
+
+    # Group targets by connector using associated-resource-ids or connection-option
+    echo "$targets_json" | jq --argjson conn_map "$connector_map" --argjson conn_ids "$connector_ids" '
+        .data | group_by(
+            (
+                (."associated-resource-ids" // [] | map(select(. as $id | $conn_ids | index($id))) | .[0]) //
+                (."connection-option"["on-prem-connector-id"] // ."connection-option"["on-premise-connector-id"]) //
+                "no-connector"
+            )
+        ) |
         map({
-            connector_id: (.[0]["connection-option"]["on-prem-connector-id"] // "no-connector"),
+            connector_id: (
+                (.[0]["associated-resource-ids"] // [] | map(select(. as $id | $conn_ids | index($id))) | .[0]) //
+                (.[0]["connection-option"]["on-prem-connector-id"] // .[0]["connection-option"]["on-premise-connector-id"]) //
+                "no-connector"
+            ),
             connector_name: (
-                if (.[0]["connection-option"]["on-prem-connector-id"] // null) != null
-                then ($conn_map[.[0]["connection-option"]["on-prem-connector-id"]] // "Unknown Connector")
+                if ((.[0]["associated-resource-ids"] // [] | map(select(. as $id | $conn_ids | index($id))) | .[0]) //
+                    (.[0]["connection-option"]["on-prem-connector-id"] // .[0]["connection-option"]["on-premise-connector-id"] // null)) != null
+                then ($conn_map[
+                    (.[0]["associated-resource-ids"] // [] | map(select(. as $id | $conn_ids | index($id))) | .[0]) //
+                    (.[0]["connection-option"]["on-prem-connector-id"] // .[0]["connection-option"]["on-premise-connector-id"])
+                ] // "Unknown Connector")
                 else "No Connector (Cloud)"
                 end
+            ),
+            assoc_ids: (
+                . | map(."associated-resource-ids" // []) | add | unique
             ),
             targets: .
         })
@@ -323,8 +409,9 @@ show_summary_table() {
 
     # Process each connector group
     for ((i=0; i<connector_count; i++)); do
-        local conn_name
+        local conn_name conn_id
         conn_name=$(echo "$grouped_json" | jq -r ".[$i].connector_name")
+        conn_id=$(echo "$grouped_json" | jq -r ".[$i].connector_id")
         
         # Get lifecycle state counts for this connector
         local state_counts
@@ -344,6 +431,22 @@ show_summary_table() {
             first_state=$(echo "$state_counts" | jq -r '.[0].state')
             first_count=$(echo "$state_counts" | jq -r '.[0].count')
             printf "%-50s %-20s %10d\n" "$conn_name" "$first_state" "$first_count"
+            if [[ "${SHOW_OCID}" == "true" && "$conn_id" != "no-connector" ]]; then
+                printf "%s\n" "  OCID: ${conn_id}"
+            elif [[ "${SHOW_OCID}" == "true" && "$conn_id" == "no-connector" ]]; then
+                local assoc_count
+                assoc_count=$(echo "$grouped_json" | jq -r ".[$i].assoc_ids | length")
+                if [[ $assoc_count -gt 0 ]]; then
+                    local assoc_list
+                    assoc_list=$(echo "$grouped_json" | jq -r ".[$i].assoc_ids[:5] | join(\" \")")
+                    printf "%s\n" "  Associated IDs: ${assoc_list}"
+                    if [[ $assoc_count -gt 5 ]]; then
+                        printf "%s\n" "  Associated IDs: +$((assoc_count - 5)) more"
+                    fi
+                else
+                    printf "%s\n" "  Associated IDs: <none>"
+                fi
+            fi
             connector_total=$((connector_total + first_count))
             
             # Print remaining states
@@ -447,12 +550,32 @@ show_detailed_table() {
 
     # Process each connector group
     for ((i=0; i<connector_count; i++)); do
-        local conn_name target_count
+        local conn_name conn_id target_count
         conn_name=$(echo "$grouped_json" | jq -r ".[$i].connector_name")
+        conn_id=$(echo "$grouped_json" | jq -r ".[$i].connector_id")
         target_count=$(echo "$grouped_json" | jq ".[$i].targets | length")
         
         printf "\n%s\n" "$(printf '%0.s=' {1..100})"
-        printf "Connector: %s (%d targets)\n" "$conn_name" "$target_count"
+        if [[ "${SHOW_OCID}" == "true" && "$conn_id" != "no-connector" ]]; then
+            printf "Connector: %s (%d targets)\n" "$conn_name" "$target_count"
+            printf "OCID: %s\n" "$conn_id"
+        elif [[ "${SHOW_OCID}" == "true" && "$conn_id" == "no-connector" ]]; then
+            printf "Connector: %s (%d targets)\n" "$conn_name" "$target_count"
+            local assoc_count
+            assoc_count=$(echo "$grouped_json" | jq -r ".[$i].assoc_ids | length")
+            if [[ $assoc_count -gt 0 ]]; then
+                local assoc_list
+                assoc_list=$(echo "$grouped_json" | jq -r ".[$i].assoc_ids[:5] | join(\" \")")
+                printf "Associated IDs: %s\n" "$assoc_list"
+                if [[ $assoc_count -gt 5 ]]; then
+                    printf "Associated IDs: +%d more\n" "$((assoc_count - 5))"
+                fi
+            else
+                printf "Associated IDs: <none>\n"
+            fi
+        else
+            printf "Connector: %s (%d targets)\n" "$conn_name" "$target_count"
+        fi
         printf "%s\n" "$(printf '%0.s=' {1..100})"
         
         # Print header
@@ -587,6 +710,16 @@ do_work() {
     log_info "Fetching target databases..."
     targets_json=$(list_targets_in_compartment "$COMPARTMENT") || \
         die "Failed to list targets"
+
+    local connector_count
+    connector_count=$(echo "$connectors_json" | jq '.data | length')
+
+    local targets_with_connector
+    targets_with_connector=$(echo "$targets_json" | jq '[.data[] | select((."associated-resource-ids" // [] | length) > 0 or (."connection-option"["on-prem-connector-id"] // ."connection-option"["on-premise-connector-id"] // "") != "")] | length')
+
+    if [[ $connector_count -gt 0 && $targets_with_connector -eq 0 ]]; then
+        targets_json=$(enrich_targets_with_connector "$targets_json")
+    fi
 
     # Group targets by connector
     log_debug "Grouping targets by connector..."
