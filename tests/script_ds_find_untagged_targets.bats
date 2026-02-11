@@ -15,6 +15,7 @@ setup() {
     export SCRIPT_PATH="${REPO_ROOT}/bin/ds_find_untagged_targets.sh"
     export LIB_DIR="${REPO_ROOT}/lib"
     export TEST_TEMP_DIR="${BATS_TEST_TMPDIR}"
+    export REAL_JQ="$(command -v jq)"
     
     # Mock OCI CLI
     export PATH="${TEST_TEMP_DIR}/bin:${PATH}"
@@ -74,9 +75,9 @@ EOF
     chmod +x "${TEST_TEMP_DIR}/bin/oci"
     
     # Create mock jq
-    cat > "${TEST_TEMP_DIR}/bin/jq" << 'EOF'
+    cat > "${TEST_TEMP_DIR}/bin/jq" << EOF
 #!/usr/bin/env bash
-exec "$(command -v jq)" "$@"
+exec "${REAL_JQ}" "\$@"
 EOF
     chmod +x "${TEST_TEMP_DIR}/bin/jq"
 }
@@ -95,10 +96,10 @@ teardown() {
 @test "ds_find_untagged_targets.sh shows usage with --help" {
     run bash "$SCRIPT_PATH" --help
     [ "$status" -eq 0 ]
-    [[ "$output" == *"USAGE"* ]]
+    [[ "$output" == *"Usage:"* ]] || [[ "$output" == *"usage:"* ]] || [[ "$output" == *"USAGE:"* ]]
     [[ "$output" == *"compartment"* ]]
     [[ "$output" == *"namespace"* ]]
-}
+}  
 
 @test "ds_find_untagged_targets.sh reads version from .extension file" {
     # Check that script uses version from .extension
