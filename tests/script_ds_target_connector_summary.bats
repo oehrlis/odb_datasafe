@@ -173,7 +173,7 @@ teardown() {
 @test "ds_target_connector_summary.sh shows version information" {
     run "${BIN_DIR}/ds_target_connector_summary.sh" --version
     [ "$status" -eq 0 ]
-    [[ "$output" =~ 0\.6\.[0-9]+ ]]
+    [[ "$output" =~ 0\.7\.[0-9]+ ]]
 }
 
 # Summary mode tests (default)
