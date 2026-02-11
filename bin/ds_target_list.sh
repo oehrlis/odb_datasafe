@@ -34,6 +34,7 @@ readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 : "${SHOW_COUNT:=false}"    # Default to list mode
 : "${FIELDS:=display-name,lifecycle-state,infrastructure-type}"
 : "${SHOW_PROBLEMS:=false}"
+: "${GROUP_PROBLEMS:=false}"
 
 # shellcheck disable=SC1091
 source "${LIB_DIR}/ds_lib.sh" || {
@@ -82,7 +83,8 @@ Options:
     -D, --details           Show detailed target information (default)
     -f, --format FMT        Output format: table|json|csv (default: table)
     -F, --fields FIELDS     Comma-separated fields for details (default: ${FIELDS})
-        --problems              Show NEEDS_ATTENTION targets with lifecycle details
+        --problems          Show NEEDS_ATTENTION targets with lifecycle details
+        --group-problems    Group NEEDS_ATTENTION targets by problem type with counts
 
 Examples:
   # Show detailed list for DS_ROOT_COMP (default)
@@ -111,6 +113,9 @@ Examples:
 
     # Show problem targets (NEEDS_ATTENTION) with details
     ${SCRIPT_NAME} --problems
+
+  # Group problems and show count per problem type
+  ${SCRIPT_NAME} --group-problems
 
 EOF
     exit 0
@@ -169,6 +174,13 @@ parse_args() {
                 shift 2
                 ;;
             --problems)
+                SHOW_PROBLEMS=true
+                SHOW_COUNT=false
+                SHOW_COUNT_OVERRIDE=true
+                shift
+                ;;
+            --group-problems)
+                GROUP_PROBLEMS=true
                 SHOW_PROBLEMS=true
                 SHOW_COUNT=false
                 SHOW_COUNT_OVERRIDE=true
@@ -359,10 +371,12 @@ show_details_table() {
     local -a field_array field_widths
     IFS=',' read -ra field_array <<< "$fields"
 
-    # Set column widths (display-name gets more space)
+    # Set column widths (display-name gets more space, lifecycle-details in problems mode gets even more)
     for field in "${field_array[@]}"; do
         if [[ "$field" == "display-name" ]]; then
             field_widths+=(50)
+        elif [[ "$field" == "lifecycle-details" && "$SHOW_PROBLEMS" == "true" ]]; then
+            field_widths+=(80)
         else
             field_widths+=(30)
         fi
@@ -400,10 +414,16 @@ show_details_table() {
                 local width=${field_widths[$idx]}
                 local max_len=$((width - 2))
 
-                # Truncate long values
-                local display_value="${value:0:$max_len}"
-                [[ ${#value} -gt $max_len ]] && display_value="${display_value}.."
-                printf "%-${width}s " "$display_value"
+                # Don't truncate lifecycle-details in problems mode
+                local current_field="${field_array[$idx]}"
+                if [[ "$current_field" == "lifecycle-details" && "$SHOW_PROBLEMS" == "true" ]]; then
+                    printf "%-${width}s " "$value"
+                else
+                    # Truncate long values
+                    local display_value="${value:0:$max_len}"
+                    [[ ${#value} -gt $max_len ]] && display_value="${display_value}.."
+                    printf "%-${width}s " "$display_value"
+                fi
                 idx=$((idx + 1))
             done
             printf "\n"
@@ -469,6 +489,57 @@ show_details_csv() {
 
     # Print data
     echo "$json_data" | jq -r ".data[] | $jq_select | @csv"
+}
+
+# ------------------------------------------------------------------------------
+# Function: show_problems_grouped
+# Purpose.: Display NEEDS_ATTENTION targets grouped by problem type
+# Args....: $1 - JSON data  
+#           $2 - output format (table|json|csv)
+# Returns.: 0 on success
+# Output..: Grouped problem summary to stdout
+# ------------------------------------------------------------------------------
+show_problems_grouped() {
+    local json_data="$1"
+    local output_format="${2:-table}"
+
+    log_info "Grouping NEEDS_ATTENTION targets by problem type"
+
+    # Extract and group by lifecycle-details
+    local grouped_json
+    grouped_json=$(echo "$json_data" | jq -r '
+        .data 
+        | group_by(."lifecycle-details") 
+        | map({problem: .[0]."lifecycle-details", count: length, targets: [.[] | ."display-name"]})
+        | sort_by(-.count)
+    ')
+
+    case "$output_format" in
+        json)
+            echo "$grouped_json" | jq '.'
+            ;;
+        csv)
+            echo "problem,count,targets"
+            echo "$grouped_json" | jq -r '.[] | [.problem, .count, (.targets | join("; "))] | @csv'
+            ;;
+        table|*)
+            printf "\n"
+            printf "%-80s %10s\n" "Problem Type" "Count"
+            printf "%-80s %10s\n" "$(printf '%0.s-' {1..80})" "----------"
+
+            echo "$grouped_json" | jq -r '.[] | "\(.problem)\t\(.count)"' | while IFS=$'\t' read -r problem count; do
+                printf "%-80s %10d\n" "$problem" "$count"
+            done
+
+            local total
+            total=$(echo "$json_data" | jq '.data | length')
+            printf "\n%-80s %10d\n\n" "Total NEEDS_ATTENTION targets" "$total"
+
+            # Show detailed target list per problem
+            echo "$grouped_json" | jq -r '.[] | "\n\(.problem) (\(.count) targets):\n  - \(.targets | join("\n  - "))"'
+            printf "\n"
+            ;;
+    esac
 }
 
 # ------------------------------------------------------------------------------
@@ -538,6 +609,8 @@ do_work() {
     # Display results based on mode
     if [[ "$SHOW_COUNT" == "true" ]]; then
         show_count_summary "$json_data"
+    elif [[ "$GROUP_PROBLEMS" == "true" ]]; then
+        show_problems_grouped "$json_data" "$OUTPUT_FORMAT"
     else
         case "$OUTPUT_FORMAT" in
             table)

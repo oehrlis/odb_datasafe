@@ -131,6 +131,12 @@ bin/ds_target_activate.sh -c "MyCompartment" -T db1,db2 --apply
 # Show targets with problems (NEEDS_ATTENTION state)
 bin/ds_target_list.sh --problems
 
+# Group problems by type with target counts
+bin/ds_target_list.sh --group-problems
+
+# Group problems in JSON format for automation  
+bin/ds_target_list.sh --group-problems -f json
+
 # Show problems in JSON format for automation
 bin/ds_target_list.sh --problems -f json
 

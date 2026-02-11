@@ -49,7 +49,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Adds `--apply` for real execution (default: dry-run)
   - Supports `--wait-for-state` for synchronous activation- **Target listing enhancements** in `ds_target_list.sh`
   - `-F all` (or `-F ALL`) now only allowed with JSON output, prevents empty table/CSV
-  - Added `--problems` mode to show NEEDS_ATTENTION targets with lifecycle-details
+  - Added `--problems` mode to show NEEDS_ATTENTION targets with full lifecycle-details (no truncation)
+  - Added `--group-problems` mode to group NEEDS_ATTENTION targets by problem type with counts and target lists
+  - Lifecycle-details column width increased to 80 characters in problems mode for better visibility
 
 ### Fixed
 
