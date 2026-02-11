@@ -470,17 +470,17 @@ decode_base64_file() {
     local file="$1"
     local decoded=""
 
-    if decoded=$(base64 --decode < "$file" 2>/dev/null); then
+    if decoded=$(base64 --decode < "$file" 2> /dev/null); then
         printf '%s' "$decoded"
         return 0
     fi
 
-    if decoded=$(base64 -d < "$file" 2>/dev/null); then
+    if decoded=$(base64 -d < "$file" 2> /dev/null); then
         printf '%s' "$decoded"
         return 0
     fi
 
-    if decoded=$(base64 -D < "$file" 2>/dev/null); then
+    if decoded=$(base64 -D < "$file" 2> /dev/null); then
         printf '%s' "$decoded"
         return 0
     fi
@@ -503,7 +503,10 @@ find_password_file() {
     local filename="${username}_pwd.b64"
 
     if [[ -n "$explicit_file" ]]; then
-        [[ -f "$explicit_file" ]] && { echo "$explicit_file"; return 0; }
+        [[ -f "$explicit_file" ]] && {
+            echo "$explicit_file"
+            return 0
+        }
         return 1
     fi
 

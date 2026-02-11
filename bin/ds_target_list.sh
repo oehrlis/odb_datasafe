@@ -22,7 +22,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_NAME
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.4')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.7.1')"
 readonly SCRIPT_VERSION
 readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 
@@ -503,7 +503,7 @@ show_details_csv() {
 # ------------------------------------------------------------------------------
 # Function: show_problems_grouped
 # Purpose.: Display NEEDS_ATTENTION targets grouped by problem type
-# Args....: $1 - JSON data  
+# Args....: $1 - JSON data
 #           $2 - output format (table|json|csv)
 # Returns.: 0 on success
 # Output..: Grouped problem summary to stdout
@@ -532,7 +532,7 @@ show_problems_grouped() {
             echo "problem,count,targets"
             echo "$grouped_json" | jq -r '.[] | [.problem, .count, (.targets | join("; "))] | @csv'
             ;;
-        table|*)
+        table | *)
             printf "\n"
             printf "%-70s %10s\n" "Problem Type" "Count"
             printf "%-70s %10s\n" "$(printf '%0.s-' {1..70})" "----------"
@@ -540,14 +540,14 @@ show_problems_grouped() {
             # Use jq to output JSON and parse it more safely
             echo "$grouped_json" | jq -r '.[] | @base64' | while read -r line; do
                 local problem count
-                problem=$(echo "$line" | base64 -d 2>/dev/null | jq -r '.problem // "Unknown"')
-                count=$(echo "$line" | base64 -d 2>/dev/null | jq -r '.count // 0')
-                
+                problem=$(echo "$line" | base64 -d 2> /dev/null | jq -r '.problem // "Unknown"')
+                count=$(echo "$line" | base64 -d 2> /dev/null | jq -r '.count // 0')
+
                 # Truncate problem to fit column width (68 chars to leave space)
                 if [[ ${#problem} -gt 68 ]]; then
                     problem="${problem:0:65}..."
                 fi
-                
+
                 # Validate count is a number
                 if [[ "$count" =~ ^[0-9]+$ ]]; then
                     printf "%-70s %10d\n" "$problem" "$count"

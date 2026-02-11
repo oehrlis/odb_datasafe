@@ -24,7 +24,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.4')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.7.1')"
 # shellcheck disable=SC2034  # Used by parse_common_opts --version
 readonly SCRIPT_NAME SCRIPT_VERSION
 
@@ -143,44 +143,44 @@ need_val() {
 parse_arguments() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            -h|--help)
+            -h | --help)
                 usage
                 ;;
-            -V|--version)
+            -V | --version)
                 echo "${SCRIPT_NAME} ${SCRIPT_VERSION}"
                 exit 0
                 ;;
-            -T|--targets)
+            -T | --targets)
                 need_val "$1" "${2:-}"
                 TARGETS="$2"
                 shift 2
                 ;;
-            -c|--compartment)
+            -c | --compartment)
                 need_val "$1" "${2:-}"
                 COMPARTMENT="$2"
                 shift 2
                 ;;
-            -L|--lifecycle)
+            -L | --lifecycle)
                 need_val "$1" "${2:-}"
                 LIFECYCLE_STATE="$2"
                 shift 2
                 ;;
-            -f|--format)
+            -f | --format)
                 need_val "$1" "${2:-}"
                 FORMAT="$2"
                 shift 2
                 ;;
-            -d|--output-dir)
+            -d | --output-dir)
                 need_val "$1" "${2:-}"
                 OUTPUT_FOLDER="$2"
                 shift 2
                 ;;
-            -o|--output)
+            -o | --output)
                 need_val "$1" "${2:-}"
                 OUTPUT_FILE="$2"
                 shift 2
                 ;;
-            -w|--to-file)
+            -w | --to-file)
                 TO_FILE=true
                 shift
                 ;;
@@ -199,11 +199,11 @@ parse_arguments() {
                 export OCI_CLI_CONFIG_FILE="$2"
                 shift 2
                 ;;
-            -v|--verbose)
+            -v | --verbose)
                 export LOG_LEVEL="INFO"
                 shift
                 ;;
-            -D|--debug)
+            -D | --debug)
                 export LOG_LEVEL="DEBUG"
                 shift
                 ;;
@@ -234,13 +234,13 @@ validate_inputs() {
     # Validate format
     FORMAT="${FORMAT,,}"
     case "${FORMAT}" in
-        table|json|csv) ;;
+        table | json | csv) ;;
         *) die "Unsupported format: ${FORMAT}. Use table, json, or csv." ;;
     esac
 
     # Create output directory if it doesn't exist
-    mkdir -p "${OUTPUT_FOLDER}" 2>/dev/null || \
-        die "Cannot create output directory: ${OUTPUT_FOLDER}"
+    mkdir -p "${OUTPUT_FOLDER}" 2> /dev/null \
+        || die "Cannot create output directory: ${OUTPUT_FOLDER}"
     log_debug "Output directory: ${OUTPUT_FOLDER}"
 
     # Require explicit target selection to avoid surprising full-tenancy scans
@@ -259,7 +259,7 @@ validate_inputs() {
 # ------------------------------------------------------------------------------
 build_connector_map() {
     local compartment_ocid="$1"
-    
+
     log_debug "Building connector mapping for compartment"
 
     # Query connectors in compartment
@@ -292,8 +292,8 @@ collect_target_details() {
     local target_ocid="$1"
     local target_name
 
-    target_name=$(ds_resolve_target_name "$target_ocid" 2>/dev/null) || target_name="$target_ocid"
-    
+    target_name=$(ds_resolve_target_name "$target_ocid" 2> /dev/null) || target_name="$target_ocid"
+
     log_debug "Processing: $target_name"
 
     # Fetch target details
@@ -314,15 +314,15 @@ collect_target_details() {
     created=$(echo "$data" | jq -r '."time-created" // ""')
     infra=$(echo "$data" | jq -r '."infrastructure-type" // ""')
     ttype=$(echo "$data" | jq -r '."database-type" // ""')
-    
+
     # Connection details
     local conn_option
     conn_option=$(echo "$data" | jq -r '."connection-option" // {}')
-    
+
     # Try to parse connection string
     local conn_string
     conn_string=$(echo "$conn_option" | jq -r '."connection-string" // empty')
-    
+
     if [[ -n "$conn_string" ]]; then
         # Parse connection string format: host:port/service
         host=$(echo "$conn_string" | cut -d: -f1)
@@ -333,13 +333,13 @@ collect_target_details() {
         port=""
         svc=""
     fi
-    
+
     compid=$(echo "$data" | jq -r '."compartment-id" // ""')
 
     # Get connector info
     local conn_ocid conn_name
     conn_ocid=$(echo "$conn_option" | jq -r '."on-prem-connector-id" // empty')
-    
+
     if [[ -n "$conn_ocid" && -n "${CONNECTOR_MAP[$conn_ocid]:-}" ]]; then
         conn_name="${CONNECTOR_MAP[$conn_ocid]}"
     elif [[ -n "$conn_ocid" ]]; then
@@ -400,7 +400,7 @@ collect_target_details() {
 
     # Add to array
     DETAILS_JSON=$(echo "$DETAILS_JSON" | jq -c --argjson row "$record" '. + [$row]')
-    
+
     return 0
 }
 
@@ -468,7 +468,7 @@ compute_output_filename() {
 emit_output() {
     local count
     count=$(echo "$DETAILS_JSON" | jq 'length')
-    
+
     case "$FORMAT" in
         json)
             if [[ "$TO_FILE" == "true" ]]; then
@@ -479,7 +479,7 @@ emit_output() {
                 log_info "Output $count targets as JSON"
             fi
             ;;
-            
+
         table)
             if [[ "$count" -eq 0 ]]; then
                 log_info "No target details to display"
@@ -524,7 +524,7 @@ emit_output() {
                 log_info "Displayed $count targets"
             fi
             ;;
-            
+
         csv)
             {
                 echo 'datasafe_ocid,display_name,lifecycle,created_at,infra_type,target_type,host,port,service_name,connector_name,compartment_id,cluster,cdb,pdb'
@@ -535,11 +535,11 @@ emit_output() {
                     .cluster, .cdb, .pdb
                 ] | @csv'
             } > "${FINAL_OUTPUT_FILE}"
-            
+
             log_info "Wrote $count target details to ${FINAL_OUTPUT_FILE}"
             ;;
     esac
-    
+
     return 0
 }
 
@@ -552,7 +552,7 @@ emit_output() {
 # ------------------------------------------------------------------------------
 list_targets_in_compartment() {
     local compartment_ocid="$1"
-    
+
     log_debug "Listing targets in compartment with lifecycle filter: $LIFECYCLE_STATE"
 
     local targets_json
@@ -563,7 +563,7 @@ list_targets_in_compartment() {
 
     # Output OCID and name
     echo "$targets_json" | jq -r '.data[]? | [.id, (."display-name" // "")] | @tsv'
-    
+
     return 0
 }
 
@@ -575,20 +575,20 @@ list_targets_in_compartment() {
 do_work() {
     local -a target_ocids=()
     local compartment_ocid=""
-    
+
     # Collect target OCIDs
     if [[ -n "$TARGETS" ]]; then
         # Process explicit targets
         log_info "Processing explicit targets"
-        
+
         # Resolve compartment using standard pattern: explicit > DS_ROOT_COMP > error
-        compartment_ocid=$(resolve_compartment_for_operation "$COMPARTMENT") || \
-            die "Failed to resolve compartment for target resolution"
-        
+        compartment_ocid=$(resolve_compartment_for_operation "$COMPARTMENT") \
+            || die "Failed to resolve compartment for target resolution"
+
         IFS=',' read -ra target_list <<< "$TARGETS"
         for target in "${target_list[@]}"; do
             target="${target// /}" # trim spaces
-            
+
             if is_ocid "$target"; then
                 target_ocids+=("$target")
             else
@@ -604,40 +604,40 @@ do_work() {
     else
         # Scan compartment
         log_info "Scanning compartment for targets"
-        
+
         # Resolve compartment using standard pattern: explicit > DS_ROOT_COMP > error
-        compartment_ocid=$(resolve_compartment_for_operation "$COMPARTMENT") || \
-            die "Failed to resolve compartment for target scan"
-        
+        compartment_ocid=$(resolve_compartment_for_operation "$COMPARTMENT") \
+            || die "Failed to resolve compartment for target scan"
+
         # List targets in compartment
         local targets_data
-        targets_data=$(list_targets_in_compartment "$compartment_ocid") || \
-            die "Failed to list targets in compartment"
-        
+        targets_data=$(list_targets_in_compartment "$compartment_ocid") \
+            || die "Failed to list targets in compartment"
+
         while IFS=$'\t' read -r ocid name; do
             [[ -n "$ocid" ]] && target_ocids+=("$ocid")
         done <<< "$targets_data"
     fi
-    
+
     # Check if we have targets
     if [[ ${#target_ocids[@]} -eq 0 ]]; then
         log_warn "No targets found matching criteria"
         return 0
     fi
-    
+
     log_info "Found ${#target_ocids[@]} targets to process"
-    
+
     # Build connector map if we have a compartment
     if [[ -n "$compartment_ocid" ]]; then
         build_connector_map "$compartment_ocid"
     fi
-    
+
     # Collect details for each target
     log_info "Collecting target details..."
     DETAILS_JSON='[]'
     local success_count=0
     local error_count=0
-    
+
     for target_ocid in "${target_ocids[@]}"; do
         if collect_target_details "$target_ocid"; then
             ((success_count++)) || true
@@ -645,13 +645,13 @@ do_work() {
             ((error_count++)) || true
         fi
     done
-    
+
     log_info "Collection completed: $success_count successful, $error_count errors"
-    
+
     # Compute output filename and emit output
     compute_output_filename
     emit_output
-    
+
     return 0
 }
 

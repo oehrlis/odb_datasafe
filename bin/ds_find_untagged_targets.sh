@@ -38,7 +38,7 @@ LIB_DIR="${SCRIPT_DIR}/../lib"
 
 # Script identification
 SCRIPT_NAME="ds_find_untagged_targets"
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.4')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.7.1')"
 
 # Load framework libraries
 if [[ ! -f "${LIB_DIR}/ds_lib.sh" ]]; then
@@ -174,8 +174,8 @@ validate_inputs() {
     fi
 
     # Resolve compartment using helper function (accepts name or OCID)
-    resolve_compartment_to_vars "$COMPARTMENT" "COMP" || \
-        die "Failed to resolve compartment: $COMPARTMENT"
+    resolve_compartment_to_vars "$COMPARTMENT" "COMP" \
+        || die "Failed to resolve compartment: $COMPARTMENT"
     log_info "Using compartment: ${COMP_NAME} (${COMP_OCID})"
 
     # Validate tag namespace

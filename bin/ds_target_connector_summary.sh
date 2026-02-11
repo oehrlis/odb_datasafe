@@ -23,15 +23,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_NAME
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.6.1')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.6.1')"
 readonly SCRIPT_VERSION
 readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 
 # Defaults
 : "${COMPARTMENT:=}"
 : "${LIFECYCLE_STATE:=}"
-: "${OUTPUT_FORMAT:=table}"    # table|json|csv
-: "${SHOW_DETAILED:=false}"    # Summary by default
+: "${OUTPUT_FORMAT:=table}" # table|json|csv
+: "${SHOW_DETAILED:=false}" # Summary by default
 : "${FIELDS:=display-name,lifecycle-state,infrastructure-type}"
 : "${SHOW_OCID:=false}"
 
@@ -205,8 +205,8 @@ validate_inputs() {
 
     # Resolve compartment
     if [[ -z "$COMPARTMENT" ]]; then
-        COMPARTMENT=$(resolve_compartment_for_operation "") || \
-            die "Failed to resolve compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
+        COMPARTMENT=$(resolve_compartment_for_operation "") \
+            || die "Failed to resolve compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
     fi
 
     # Get compartment name for display
@@ -320,7 +320,7 @@ enrich_targets_with_connector() {
 
         echo "$detail" >> "$tmp_file"
 
-        if (( count % 200 == 0 )); then
+        if ((count % 200 == 0)); then
             log_info "Fetched details for $count/$total targets"
         fi
     done
@@ -408,11 +408,11 @@ show_summary_table() {
     connector_count=$(echo "$grouped_json" | jq 'length')
 
     # Process each connector group
-    for ((i=0; i<connector_count; i++)); do
+    for ((i = 0; i < connector_count; i++)); do
         local conn_name conn_id
         conn_name=$(echo "$grouped_json" | jq -r ".[$i].connector_name")
         conn_id=$(echo "$grouped_json" | jq -r ".[$i].connector_id")
-        
+
         # Get lifecycle state counts for this connector
         local state_counts
         state_counts=$(echo "$grouped_json" | jq -r "
@@ -424,7 +424,7 @@ show_summary_table() {
         local connector_total=0
         local state_count
         state_count=$(echo "$state_counts" | jq 'length')
-        
+
         # Print first line with connector name
         if [[ $state_count -gt 0 ]]; then
             local first_state first_count
@@ -448,9 +448,9 @@ show_summary_table() {
                 fi
             fi
             connector_total=$((connector_total + first_count))
-            
+
             # Print remaining states
-            for ((j=1; j<state_count; j++)); do
+            for ((j = 1; j < state_count; j++)); do
                 local state count
                 state=$(echo "$state_counts" | jq -r ".[$j].state")
                 count=$(echo "$state_counts" | jq -r ".[$j].count")
@@ -458,11 +458,11 @@ show_summary_table() {
                 connector_total=$((connector_total + count))
             done
         fi
-        
+
         # Print connector subtotal
         printf "%-50s %-20s %10s\n" "" "Subtotal" "$connector_total"
         grand_total=$((grand_total + connector_total))
-        
+
         # Separator between connectors
         [[ $i -lt $((connector_count - 1)) ]] && printf "%-50s %-20s %10s\n" "" "" ""
     done
@@ -508,7 +508,7 @@ show_summary_csv() {
     local grouped_json="$1"
 
     echo "connector_name,lifecycle_state,count"
-    
+
     echo "$grouped_json" | jq -r '
         .[] | 
         (.connector_name as $conn |
@@ -549,12 +549,12 @@ show_detailed_table() {
     connector_count=$(echo "$grouped_json" | jq 'length')
 
     # Process each connector group
-    for ((i=0; i<connector_count; i++)); do
+    for ((i = 0; i < connector_count; i++)); do
         local conn_name conn_id target_count
         conn_name=$(echo "$grouped_json" | jq -r ".[$i].connector_name")
         conn_id=$(echo "$grouped_json" | jq -r ".[$i].connector_id")
         target_count=$(echo "$grouped_json" | jq ".[$i].targets | length")
-        
+
         printf "\n%s\n" "$(printf '%0.s=' {1..100})"
         if [[ "${SHOW_OCID}" == "true" && "$conn_id" != "no-connector" ]]; then
             printf "Connector: %s (%d targets)\n" "$conn_name" "$target_count"
@@ -577,7 +577,7 @@ show_detailed_table() {
             printf "Connector: %s (%d targets)\n" "$conn_name" "$target_count"
         fi
         printf "%s\n" "$(printf '%0.s=' {1..100})"
-        
+
         # Print header
         printf "\n"
         local idx=0
@@ -586,7 +586,7 @@ show_detailed_table() {
             idx=$((idx + 1))
         done
         printf "\n"
-        
+
         idx=0
         for field in "${field_array[@]}"; do
             local width=${field_widths[$idx]}
@@ -594,14 +594,14 @@ show_detailed_table() {
             idx=$((idx + 1))
         done
         printf "\n"
-        
+
         # Build jq select expression
         local jq_select="["
         for field in "${field_array[@]}"; do
             jq_select+=".[\"${field}\"],"
         done
         jq_select="${jq_select%,}]"
-        
+
         # Print targets
         echo "$grouped_json" | jq -r ".[$i].targets[] | $jq_select | @tsv" \
             | while IFS=$'\t' read -r -a values; do
@@ -609,7 +609,7 @@ show_detailed_table() {
                 for value in "${values[@]}"; do
                     local width=${field_widths[$idx]}
                     local max_len=$((width - 2))
-                    
+
                     local display_value="${value:0:$max_len}"
                     [[ ${#value} -gt $max_len ]] && display_value="${display_value}.."
                     printf "%-${width}s " "$display_value"
@@ -617,7 +617,7 @@ show_detailed_table() {
                 done
                 printf "\n"
             done
-        
+
         printf "\n"
     done
 }
@@ -703,13 +703,13 @@ do_work() {
 
     # Fetch connectors
     log_info "Fetching on-premises connectors..."
-    connectors_json=$(list_connectors_in_compartment "$COMPARTMENT") || \
-        die "Failed to list connectors"
+    connectors_json=$(list_connectors_in_compartment "$COMPARTMENT") \
+        || die "Failed to list connectors"
 
     # Fetch targets
     log_info "Fetching target databases..."
-    targets_json=$(list_targets_in_compartment "$COMPARTMENT") || \
-        die "Failed to list targets"
+    targets_json=$(list_targets_in_compartment "$COMPARTMENT") \
+        || die "Failed to list targets"
 
     local connector_count
     connector_count=$(echo "$connectors_json" | jq '.data | length')

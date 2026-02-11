@@ -119,7 +119,7 @@ EOF
 # ------------------------------------------------------------------------------
 # Function: parse_args
 # Purpose.: Parse command-line arguments
-# Args....: $@ - All command-line arguments  
+# Args....: $@ - All command-line arguments
 # Returns.: 0 on success, exits on invalid arguments
 # Notes...: Sets global variables for script configuration
 # ------------------------------------------------------------------------------
@@ -214,7 +214,7 @@ validate_inputs() {
         local -a target_inputs
         IFS=',' read -ra target_inputs <<< "$TARGETS"
         log_debug "Explicit targets specified: ${#target_inputs[@]}"
-        
+
         # Get search compartment (for name resolution)
         local search_comp_ocid
         if [[ -n "$COMP_OCID" ]]; then
@@ -222,7 +222,7 @@ validate_inputs() {
         else
             search_comp_ocid=$(resolve_compartment_for_operation "") || die "Failed to get search compartment"
         fi
-        
+
         # Resolve each target
         for target in "${target_inputs[@]}"; do
             [[ -z "$target" ]] && continue
@@ -491,7 +491,7 @@ main() {
     init_config
     parse_common_opts "$@"
     parse_args "${ARGS[@]}"
-    
+
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
 
     # Setup error handling

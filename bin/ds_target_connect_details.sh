@@ -22,7 +22,7 @@ readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly LIB_DIR="${SCRIPT_DIR}/../lib"
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.4')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.7.1')"
 readonly SCRIPT_VERSION
 
 # Defaults
@@ -195,24 +195,24 @@ validate_inputs() {
 # ------------------------------------------------------------------------------
 fetch_cluster_nodes() {
     local vm_cluster_id="$1"
-    
+
     if [[ -z "$vm_cluster_id" || "$vm_cluster_id" == "null" ]]; then
         echo "[]"
         return 0
     fi
-    
+
     log_debug "Fetching cluster nodes for VM cluster: $vm_cluster_id"
-    
+
     # Fetch DB nodes for the VM cluster
     local nodes_data
     nodes_data=$(oci_exec_ro db node list \
         --vm-cluster-id "$vm_cluster_id" \
-        --query 'data' 2>/dev/null) || {
+        --query 'data' 2> /dev/null) || {
         log_warn "Failed to fetch cluster nodes"
         echo "[]"
         return 0
     }
-    
+
     echo "$nodes_data"
 }
 
@@ -224,7 +224,7 @@ fetch_cluster_nodes() {
 # ------------------------------------------------------------------------------
 display_connection_details() {
     local target_ocid target_name target_data
-    
+
     # Resolve target to OCID
     log_debug "Resolving target: $TARGET"
     target_ocid=$(ds_resolve_target_ocid "$TARGET" "$COMPARTMENT") || {
@@ -254,13 +254,13 @@ display_connection_details() {
     target_status=$(echo "$target_data" | jq -r '."lifecycle-state" // ""')
     target_details=$(echo "$target_data" | jq -r '."lifecycle-details" // ""')
     target_comp_ocid=$(echo "$target_data" | jq -r '."compartment-id" // ""')
-    
+
     # Extract connection-option first to avoid jq errors
     local conn_option
     conn_option=$(echo "$target_data" | jq -r '."connection-option" // {}')
     target_conn_type=$(echo "$conn_option" | jq -r '."connection-type" // ""')
     target_onprem_ocid=$(echo "$conn_option" | jq -r '."on-prem-connector-id" // ""')
-    
+
     target_username=$(echo "$target_data" | jq -r '.credentials."user-name" // ""')
     freeform_tags=$(echo "$target_data" | jq -c '.["freeform-tags"] // {}')
 
@@ -271,21 +271,21 @@ display_connection_details() {
     db_system_id=$(echo "$target_data" | jq -r '."database-details"."db-system-id" // ""')
 
     # Resolve compartment and connector names
-    target_comp_name=$(oci_get_compartment_name "$target_comp_ocid" 2>/dev/null || echo "$target_comp_ocid")
+    target_comp_name=$(oci_get_compartment_name "$target_comp_ocid" 2> /dev/null || echo "$target_comp_ocid")
     local target_onprem_name=""
-    [[ -n "$target_onprem_ocid" && "$target_onprem_ocid" != "null" ]] && \
-        target_onprem_name=$(oci_exec_ro data-safe on-prem-connector get \
+    [[ -n "$target_onprem_ocid" && "$target_onprem_ocid" != "null" ]] \
+        && target_onprem_name=$(oci_exec_ro data-safe on-prem-connector get \
             --on-prem-connector-id "$target_onprem_ocid" \
             --query 'data."display-name"' \
-            --raw-output 2>/dev/null || echo "")
-    
+            --raw-output 2> /dev/null || echo "")
+
     # Fetch cluster nodes if VM cluster exists
     local cluster_nodes cluster_nodes_json
     cluster_nodes="[]"
     if [[ -n "$db_vm_cluster_id" && "$db_vm_cluster_id" != "null" ]]; then
         cluster_nodes=$(fetch_cluster_nodes "$db_vm_cluster_id")
     fi
-    
+
     # Process cluster nodes for display
     cluster_nodes_json=$(echo "$cluster_nodes" | jq -c 'map({
         id: .id,
@@ -352,7 +352,7 @@ display_connection_details() {
         printf '%-25s : %s\n' "Service Name" "$db_service_name"
         [[ -n "$db_vm_cluster_id" ]] && printf '%-25s : %s\n' "VM Cluster ID" "$db_vm_cluster_id"
         [[ -n "$db_system_id" ]] && printf '%-25s : %s\n' "DB System ID" "$db_system_id"
-        
+
         # Display cluster nodes if available
         local node_count
         node_count=$(echo "$cluster_nodes" | jq 'length')
@@ -360,7 +360,7 @@ display_connection_details() {
             printf '%-25s : %s\n' "Cluster Nodes" "$node_count node(s)"
             echo "$cluster_nodes" | jq -r '.[] | "  Node: \(.hostname // .id)\n    State: \(."lifecycle-state")\n    VNIC ID: \(."vnic-id")\n    Backup VNIC ID: \(."backup-vnic-id" // "N/A")"'
         fi
-        
+
         printf '%-25s : %s\n' "Freeform Tags" "$(echo "$freeform_tags" | jq -c '.')"
     fi
 

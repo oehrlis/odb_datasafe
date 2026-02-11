@@ -26,7 +26,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.4')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.7.1')"
 # shellcheck disable=SC2034  # Used by parse_common_opts for --version output
 readonly SCRIPT_NAME SCRIPT_VERSION
 
@@ -42,13 +42,13 @@ source "${LIB_DIR}/ds_lib.sh"
 # ------------------------------------------------------------------------------
 : "${OCI_CLI_CONFIG_FILE:=${HOME}/.oci/config}"
 : "${OCI_CLI_PROFILE:=DEFAULT}"
-: "${COMPARTMENT:=}"              # Source compartment name or OCID
-: "${TARGETS:=}"                  # CSV names/OCIDs (overrides compartment mode)
-: "${STATE_FILTERS:=ACTIVE}"      # CSV lifecycle states when scanning compartment
-: "${DEST_COMPARTMENT:=}"         # Destination compartment name or OCID (required)
-: "${MOVE_DEPENDENCIES:=true}"    # Move audit trails, assessments, policies
-: "${CONTINUE_ON_ERROR:=true}"    # Continue processing other targets if one fails
-: "${FORCE:=false}"               # Skip confirmation prompts
+: "${COMPARTMENT:=}"           # Source compartment name or OCID
+: "${TARGETS:=}"               # CSV names/OCIDs (overrides compartment mode)
+: "${STATE_FILTERS:=ACTIVE}"   # CSV lifecycle states when scanning compartment
+: "${DEST_COMPARTMENT:=}"      # Destination compartment name or OCID (required)
+: "${MOVE_DEPENDENCIES:=true}" # Move audit trails, assessments, policies
+: "${CONTINUE_ON_ERROR:=true}" # Continue processing other targets if one fails
+: "${FORCE:=false}"            # Skip confirmation prompts
 : "${DRY_RUN:=false}"
 
 # Runtime
@@ -71,8 +71,8 @@ init_config
 # Returns.: Exits with provided code (default 0)
 # ------------------------------------------------------------------------------
 usage() {
-        local exit_code="${1:-0}"
-        cat << EOF
+    local exit_code="${1:-0}"
+    cat << EOF
 
 Usage:
     ${SCRIPT_NAME} (-T <CSV> | -c <OCID|NAME>) -D <DEST_COMP> [options]
@@ -114,7 +114,7 @@ Examples:
     ${SCRIPT_NAME} -T test-target-1,test-target-2 -D prod-compartment --force
 
 EOF
-        exit "${exit_code}"
+    exit "${exit_code}"
 }
 
 # ------------------------------------------------------------------------------
@@ -229,21 +229,21 @@ preflight_checks() {
     # Resolve destination compartment using helper
     resolve_compartment_to_vars "${DEST_COMPARTMENT}" "DEST_COMP" \
         || die "Cannot resolve destination compartment '${DEST_COMPARTMENT}'"
-    
+
     log_info "Destination compartment: ${DEST_COMP_NAME} (${DEST_COMP_OCID})"
 
     # Collect target OCIDs
     local -a target_ocids=()
     local compartment_ocid=""
-    
+
     if [[ -n "$TARGETS" ]]; then
         # Process explicit targets
         log_info "Processing explicit targets"
-        
+
         # Resolve compartment using standard pattern: explicit > DS_ROOT_COMP > error
-        compartment_ocid=$(resolve_compartment_for_operation "$COMPARTMENT") || \
-            die "Failed to resolve compartment for target resolution"
-        
+        compartment_ocid=$(resolve_compartment_for_operation "$COMPARTMENT") \
+            || die "Failed to resolve compartment for target resolution"
+
         IFS=',' read -ra target_list <<< "$TARGETS"
         for target in "${target_list[@]}"; do
             target="${target// /}" # trim spaces
@@ -274,34 +274,34 @@ preflight_checks() {
     else
         # Scan compartment
         log_info "Scanning compartment for targets"
-        
+
         # Resolve compartment
         if is_ocid "$COMPARTMENT"; then
             compartment_ocid="$COMPARTMENT"
         else
-            compartment_ocid=$(oci_resolve_compartment_ocid "$COMPARTMENT") || \
-                die "Failed to resolve compartment: $COMPARTMENT"
+            compartment_ocid=$(oci_resolve_compartment_ocid "$COMPARTMENT") \
+                || die "Failed to resolve compartment: $COMPARTMENT"
         fi
-        
+
         # Get compartment name
         if is_ocid "$COMPARTMENT"; then
-            COMP_NAME=$(oci_get_compartment_name "$compartment_ocid" 2>/dev/null) || COMP_NAME="$compartment_ocid"
+            COMP_NAME=$(oci_get_compartment_name "$compartment_ocid" 2> /dev/null) || COMP_NAME="$compartment_ocid"
         else
             COMP_NAME="$COMPARTMENT"
         fi
         COMP_OCID="$compartment_ocid"
-        
+
         # List targets in compartment with state filters (comma-separated supported)
         local targets_json
         targets_json=$(ds_list_targets "$compartment_ocid" "$STATE_FILTERS") || die "Failed to list targets in compartment"
         while IFS=$'\t' read -r ocid; do
             [[ -n "$ocid" ]] && target_ocids+=("$ocid")
-        done < <(echo "$targets_json" | jq -r '.data[]?.id' 2>/dev/null)
+        done < <(echo "$targets_json" | jq -r '.data[]?.id' 2> /dev/null)
     fi
-    
+
     # Store resolved targets
     RESOLVED_TARGETS=("${target_ocids[@]}")
-    
+
     log_info "Targets selected for move: ${#RESOLVED_TARGETS[@]}"
 
     if [[ ${#RESOLVED_TARGETS[@]} -eq 0 ]]; then
@@ -408,7 +408,7 @@ move_audit_trails() {
     local trails_json
     trails_json=$(oci_exec_ro data-safe audit-trail list \
         --target-database-id "${target_ocid}" \
-        --all 2>/dev/null) || {
+        --all 2> /dev/null) || {
         log_debug "  No audit trails found for ${target_name}"
         return 0
     }
@@ -446,7 +446,7 @@ move_assessments() {
     local assessments_json
     assessments_json=$(oci_exec_ro data-safe security-assessment list \
         --target-database-id "${target_ocid}" \
-        --all 2>/dev/null) || {
+        --all 2> /dev/null) || {
         log_debug "  No assessments found for ${target_name}"
         return 0
     }
@@ -484,7 +484,7 @@ move_security_policies() {
     local policies_json
     policies_json=$(oci_exec_ro data-safe security-policy list \
         --target-database-id "${target_ocid}" \
-        --all 2>/dev/null) || {
+        --all 2> /dev/null) || {
         log_debug "  No security policies found for ${target_name}"
         return 0
     }

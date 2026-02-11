@@ -21,7 +21,7 @@ readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly LIB_DIR="${SCRIPT_DIR}/../lib"
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.4')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.7.1')"
 readonly SCRIPT_VERSION
 
 # Defaults
@@ -272,7 +272,7 @@ resolve_targets() {
         IFS=',' read -ra target_array <<< "$TARGETS"
 
         for target in "${target_array[@]}"; do
-            target=$(echo "$target" | xargs)  # trim whitespace
+            target=$(echo "$target" | xargs) # trim whitespace
             [[ -z "$target" ]] && continue
 
             log_debug "  Resolving: $target"
@@ -325,7 +325,7 @@ start_audit_trails() {
         target_name=$(oci_exec_ro data-safe target-database get \
             --target-database-id "$target_ocid" \
             --query 'data."display-name"' \
-            --raw-output 2>/dev/null || echo "$target_ocid")
+            --raw-output 2> /dev/null || echo "$target_ocid")
 
         if [[ "${DRY_RUN}" == "true" ]]; then
             log_info "[DRY-RUN] Start audit trail for: $target_name (${target_ocid})"

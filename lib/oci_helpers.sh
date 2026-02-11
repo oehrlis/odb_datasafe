@@ -137,21 +137,21 @@ check_oci_cli_auth() {
         log_error "OCI CLI authentication failed (exit ${exit_code})"
         log_debug "Test command: ${cmd[*]}"
         log_debug "Error output: $output"
-        
+
         # Provide helpful error messages
         if [[ "$output" =~ "ConfigFileNotFound" ]]; then
             log_error "OCI config file not found: ${OCI_CLI_CONFIG_FILE}"
             log_error "Run 'oci setup config' to create it"
         elif [[ "$output" =~ "ProfileNotFound" ]]; then
             log_error "OCI profile '${OCI_CLI_PROFILE}' not found in config"
-            log_error "Available profiles: $(grep '^\[' "${OCI_CLI_CONFIG_FILE}" 2>/dev/null | tr -d '[]' | tr '\n' ' ' || echo 'none')"
+            log_error "Available profiles: $(grep '^\[' "${OCI_CLI_CONFIG_FILE}" 2> /dev/null | tr -d '[]' | tr '\n' ' ' || echo 'none')"
         elif [[ "$output" =~ "NotAuthenticated" ]] || [[ "$output" =~ "InvalidKeyFile" ]]; then
             log_error "OCI authentication credentials are invalid or expired"
             log_error "Check your API key configuration in ${OCI_CLI_CONFIG_FILE}"
         else
             log_error "OCI CLI test command failed. Ensure proper authentication setup."
         fi
-        
+
         _OCI_CLI_AUTH_CHECKED="failed"
         return 1
     fi
@@ -168,7 +168,7 @@ check_oci_cli_auth() {
 require_oci_cli() {
     # Check if oci command exists
     require_cmd oci jq
-    
+
     # Check authentication
     if ! check_oci_cli_auth; then
         die "OCI CLI is not properly authenticated. Please run 'oci setup config' or check your credentials."
@@ -539,9 +539,9 @@ _ds_get_target_list_cached() {
     cache_file=$(_ds_target_cache_file_path "$comp_ocid" "$lifecycle")
 
     # Reuse cache if compartment and lifecycle match and cache enabled
-    if [[ "${DS_TARGET_CACHE_TTL}" != "0" && -n "$_DS_TARGET_CACHE_JSON" && \
-                "$_DS_TARGET_CACHE_COMP_OCID" == "$comp_ocid" && \
-                "$_DS_TARGET_CACHE_LIFECYCLE" == "$lifecycle" ]]; then
+    if [[ "${DS_TARGET_CACHE_TTL}" != "0" && -n "$_DS_TARGET_CACHE_JSON" &&
+        "$_DS_TARGET_CACHE_COMP_OCID" == "$comp_ocid" &&
+        "$_DS_TARGET_CACHE_LIFECYCLE" == "$lifecycle" ]]; then
         log_debug "Using cached target list for compartment: $comp_ocid (lifecycle: ${lifecycle:-none}) [memory]"
         printf '%s' "$_DS_TARGET_CACHE_JSON"
         return 0
@@ -702,7 +702,7 @@ ds_resolve_target_name() {
     result=$(oci_exec data-safe target-database get \
         --target-database-id "$ocid" \
         --query 'data."display-name"' \
-        --raw-output 2>/dev/null)
+        --raw-output 2> /dev/null)
 
     if [[ -z "$result" || "$result" == "null" ]]; then
         log_error "Target not found: $ocid" >&2
@@ -757,11 +757,11 @@ ds_get_target_compartment() {
 resolve_compartment_to_vars() {
     local input="$1"
     local prefix="$2"
-    
+
     if is_ocid "$input"; then
         # User provided OCID, resolve to name
         local resolved_comp_name
-        resolved_comp_name=$(oci_get_compartment_name "$input" 2>/dev/null) || resolved_comp_name="$input"
+        resolved_comp_name=$(oci_get_compartment_name "$input" 2> /dev/null) || resolved_comp_name="$input"
         eval "${prefix}_OCID=\"$input\""
         eval "${prefix}_NAME=\"$resolved_comp_name\""
         log_debug "Resolved compartment OCID to name: $resolved_comp_name"
@@ -776,7 +776,7 @@ resolve_compartment_to_vars() {
         eval "${prefix}_OCID=\"$comp_ocid\""
         log_debug "Resolved compartment name to OCID: $comp_ocid"
     fi
-    
+
     return 0
 }
 
@@ -794,11 +794,11 @@ resolve_target_to_vars() {
     local input="$1"
     local prefix="$2"
     local compartment="${3:-}"
-    
+
     if is_ocid "$input"; then
         # User provided OCID, resolve to name
         local target_name
-        target_name=$(ds_resolve_target_name "$input" 2>/dev/null) || target_name="$input"
+        target_name=$(ds_resolve_target_name "$input" 2> /dev/null) || target_name="$input"
         eval "${prefix}_OCID=\"$input\""
         eval "${prefix}_NAME=\"$target_name\""
         log_debug "Resolved target OCID to name: $target_name"
@@ -808,7 +808,7 @@ resolve_target_to_vars() {
             log_error "Compartment required to resolve target name: $input"
             return 1
         fi
-        
+
         local target_ocid
         target_ocid=$(ds_resolve_target_ocid "$input" "$compartment") || {
             log_error "Cannot resolve target name '$input' to OCID"
@@ -818,7 +818,7 @@ resolve_target_to_vars() {
         eval "${prefix}_OCID=\"$target_ocid\""
         log_debug "Resolved target name to OCID: $target_ocid"
     fi
-    
+
     return 0
 }
 
@@ -1151,7 +1151,7 @@ ds_resolve_connector_name() {
     result=$(oci_exec_ro data-safe on-prem-connector get \
         --on-prem-connector-id "$ocid" \
         --query 'data."display-name"' \
-        --raw-output 2>/dev/null)
+        --raw-output 2> /dev/null)
 
     if [[ -z "$result" || "$result" == "null" ]]; then
         log_error "Connector not found: $ocid"
@@ -1206,7 +1206,7 @@ ds_generate_connector_bundle() {
     fi
 
     local connector_name
-    connector_name=$(ds_resolve_connector_name "$connector_ocid" 2>/dev/null) || connector_name="$connector_ocid"
+    connector_name=$(ds_resolve_connector_name "$connector_ocid" 2> /dev/null) || connector_name="$connector_ocid"
 
     log_info "Generating connector installation bundle for: $connector_name"
 
@@ -1244,7 +1244,7 @@ ds_download_connector_bundle() {
     fi
 
     local connector_name
-    connector_name=$(ds_resolve_connector_name "$connector_ocid" 2>/dev/null) || connector_name="$connector_ocid"
+    connector_name=$(ds_resolve_connector_name "$connector_ocid" 2> /dev/null) || connector_name="$connector_ocid"
 
     log_info "Downloading connector bundle for: $connector_name"
 
@@ -1258,4 +1258,3 @@ ds_download_connector_bundle() {
         --on-prem-connector-id "$connector_ocid" \
         --file "$output_file"
 }
-

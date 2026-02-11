@@ -48,7 +48,7 @@ LIB_DIR="${SCRIPT_DIR}/../lib"
 
 # Script identification
 SCRIPT_NAME="ds_target_register"
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.4')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.7.1')"
 
 # Load framework libraries
 if [[ ! -f "${LIB_DIR}/ds_lib.sh" ]]; then
@@ -296,8 +296,8 @@ validate_inputs() {
 
     # Resolve compartment using helper function (accepts name or OCID)
     local comp_name comp_ocid
-    resolve_compartment_to_vars "$COMPARTMENT" comp_name comp_ocid || \
-        die "Failed to resolve compartment: $COMPARTMENT"
+    resolve_compartment_to_vars "$COMPARTMENT" comp_name comp_ocid \
+        || die "Failed to resolve compartment: $COMPARTMENT"
     COMP_NAME="$comp_name"
     COMP_OCID="$comp_ocid"
     log_info "Target compartment: ${COMP_NAME} (${COMP_OCID})"
@@ -314,13 +314,13 @@ validate_inputs() {
             if is_ocid "$CONNECTOR_COMPARTMENT"; then
                 connector_search_comp="$CONNECTOR_COMPARTMENT"
             else
-                connector_search_comp=$(oci_resolve_compartment_ocid "$CONNECTOR_COMPARTMENT") || \
-                    die "Failed to resolve connector compartment: $CONNECTOR_COMPARTMENT"
+                connector_search_comp=$(oci_resolve_compartment_ocid "$CONNECTOR_COMPARTMENT") \
+                    || die "Failed to resolve connector compartment: $CONNECTOR_COMPARTMENT"
             fi
             log_debug "Using explicit connector compartment: $CONNECTOR_COMPARTMENT"
         else
             # Use helper function (DS_CONNECTOR_COMP -> DS_ROOT_COMP -> target compartment)
-            connector_search_comp=$(get_connector_compartment_ocid 2>/dev/null || echo "$COMP_OCID")
+            connector_search_comp=$(get_connector_compartment_ocid 2> /dev/null || echo "$COMP_OCID")
             log_debug "Using default connector compartment"
         fi
 

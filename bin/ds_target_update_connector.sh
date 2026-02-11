@@ -25,7 +25,7 @@ readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly LIB_DIR="${SCRIPT_DIR}/../lib"
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.5.4')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.7.1')"
 readonly SCRIPT_VERSION
 
 # Defaults
@@ -306,7 +306,7 @@ validate_inputs() {
         if is_ocid "$COMPARTMENT"; then
             # User provided OCID, resolve to name
             COMPARTMENT_OCID="$COMPARTMENT"
-            COMPARTMENT_NAME=$(oci_get_compartment_name "$COMPARTMENT_OCID" 2>/dev/null) || COMPARTMENT_NAME="$COMPARTMENT_OCID"
+            COMPARTMENT_NAME=$(oci_get_compartment_name "$COMPARTMENT_OCID" 2> /dev/null) || COMPARTMENT_NAME="$COMPARTMENT_OCID"
             log_debug "Resolved compartment OCID to name: $COMPARTMENT_NAME"
         else
             # User provided name, resolve to OCID
@@ -425,13 +425,13 @@ list_available_connectors() {
         --compartment-id-in-subtree true \
         --lifecycle-state ACTIVE \
         --all)
-    
+
     # Apply exclusion filter if specified
     if [[ -n "${EXCLUDE_CONNECTORS:-}" ]]; then
         log_debug "Applying connector exclusion filter: $EXCLUDE_CONNECTORS"
         local -a exclude_list
         IFS=',' read -ra exclude_list <<< "$EXCLUDE_CONNECTORS"
-        
+
         # Build jq filter to exclude connectors
         local jq_filter='.data'
         for excluded in "${exclude_list[@]}"; do
@@ -439,10 +439,10 @@ list_available_connectors() {
             excluded="${excluded#"${excluded%%[![:space:]]*}"}"
             excluded="${excluded%"${excluded##*[![:space:]]}"}"
             [[ -z "$excluded" ]] && continue
-            
+
             jq_filter+=" | map(select(.\"display-name\" != \"$excluded\"))"
         done
-        
+
         echo "$connectors_json" | jq "{data: ($jq_filter)}"
     else
         echo "$connectors_json"
@@ -494,7 +494,7 @@ update_target_connector() {
         local current_conn_json
         current_conn_json=$(oci_exec data-safe target-database get \
             --target-database-id "$target_ocid" \
-            --query 'data."connection-option"' 2>/dev/null) || current_conn_json='{}'
+            --query 'data."connection-option"' 2> /dev/null) || current_conn_json='{}'
 
         # Build new connection option - preserve existing fields, update connector
         local conn_json
@@ -581,7 +581,7 @@ do_set_mode() {
 
         local -a target_list
         IFS=',' read -ra target_list <<< "$TARGETS"
-        
+
         local total_targets=${#target_list[@]}
         local current=0
 
@@ -589,10 +589,10 @@ do_set_mode() {
             # Trim leading/trailing spaces
             target="${target#"${target%%[![:space:]]*}"}"
             target="${target%"${target##*[![:space:]]}"}"
-            
+
             # Skip empty entries
             [[ -z "$target" ]] && continue
-            
+
             current=$((current + 1))
 
             local target_ocid target_name
@@ -613,14 +613,14 @@ do_set_mode() {
                     # Resolve target name to OCID using cached compartment OCID
                     log_debug "Resolving target name: $target"
                     local resolved compartment_for_lookup
-                    
+
                     # Use already-resolved COMPARTMENT_OCID if available
                     if [[ -n "${COMPARTMENT_OCID:-}" ]]; then
                         compartment_for_lookup="$COMPARTMENT_OCID"
                     else
                         compartment_for_lookup=$(resolve_compartment_for_operation "") || die "Failed to get root compartment"
                     fi
-                    
+
                     resolved=$(ds_resolve_target_ocid "$target" "$compartment_for_lookup") || die "Failed to resolve target: $target"
                     [[ -n "$resolved" ]] || die "Target not found: $target"
                     target_ocid="$resolved"
@@ -629,7 +629,7 @@ do_set_mode() {
             fi
 
             log_info "[$current/$total_targets] Processing: $target_name"
-            
+
             if update_target_connector "$target_ocid" "$target_name" "$target_connector_ocid" "$target_connector_name"; then
                 success_count=$((success_count + 1))
             else

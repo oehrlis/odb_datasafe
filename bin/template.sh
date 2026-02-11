@@ -22,7 +22,7 @@ LIB_DIR="${SCRIPT_DIR}/../lib"
 # Script metadata (version read from .extension file)
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_NAME
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.6.1')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.6.1')"
 readonly SCRIPT_VERSION
 
 # Load framework libraries
@@ -38,21 +38,21 @@ source "${LIB_DIR}/ds_lib.sh"
 # =============================================================================
 
 # Default configuration (can be overridden by config files and CLI)
-: "${COMPARTMENT:=}"       # Compartment name or OCID
-: "${TARGETS:=}"           # Comma-separated target names/OCIDs
-: "${LIFECYCLE_STATE:=}"   # Filter by lifecycle (e.g., ACTIVE,NEEDS_ATTENTION)
-: "${DRY_RUN:=false}"      # Dry-run mode (set by --dry-run flag)
+: "${COMPARTMENT:=}"     # Compartment name or OCID
+: "${TARGETS:=}"         # Comma-separated target names/OCIDs
+: "${LIFECYCLE_STATE:=}" # Filter by lifecycle (e.g., ACTIVE,NEEDS_ATTENTION)
+: "${DRY_RUN:=false}"    # Dry-run mode (set by --dry-run flag)
 
 # Script-specific defaults (add your own here)
 # : "${MY_CUSTOM_OPTION:=default_value}"
 
 # Runtime variables (populated during execution)
-COMP_NAME=""      # Resolved compartment name
-COMP_OCID=""      # Resolved compartment OCID
+COMP_NAME="" # Resolved compartment name
+COMP_OCID="" # Resolved compartment OCID
 # shellcheck disable=SC2034  # Used in derived scripts
-TARGET_NAME=""    # Resolved target name
+TARGET_NAME="" # Resolved target name
 # shellcheck disable=SC2034  # Used in derived scripts
-TARGET_OCID=""    # Resolved target OCID
+TARGET_OCID="" # Resolved target OCID
 
 # =============================================================================
 # FUNCTIONS
@@ -225,8 +225,8 @@ validate_inputs() {
     # Example: Resolve compartment (accepts name or OCID)
     if [[ -n "$COMPARTMENT" ]]; then
         local comp_name comp_ocid
-        resolve_compartment_to_vars "$COMPARTMENT" comp_name comp_ocid || \
-            die "Failed to resolve compartment: $COMPARTMENT"
+        resolve_compartment_to_vars "$COMPARTMENT" comp_name comp_ocid \
+            || die "Failed to resolve compartment: $COMPARTMENT"
         COMP_NAME="$comp_name"
         COMP_OCID="$comp_ocid"
         log_info "Compartment: ${COMP_NAME} (${COMP_OCID})"
@@ -291,8 +291,8 @@ do_work() {
 
             # Resolve to both name and OCID
             local tgt_name tgt_ocid
-            resolve_target_to_vars "$target" tgt_name tgt_ocid || \
-                die "Failed to resolve target: $target"
+            resolve_target_to_vars "$target" tgt_name tgt_ocid \
+                || die "Failed to resolve target: $target"
 
             log_info "Resolved: ${tgt_name} (${tgt_ocid})"
 

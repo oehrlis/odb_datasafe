@@ -22,7 +22,7 @@ LIB_DIR="${SCRIPT_DIR}/../lib"
 # Script metadata (version read from .extension file)
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_NAME
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.6.1')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.6.1')"
 readonly SCRIPT_VERSION
 
 # Load framework libraries
@@ -38,13 +38,13 @@ source "${LIB_DIR}/ds_lib.sh"
 # =============================================================================
 
 # Default configuration (can be overridden by config files and CLI)
-: "${COMPARTMENT:=}"              # Compartment name or OCID for connector lookup
-: "${CONNECTOR_NAME:=}"           # Connector name or OCID
-: "${CONNECTOR_HOME:=}"           # Connector installation directory
-: "${DRY_RUN:=false}"             # Dry-run mode (set by --dry-run flag)
-: "${SKIP_DOWNLOAD:=false}"       # Skip download step (bundle already downloaded)
-: "${BUNDLE_FILE:=}"              # Path to existing bundle file (if skip-download)
-: "${FORCE_NEW_PASSWORD:=false}"  # Force generation of new password
+: "${COMPARTMENT:=}"             # Compartment name or OCID for connector lookup
+: "${CONNECTOR_NAME:=}"          # Connector name or OCID
+: "${CONNECTOR_HOME:=}"          # Connector installation directory
+: "${DRY_RUN:=false}"            # Dry-run mode (set by --dry-run flag)
+: "${SKIP_DOWNLOAD:=false}"      # Skip download step (bundle already downloaded)
+: "${BUNDLE_FILE:=}"             # Path to existing bundle file (if skip-download)
+: "${FORCE_NEW_PASSWORD:=false}" # Force generation of new password
 
 # Runtime variables (populated during execution)
 COMP_NAME=""           # Resolved compartment name
@@ -255,24 +255,24 @@ validate_inputs() {
     # Priority: -c/--compartment flag > DS_CONNECTOR_COMP > DS_ROOT_COMP
     if [[ -n "$COMPARTMENT" ]]; then
         local comp_name comp_ocid
-        resolve_compartment_to_vars "$COMPARTMENT" comp_name comp_ocid || \
-            die "Failed to resolve compartment: $COMPARTMENT"
+        resolve_compartment_to_vars "$COMPARTMENT" comp_name comp_ocid \
+            || die "Failed to resolve compartment: $COMPARTMENT"
         COMP_NAME="$comp_name"
         COMP_OCID="$comp_ocid"
         log_info "Compartment: ${COMP_NAME} (${COMP_OCID})"
     elif [[ -n "${DS_CONNECTOR_COMP:-}" ]]; then
         # Use DS_CONNECTOR_COMP as fallback (which itself can fall back to DS_ROOT_COMP)
         local comp_ocid
-        comp_ocid=$(get_connector_compartment_ocid) || \
-            die "Failed to resolve DS_CONNECTOR_COMP"
+        comp_ocid=$(get_connector_compartment_ocid) \
+            || die "Failed to resolve DS_CONNECTOR_COMP"
         COMP_OCID="$comp_ocid"
         COMP_NAME="${DS_CONNECTOR_COMP}"
         log_info "Using DS_CONNECTOR_COMP: ${COMP_NAME}"
     elif [[ -n "${DS_ROOT_COMP:-}" ]]; then
         # Use DS_ROOT_COMP as final fallback
         local comp_name comp_ocid
-        resolve_compartment_to_vars "$DS_ROOT_COMP" comp_name comp_ocid || \
-            die "Failed to resolve DS_ROOT_COMP: $DS_ROOT_COMP"
+        resolve_compartment_to_vars "$DS_ROOT_COMP" comp_name comp_ocid \
+            || die "Failed to resolve DS_ROOT_COMP: $DS_ROOT_COMP"
         COMP_NAME="$comp_name"
         COMP_OCID="$comp_ocid"
         log_info "Using DS_ROOT_COMP: ${COMP_NAME} (${COMP_OCID})"
@@ -288,16 +288,16 @@ validate_inputs() {
     # Resolve connector (name or OCID)
     if is_ocid "$CONNECTOR_NAME"; then
         CONNECTOR_OCID="$CONNECTOR_NAME"
-        CONNECTOR_DISP_NAME=$(ds_resolve_connector_name "$CONNECTOR_OCID" 2>/dev/null) || \
-            CONNECTOR_DISP_NAME="$CONNECTOR_OCID"
+        CONNECTOR_DISP_NAME=$(ds_resolve_connector_name "$CONNECTOR_OCID" 2> /dev/null) \
+            || CONNECTOR_DISP_NAME="$CONNECTOR_OCID"
         log_info "Connector: ${CONNECTOR_DISP_NAME} (${CONNECTOR_OCID})"
     else
         CONNECTOR_DISP_NAME="$CONNECTOR_NAME"
         if [[ -z "$COMP_OCID" ]]; then
             die "Compartment required to resolve connector name: $CONNECTOR_NAME"
         fi
-        CONNECTOR_OCID=$(ds_resolve_connector_ocid "$CONNECTOR_NAME" "$COMP_OCID") || \
-            die "Failed to resolve connector: $CONNECTOR_NAME"
+        CONNECTOR_OCID=$(ds_resolve_connector_ocid "$CONNECTOR_NAME" "$COMP_OCID") \
+            || die "Failed to resolve connector: $CONNECTOR_NAME"
         log_info "Connector: ${CONNECTOR_DISP_NAME} (${CONNECTOR_OCID})"
     fi
 
@@ -306,7 +306,7 @@ validate_inputs() {
         # Try to auto-detect from common locations
         local base_dir="${ORACLE_BASE:-/u01/app/oracle}/product"
         local potential_home="${base_dir}/${CONNECTOR_DISP_NAME}"
-        
+
         if [[ -d "$potential_home" ]]; then
             CONNECTOR_HOME="$potential_home"
             log_info "Auto-detected connector home: ${CONNECTOR_HOME}"
@@ -356,32 +356,32 @@ generate_password() {
 get_or_create_password() {
     local etc_dir="${SCRIPT_DIR}/../etc"
     local pwd_file="${etc_dir}/${CONNECTOR_DISP_NAME}_pwd.b64"
-    
+
     PASSWORD_FILE="$pwd_file"
-    
+
     # Check if password file exists and we should reuse it
     if [[ -f "$pwd_file" && "$FORCE_NEW_PASSWORD" != "true" ]]; then
         log_info "Found existing password file: ${pwd_file}"
-        
+
         # Decode password from base64
-        if BUNDLE_PASSWORD=$(base64 -d < "$pwd_file" 2>/dev/null); then
+        if BUNDLE_PASSWORD=$(base64 -d < "$pwd_file" 2> /dev/null); then
             if [[ -n "$BUNDLE_PASSWORD" ]]; then
                 log_info "Reusing existing bundle password"
                 return 0
             fi
         fi
-        
+
         log_warn "Failed to decode existing password file, generating new password"
     fi
-    
+
     # Generate new password
     log_info "Generating new bundle password..."
     BUNDLE_PASSWORD=$(generate_password)
-    
+
     if [[ -z "$BUNDLE_PASSWORD" ]]; then
         die "Failed to generate password"
     fi
-    
+
     # Save password as base64
     if [[ "${DRY_RUN}" != "true" ]]; then
         mkdir -p "$etc_dir"
@@ -401,42 +401,42 @@ get_or_create_password() {
 # ------------------------------------------------------------------------------
 download_bundle() {
     log_info "Downloading connector installation bundle..."
-    
+
     # Create temporary directory for bundle
     TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/datasafe_update.XXXXXX")
     local bundle_file="${TEMP_DIR}/connector_bundle.zip"
-    
+
     # Step 1: Generate bundle configuration
     log_info "Step 1/3: Generating bundle configuration..."
     local work_request_json
     work_request_json=$(ds_generate_connector_bundle "$CONNECTOR_OCID" "$BUNDLE_PASSWORD") || {
         die "Failed to generate connector bundle"
     }
-    
+
     if [[ "${DRY_RUN}" == "true" ]]; then
         log_info "[DRY-RUN] Would wait for bundle generation to complete"
         log_info "[DRY-RUN] Would download bundle to: ${bundle_file}"
         BUNDLE_FILE="$bundle_file"
         return 0
     fi
-    
+
     # Extract work request ID
     local work_request_id
     work_request_id=$(echo "$work_request_json" | jq -r '."opc-work-request-id" // .data.id // empty')
-    
+
     if [[ -n "$work_request_id" ]]; then
         log_info "Work request ID: ${work_request_id}"
         log_info "Waiting for bundle generation to complete (this may take a minute)..."
-        
+
         # Wait for work request to complete (poll every 10 seconds, max 5 minutes)
         local max_wait=300
         local elapsed=0
         local status=""
-        
+
         while [[ $elapsed -lt $max_wait ]]; do
             status=$(oci data-safe work-request get --work-request-id "$work_request_id" \
-                --query 'data.status' --raw-output 2>/dev/null || echo "UNKNOWN")
-            
+                --query 'data.status' --raw-output 2> /dev/null || echo "UNKNOWN")
+
             case "$status" in
                 SUCCEEDED)
                     log_info "Bundle generation completed successfully"
@@ -445,7 +445,7 @@ download_bundle() {
                 FAILED)
                     die "Bundle generation failed"
                     ;;
-                IN_PROGRESS|ACCEPTED)
+                IN_PROGRESS | ACCEPTED)
                     sleep 10
                     elapsed=$((elapsed + 10))
                     ;;
@@ -456,7 +456,7 @@ download_bundle() {
                     ;;
             esac
         done
-        
+
         if [[ "$status" != "SUCCEEDED" ]]; then
             die "Bundle generation timed out or failed"
         fi
@@ -465,13 +465,13 @@ download_bundle() {
         log_info "Waiting 30 seconds for bundle to be ready..."
         sleep 30
     fi
-    
+
     # Step 2: Download the bundle
     log_info "Step 2/3: Downloading bundle..."
     ds_download_connector_bundle "$CONNECTOR_OCID" "$bundle_file" || {
         die "Failed to download connector bundle"
     }
-    
+
     log_info "Bundle downloaded to: ${bundle_file}"
     BUNDLE_FILE="$bundle_file"
 }
@@ -484,18 +484,18 @@ download_bundle() {
 # ------------------------------------------------------------------------------
 extract_bundle() {
     log_info "Extracting bundle in connector home: ${CONNECTOR_HOME}"
-    
+
     if [[ "${DRY_RUN}" == "true" ]]; then
         log_info "[DRY-RUN] Would extract bundle: ${BUNDLE_FILE}"
         log_info "[DRY-RUN] Target directory: ${CONNECTOR_HOME}"
         return 0
     fi
-    
+
     # Extract bundle (overwrite existing files)
     if ! unzip -o "$BUNDLE_FILE" -d "$CONNECTOR_HOME"; then
         die "Failed to extract bundle"
     fi
-    
+
     log_info "Bundle extracted successfully"
 }
 
@@ -507,29 +507,29 @@ extract_bundle() {
 # ------------------------------------------------------------------------------
 run_setup_update() {
     log_info "Running setup.py update..."
-    
+
     if [[ "${DRY_RUN}" == "true" ]]; then
         log_info "[DRY-RUN] Would run: python3 setup.py update"
         log_info "[DRY-RUN] Working directory: ${CONNECTOR_HOME}"
         log_info "[DRY-RUN] Would provide bundle password via stdin"
         return 0
     fi
-    
+
     # Run setup.py update in connector home directory
     # Pass password via stdin
     local setup_py="${CONNECTOR_HOME}/setup.py"
-    
+
     log_info "Executing: python3 setup.py update"
     log_info "Working directory: ${CONNECTOR_HOME}"
-    
+
     # Run setup.py and provide password when prompted
     (
         cd "$CONNECTOR_HOME" || die "Failed to change directory to ${CONNECTOR_HOME}"
         echo "$BUNDLE_PASSWORD" | python3 "$setup_py" update
     )
-    
+
     local exit_code=$?
-    
+
     if [[ $exit_code -eq 0 ]]; then
         log_info "Connector update completed successfully"
     else
@@ -546,32 +546,32 @@ run_setup_update() {
 # ------------------------------------------------------------------------------
 get_local_connector_version() {
     local setup_py="${CONNECTOR_HOME}/setup.py"
-    
+
     if [[ ! -f "$setup_py" ]]; then
         log_debug "setup.py not found at: $setup_py"
         return 1
     fi
-    
+
     # Try to extract version from setup.py
     # Look for patterns like: version='1.2.3', version="1.2.3", __version__ = "1.2.3"
     local version
-    version=$(grep -E "^\s*(version|__version__)\s*=\s*['\"]" "$setup_py" 2>/dev/null | \
-        head -1 | \
-        sed -E "s/.*['\"]([0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?)['\"].*/\1/")
-    
+    version=$(grep -E "^\s*(version|__version__)\s*=\s*['\"]" "$setup_py" 2> /dev/null \
+        | head -1 \
+        | sed -E "s/.*['\"]([0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?)['\"].*/\1/")
+
     if [[ -n "$version" ]]; then
         echo "$version"
         return 0
     fi
-    
+
     # Alternative: Try running setup.py to get version
-    version=$(cd "$CONNECTOR_HOME" && python3 -c "import sys; sys.path.insert(0, '.'); exec(open('setup.py').read()); print(version if 'version' in dir() else '')" 2>/dev/null)
-    
+    version=$(cd "$CONNECTOR_HOME" && python3 -c "import sys; sys.path.insert(0, '.'); exec(open('setup.py').read()); print(version if 'version' in dir() else '')" 2> /dev/null)
+
     if [[ -n "$version" ]]; then
         echo "$version"
         return 0
     fi
-    
+
     log_debug "Unable to determine local version from setup.py"
     return 1
 }
@@ -588,30 +588,30 @@ get_online_connector_version() {
         log_debug "Connector OCID not set, cannot query online version"
         return 1
     fi
-    
+
     # Try to get version from connector metadata
     local version
     version=$(oci data-safe on-prem-connector get \
         --on-prem-connector-id "$CONNECTOR_OCID" \
         --query 'data."available-version"' \
-        --raw-output 2>/dev/null || echo "")
-    
+        --raw-output 2> /dev/null || echo "")
+
     if [[ -n "$version" && "$version" != "null" ]]; then
         echo "$version"
         return 0
     fi
-    
+
     # Alternative: Check if there's version info in lifecycle details
     version=$(oci data-safe on-prem-connector get \
         --on-prem-connector-id "$CONNECTOR_OCID" \
         --query 'data."lifecycle-details"' \
-        --raw-output 2>/dev/null | grep -oE "[0-9]+\.[0-9]+\.[0-9]+" | head -1)
-    
+        --raw-output 2> /dev/null | grep -oE "[0-9]+\.[0-9]+\.[0-9]+" | head -1)
+
     if [[ -n "$version" ]]; then
         echo "$version"
         return 0
     fi
-    
+
     log_debug "Unable to determine online version from OCI"
     echo "UNKNOWN"
     return 1
@@ -628,31 +628,31 @@ get_online_connector_version() {
 compare_versions() {
     local v1="$1"
     local v2="$2"
-    
+
     # Strip any pre-release identifiers (e.g., "1.2.3-beta" -> "1.2.3")
     v1="${v1%%-*}"
     v2="${v2%%-*}"
-    
+
     if [[ "$v1" == "$v2" ]]; then
         return 0
     fi
-    
+
     # Split versions into arrays
     IFS='.' read -ra ver1 <<< "$v1"
     IFS='.' read -ra ver2 <<< "$v2"
-    
+
     # Compare each component
     for i in 0 1 2; do
         local n1="${ver1[$i]:-0}"
         local n2="${ver2[$i]:-0}"
-        
+
         if ((n1 > n2)); then
             return 2
         elif ((n1 < n2)); then
             return 1
         fi
     done
-    
+
     return 0
 }
 
@@ -664,25 +664,25 @@ compare_versions() {
 # ------------------------------------------------------------------------------
 check_and_display_versions() {
     log_info "Checking connector versions..."
-    
+
     # Get local version
     local local_version
-    if local_version=$(get_local_connector_version 2>/dev/null); then
+    if local_version=$(get_local_connector_version 2> /dev/null); then
         log_info "Local connector version: ${local_version}"
     else
         local_version="UNKNOWN"
         log_info "Local connector version: Unknown (unable to parse setup.py)"
     fi
-    
+
     # Get online version
     local online_version
-    if online_version=$(get_online_connector_version 2>/dev/null); then
+    if online_version=$(get_online_connector_version 2> /dev/null); then
         log_info "Available online version: ${online_version}"
     else
         online_version="UNKNOWN"
         log_info "Available online version: Unknown (unable to query OCI)"
     fi
-    
+
     # Compare versions if both are known
     if [[ "$local_version" != "UNKNOWN" && "$online_version" != "UNKNOWN" ]]; then
         compare_versions "$local_version" "$online_version"
@@ -715,7 +715,7 @@ cleanup() {
         log_debug "Cleaning up temporary directory: ${TEMP_DIR}"
         rm -rf "$TEMP_DIR"
     fi
-    
+
     log_debug "Cleanup completed"
 }
 
@@ -727,26 +727,26 @@ cleanup() {
 # ------------------------------------------------------------------------------
 do_work() {
     log_info "Starting Oracle Data Safe connector update..."
-    
+
     # Show dry-run message if applicable
     if [[ "${DRY_RUN}" == "true" ]]; then
         log_info "DRY-RUN MODE: No changes will be made"
     fi
-    
+
     # Step 0: Check and display versions
     log_info ""
     log_info "═══════════════════════════════════════════════════════════════════"
     log_info "Step 0: Version Check"
     log_info "═══════════════════════════════════════════════════════════════════"
     check_and_display_versions
-    
+
     # Step 1: Get or create bundle password
     log_info ""
     log_info "═══════════════════════════════════════════════════════════════════"
     log_info "Step 1: Password Management"
     log_info "═══════════════════════════════════════════════════════════════════"
     get_or_create_password
-    
+
     # Step 2: Download bundle (unless skipped)
     if [[ "$SKIP_DOWNLOAD" != "true" ]]; then
         log_info ""
@@ -761,21 +761,21 @@ do_work() {
         log_info "═══════════════════════════════════════════════════════════════════"
         log_info "Using existing bundle: ${BUNDLE_FILE}"
     fi
-    
+
     # Step 3: Extract bundle
     log_info ""
     log_info "═══════════════════════════════════════════════════════════════════"
     log_info "Step 3: Extract Bundle"
     log_info "═══════════════════════════════════════════════════════════════════"
     extract_bundle
-    
+
     # Step 4: Run setup.py update
     log_info ""
     log_info "═══════════════════════════════════════════════════════════════════"
     log_info "Step 4: Run setup.py update"
     log_info "═══════════════════════════════════════════════════════════════════"
     run_setup_update
-    
+
     log_info ""
     log_info "═══════════════════════════════════════════════════════════════════"
     log_info "Update completed successfully!"
@@ -783,7 +783,7 @@ do_work() {
     log_info "Connector: ${CONNECTOR_DISP_NAME}"
     log_info "Home: ${CONNECTOR_HOME}"
     log_info "Password file: ${PASSWORD_FILE}"
-    
+
     if [[ "${DRY_RUN}" != "true" ]]; then
         log_info ""
         log_info "Next steps:"
