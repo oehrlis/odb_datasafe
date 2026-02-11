@@ -3,7 +3,7 @@
 Oracle Data Safe management extension for OraDBA - comprehensive tools for managing
 OCI Data Safe targets, connectors, and operations.
 
-Version: **0.6.1** | [Release Notes](release_notes/v0.6.1.md)
+Version: **0.7.0** | [Release Notes](release_notes/v0.7.0.md)
 
 ## Overview
 
@@ -31,7 +31,7 @@ Extract the extension to your OraDBA local directory:
 
 ```bash
 cd ${ORADBA_LOCAL_BASE}
-tar -xzf odb_datasafe-0.6.1.tar.gz
+tar -xzf odb_datasafe-0.7.0.tar.gz
 
 # Source OraDBA environment
 source oraenv.sh
@@ -78,7 +78,7 @@ bin/ds_target_refresh.sh --help
 bin/ds_target_refresh.sh -T mydb01 --dry-run
 ```
 
-## Key Features (v0.6.1)
+## Key Features (v0.7.0)
 
 - ✅ **Connector visibility** — `ds_target_connector_summary.sh` groups targets by connector with lifecycle breakdowns.
    Provides summary and detailed views with table, JSON, and CSV output.
@@ -207,6 +207,7 @@ bin/uninstall_all_datasafe_services.sh
 ### Additional Resources
 
 All documentation is available in the **[doc/](.)** folder of this extension:
+
 - Command references and examples
 - Installation and configuration guides
 - IAM policy templates
@@ -215,6 +216,7 @@ All documentation is available in the **[doc/](.)** folder of this extension:
 ---
 
 **💡 Tip:** For a complete list of available tools and their purposes, run:
+
 ```bash
 ./bin/odb_datasafe_help.sh
 ```

@@ -5,7 +5,7 @@
 # Script.....: ds_target_export.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.01.14
-# Version....: v0.6.1
+# Version....: v0.7.0
 # Purpose....: Export Oracle Data Safe target databases to CSV or JSON
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------

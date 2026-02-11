@@ -5,7 +5,7 @@
 # Script.....: template.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.01.22
-# Version....: v0.6.1
+# Version....: v0.7.0
 # Purpose....: Template for new Data Safe scripts using standardized patterns
 # Usage......: Copy this template and modify for your needs
 # License....: Apache License Version 2.0

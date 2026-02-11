@@ -6,7 +6,7 @@
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
 # Date.......: 2026.01.09
-# Version....: v0.5.4
+# Version....: v0.7.0
 # Purpose....: Delete Oracle Data Safe target databases and their dependencies
 #              for given target names/OCIDs or all targets in a compartment.
 # Requires...: bash (>=4), oci, jq, lib/ds_lib.sh

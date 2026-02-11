@@ -5,7 +5,7 @@
 # Script.....: ds_target_audit_trail.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.01.22
-# Version....: v0.5.4
+# Version....: v0.7.0
 # Purpose....: Start Oracle Data Safe audit trails for target databases.
 #              Supports single/multiple targets by name/OCID, or compartment scan.
 # License....: Apache License Version 2.0

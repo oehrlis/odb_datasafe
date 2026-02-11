@@ -5,7 +5,7 @@
 # Script.....: ds_connector_update.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.02.11
-# Version....: v0.6.1
+# Version....: v0.7.0
 # Purpose....: Automate Oracle Data Safe On-Premises Connector updates
 # Usage......: ds_connector_update.sh [OPTIONS]
 # License....: Apache License Version 2.0

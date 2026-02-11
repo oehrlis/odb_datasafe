@@ -5,7 +5,7 @@
 # Script.....: ds_target_move.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.01.09
-# Version....: v0.5.4
+# Version....: v0.7.0
 # Purpose....: Move Oracle Data Safe targets and their referencing objects
 #              to another compartment for given target names/OCIDs.
 # Requires...: bash (>=4), oci, jq, lib/ds_lib.sh

@@ -5,7 +5,7 @@
 # Script.....: odb_datasafe_help.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.02.11
-# Version....: v0.6.1
+# Version....: v0.7.0
 # Purpose....: Display help overview of all available Data Safe tools
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
@@ -236,8 +236,8 @@ main() {
     done
 
     # Sort alphabetically
-    IFS=$'\n' sorted_data=($(sort <<<"${script_data[*]}"))
-    unset IFS
+    local -a sorted_data
+    mapfile -t sorted_data < <(printf '%s\n' "${script_data[@]}" | sort)
 
     # Display based on format
     case "$output_format" in

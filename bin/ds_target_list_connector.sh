@@ -5,7 +5,7 @@
 # Script.....: ds_target_list_connector.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.01.22
-# Version....: v0.5.4
+# Version....: v0.7.0
 # Purpose....: List Oracle Data Safe on-premises connectors
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------

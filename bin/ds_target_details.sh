@@ -6,7 +6,7 @@
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
 # Date.......: 2026.01.22
-# Version....: v0.5.4
+# Version....: v0.7.0
 # Purpose....: Show/export detailed info for Oracle Data Safe target databases
 #              for given target names/OCIDs or all targets in a compartment.
 #              Output formats: table | json | csv.

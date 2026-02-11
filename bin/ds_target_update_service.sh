@@ -5,7 +5,7 @@
 # Script.....: ds_target_update_service.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.01.09
-# Version....: v0.5.4
+# Version....: v0.7.0
 # Purpose....: Update Oracle Data Safe target service names
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------

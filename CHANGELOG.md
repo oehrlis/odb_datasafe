@@ -10,6 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.7.0] - 2026-02-11
+
+### Added
+
 - **Help script** `odb_datasafe_help.sh` to list all available tools
   - Shows script name and extracted purpose/description from headers
   - Supports table, markdown, and CSV output formats
