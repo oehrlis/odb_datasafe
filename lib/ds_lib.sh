@@ -29,5 +29,11 @@ source "${_DS_LIB_DIR}/oci_helpers.sh" || {
     exit 1
 }
 
+# shellcheck disable=SC1090,SC1091
+source "${_DS_LIB_DIR}/ssh_helpers.sh" || {
+    echo "ERROR: Failed to load ssh_helpers.sh" >&2
+    exit 1
+}
+
 readonly DS_LIB_SH_LOADED=1
 # Library loaded successfully (v4.0.0)

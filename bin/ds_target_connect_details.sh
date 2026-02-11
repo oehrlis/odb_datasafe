@@ -190,30 +190,59 @@ validate_inputs() {
 # Function: fetch_cluster_nodes
 # Purpose.: Fetch cluster node information from OCI
 # Args....: $1 - VM Cluster OCID
+#           $2 - DB System OCID (optional fallback)
+#           $3 - Compartment OCID (required for db node list)
 # Returns.: 0 always (returns empty array on error)
 # Output..: JSON array of cluster nodes
 # ------------------------------------------------------------------------------
 fetch_cluster_nodes() {
     local vm_cluster_id="$1"
+    local db_system_id="${2:-}"
+    local compartment_id="${3:-}"
 
     if [[ -z "$vm_cluster_id" || "$vm_cluster_id" == "null" ]]; then
         echo "[]"
         return 0
     fi
 
-    log_debug "Fetching cluster nodes for VM cluster: $vm_cluster_id"
-
-    # Fetch DB nodes for the VM cluster
-    local nodes_data
-    nodes_data=$(oci_exec_ro db node list \
-        --vm-cluster-id "$vm_cluster_id" \
-        --query 'data' 2> /dev/null) || {
-        log_warn "Failed to fetch cluster nodes"
+    if [[ -z "$compartment_id" || "$compartment_id" == "null" ]]; then
+        log_warn "Missing compartment OCID for cluster node lookup"
         echo "[]"
         return 0
-    }
+    fi
 
-    echo "$nodes_data"
+    log_debug "Fetching cluster nodes for VM cluster: $vm_cluster_id"
+
+    # Try VM cluster node list (preferred for Exadata VM clusters)
+    local nodes_data=""
+    if nodes_data=$(oci_exec_ro db node list \
+        --vm-cluster-id "$vm_cluster_id" \
+        --compartment-id "$compartment_id" \
+        --all \
+        --query 'data'); then
+        if [[ -n "$nodes_data" && "$nodes_data" != "null" ]]; then
+            echo "$nodes_data"
+            return 0
+        fi
+    fi
+
+    # Final fallback: db-system-id when provided
+    if [[ -n "$db_system_id" && "$db_system_id" != "null" ]]; then
+        log_debug "Falling back to node list for DB system: $db_system_id"
+        if nodes_data=$(oci_exec_ro db node list \
+            --db-system-id "$db_system_id" \
+            --compartment-id "$compartment_id" \
+            --all \
+            --query 'data'); then
+            if [[ -n "$nodes_data" && "$nodes_data" != "null" ]]; then
+                echo "$nodes_data"
+                return 0
+            fi
+        fi
+    fi
+
+    log_warn "Failed to fetch cluster nodes"
+    echo "[]"
 }
 
 # ------------------------------------------------------------------------------
@@ -283,7 +312,7 @@ display_connection_details() {
     local cluster_nodes cluster_nodes_json
     cluster_nodes="[]"
     if [[ -n "$db_vm_cluster_id" && "$db_vm_cluster_id" != "null" ]]; then
-        cluster_nodes=$(fetch_cluster_nodes "$db_vm_cluster_id")
+        cluster_nodes=$(fetch_cluster_nodes "$db_vm_cluster_id" "$db_system_id" "$target_comp_ocid")
     fi
 
     # Process cluster nodes for display
@@ -353,12 +382,12 @@ display_connection_details() {
         [[ -n "$db_vm_cluster_id" ]] && printf '%-25s : %s\n' "VM Cluster ID" "$db_vm_cluster_id"
         [[ -n "$db_system_id" ]] && printf '%-25s : %s\n' "DB System ID" "$db_system_id"
 
-        # Display cluster nodes if available
-        local node_count
+        # Display cluster node names only
+        local node_count node_names
         node_count=$(echo "$cluster_nodes" | jq 'length')
         if [[ "$node_count" -gt 0 ]]; then
-            printf '%-25s : %s\n' "Cluster Nodes" "$node_count node(s)"
-            echo "$cluster_nodes" | jq -r '.[] | "  Node: \(.hostname // .id)\n    State: \(."lifecycle-state")\n    VNIC ID: \(."vnic-id")\n    Backup VNIC ID: \(."backup-vnic-id" // "N/A")"'
+            node_names=$(echo "$cluster_nodes" | jq -r '[.[] | (.hostname // .id)] | join(", ")')
+            printf '%-25s : %s\n' "Cluster Nodes" "$node_names"
         fi
 
         printf '%-25s : %s\n' "Freeform Tags" "$(echo "$freeform_tags" | jq -c '.')"

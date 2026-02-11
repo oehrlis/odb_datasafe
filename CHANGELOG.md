@@ -10,9 +10,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- New `ds_target_prereqs.sh` script to copy and run Data Safe prereq/user/grant SQL on a DB host
+- SSH helper library `lib/ssh_helpers.sh` and integration via `lib/ds_lib.sh`
+- New `sql/create_ds_admin_prerequisites.sql` to create/maintain `DS_USER_PROFILE`
+
 ### Changed
 
+- `ds_target_connect_details.sh` now retrieves VM cluster nodes with required compartment scope and shows node names only
+- `ds_target_prereqs.sh` defaults `DS_PROFILE` to `DS_USER_PROFILE`
+
 ### Fixed
+
+- VM cluster node lookup now works for targets requiring `--compartment-id` in OCI CLI
 
 ## [0.7.1] - 2026-02-11
 
