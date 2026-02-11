@@ -256,6 +256,11 @@ main() {
     if [[ "$quiet" != "true" ]]; then
         local count=${#sorted_data[@]}
         echo "Total: $count scripts available"
+        echo ""
+        echo "For more information:"
+        echo "  - Quick Reference: doc/quickref.md"
+        echo "  - Documentation:   doc/index.md"
+        echo "  - Complete Guide:  README.md"
     fi
 }
 
