@@ -105,10 +105,13 @@ export DS_ROOT_COMP="ocid1.compartment.oc1....."
 
 ## Key Features (v0.6.1)
 
-- ✅ **Connector update automation** — `ds_connector_update.sh` automates connector updates with bundle download, password management, and setup.py integration.
-- ✅ **Connector visibility** — `ds_target_connector_summary.sh` groups targets by connector with lifecycle breakdowns.
+- ✅ **Connector update automation** — `ds_connector_update.sh` automates
+  connector updates with bundle download, password management, and setup.py integration.
+- ✅ **Connector visibility** — `ds_target_connector_summary.sh` groups targets
+  by connector with lifecycle breakdowns.
   Provides summary and detailed modes with table, JSON, and CSV output.
-- ✅ **Authenticated CLI usage** — `require_oci_cli` validates OCI CLI authentication with cached checks and helpful errors.
+- ✅ **Authenticated CLI usage** — `require_oci_cli` validates OCI CLI
+  authentication with cached checks and helpful errors.
 - ✅ **Standardized compartment handling** — Consistent `-c` and `DS_ROOT_COMP` pattern across scripts.
 - ✅ **Safe dry-runs and debugging** — Uniform `--dry-run`, `--debug`, and logging behaviors.
 - ✅ **Comprehensive testing** — 127+ BATS tests for reliability.
