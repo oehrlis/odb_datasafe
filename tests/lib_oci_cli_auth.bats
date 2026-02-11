@@ -197,6 +197,9 @@ EOF
 # Test: require_oci_cli - missing oci command
 # ==============================================================================
 @test "require_oci_cli: fails when oci command is not found" {
+    # Override PATH to only use test directory (avoid finding system oci)
+    export PATH="${TEST_TEMP_DIR}/bin:/usr/bin:/bin"
+    
     # Don't create oci command, but create jq
     cat > "${TEST_TEMP_DIR}/bin/jq" << 'EOF'
 #!/usr/bin/env bash
