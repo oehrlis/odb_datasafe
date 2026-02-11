@@ -33,6 +33,19 @@ sudo ./bin/install_datasafe_service.sh --install -n my-connector
 sudo systemctl status oracle_datasafe_my-connector.service
 ```
 
+**Update Data Safe Connector:**
+
+```bash
+# 1. Update connector by name (auto-detects home directory)
+./bin/ds_connector_update.sh --connector my-connector -c MyCompartment
+
+# 2. Dry-run to see what would be done
+./bin/ds_connector_update.sh --connector my-connector -c MyCompartment --dry-run
+
+# 3. Update with specific home directory
+./bin/ds_connector_update.sh --connector my-connector --connector-home /u01/app/oracle/product/datasafe
+```
+
 **Uninstall Services:**
 
 ```bash
@@ -92,6 +105,7 @@ export DS_ROOT_COMP="ocid1.compartment.oc1....."
 
 ## Key Features (v0.6.1)
 
+- ✅ **Connector update automation** — `ds_connector_update.sh` automates connector updates with bundle download, password management, and setup.py integration.
 - ✅ **Connector visibility** — `ds_target_connector_summary.sh` groups targets by connector with lifecycle breakdowns.
   Provides summary and detailed modes with table, JSON, and CSV output.
 - ✅ **Authenticated CLI usage** — `require_oci_cli` validates OCI CLI authentication with cached checks and helpful errors.

@@ -1048,3 +1048,213 @@ resolve_compartment_for_operation() {
     fi
 }
 
+# =============================================================================
+# ON-PREMISES CONNECTOR OPERATIONS
+# =============================================================================
+
+# ------------------------------------------------------------------------------
+# Function....: ds_list_connectors
+# Purpose.....: List all on-premises connectors in a compartment
+# Parameters..: $1 - compartment OCID
+# Returns.....: 0 on success, connector list JSON on stdout
+# Usage.......: connectors=$(ds_list_connectors "$comp_ocid")
+# ------------------------------------------------------------------------------
+ds_list_connectors() {
+    local compartment_ocid="$1"
+
+    if ! is_ocid "$compartment_ocid"; then
+        die "Invalid compartment OCID: $compartment_ocid"
+    fi
+
+    log_debug "Listing connectors in compartment: $compartment_ocid"
+
+    oci_exec_ro data-safe on-prem-connector list \
+        --compartment-id "$compartment_ocid" \
+        --all
+}
+
+# ------------------------------------------------------------------------------
+# Function....: ds_resolve_connector_ocid
+# Purpose.....: Resolve connector name to OCID
+# Parameters..: $1 - connector name or OCID
+#               $2 - compartment OCID (required if $1 is a name)
+# Returns.....: 0 on success (OCID on stdout), 1 on error
+# Usage.......: connector_ocid=$(ds_resolve_connector_ocid "$name" "$comp_ocid")
+# ------------------------------------------------------------------------------
+ds_resolve_connector_ocid() {
+    local input="$1"
+    local compartment="${2:-}"
+
+    # If already an OCID, return it
+    if is_ocid "$input"; then
+        log_debug "Input is already a connector OCID: $input"
+        echo "$input"
+        return 0
+    fi
+
+    # It's a name, need compartment to resolve
+    if [[ -z "$compartment" ]]; then
+        log_error "Compartment required to resolve connector name: $input"
+        return 1
+    fi
+
+    log_debug "Resolving connector name: $input"
+
+    # List connectors and find by display-name
+    local connectors_json
+    connectors_json=$(ds_list_connectors "$compartment") || {
+        log_error "Failed to list connectors"
+        return 1
+    }
+
+    # Try exact match first (case-sensitive)
+    local result
+    result=$(echo "$connectors_json" | jq -r --arg name "$input" '
+        .data[] | select(."display-name" == $name) | .id' | head -n1)
+
+    if [[ -z "$result" || "$result" == "null" ]]; then
+        log_info "Exact match not found for connector: $input. Trying case-insensitive match."
+
+        result=$(echo "$connectors_json" | jq -r --arg name "$input" '
+            .data[] | select((."display-name" | ascii_downcase) == ($name | ascii_downcase)) | .id' | head -n1)
+    fi
+
+    if [[ -z "$result" || "$result" == "null" ]]; then
+        log_error "Connector not found: $input"
+        return 1
+    fi
+
+    log_debug "Resolved connector: $input -> $result"
+    echo "$result"
+    return 0
+}
+
+# ------------------------------------------------------------------------------
+# Function....: ds_resolve_connector_name
+# Purpose.....: Resolve connector OCID to name
+# Parameters..: $1 - connector OCID
+# Returns.....: 0 on success (name on stdout), 1 on error
+# Usage.......: connector_name=$(ds_resolve_connector_name "$connector_ocid")
+# ------------------------------------------------------------------------------
+ds_resolve_connector_name() {
+    local ocid="$1"
+
+    if ! is_ocid "$ocid"; then
+        log_error "Invalid connector OCID: $ocid"
+        return 1
+    fi
+
+    log_debug "Resolving connector OCID to name: $ocid"
+
+    local result
+    result=$(oci_exec_ro data-safe on-prem-connector get \
+        --on-prem-connector-id "$ocid" \
+        --query 'data."display-name"' \
+        --raw-output 2>/dev/null)
+
+    if [[ -z "$result" || "$result" == "null" ]]; then
+        log_error "Connector not found: $ocid"
+        return 1
+    fi
+
+    echo "$result"
+    return 0
+}
+
+# ------------------------------------------------------------------------------
+# Function....: ds_get_connector_details
+# Purpose.....: Get connector details
+# Parameters..: $1 - connector OCID
+# Returns.....: 0 on success, connector details JSON on stdout
+# Usage.......: details=$(ds_get_connector_details "$connector_ocid")
+# ------------------------------------------------------------------------------
+ds_get_connector_details() {
+    local connector_ocid="$1"
+
+    if ! is_ocid "$connector_ocid"; then
+        die "Invalid connector OCID: $connector_ocid"
+    fi
+
+    log_debug "Getting connector details: $connector_ocid"
+
+    oci_exec_ro data-safe on-prem-connector get \
+        --on-prem-connector-id "$connector_ocid"
+}
+
+# ------------------------------------------------------------------------------
+# Function....: ds_generate_connector_bundle
+# Purpose.....: Generate on-premises connector installation bundle
+# Parameters..: $1 - connector OCID
+#               $2 - bundle password
+# Returns.....: 0 on success, 1 on error
+# Output......: Work request details JSON
+# Usage.......: ds_generate_connector_bundle "$connector_ocid" "$password"
+# Notes.......: This operation is asynchronous. The bundle generation happens
+#               via a work request. Use ds_wait_for_work_request to monitor.
+# ------------------------------------------------------------------------------
+ds_generate_connector_bundle() {
+    local connector_ocid="$1"
+    local password="$2"
+
+    if ! is_ocid "$connector_ocid"; then
+        die "Invalid connector OCID: $connector_ocid"
+    fi
+
+    if [[ -z "$password" ]]; then
+        die "Bundle password is required"
+    fi
+
+    local connector_name
+    connector_name=$(ds_resolve_connector_name "$connector_ocid" 2>/dev/null) || connector_name="$connector_ocid"
+
+    log_info "Generating connector installation bundle for: $connector_name"
+
+    if [[ "${DRY_RUN}" == "true" ]]; then
+        log_info "[DRY-RUN] Would generate bundle for: $connector_name"
+        return 0
+    fi
+
+    # Generate bundle - returns work request
+    oci_exec data-safe on-prem-connector generate-on-prem-connector-configuration \
+        --on-prem-connector-id "$connector_ocid" \
+        --password "$password"
+}
+
+# ------------------------------------------------------------------------------
+# Function....: ds_download_connector_bundle
+# Purpose.....: Download connector installation bundle to file
+# Parameters..: $1 - connector OCID
+#               $2 - output file path
+# Returns.....: 0 on success, 1 on error
+# Usage.......: ds_download_connector_bundle "$connector_ocid" "/path/to/bundle.zip"
+# Notes.......: Downloads the pre-generated connector bundle. Run
+#               ds_generate_connector_bundle first.
+# ------------------------------------------------------------------------------
+ds_download_connector_bundle() {
+    local connector_ocid="$1"
+    local output_file="$2"
+
+    if ! is_ocid "$connector_ocid"; then
+        die "Invalid connector OCID: $connector_ocid"
+    fi
+
+    if [[ -z "$output_file" ]]; then
+        die "Output file path is required"
+    fi
+
+    local connector_name
+    connector_name=$(ds_resolve_connector_name "$connector_ocid" 2>/dev/null) || connector_name="$connector_ocid"
+
+    log_info "Downloading connector bundle for: $connector_name"
+
+    if [[ "${DRY_RUN}" == "true" ]]; then
+        log_info "[DRY-RUN] Would download bundle to: $output_file"
+        return 0
+    fi
+
+    # Download bundle
+    oci_exec data-safe on-prem-connector download \
+        --on-prem-connector-id "$connector_ocid" \
+        --file "$output_file"
+}
+

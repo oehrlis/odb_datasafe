@@ -14,9 +14,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `ds_target_register.sh` loads `DATASAFE_PASSWORD_FILE` or `<user>_pwd.b64` from ORADBA_ETC or $ODB_DATASAFE_BASE/etc
   - `ds_target_activate.sh` supports `DATASAFE_PASSWORD_FILE` and `DATASAFE_CDB_PASSWORD_FILE`
   - Added shared password file lookup and base64 decoding helpers
+- **Connector Update Automation** - New `ds_connector_update.sh` script for automated Data Safe connector updates
+  - Automates the connector update process end-to-end
+  - Generates and manages bundle passwords stored as base64 files (path: etc/CONNECTOR_NAME_pwd.b64, example: etc/my-connector_pwd.b64)
+  - Reuses existing passwords unless --force-new-password is specified
+  - Downloads connector installation bundle from OCI Data Safe service
+  - Extracts bundle in connector home directory
+  - Runs setup.py update with automated password entry
+  - Supports dry-run mode for safe testing
+  - Supports skipping download with --skip-download for existing bundles
+  - Auto-detects connector home directory or accepts explicit path
+  - Comprehensive test suite with 30+ test cases
+  - Addresses GitHub issue for connector update automation
+
+- **Connector Management Library Functions** - Enhanced `lib/oci_helpers.sh` with connector operations
+  - `ds_list_connectors()` - List all connectors in a compartment
+  - `ds_resolve_connector_ocid()` - Resolve connector name to OCID
+  - `ds_resolve_connector_name()` - Resolve connector OCID to name
+  - `ds_get_connector_details()` - Get connector details
+  - `ds_generate_connector_bundle()` - Generate installation bundle with password
+  - `ds_download_connector_bundle()` - Download bundle to file
+  - All functions support dry-run mode and follow existing patterns
 
 ### Changed
 
+- Updated README.md with connector update examples
+- Updated doc/quickref.md with connector management section
+- Enhanced documentation for connector operations
 - **Target list cache TTL** in `lib/oci_helpers.sh`
   - Adds `DS_TARGET_CACHE_TTL` to refresh cached target lists (set 0 to disable)
   - Prevents stale lifecycle counts between scripts using cached vs live lists
