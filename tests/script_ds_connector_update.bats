@@ -208,7 +208,7 @@ teardown() {
 @test "ds_connector_update.sh: help includes notes about update process" {
     run "${SCRIPT}" --help
     [[ "${status}" -eq 0 ]]
-    [[ "${output}" =~ "connector cannot connect" ]]
+    [[ "${output}" =~ "the connector cannot connect" ]]
     [[ "${output}" =~ "password is stored as base64" ]]
 }
 

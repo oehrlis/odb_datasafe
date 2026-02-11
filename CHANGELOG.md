@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Connector Update Automation** - New `ds_connector_update.sh` script for automated Data Safe connector updates
   - Automates the connector update process end-to-end
-  - Generates and manages bundle passwords (stored as base64 in etc/<connector-name>_pwd.b64)
+  - Generates and manages bundle passwords (stored as base64 in etc/<connector-name>_pwd.b64, e.g., etc/my-connector_pwd.b64)
   - Reuses existing passwords unless --force-new-password is specified
   - Downloads connector installation bundle from OCI Data Safe service
   - Extracts bundle in connector home directory
