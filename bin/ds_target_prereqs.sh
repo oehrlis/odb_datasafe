@@ -85,11 +85,9 @@ cleanup() {
 # ------------------------------------------------------------------------------
 # Function....: usage
 # Purpose.....: Display usage information and exit
-# Args........: $1 - exit code (optional)
 # Returns.....: Exits the script
 # ------------------------------------------------------------------------------
 usage() {
-    local exit_code=${1:-0}
     cat << EOF
 Usage: ${SCRIPT_NAME} [OPTIONS]
 
@@ -144,7 +142,7 @@ Examples:
   ${SCRIPT_NAME} -H db01 --sid cdb01 --root --check
 
 EOF
-    exit "$exit_code"
+    exit 0
 }
 
 # ------------------------------------------------------------------------------
