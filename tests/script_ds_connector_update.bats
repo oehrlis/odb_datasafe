@@ -10,8 +10,30 @@ setup() {
     [ -x "${BIN_DIR}/ds_connector_update.sh" ]
 }
 
-@test "ds_connector_update.sh shows help message" {
+@test "ds_connector_update.sh shows help message with --help" {
     run "${BIN_DIR}/ds_connector_update.sh" --help
     [ "$status" -eq 0 ]
     [[ "$output" == *"Usage:"* ]] || [[ "$output" == *"usage:"* ]]
+}
+
+@test "ds_connector_update.sh shows usage when no parameters provided" {
+    run "${BIN_DIR}/ds_connector_update.sh"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Usage:"* ]]
+    [[ "$output" == *"--connector NAME"* ]]
+    [[ "$output" == *"REQUIRED"* ]]
+}
+
+@test "ds_connector_update.sh usage mentions compartment options" {
+    run "${BIN_DIR}/ds_connector_update.sh"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"DS_ROOT_COMP"* ]]
+    [[ "$output" == *"DS_CONNECTOR_COMP"* ]]
+    [[ "$output" == *"-c, --compartment"* ]]
+}
+
+@test "ds_connector_update.sh usage mentions version checking" {
+    run "${BIN_DIR}/ds_connector_update.sh"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Checking local and online connector versions"* ]]
 }
