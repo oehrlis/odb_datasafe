@@ -66,6 +66,7 @@ LISTENER_PORT="1521"
 SERVICE_NAME=""
 DS_USER="DS_ADMIN"
 DS_PASSWORD=""
+DATASAFE_PASSWORD_FILE="${DATASAFE_PASSWORD_FILE:-}"
 DISPLAY_NAME=""
 DESCRIPTION=""
 CLUSTER=""
@@ -107,6 +108,10 @@ REQUIRED OPTIONS:
   -c, --compartment COMP      Target compartment (name or OCID)
   --connector CONN            On-premises connector (name or OCID)
   --ds-password PASS          Data Safe user password
+
+PASSWORD FILE SUPPORT:
+    - Uses DATASAFE_PASSWORD_FILE if set
+    - Otherwise looks for <ds-user>_pwd.b64 in ORADBA_ETC or $ODB_DATASAFE_BASE/etc
 
 CONNECTION:
   --port PORT                 Listener port (default: 1521)
@@ -266,6 +271,17 @@ validate_inputs() {
 
     if [[ -n "$PDB" && "$RUN_ROOT" == "true" ]]; then
         die "Choose exactly one scope: --pdb OR --root (not both)"
+    fi
+
+    # Resolve password from file if needed (explicit file or <user>_pwd.b64)
+    if [[ "$CHECK_ONLY" != "true" && -z "$DS_PASSWORD" ]]; then
+        local password_file=""
+        if password_file=$(find_password_file "$DS_USER" "${DATASAFE_PASSWORD_FILE:-}"); then
+            require_cmd base64
+            DS_PASSWORD=$(decode_base64_file "$password_file") || die "Failed to decode base64 password file: $password_file"
+            [[ -n "$DS_PASSWORD" ]] || die "Password file is empty: $password_file"
+            log_info "Loaded Data Safe password from file: $password_file"
+        fi
     fi
 
     # Password required unless check-only

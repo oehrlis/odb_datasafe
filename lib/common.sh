@@ -458,6 +458,67 @@ is_ocid() {
     [[ "$1" =~ ^ocid1\. ]]
 }
 
+# ------------------------------------------------------------------------------
+# Function....: decode_base64_file
+# Purpose.....: Decode base64 file content to stdout
+# Parameters..: $1 - base64 file path
+# Returns.....: 0 on success, 1 on decode failure
+# Output......: Decoded content to stdout
+# ------------------------------------------------------------------------------
+decode_base64_file() {
+    local file="$1"
+    local decoded=""
+
+    if decoded=$(base64 --decode < "$file" 2>/dev/null); then
+        printf '%s' "$decoded"
+        return 0
+    fi
+
+    if decoded=$(base64 -d < "$file" 2>/dev/null); then
+        printf '%s' "$decoded"
+        return 0
+    fi
+
+    if decoded=$(base64 -D < "$file" 2>/dev/null); then
+        printf '%s' "$decoded"
+        return 0
+    fi
+
+    return 1
+}
+
+# ------------------------------------------------------------------------------
+# Function....: find_password_file
+# Purpose.....: Locate password file by explicit path or username pattern
+# Parameters..: $1 - username
+#               $2 - explicit file path (optional)
+# Returns.....: 0 on success, 1 if not found
+# Output......: Resolved file path to stdout
+# Notes.......: Searches ORADBA_ETC first, then $ODB_DATASAFE_BASE/etc
+# ------------------------------------------------------------------------------
+find_password_file() {
+    local username="$1"
+    local explicit_file="${2:-}"
+    local filename="${username}_pwd.b64"
+
+    if [[ -n "$explicit_file" ]]; then
+        [[ -f "$explicit_file" ]] && { echo "$explicit_file"; return 0; }
+        return 1
+    fi
+
+    if [[ -n "${ORADBA_ETC:-}" && -f "${ORADBA_ETC}/${filename}" ]]; then
+        echo "${ORADBA_ETC}/${filename}"
+        return 0
+    fi
+
+    if [[ -n "${ODB_DATASAFE_BASE:-}" && -f "${ODB_DATASAFE_BASE}/etc/${filename}" ]]; then
+        echo "${ODB_DATASAFE_BASE}/etc/${filename}"
+        return 0
+    fi
+
+    return 1
+}
+
 # =============================================================================
 # INITIALIZATION
 # =============================================================================

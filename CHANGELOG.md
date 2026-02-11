@@ -10,7 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- _No changes yet._
+- **Base64 password file support** for registration and activation
+  - `ds_target_register.sh` loads `DATASAFE_PASSWORD_FILE` or `<user>_pwd.b64` from ORADBA_ETC or $ODB_DATASAFE_BASE/etc
+  - `ds_target_activate.sh` supports `DATASAFE_PASSWORD_FILE` and `DATASAFE_CDB_PASSWORD_FILE`
+  - Added shared password file lookup and base64 decoding helpers
 
 ## [0.6.1] - 2026-01-23
 

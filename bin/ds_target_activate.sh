@@ -38,6 +38,8 @@ readonly SCRIPT_VERSION
 : "${DS_USER:=DS_ADMIN}"
 : "${DS_CDB_PASSWORD:=}"
 : "${DS_CDB_USER:=C##DS_ADMIN}"
+: "${DATASAFE_PASSWORD_FILE:=}"
+: "${DATASAFE_CDB_PASSWORD_FILE:=}"
 
 # Counters
 SUCCESS_COUNT=0
@@ -100,9 +102,11 @@ Options:
     --cdb-password PASS     CDB\$ROOT database password (default: prompt)
 
 Credential Sources (in order of precedence):
-  1. Command-line options (-P, --cdb-password)
-  2. Environment variables (DS_PASSWORD, DS_CDB_PASSWORD)
-  3. Interactive prompt (with option to use same password for both)
+    1. Command-line options (-P, --cdb-password)
+    2. Environment variables (DS_PASSWORD, DS_CDB_PASSWORD)
+    3. Password files (DATASAFE_PASSWORD_FILE / DATASAFE_CDB_PASSWORD_FILE
+         or <user>_pwd.b64 in ORADBA_ETC or $ODB_DATASAFE_BASE/etc)
+    4. Interactive prompt (with option to use same password for both)
 
 CDB\$ROOT Detection:
   Targets are identified as CDB\$ROOT using (in order):
@@ -247,6 +251,28 @@ validate_inputs() {
     if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
         COMPARTMENT=$(resolve_compartment_for_operation "$COMPARTMENT") || die "Failed to resolve compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
         log_info "No compartment specified, using DS_ROOT_COMP: $COMPARTMENT"
+    fi
+
+    # Try password file for PDB user (explicit file or <user>_pwd.b64)
+    if [[ -z "$DS_PASSWORD" ]]; then
+        local password_file=""
+        if password_file=$(find_password_file "$DS_USER" "${DATASAFE_PASSWORD_FILE:-}"); then
+            require_cmd base64
+            DS_PASSWORD=$(decode_base64_file "$password_file") || die "Failed to decode base64 password file: $password_file"
+            [[ -n "$DS_PASSWORD" ]] || die "Password file is empty: $password_file"
+            log_info "Loaded PDB password from file: $password_file"
+        fi
+    fi
+
+    # Try password file for CDB$ROOT user (explicit file or <user>_pwd.b64)
+    if [[ -z "$DS_CDB_PASSWORD" ]]; then
+        local cdb_password_file=""
+        if cdb_password_file=$(find_password_file "$DS_CDB_USER" "${DATASAFE_CDB_PASSWORD_FILE:-}"); then
+            require_cmd base64
+            DS_CDB_PASSWORD=$(decode_base64_file "$cdb_password_file") || die "Failed to decode base64 password file: $cdb_password_file"
+            [[ -n "$DS_CDB_PASSWORD" ]] || die "Password file is empty: $cdb_password_file"
+            log_info "Loaded CDB\$ROOT password from file: $cdb_password_file"
+        fi
     fi
 
     # Handle password prompting

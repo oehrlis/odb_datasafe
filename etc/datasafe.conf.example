@@ -112,6 +112,9 @@
 # Wait for state timeout (seconds)
 #WAIT_TIMEOUT=600
 
+# Target list cache TTL (seconds). Set 0 to disable caching.
+#DS_TARGET_CACHE_TTL=300
+
 # =============================================================================
 # End of Configuration
 # =============================================================================
