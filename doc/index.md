@@ -191,7 +191,30 @@ bin/uninstall_all_datasafe_services.sh
 
 ## For More Information
 
-- See [quickref.md](quickref.md) for detailed command reference
-- See [install_datasafe_service.md](install_datasafe_service.md) for installation details
-- See [oci-iam-policies.md](oci-iam-policies.md) for required IAM policies
-- See [release_notes/v0.6.1.md](release_notes/v0.6.1.md) for v0.6.1 release details
+### Quick References
+
+- 🔍 **[Tool Overview](../bin/odb_datasafe_help.sh)** - Run `./bin/odb_datasafe_help.sh` to list all available scripts
+- ⚡ **[Quick Reference Guide](quickref.md)** - Command cheat sheet with examples
+- 📚 **[Complete Documentation](../README.md)** - Main README with overview
+
+### Detailed Documentation
+
+- 🔧 **[Installation Guide](install_datasafe_service.md)** - Connector installation and setup
+- 🔐 **[IAM Policies Guide](oci-iam-policies.md)** - Required OCI permissions
+- 📋 **[Release Notes](release_notes/)** - Version history and migration guides
+- 📝 **[CHANGELOG](../CHANGELOG.md)** - Detailed change log
+
+### Additional Resources
+
+All documentation is available in the **[doc/](.)** folder of this extension:
+- Command references and examples
+- Installation and configuration guides
+- IAM policy templates
+- Release notes for each version
+
+---
+
+**💡 Tip:** For a complete list of available tools and their purposes, run:
+```bash
+./bin/odb_datasafe_help.sh
+```
