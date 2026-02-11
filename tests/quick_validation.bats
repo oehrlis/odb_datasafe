@@ -4,7 +4,7 @@
 # ------------------------------------------------------------------------------
 # Test Suite.: quick_validation.bats
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.01.09
+# Date.......: 2026.02.11
 # Purpose....: Quick validation tests to ensure basic framework functionality
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
@@ -13,6 +13,7 @@ setup() {
     export REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/.." && pwd)"
     export BIN_DIR="${REPO_ROOT}/bin"
     export LIB_DIR="${REPO_ROOT}/lib"
+    export SCRIPT_VERSION="$(tr -d '\n' < "${REPO_ROOT}/VERSION" 2>/dev/null || echo '0.0.0')"
 }
 
 # Basic script validation
@@ -60,7 +61,7 @@ setup() {
 @test "scripts show version correctly" {
     run "${BIN_DIR}/ds_target_list.sh" --version
     [ "$status" -eq 0 ]
-    [[ "$output" =~ 0\.7\.[0-9]+ ]]
+    [[ "$output" == *"${SCRIPT_VERSION}"* ]]
 }
 
 @test "libraries can be sourced without errors" {

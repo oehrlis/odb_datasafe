@@ -4,7 +4,7 @@
 # ------------------------------------------------------------------------------
 # Test Suite.: script_ds_target_connector_summary.bats
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.01.23
+# Date.......: 2026.02.11
 # Purpose....: Test suite for ds_target_connector_summary.sh script
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
@@ -14,6 +14,8 @@ setup() {
     export REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/.." && pwd)"
     export BIN_DIR="${REPO_ROOT}/bin"
     export TEST_TEMP_DIR="${BATS_TEST_TMPDIR}"
+    export LOG_LEVEL=ERROR
+  export SCRIPT_VERSION="$(tr -d '\n' < "${REPO_ROOT}/VERSION" 2>/dev/null || echo '0.0.0')"
     
     # Create test environment
     export TEST_ENV_FILE="${REPO_ROOT}/.env"
@@ -32,6 +34,9 @@ case "$*" in
     *"--version"*)
         echo "3.45.0"
         ;;
+    *"os ns get"*)
+      echo '{"data":"test-namespace"}'
+      ;;
     *"data-safe on-prem-connector list"*)
         # Return list of connectors
         cat << 'JSON'
@@ -173,7 +178,7 @@ teardown() {
 @test "ds_target_connector_summary.sh shows version information" {
     run "${BIN_DIR}/ds_target_connector_summary.sh" --version
     [ "$status" -eq 0 ]
-    [[ "$output" =~ 0\.7\.[0-9]+ ]]
+  [[ "$output" == *"${SCRIPT_VERSION}"* ]]
 }
 
 # Summary mode tests (default)

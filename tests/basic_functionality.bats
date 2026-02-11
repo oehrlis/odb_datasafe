@@ -4,7 +4,7 @@
 # ------------------------------------------------------------------------------
 # Test Suite.: basic_functionality.bats
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.01.09
+# Date.......: 2026.02.11
 # Purpose....: Basic functionality tests that should always pass
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
@@ -15,6 +15,7 @@ setup() {
     export BIN_DIR="${REPO_ROOT}/bin"
     export LIB_DIR="${REPO_ROOT}/lib"
     export TEST_TEMP_DIR="${BATS_TEST_TMPDIR}"
+    export SCRIPT_VERSION="$(tr -d '\n' < "${REPO_ROOT}/VERSION" 2>/dev/null || echo '0.0.0')"
     
     # Basic environment setup
     export CONFIG_FILE="${TEST_TEMP_DIR}/.env"
@@ -75,7 +76,7 @@ EOF
     for script in "${scripts[@]}"; do
         run "${BIN_DIR}/${script}" --version
         [ "$status" -eq 0 ]
-        [[ "$output" =~ 0\.7\.[0-9]+ ]]
+        [[ "$output" == *"${SCRIPT_VERSION}"* ]]
     done
 }
 

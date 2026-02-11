@@ -17,6 +17,8 @@ setup() {
     TEST_TEMP_DIR="${BATS_TEST_TMPDIR}/test_$$"
     mkdir -p "${TEST_TEMP_DIR}"
     export TEST_TEMP_DIR
+    export REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/.." && pwd)"
+    export SCRIPT_VERSION="$(tr -d '\n' < "${REPO_ROOT}/VERSION" 2>/dev/null || echo '0.0.0')"
 }
 
 teardown() {
@@ -46,7 +48,7 @@ teardown() {
     run "${SCRIPT}" --version
     [[ "${status}" -eq 0 ]]
     [[ "${output}" =~ ds_connector_update.sh ]]
-    [[ "${output}" =~ [0-9]+\.[0-9]+\.[0-9]+ ]]
+    [[ "${output}" == *"${SCRIPT_VERSION}"* ]]
 }
 
 @test "ds_connector_update.sh: -h shows help" {
@@ -58,7 +60,7 @@ teardown() {
 @test "ds_connector_update.sh: -V shows version" {
     run "${SCRIPT}" -V
     [[ "${status}" -eq 0 ]]
-    [[ "${output}" =~ [0-9]+\.[0-9]+\.[0-9]+ ]]
+    [[ "${output}" == *"${SCRIPT_VERSION}"* ]]
 }
 
 # ------------------------------------------------------------------------------

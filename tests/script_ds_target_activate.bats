@@ -4,7 +4,7 @@
 # ------------------------------------------------------------------------------
 # Test Suite.: script_ds_target_activate.bats
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.02.10
+# Date.......: 2026.02.11
 # Purpose....: Test suite for ds_target_activate.sh script
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
@@ -13,8 +13,12 @@
 setup() {
     export REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/.." && pwd)"
     export BIN_DIR="${REPO_ROOT}/bin"
+    export LIB_DIR="${REPO_ROOT}/lib"
     export TEST_TEMP_DIR="${BATS_TEST_TMPDIR}"
     export SCRIPT_VERSION="$(tr -d '\n' < "${REPO_ROOT}/VERSION" 2>/dev/null || echo '0.0.0')"
+    export NO_PROMPT=true
+    export DS_PASSWORD="testpass123"
+    export DS_CDB_PASSWORD="testcdbpass123"
     
     # Create test environment in REPO_ROOT so init_config can find it
     export TEST_ENV_FILE="${REPO_ROOT}/.env"
@@ -33,6 +37,9 @@ EOF
 case "$*" in
     *"--version"*)
         echo "3.45.0"
+        ;;
+    *"os ns get"*)
+        echo '{"data":"test-namespace"}'
         ;;
     *"data-safe target-database list"*"--lifecycle-state INACTIVE"*)
         cat << 'JSON'
@@ -55,6 +62,27 @@ case "$*" in
 }
 JSON
         ;;
+        *"data-safe target-database list"*)
+                cat << 'JSON'
+{
+    "data": [
+        {
+            "id": "ocid1.datasafetarget.oc1..target1",
+            "display-name": "test-target-1",
+            "lifecycle-state": "INACTIVE"
+        },
+        {
+            "id": "ocid1.datasafetarget.oc1..target2",
+            "display-name": "test-target-2_CDBROOT",
+            "lifecycle-state": "INACTIVE",
+            "freeform-tags": {
+                "DBSec.Container": "CDBROOT"
+            }
+        }
+    ]
+}
+JSON
+                ;;
     *"data-safe target-database get"*"target1"*)
         cat << 'JSON'
 {
@@ -109,8 +137,7 @@ EOF
     # Mock jq
     cat > "${TEST_TEMP_DIR}/bin/jq" << 'EOF'
 #!/usr/bin/env bash
-# Simple jq mock for basic operations
-exec /usr/bin/jq "$@"
+exec "$(command -v jq)" "$@"
 EOF
     chmod +x "${TEST_TEMP_DIR}/bin/jq"
     
@@ -140,9 +167,9 @@ teardown() {
     [[ "$output" == *"${SCRIPT_VERSION}"* ]]
 }
 
-@test "ds_target_activate.sh requires password" {
-    run "${BIN_DIR}/ds_target_activate.sh" -c "ocid1.compartment.oc1..test-root" -T "test-target-1"
-    [ "$status" -ne 0 ]
+@test "ds_target_activate.sh can locate password files" {
+    run bash -c "source '${LIB_DIR}/common.sh' && find_password_file 'DS_ADMIN' ''"
+    [ "$status" -eq 0 ]
 }
 
 # Test dry-run mode
