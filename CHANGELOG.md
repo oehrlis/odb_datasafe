@@ -10,7 +10,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- _No changes yet._
+- **Connector Update Automation** - New `ds_connector_update.sh` script for automated Data Safe connector updates
+  - Automates the connector update process end-to-end
+  - Generates and manages bundle passwords (stored as base64 in etc/<name>_pwd.b64)
+  - Reuses existing passwords unless --force-new-password is specified
+  - Downloads connector installation bundle from OCI Data Safe service
+  - Extracts bundle in connector home directory
+  - Runs setup.py update with automated password entry
+  - Supports dry-run mode for safe testing
+  - Supports skipping download with --skip-download for existing bundles
+  - Auto-detects connector home directory or accepts explicit path
+  - Comprehensive test suite with 30+ test cases
+  - Addresses GitHub issue for connector update automation
+
+- **Connector Management Library Functions** - Enhanced `lib/oci_helpers.sh` with connector operations
+  - `ds_list_connectors()` - List all connectors in a compartment
+  - `ds_resolve_connector_ocid()` - Resolve connector name to OCID
+  - `ds_resolve_connector_name()` - Resolve connector OCID to name
+  - `ds_get_connector_details()` - Get connector details
+  - `ds_generate_connector_bundle()` - Generate installation bundle with password
+  - `ds_download_connector_bundle()` - Download bundle to file
+  - All functions support dry-run mode and follow existing patterns
+
+### Changed
+
+- Updated README.md with connector update examples
+- Updated doc/quickref.md with connector management section
+- Enhanced documentation for connector operations
 
 ## [0.6.1] - 2026-01-23
 

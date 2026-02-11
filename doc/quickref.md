@@ -20,6 +20,7 @@ odb_datasafe/                          # OraDBA Extension for Data Safe
 │   ├── ds_target_connector_summary.sh # Group targets by connector
 │   ├── ds_target_refresh.sh           # Refresh Data Safe targets
 │   ├── ds_target_update_*.sh          # Update target properties
+│   ├── ds_connector_update.sh         # Update Data Safe connector
 │   └── install_datasafe_service.sh    # Install connector as service
 │
 ├── lib/                               # Shared library framework
@@ -167,6 +168,28 @@ bin/ds_target_connector_summary.sh -f csv
 bin/ds_target_connector_summary.sh -D -F display-name,lifecycle-state,id
 ```
 
+### 5. Connector Management
+
+```bash
+# List all connectors
+bin/ds_target_list_connector.sh
+
+# Update a connector (automated update process)
+bin/ds_connector_update.sh --connector my-connector -c MyCompartment
+
+# Dry-run to see what would be done
+bin/ds_connector_update.sh --connector my-connector -c MyCompartment --dry-run
+
+# Update with specific home directory
+bin/ds_connector_update.sh --connector my-connector --connector-home /u01/app/oracle/product/datasafe
+
+# Force new password generation
+bin/ds_connector_update.sh --connector my-connector --force-new-password
+
+# Use existing bundle file (skip download)
+bin/ds_connector_update.sh --connector my-connector --skip-download --bundle-file /tmp/bundle.zip
+```
+
 ## 📚 Library Functions (Quick Reference)
 
 ### common.sh - Generic Helpers
@@ -206,6 +229,14 @@ ds_list_targets "$compartment_id" "$lifecycle"
 ds_get_target "$target_ocid"
 ds_refresh_target "$target_ocid"
 ds_update_target_tags "$target_ocid" '{"key":"value"}'
+
+# Connector operations
+ds_list_connectors "$compartment_id"
+ds_resolve_connector_ocid "$name" "$compartment_id"
+ds_resolve_connector_name "$connector_ocid"
+ds_get_connector_details "$connector_ocid"
+ds_generate_connector_bundle "$connector_ocid" "$password"
+ds_download_connector_bundle "$connector_ocid" "$output_file"
 
 # Resolution helpers
 resolve_target_ocid "target_name"       # Name → OCID
