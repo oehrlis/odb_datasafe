@@ -534,10 +534,10 @@ echo "All tests passed!"
 
 As of v0.7.0, the test suite includes:
 
-- **163+ tests** covering all major functionality
+- **227+ tests** covering all major functionality
 - **23 executable scripts** with comprehensive tests
 - **Multiple test categories** (unit, integration, edge cases)
-- **~2,300+ lines** of test code
+- **~3,000+ lines** of test code
 
 ### Coverage by Component
 
