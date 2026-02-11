@@ -71,10 +71,19 @@ Usage: ${SCRIPT_NAME} [OPTIONS]
 
 Description:
   Automate Oracle Data Safe On-Premises Connector updates by:
-    1. Generating a bundle password (or reusing existing)
-    2. Downloading the connector installation bundle from OCI Data Safe
-    3. Extracting the bundle in the connector directory
-    4. Running setup.py update with the bundle password
+    1. Checking local and online connector versions
+    2. Generating a bundle password (or reusing existing)
+    3. Downloading the connector installation bundle from OCI Data Safe
+    4. Extracting the bundle in the connector directory
+    5. Running setup.py update with the bundle password
+
+Required:
+  --connector NAME        Connector name or OCID (REQUIRED)
+
+  Compartment (choose one):
+    -c, --compartment ID  Compartment OCID or name (for connector lookup)
+    OR set DS_CONNECTOR_COMP environment variable
+    OR set DS_ROOT_COMP environment variable in .env or datasafe.conf
 
 Options:
   Common Options:
@@ -88,13 +97,11 @@ Options:
     --no-color              Disable colored output
 
   OCI Options:
-    --oci-profile PROFILE   OCI CLI profile (default: ${OCI_CLI_PROFILE})
+    --oci-profile PROFILE   OCI CLI profile (default: ${OCI_CLI_PROFILE:-DEFAULT})
     --oci-region REGION     OCI region
-    --oci-config FILE       OCI config file (default: ${OCI_CLI_CONFIG_FILE})
+    --oci-config FILE       OCI config file (default: ${OCI_CLI_CONFIG_FILE:-~/.oci/config})
 
   Connector Options:
-    -c, --compartment ID    Compartment OCID or name (for connector lookup)
-    --connector NAME        Connector name or OCID
     --connector-home PATH   Connector installation directory
     --force-new-password    Generate new password (ignore existing)
 
@@ -103,7 +110,10 @@ Options:
     --bundle-file PATH      Path to existing bundle zip file
 
 Examples:
-  # Update connector by name (auto-detect home directory)
+  # Update connector by name (using DS_ROOT_COMP from config)
+  ${SCRIPT_NAME} --connector my-connector
+
+  # Update with explicit compartment
   ${SCRIPT_NAME} --connector my-connector -c MyCompartment
 
   # Update with specific home directory
@@ -118,10 +128,17 @@ Examples:
   # Force new password generation
   ${SCRIPT_NAME} --connector my-connector --force-new-password
 
-Environment:
+Environment Variables:
   OCI_CLI_PROFILE         Default OCI profile
   OCI_CLI_REGION          Default OCI region
-  DS_CONNECTOR_COMP       Default connector compartment OCID
+  DS_ROOT_COMP            Default root compartment (name or OCID)
+  DS_CONNECTOR_COMP       Default connector compartment (name or OCID)
+                          Falls back to DS_ROOT_COMP if not set
+
+Compartment Resolution (priority order):
+  1. -c/--compartment flag (highest priority)
+  2. DS_CONNECTOR_COMP environment variable
+  3. DS_ROOT_COMP environment variable (recommended)
 
 Config Files (loaded in order):
   1. ${SCRIPT_DIR}/../.env
@@ -134,6 +151,7 @@ Notes:
   - Bundle password is stored as base64 in etc/<connector-name>_pwd.b64
   - Existing password file is reused unless --force-new-password is specified
   - The script must be run as the connector owner (typically oracle user)
+  - Version checking compares local setup.py version with online availability
 
 EOF
     exit 0
@@ -234,6 +252,7 @@ validate_inputs() {
     require_var CONNECTOR_NAME
 
     # Resolve compartment for connector lookup
+    # Priority: -c/--compartment flag > DS_CONNECTOR_COMP > DS_ROOT_COMP
     if [[ -n "$COMPARTMENT" ]]; then
         local comp_name comp_ocid
         resolve_compartment_to_vars "$COMPARTMENT" comp_name comp_ocid || \
@@ -242,15 +261,28 @@ validate_inputs() {
         COMP_OCID="$comp_ocid"
         log_info "Compartment: ${COMP_NAME} (${COMP_OCID})"
     elif [[ -n "${DS_CONNECTOR_COMP:-}" ]]; then
-        # Use DS_CONNECTOR_COMP as fallback
+        # Use DS_CONNECTOR_COMP as fallback (which itself can fall back to DS_ROOT_COMP)
         local comp_ocid
         comp_ocid=$(get_connector_compartment_ocid) || \
             die "Failed to resolve DS_CONNECTOR_COMP"
         COMP_OCID="$comp_ocid"
         COMP_NAME="${DS_CONNECTOR_COMP}"
         log_info "Using DS_CONNECTOR_COMP: ${COMP_NAME}"
+    elif [[ -n "${DS_ROOT_COMP:-}" ]]; then
+        # Use DS_ROOT_COMP as final fallback
+        local comp_name comp_ocid
+        resolve_compartment_to_vars "$DS_ROOT_COMP" comp_name comp_ocid || \
+            die "Failed to resolve DS_ROOT_COMP: $DS_ROOT_COMP"
+        COMP_NAME="$comp_name"
+        COMP_OCID="$comp_ocid"
+        log_info "Using DS_ROOT_COMP: ${COMP_NAME} (${COMP_OCID})"
     else
-        die "Compartment required. Use -c/--compartment or set DS_CONNECTOR_COMP"
+        log_error "Compartment required for connector lookup."
+        log_error "Please provide one of the following:"
+        log_error "  1. Use -c/--compartment option"
+        log_error "  2. Set DS_CONNECTOR_COMP environment variable"
+        log_error "  3. Set DS_ROOT_COMP environment variable in .env or datasafe.conf"
+        die "No compartment specified. Cannot proceed."
     fi
 
     # Resolve connector (name or OCID)
@@ -261,6 +293,9 @@ validate_inputs() {
         log_info "Connector: ${CONNECTOR_DISP_NAME} (${CONNECTOR_OCID})"
     else
         CONNECTOR_DISP_NAME="$CONNECTOR_NAME"
+        if [[ -z "$COMP_OCID" ]]; then
+            die "Compartment required to resolve connector name: $CONNECTOR_NAME"
+        fi
         CONNECTOR_OCID=$(ds_resolve_connector_ocid "$CONNECTOR_NAME" "$COMP_OCID") || \
             die "Failed to resolve connector: $CONNECTOR_NAME"
         log_info "Connector: ${CONNECTOR_DISP_NAME} (${CONNECTOR_OCID})"
@@ -503,6 +538,171 @@ run_setup_update() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: get_local_connector_version
+# Purpose.: Extract version from local connector's setup.py
+# Returns.: Version string on stdout, or empty if not found
+# Output..: Version string (e.g., "1.2.3")
+# Notes...: Parses setup.py for version information
+# ------------------------------------------------------------------------------
+get_local_connector_version() {
+    local setup_py="${CONNECTOR_HOME}/setup.py"
+    
+    if [[ ! -f "$setup_py" ]]; then
+        log_debug "setup.py not found at: $setup_py"
+        return 1
+    fi
+    
+    # Try to extract version from setup.py
+    # Look for patterns like: version='1.2.3', version="1.2.3", __version__ = "1.2.3"
+    local version
+    version=$(grep -E "^\s*(version|__version__)\s*=\s*['\"]" "$setup_py" 2>/dev/null | \
+        head -1 | \
+        sed -E "s/.*['\"]([0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?)['\"].*/\1/")
+    
+    if [[ -n "$version" ]]; then
+        echo "$version"
+        return 0
+    fi
+    
+    # Alternative: Try running setup.py to get version
+    version=$(cd "$CONNECTOR_HOME" && python3 -c "import sys; sys.path.insert(0, '.'); exec(open('setup.py').read()); print(version if 'version' in dir() else '')" 2>/dev/null)
+    
+    if [[ -n "$version" ]]; then
+        echo "$version"
+        return 0
+    fi
+    
+    log_debug "Unable to determine local version from setup.py"
+    return 1
+}
+
+# ------------------------------------------------------------------------------
+# Function: get_online_connector_version
+# Purpose.: Query OCI for the latest available connector version
+# Returns.: Version string on stdout, or empty if not found
+# Output..: Version string or "UNKNOWN"
+# Notes...: Queries Data Safe API for connector bundle metadata
+# ------------------------------------------------------------------------------
+get_online_connector_version() {
+    if [[ -z "${CONNECTOR_OCID:-}" ]]; then
+        log_debug "Connector OCID not set, cannot query online version"
+        return 1
+    fi
+    
+    # Try to get version from connector metadata
+    local version
+    version=$(oci data-safe on-prem-connector get \
+        --on-prem-connector-id "$CONNECTOR_OCID" \
+        --query 'data."available-version"' \
+        --raw-output 2>/dev/null || echo "")
+    
+    if [[ -n "$version" && "$version" != "null" ]]; then
+        echo "$version"
+        return 0
+    fi
+    
+    # Alternative: Check if there's version info in lifecycle details
+    version=$(oci data-safe on-prem-connector get \
+        --on-prem-connector-id "$CONNECTOR_OCID" \
+        --query 'data."lifecycle-details"' \
+        --raw-output 2>/dev/null | grep -oE "[0-9]+\.[0-9]+\.[0-9]+" | head -1)
+    
+    if [[ -n "$version" ]]; then
+        echo "$version"
+        return 0
+    fi
+    
+    log_debug "Unable to determine online version from OCI"
+    echo "UNKNOWN"
+    return 1
+}
+
+# ------------------------------------------------------------------------------
+# Function: compare_versions
+# Purpose.: Compare two semantic version strings
+# Args....: $1 - first version (e.g., "1.2.3")
+#           $2 - second version (e.g., "1.2.4")
+# Returns.: 0 if equal, 1 if v1 < v2, 2 if v1 > v2
+# Output..: None
+# ------------------------------------------------------------------------------
+compare_versions() {
+    local v1="$1"
+    local v2="$2"
+    
+    # Strip any pre-release identifiers (e.g., "1.2.3-beta" -> "1.2.3")
+    v1="${v1%%-*}"
+    v2="${v2%%-*}"
+    
+    if [[ "$v1" == "$v2" ]]; then
+        return 0
+    fi
+    
+    # Split versions into arrays
+    IFS='.' read -ra ver1 <<< "$v1"
+    IFS='.' read -ra ver2 <<< "$v2"
+    
+    # Compare each component
+    for i in 0 1 2; do
+        local n1="${ver1[$i]:-0}"
+        local n2="${ver2[$i]:-0}"
+        
+        if ((n1 > n2)); then
+            return 2
+        elif ((n1 < n2)); then
+            return 1
+        fi
+    done
+    
+    return 0
+}
+
+# ------------------------------------------------------------------------------
+# Function: check_and_display_versions
+# Purpose.: Check and display local vs online connector versions
+# Returns.: 0 (informational only)
+# Output..: Version comparison information
+# ------------------------------------------------------------------------------
+check_and_display_versions() {
+    log_info "Checking connector versions..."
+    
+    # Get local version
+    local local_version
+    if local_version=$(get_local_connector_version 2>/dev/null); then
+        log_info "Local connector version: ${local_version}"
+    else
+        local_version="UNKNOWN"
+        log_info "Local connector version: Unknown (unable to parse setup.py)"
+    fi
+    
+    # Get online version
+    local online_version
+    if online_version=$(get_online_connector_version 2>/dev/null); then
+        log_info "Available online version: ${online_version}"
+    else
+        online_version="UNKNOWN"
+        log_info "Available online version: Unknown (unable to query OCI)"
+    fi
+    
+    # Compare versions if both are known
+    if [[ "$local_version" != "UNKNOWN" && "$online_version" != "UNKNOWN" ]]; then
+        compare_versions "$local_version" "$online_version"
+        case $? in
+            0)
+                log_info "Status: Local version is up to date"
+                ;;
+            1)
+                log_info "Status: Update available (${local_version} → ${online_version})"
+                ;;
+            2)
+                log_info "Status: Local version is newer than online (${local_version} > ${online_version})"
+                ;;
+        esac
+    else
+        log_info "Status: Cannot compare versions (insufficient version information)"
+    fi
+}
+
+# ------------------------------------------------------------------------------
 # Function: cleanup
 # Purpose.: Cleanup function called on exit
 # Returns.: 0
@@ -533,7 +733,15 @@ do_work() {
         log_info "DRY-RUN MODE: No changes will be made"
     fi
     
+    # Step 0: Check and display versions
+    log_info ""
+    log_info "═══════════════════════════════════════════════════════════════════"
+    log_info "Step 0: Version Check"
+    log_info "═══════════════════════════════════════════════════════════════════"
+    check_and_display_versions
+    
     # Step 1: Get or create bundle password
+    log_info ""
     log_info "═══════════════════════════════════════════════════════════════════"
     log_info "Step 1: Password Management"
     log_info "═══════════════════════════════════════════════════════════════════"
@@ -597,6 +805,12 @@ do_work() {
 # Output..: Execution status and results
 # ------------------------------------------------------------------------------
 main() {
+    # Show usage if no arguments provided
+    if [[ $# -eq 0 ]]; then
+        usage
+        exit 0
+    fi
+
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
 
     # Initialize configuration cascade
