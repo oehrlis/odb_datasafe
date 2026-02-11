@@ -44,6 +44,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Target list cache TTL** in `lib/oci_helpers.sh`
   - Adds `DS_TARGET_CACHE_TTL` to refresh cached target lists (set 0 to disable)
   - Prevents stale lifecycle counts between scripts using cached vs live lists
+- **Target activation flow** in `ds_target_activate.sh`
+  - Requires explicit targets or compartment
+  - Adds `--apply` for real execution (default: dry-run)
+  - Supports `--wait-for-state` for synchronous activation
 
 ## [0.6.1] - 2026-01-23
 

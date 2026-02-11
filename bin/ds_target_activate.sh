@@ -33,7 +33,8 @@ readonly SCRIPT_VERSION
 : "${TARGETS:=}"
 : "${LIFECYCLE_STATE:=INACTIVE}"
 : "${DRY_RUN:=false}"
-: "${WAIT_FOR_COMPLETION:=false}"
+: "${APPLY_CHANGES:=false}"
+: "${WAIT_FOR_STATE:=}"
 : "${DS_PASSWORD:=}"
 : "${DS_USER:=DS_ADMIN}"
 : "${DS_CDB_PASSWORD:=}"
@@ -68,8 +69,7 @@ Description:
   Activate inactive Oracle Data Safe target databases by updating their
   credentials. Supports different credentials for CDB\$ROOT vs PDB targets.
   
-  When no compartment or targets are specified, activates all INACTIVE targets
-  in DS_ROOT_COMP compartment (configured in .env).
+    Provide either explicit targets or a compartment to activate INACTIVE targets.
 
 Options:
   Common:
@@ -77,7 +77,6 @@ Options:
     -V, --version           Show version
     -v, --verbose           Enable verbose output
     -d, --debug             Enable debug output
-    -n, --dry-run           Dry-run mode (show what would be done)
     --log-file FILE         Log to file
 
   OCI:
@@ -86,12 +85,15 @@ Options:
     --oci-config FILE       OCI config file (default: ${OCI_CLI_CONFIG_FILE})
 
   Target Selection:
-    -c, --compartment ID    Compartment OCID or name (default: DS_ROOT_COMP)
-                            Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
+        -c, --compartment ID    Compartment OCID or name
     -T, --targets LIST      Comma-separated target names or OCIDs
     -L, --lifecycle STATE   Filter by lifecycle state (default: INACTIVE)
-    --wait                  Wait for each activation to complete (slower)
-    --no-wait               Don't wait for completion (default, faster for bulk)
+
+    Execution:
+        --apply                 Apply changes (default: dry-run only)
+        -n, --dry-run           Dry-run mode (show what would be done)
+        --wait-for-state STATE  Wait for operation completion with state (e.g., ACCEPTED)
+                                                        Default: async (no wait)
 
   PDB Credentials:
     -U, --ds-user USER      PDB database user (default: DS_ADMIN)
@@ -172,6 +174,11 @@ parse_args() {
                 LIFECYCLE_STATE="$2"
                 shift 2
                 ;;
+            --apply)
+                APPLY_CHANGES=true
+                DRY_RUN=false
+                shift
+                ;;
             -U | --ds-user)
                 need_val "$1" "${2:-}"
                 DS_USER="$2"
@@ -192,13 +199,10 @@ parse_args() {
                 DS_CDB_PASSWORD="$2"
                 shift 2
                 ;;
-            --wait)
-                WAIT_FOR_COMPLETION=true
-                shift
-                ;;
-            --no-wait)
-                WAIT_FOR_COMPLETION=false
-                shift
+            --wait-for-state)
+                need_val "$1" "${2:-}"
+                WAIT_FOR_STATE="$2"
+                shift 2
                 ;;
             --oci-profile)
                 need_val "$1" "${2:-}"
@@ -247,10 +251,8 @@ validate_inputs() {
 
     require_cmd oci jq
 
-    # Resolve compartment using new pattern: explicit -c > DS_ROOT_COMP > error
     if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
-        COMPARTMENT=$(resolve_compartment_for_operation "$COMPARTMENT") || die "Failed to resolve compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
-        log_info "No compartment specified, using DS_ROOT_COMP: $COMPARTMENT"
+        usage
     fi
 
     # Try password file for PDB user (explicit file or <user>_pwd.b64)
@@ -426,7 +428,7 @@ activate_single_target() {
         cred_type="PDB"
     fi
 
-    if [[ "${DRY_RUN}" == "true" ]]; then
+    if [[ "${APPLY_CHANGES}" != "true" ]]; then
         log_info "[$current/$total] [DRY-RUN] Would activate $cred_type: $target_name (user: $(jq -r '.userName' "$cred_file"))"
         SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
         return 0
@@ -435,10 +437,18 @@ activate_single_target() {
     log_info "[$current/$total] Activating $cred_type: $target_name (user: $(jq -r '.userName' "$cred_file"))"
 
     # Update credentials
-    if oci_exec data-safe target-database update \
-        --target-database-id "$target_ocid" \
-        --credentials "file://${cred_file}" \
-        --force > /dev/null 2>&1; then
+    local -a cmd=(
+        data-safe target-database update
+        --target-database-id "$target_ocid"
+        --credentials "file://${cred_file}"
+        --force
+    )
+
+    if [[ -n "$WAIT_FOR_STATE" ]]; then
+        cmd+=(--wait-for-state "$WAIT_FOR_STATE")
+    fi
+
+    if oci_exec "${cmd[@]}" > /dev/null 2>&1; then
         log_debug "✓ Successfully activated: $target_name"
         SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
         return 0
@@ -459,6 +469,12 @@ activate_single_target() {
 do_work() {
     local -a target_ocids=()
 
+    if [[ "${APPLY_CHANGES}" == "true" ]]; then
+        log_info "Apply mode: Changes will be applied"
+    else
+        log_info "Dry-run mode: Changes will be shown only (use --apply to apply)"
+    fi
+
     # Create credential files
     create_temp_cred_json
 
@@ -475,6 +491,9 @@ do_work() {
             if is_ocid "$target"; then
                 target_ocids+=("$target")
             else
+                if [[ -z "$COMPARTMENT" ]]; then
+                    die "Target name '$target' requires --compartment for resolution"
+                fi
                 # Resolve name to OCID using resolved compartment
                 log_debug "Resolving target name: $target"
                 local resolved
@@ -548,6 +567,9 @@ main() {
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
 
     init_config "${SCRIPT_NAME}.conf"
+    if [[ $# -eq 0 ]]; then
+        usage
+    fi
     parse_args "$@"
     validate_inputs
     do_work

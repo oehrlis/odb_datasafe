@@ -118,6 +118,15 @@ bin/ds_target_refresh.sh -T db1,db2,db3
 
 # Refresh all NEEDS_ATTENTION in compartment
 bin/ds_target_refresh.sh -c "MyCompartment" -L NEEDS_ATTENTION
+
+# Activate INACTIVE targets in a compartment (dry-run by default)
+bin/ds_target_activate.sh -c "MyCompartment" -L INACTIVE
+
+# Apply activation changes and wait for completion
+bin/ds_target_activate.sh -c "MyCompartment" -L INACTIVE --apply --wait-for-state ACCEPTED
+
+# Activate specific targets by name (requires compartment for resolution)
+bin/ds_target_activate.sh -c "MyCompartment" -T db1,db2 --apply
 ```
 
 ### 4. Target-Connector Summary (New in v0.6.1)
