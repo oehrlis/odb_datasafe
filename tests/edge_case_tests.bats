@@ -318,7 +318,7 @@ EOF
 
 @test "Edge: lib/oci_helpers.sh with null/undefined variables" {
     # Functions should handle missing variables gracefully
-    run bash -c "source \"${LIB_DIR}/ds_lib.sh\"; unset COMPARTMENT DS_ROOT_COMP; oci_check_cli"
+    run bash -c "source \"${LIB_DIR}/ds_lib.sh\"; unset COMPARTMENT DS_ROOT_COMP; export OCI_CLI_CONFIG_FILE=\"${TEST_TEMP_DIR}/oci_config\"; printf '[DEFAULT]\nuser=ocid1.user.oc1..dummy\ntenancy=ocid1.tenancy.oc1..dummy\nregion=us-phoenix-1\nkey_file=/tmp/dummy\nfingerprint=00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00\n' > \"${TEST_TEMP_DIR}/oci_config\"; check_oci_cli_auth"
     [ "$status" -ge 0 ]
 }
 
