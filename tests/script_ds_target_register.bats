@@ -4,7 +4,7 @@
 # ------------------------------------------------------------------------------
 # Test Suite.: script_ds_target_register.bats
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.01.22
+# Date.......: 2026.02.11
 # Purpose....: Test suite for bin/ds_target_register.sh script
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
@@ -73,7 +73,7 @@ EOF
     # Create mock jq
     cat > "${TEST_TEMP_DIR}/bin/jq" << 'EOF'
 #!/usr/bin/env bash
-exec /usr/bin/jq "$@"
+exec "$(command -v jq)" "$@"
 EOF
     chmod +x "${TEST_TEMP_DIR}/bin/jq"
 }

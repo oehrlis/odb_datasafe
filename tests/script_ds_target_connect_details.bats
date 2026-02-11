@@ -4,7 +4,7 @@
 # ------------------------------------------------------------------------------
 # Test Suite.: script_ds_target_connect_details.bats
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.01.23
+# Date.......: 2026.02.11
 # Purpose....: Test suite for ds_target_connect_details.sh script
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
@@ -47,6 +47,24 @@ case "$*" in
     *"data-safe target-database list"*"--query"*"display-name"*)
         echo "null"
         ;;
+        *"data-safe target-database list"*"--compartment-id"*)
+                cat << 'JSON'
+{
+    "data": [
+        {
+            "id": "ocid1.datasafetarget.oc1..targetbasic",
+            "display-name": "test-target-basic",
+            "lifecycle-state": "ACTIVE"
+        },
+        {
+            "id": "ocid1.datasafetarget.oc1..targetvm",
+            "display-name": "test-target-vm",
+            "lifecycle-state": "ACTIVE"
+        }
+    ]
+}
+JSON
+                ;;
     *"data-safe target-database get"*"targetvm"*"--query"*"data"*)
         echo '{"id":"ocid1.datasafetarget.oc1..targetvm","display-name":"test-target-vm","description":"Test VM cluster target","lifecycle-state":"ACTIVE","lifecycle-details":"Target is active","compartment-id":"ocid1.compartment.oc1..test-root","connection-option":{"connection-type":"PRIVATE_ENDPOINT","on-prem-connector-id":"ocid1.onpremconnector.oc1..connector1"},"credentials":{"user-name":"datasafe_user"},"database-details":{"database-type":"INSTALLED_DATABASE","listener-port":"1521","service-name":"TESTPDB","vm-cluster-id":"ocid1.vmcluster.oc1..vmcluster1"},"freeform-tags":{"environment":"test"}}'
         ;;

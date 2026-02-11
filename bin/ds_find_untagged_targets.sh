@@ -4,7 +4,7 @@
 # ------------------------------------------------------------------------------
 # Script.....: ds_find_untagged_targets.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.01.14
+# Date.......: 2026.02.11
 # Version....: v0.7.0
 # Purpose....: Find Data Safe target databases without tags in specified namespace
 # License....: Apache License Version 2.0

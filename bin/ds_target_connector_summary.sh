@@ -4,7 +4,7 @@
 # ------------------------------------------------------------------------------
 # Script.....: ds_target_connector_summary.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.01.23
+# Date.......: 2026.02.11
 # Version....: v0.7.0
 # Purpose....: List Data Safe targets grouped by on-premises connector
 #              with summary counts and lifecycle state information

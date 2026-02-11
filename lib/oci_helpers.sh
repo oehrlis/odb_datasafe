@@ -2,9 +2,10 @@
 # ------------------------------------------------------------------------------
 # OraDBA - Oracle Database Infrastructure and Security, 5630 Muri, Switzerland
 # ------------------------------------------------------------------------------
-# Module.....: oci_helpers.sh (v4.0.1)
+# Module.....: oci_helpers.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.01.14
+# Date.......: 2026.02.11
+# Version....: v0.7.0
 # Purpose....: OCI CLI wrapper functions for Oracle Data Safe operations
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------

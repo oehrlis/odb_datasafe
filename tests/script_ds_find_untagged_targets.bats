@@ -4,7 +4,7 @@
 # ------------------------------------------------------------------------------
 # Test Suite.: script_ds_find_untagged_targets.bats
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.01.22
+# Date.......: 2026.02.11
 # Purpose....: Test suite for bin/ds_find_untagged_targets.sh script
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
@@ -76,7 +76,7 @@ EOF
     # Create mock jq
     cat > "${TEST_TEMP_DIR}/bin/jq" << 'EOF'
 #!/usr/bin/env bash
-exec /usr/bin/jq "$@"
+exec "$(command -v jq)" "$@"
 EOF
     chmod +x "${TEST_TEMP_DIR}/bin/jq"
 }
@@ -195,8 +195,8 @@ teardown() {
     [ "$status" -eq 0 ]
 }
 
-@test "ds_find_untagged_targets.sh uses oci_exec_ro for lookups" {
-    run bash -c "grep -q 'oci_exec_ro' '$SCRIPT_PATH'"
+@test "ds_find_untagged_targets.sh uses ds_list_targets for lookups" {
+    run bash -c "grep -q 'ds_list_targets' '$SCRIPT_PATH'"
     [ "$status" -eq 0 ]
 }
 

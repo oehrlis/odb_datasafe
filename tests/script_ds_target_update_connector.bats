@@ -4,7 +4,7 @@
 # ------------------------------------------------------------------------------
 # Test Suite.: script_ds_target_update_connector.bats
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.01.09
+# Date.......: 2026.02.11
 # Purpose....: Test suite for ds_target_update_connector.sh script
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------

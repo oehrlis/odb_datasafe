@@ -1,5 +1,5 @@
 # =============================================================================
-# Data Safe Configuration File (v4.0.0)
+# Data Safe Configuration File (v0.7.0)
 # =============================================================================
 # This is the generic configuration file loaded by all Data Safe scripts.
 # Script-specific configs can be created as: etc/<script_name>.conf

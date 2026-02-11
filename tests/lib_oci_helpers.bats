@@ -4,7 +4,7 @@
 # ------------------------------------------------------------------------------
 # Test Suite.: lib_oci_helpers.bats
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.01.09
+# Date.......: 2026.02.11
 # Purpose....: Test suite for lib/oci_helpers.sh library functions
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
@@ -28,16 +28,12 @@ case "$*" in
     *"--version"*)
         echo "3.45.0"
         ;;
-    *"iam compartment list --compartment-id ocid1.compartment.oc1..root"*)
-        cat << 'JSON'
-{
-  "data": [
-    {"id": "ocid1.compartment.oc1..child1", "name": "test-compartment", "lifecycle-state": "ACTIVE"},
-    {"id": "ocid1.compartment.oc1..child2", "name": "another-compartment", "lifecycle-state": "ACTIVE"}
-  ]
-}
-JSON
-        ;;
+        *"iam compartment list"*"name=='test-compartment'"*)
+                echo "ocid1.compartment.oc1..child1"
+                ;;
+        *"iam compartment list"*)
+                echo "null"
+                ;;
     *"iam compartment get --compartment-id ocid1.compartment.oc1..child1"*)
         cat << 'JSON'
 {
@@ -182,7 +178,7 @@ teardown() {
     source "${LIB_DIR}/oci_helpers.sh"
     
     # Test resolving target name to OCID
-    run ds_resolve_target_ocid "test-target" "ocid1.compartment.oc1..root"
+    run ds_resolve_target_ocid "test-target-1" "ocid1.compartment.oc1..root"
     [ "$status" -eq 0 ]
     # Should contain the OCID
     [[ "$output" == *"ocid1.datasafetarget"* ]]
@@ -309,9 +305,8 @@ teardown() {
     source "${LIB_DIR}/oci_helpers.sh"
     
     # Test with invalid compartment name
-    resolve_compartment_to_vars "non-existent-compartment" "TEST_COMP"
-    status=$?
-    
+    run resolve_compartment_to_vars "non-existent-compartment" "TEST_COMP"
+
     # Should return error (1)
     [ "$status" -eq 1 ]
 }
@@ -347,7 +342,7 @@ teardown() {
     source "${LIB_DIR}/oci_helpers.sh"
     
     # Test with name
-    resolve_target_to_vars "test-target" "TEST_TARGET" "ocid1.compartment.oc1..root"
+    resolve_target_to_vars "test-target-1" "TEST_TARGET" "ocid1.compartment.oc1..root"
     status=$?
     
     # Should succeed and populate both variables

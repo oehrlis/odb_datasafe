@@ -2,9 +2,10 @@
 # ------------------------------------------------------------------------------
 # OraDBA - Oracle Database Infrastructure and Security, 5630 Muri, Switzerland
 # ------------------------------------------------------------------------------
-# Module.....: ds_lib.sh (v4.0.0)
+# Module.....: ds_lib.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.01.09
+# Date.......: 2026.02.11
+# Version....: v0.7.0
 # Purpose....: Convenience loader for Data Safe v4 library
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------

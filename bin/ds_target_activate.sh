@@ -4,7 +4,7 @@
 # ------------------------------------------------------------------------------
 # Script.....: ds_target_activate.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.02.10
+# Date.......: 2026.02.11
 # Version....: v0.7.0
 # Purpose....: Activate inactive Oracle Data Safe target databases
 # Usage......: ds_target_activate.sh [OPTIONS] [TARGETS...]
@@ -41,6 +41,7 @@ readonly SCRIPT_VERSION
 : "${DS_CDB_USER:=C##DS_ADMIN}"
 : "${DATASAFE_PASSWORD_FILE:=}"
 : "${DATASAFE_CDB_PASSWORD_FILE:=}"
+: "${NO_PROMPT:=false}"
 
 # Counters
 SUCCESS_COUNT=0
@@ -279,6 +280,10 @@ validate_inputs() {
 
     # Handle password prompting
     if [[ -z "$DS_PASSWORD" ]]; then
+        if [[ "${NO_PROMPT}" == "true" ]]; then
+            die "PDB password not provided and prompting is disabled. Use -P/--ds-password or DS_PASSWORD."
+        fi
+
         log_info "PDB password not provided, prompting..."
         echo -n "Enter password for PDB user '$DS_USER': " >&2
         read -rs DS_PASSWORD
@@ -289,15 +294,20 @@ validate_inputs() {
 
     # Handle CDB password prompting
     if [[ -z "$DS_CDB_PASSWORD" ]]; then
-        log_info "CDB\$ROOT password not provided, prompting..."
-        echo -n "Enter password for CDB\$ROOT user '$DS_CDB_USER' (press Enter to use same as PDB): " >&2
-        read -rs DS_CDB_PASSWORD
-        echo >&2
-
-        # If empty, use same as PDB password
-        if [[ -z "$DS_CDB_PASSWORD" ]]; then
-            log_info "Using same password for CDB\$ROOT as PDB"
+        if [[ "${NO_PROMPT}" == "true" ]]; then
+            log_info "CDB\$ROOT password not provided; using PDB password"
             DS_CDB_PASSWORD="$DS_PASSWORD"
+        else
+            log_info "CDB\$ROOT password not provided, prompting..."
+            echo -n "Enter password for CDB\$ROOT user '$DS_CDB_USER' (press Enter to use same as PDB): " >&2
+            read -rs DS_CDB_PASSWORD
+            echo >&2
+
+            # If empty, use same as PDB password
+            if [[ -z "$DS_CDB_PASSWORD" ]]; then
+                log_info "Using same password for CDB\$ROOT as PDB"
+                DS_CDB_PASSWORD="$DS_PASSWORD"
+            fi
         fi
     fi
 

@@ -2,9 +2,10 @@
 # ------------------------------------------------------------------------------
 # OraDBA - Oracle Database Infrastructure and Security, 5630 Muri, Switzerland
 # ------------------------------------------------------------------------------
-# Module.....: common.sh (v4.0.1)
+# Module.....: common.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.01.14
+# Date.......: 2026.02.11
+# Version....: v0.7.0
 # Purpose....: Generic utilities for bash scripts - logging, error handling,
 #              argument parsing helpers. Designed to be reusable across projects.
 # License....: Apache License Version 2.0

@@ -4,7 +4,7 @@
 # ------------------------------------------------------------------------------
 # Test Suite.: script_template.bats
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.01.22
+# Date.......: 2026.02.11
 # Purpose....: Test suite for bin/template.sh to verify standardization
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
