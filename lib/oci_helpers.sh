@@ -1082,7 +1082,7 @@ ds_resolve_connector_ocid() {
         .data[] | select(."display-name" == $name) | .id' | head -n1)
 
     if [[ -z "$result" || "$result" == "null" ]]; then
-        log_debug "Exact match not found for connector: $input (case-sensitive). Trying case-insensitive match."
+        log_info "Exact match not found for connector: $input. Trying case-insensitive match."
 
         result=$(echo "$connectors_json" | jq -r --arg name "$input" '
             .data[] | select((."display-name" | ascii_downcase) == ($name | ascii_downcase)) | .id' | head -n1)
