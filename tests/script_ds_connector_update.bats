@@ -37,3 +37,9 @@ setup() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"Checking local and online connector versions"* ]]
 }
+
+@test "ds_connector_update.sh requires connector name" {
+    run "${BIN_DIR}/ds_connector_update.sh" -c test-compartment
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"CONNECTOR_NAME"* ]] || [[ "$output" == *"connector"* ]]
+}

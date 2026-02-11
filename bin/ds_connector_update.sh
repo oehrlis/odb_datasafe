@@ -254,27 +254,18 @@ validate_inputs() {
     # Resolve compartment for connector lookup
     # Priority: -c/--compartment flag > DS_CONNECTOR_COMP > DS_ROOT_COMP
     if [[ -n "$COMPARTMENT" ]]; then
-        local comp_name comp_ocid
-        resolve_compartment_to_vars "$COMPARTMENT" comp_name comp_ocid \
+        resolve_compartment_to_vars "$COMPARTMENT" "COMP" \
             || die "Failed to resolve compartment: $COMPARTMENT"
-        COMP_NAME="$comp_name"
-        COMP_OCID="$comp_ocid"
         log_info "Compartment: ${COMP_NAME} (${COMP_OCID})"
     elif [[ -n "${DS_CONNECTOR_COMP:-}" ]]; then
         # Use DS_CONNECTOR_COMP as fallback (which itself can fall back to DS_ROOT_COMP)
-        local comp_ocid
-        comp_ocid=$(get_connector_compartment_ocid) \
-            || die "Failed to resolve DS_CONNECTOR_COMP"
-        COMP_OCID="$comp_ocid"
-        COMP_NAME="${DS_CONNECTOR_COMP}"
-        log_info "Using DS_CONNECTOR_COMP: ${COMP_NAME}"
+        resolve_compartment_to_vars "$DS_CONNECTOR_COMP" "COMP" \
+            || die "Failed to resolve DS_CONNECTOR_COMP: $DS_CONNECTOR_COMP"
+        log_info "Using DS_CONNECTOR_COMP: ${COMP_NAME} (${COMP_OCID})"
     elif [[ -n "${DS_ROOT_COMP:-}" ]]; then
         # Use DS_ROOT_COMP as final fallback
-        local comp_name comp_ocid
-        resolve_compartment_to_vars "$DS_ROOT_COMP" comp_name comp_ocid \
+        resolve_compartment_to_vars "$DS_ROOT_COMP" "COMP" \
             || die "Failed to resolve DS_ROOT_COMP: $DS_ROOT_COMP"
-        COMP_NAME="$comp_name"
-        COMP_OCID="$comp_ocid"
         log_info "Using DS_ROOT_COMP: ${COMP_NAME} (${COMP_OCID})"
     else
         log_error "Compartment required for connector lookup."
