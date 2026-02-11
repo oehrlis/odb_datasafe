@@ -106,6 +106,7 @@ All tests use a comprehensive mocking system:
 Test individual library functions in isolation.
 
 **Purpose:**
+
 - Verify utility functions work correctly
 - Test error handling in library code
 - Validate input parsing and validation
@@ -130,6 +131,7 @@ Test individual library functions in isolation.
 Test individual scripts and their command-line interfaces.
 
 **Purpose:**
+
 - Verify CLI argument parsing
 - Test help and version output
 - Validate script-specific functionality
@@ -150,6 +152,7 @@ Test individual scripts and their command-line interfaces.
 Test complete workflows and cross-component interactions.
 
 **Purpose:**
+
 - Verify end-to-end workflows
 - Test multiple scripts working together
 - Validate OCI CLI parameter combinations
@@ -178,6 +181,7 @@ Test complete workflows and cross-component interactions.
 Test boundary conditions and unusual inputs.
 
 **Purpose:**
+
 - Test unusual but valid inputs
 - Verify error handling for invalid inputs
 - Test boundary conditions (max length, empty values)
@@ -198,6 +202,7 @@ Test boundary conditions and unusual inputs.
 Fast smoke tests for CI/CD pipelines.
 
 **Purpose:**
+
 - Verify basic functionality quickly
 - Catch obvious errors early
 - Suitable for pre-commit hooks
@@ -532,7 +537,7 @@ echo "All tests passed!"
 
 ### Current Coverage
 
-As of v0.7.0, the test suite includes:
+As of v0.7.1, the test suite includes:
 
 - **227+ tests** covering all major functionality
 - **23 executable scripts** with comprehensive tests
@@ -541,15 +546,15 @@ As of v0.7.0, the test suite includes:
 
 ### Coverage by Component
 
-| Component | Coverage | Test Files |
-|-----------|----------|------------|
-| Library functions | High | `lib_*.bats` |
-| Target management | High | `script_ds_target_*.bats` |
-| Connector operations | High | `script_ds_*connector*.bats` |
-| Tag management | High | `script_ds_*tag*.bats` |
-| Service installation | Medium | `install_*.bats`, `uninstall_*.bats` |
-| Edge cases | High | `edge_case_tests.bats` |
-| Integration | High | `integration_*.bats` |
+| Component            | Coverage | Test Files                           |
+|----------------------|----------|--------------------------------------|
+| Library functions    | High     | `lib_*.bats`                         |
+| Target management    | High     | `script_ds_target_*.bats`            |
+| Connector operations | High     | `script_ds_*connector*.bats`         |
+| Tag management       | High     | `script_ds_*tag*.bats`               |
+| Service installation | Medium   | `install_*.bats`, `uninstall_*.bats` |
+| Edge cases           | High     | `edge_case_tests.bats`               |
+| Integration          | High     | `integration_*.bats`                 |
 
 ### Measuring Coverage
 
@@ -701,14 +706,14 @@ comm -23 <(ls bin/*.sh | sort) <(grep -l "script_" tests/*.bats | sed 's/.*scrip
 
 ### Test Execution Times
 
-| Test Suite | Time | Tests |
-|------------|------|-------|
-| Quick validation | <30s | ~10 |
-| Library tests | <1min | ~30 |
-| Script tests | <2min | ~80 |
-| Integration tests | <1min | ~30 |
-| Edge case tests | <1min | ~40 |
-| **Total** | **<5min** | **163+** |
+| Test Suite        | Time      | Tests    |
+|-------------------|-----------|----------|
+| Quick validation  | <30s      | ~10      |
+| Library tests     | <1min     | ~30      |
+| Script tests      | <2min     | ~80      |
+| Integration tests | <1min     | ~30      |
+| Edge case tests   | <1min     | ~40      |
+| **Total**         | **<5min** | **163+** |
 
 ## Additional Resources
 
@@ -737,9 +742,9 @@ For questions about testing:
 - Review existing tests in `tests/` directory
 - Check [tests/README.md](../tests/README.md) for overview
 - Consult [BATS documentation](https://bats-core.readthedocs.io/)
-- Contact maintainer: Stefan Oehrli (stefan.oehrli@oradba.ch)
+- Contact maintainer: Stefan Oehrli (<stefan.oehrli@oradba.ch>)
 
 ---
 
 **Last Updated:** 2026-02-11  
-**Version:** 0.7.0
+**Version:** 0.7.1

@@ -317,13 +317,8 @@ EOF
 }
 
 @test "Edge: lib/oci_helpers.sh with null/undefined variables" {
-    source "${LIB_DIR}/ds_lib.sh"
-    
-    unset COMPARTMENT
-    unset DS_ROOT_COMP
-    
     # Functions should handle missing variables gracefully
-    run oci_check_cli
+    run bash -c "source \"${LIB_DIR}/ds_lib.sh\"; unset COMPARTMENT DS_ROOT_COMP; oci_check_cli"
     [ "$status" -ge 0 ]
 }
 

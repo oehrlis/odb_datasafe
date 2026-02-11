@@ -14,13 +14,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Test Suite Improvements** - Simplified and stabilized BATS test suite
-  - Removed complex integration-style tests that were never run and caused timeouts
-  - Replaced with simple, focused unit tests that verify basic script functionality
-  - All 149 tests now pass reliably (previously failing or hanging)
-  - Fixed jq mock recursion issue in script_ds_find_untagged_targets.bats
-  - Updated dynamic version reading from VERSION file across test suites
-  - Made test infrastructure more maintainable for future enhancements
+## [0.7.1] - 2026-02-11
+
+### Added
+
+- **Connector version checks** in `ds_connector_update.sh`
+  - Reads local version from setup.py
+  - Queries available version from OCI Data Safe
+  - Compares versions and reports update status
+- **Edge case test suite** in `tests/edge_case_tests.bats`
+- **Parameter combination integration tests** in `tests/integration_param_combinations.bats`
+- **Testing guide** in `doc/testing.md` with architecture, categories, and best practices
+
+### Changed
+
+- **Connector update UX** in `ds_connector_update.sh`
+  - Shows usage when no arguments are provided
+  - Clarifies required connector and compartment resolution order
+  - Adds DS_ROOT_COMP fallback with clearer error messaging
+- **Test documentation** updated with new categories and counts in `tests/README.md`
+
+### Fixed
+
+- **Edge case tests** stabilized to pass consistently across environments
 
 ## [0.7.0] - 2026-02-11
 
