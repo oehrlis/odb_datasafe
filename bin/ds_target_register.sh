@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 # ------------------------------------------------------------------------------
-# Script Name : ds_target_register.sh
-# Description : Register a database as Oracle Data Safe target
-# Version....: v0.5.4
-# Author      : Migrated to odb_datasafe v0.2.0 framework
-#
+# OraDBA - Oracle Database Infrastructure and Security, 5630 Muri, Switzerland
+# ------------------------------------------------------------------------------
+# Script.....: ds_target_register.sh
+# Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
+# Date.......: 2026.01.14
+# Version....: v0.6.1
+# Purpose....: Register a database as Oracle Data Safe target
+# License....: Apache License Version 2.0
+# ------------------------------------------------------------------------------
+
 # Purpose:
 #   Register a single database (PDB or CDB$ROOT) as a Data Safe target without
 #   requiring SSH access. Uses OCI CLI to create target with JSON payload.

@@ -60,6 +60,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Lifecycle-details column width increased to 80 characters in problems mode for better visibility
   - Problem Type column set to 70 characters in group mode with properly aligned count column
   - Problem messages longer than 68 characters are truncated with "..." suffix to prevent terminal wrapping
+- **Documentation enhancements**
+  - Enhanced README.md with prominent documentation section and help script reference
+  - Added clear pointers to doc/ folder and quickref.md
+  - Added emojis and better organization to documentation links
+- **Header standardization**
+  - Standardized headers in `ds_find_untagged_targets.sh`, `ds_target_export.sh`, and `ds_target_register.sh`
+  - All scripts now follow OraDBA format: `# Script.....:`, `# Author.....:`‚ `# Purpose.....:`
+  - Updated version to v0.6.1 in standardized scripts
 
 ### Fixed
 

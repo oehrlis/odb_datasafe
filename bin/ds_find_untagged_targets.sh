@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 # ------------------------------------------------------------------------------
-# Script Name : ds_find_untagged_targets.sh
-# Description : Find Data Safe target databases without tags in specified namespace
-# Version....: v0.5.4
-# Author      : Generated for odb_datasafe framework
-#
+# OraDBA - Oracle Database Infrastructure and Security, 5630 Muri, Switzerland
+# ------------------------------------------------------------------------------
+# Script.....: ds_find_untagged_targets.sh
+# Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
+# Date.......: 2026.01.14
+# Version....: v0.6.1
+# Purpose....: Find Data Safe target databases without tags in specified namespace
+# License....: Apache License Version 2.0
+# ------------------------------------------------------------------------------
+
 # Purpose:
 #   Find targets without tags in a specific namespace (default: DBSec).
 #   Outputs in same format as ds_target_list.sh for consistency.

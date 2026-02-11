@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 # ------------------------------------------------------------------------------
-# Script Name : ds_target_export.sh
-# Description : Export Oracle Data Safe target databases to CSV or JSON
-# Version....: v0.5.4
-# Author      : Migrated to odb_datasafe v0.2.0 framework
-#
+# OraDBA - Oracle Database Infrastructure and Security, 5630 Muri, Switzerland
+# ------------------------------------------------------------------------------
+# Script.....: ds_target_export.sh
+# Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
+# Date.......: 2026.01.14
+# Version....: v0.6.1
+# Purpose....: Export Oracle Data Safe target databases to CSV or JSON
+# License....: Apache License Version 2.0
+# ------------------------------------------------------------------------------
+
 # Purpose:
 #   Export Data Safe target information to CSV or JSON format with enriched
 #   metadata including cluster/CDB/PDB parsing, connector mapping, and service details.
