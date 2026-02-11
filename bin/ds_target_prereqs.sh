@@ -5,7 +5,7 @@
 # Script.....: ds_target_prereqs.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.02.11
-# Version....: v0.7.1
+# Version....: v0.8.0
 # Purpose....: Copy SQL prereq scripts to DB host and run them for one scope
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------

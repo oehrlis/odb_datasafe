@@ -10,9 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.8.0] - 2026-02-11
+
+### Added
+
 - New `ds_target_prereqs.sh` script to copy and run Data Safe prereq/user/grant SQL on a DB host
 - SSH helper library `lib/ssh_helpers.sh` and integration via `lib/ds_lib.sh`
-- New `sql/create_ds_admin_prerequisites.sql` to create/maintain `DS_USER_PROFILE`
+- New `sql/create_ds_admin_prerequisites.sql` to create/maintain `DS_USER_PROFILE` with CIS-based limits
 
 ### Changed
 
