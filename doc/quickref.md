@@ -134,6 +134,9 @@ bin/ds_target_list.sh --problems
 # Group problems by type with target counts
 bin/ds_target_list.sh --group-problems
 
+# Group problems summary only (no target lists)
+bin/ds_target_list.sh --group-problems --summary
+
 # Group problems in JSON format for automation  
 bin/ds_target_list.sh --group-problems -f json
 

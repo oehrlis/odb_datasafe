@@ -51,7 +51,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `-F all` (or `-F ALL`) now only allowed with JSON output, prevents empty table/CSV
   - Added `--problems` mode to show NEEDS_ATTENTION targets with full lifecycle-details (no truncation)
   - Added `--group-problems` mode to group NEEDS_ATTENTION targets by problem type with counts and target lists
+  - Added `--summary` flag to show only grouped counts without detailed target lists
   - Lifecycle-details column width increased to 80 characters in problems mode for better visibility
+  - Problem Type column set to 70 characters in group mode with properly aligned count column
+  - Problem messages longer than 68 characters are truncated with "..." suffix to prevent terminal wrapping
 
 ### Fixed
 

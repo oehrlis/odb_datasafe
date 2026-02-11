@@ -35,6 +35,7 @@ readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 : "${FIELDS:=display-name,lifecycle-state,infrastructure-type}"
 : "${SHOW_PROBLEMS:=false}"
 : "${GROUP_PROBLEMS:=false}"
+: "${SHOW_DETAILS:=true}"
 
 # shellcheck disable=SC1091
 source "${LIB_DIR}/ds_lib.sh" || {
@@ -85,6 +86,7 @@ Options:
     -F, --fields FIELDS     Comma-separated fields for details (default: ${FIELDS})
         --problems          Show NEEDS_ATTENTION targets with lifecycle details
         --group-problems    Group NEEDS_ATTENTION targets by problem type with counts
+        --summary           Show only summary counts without detailed target lists (for --group-problems)
 
 Examples:
   # Show detailed list for DS_ROOT_COMP (default)
@@ -116,6 +118,9 @@ Examples:
 
   # Group problems and show count per problem type
   ${SCRIPT_NAME} --group-problems
+
+  # Group problems summary only (no target lists)
+  ${SCRIPT_NAME} --group-problems --summary
 
 EOF
     exit 0
@@ -184,6 +189,10 @@ parse_args() {
                 SHOW_PROBLEMS=true
                 SHOW_COUNT=false
                 SHOW_COUNT_OVERRIDE=true
+                shift
+                ;;
+            --summary)
+                SHOW_DETAILS=false
                 shift
                 ;;
             --oci-profile)
@@ -525,8 +534,8 @@ show_problems_grouped() {
             ;;
         table|*)
             printf "\n"
-            printf "%-80s %10s\n" "Problem Type" "Count"
-            printf "%-80s %10s\n" "$(printf '%0.s-' {1..80})" "----------"
+            printf "%-70s %10s\n" "Problem Type" "Count"
+            printf "%-70s %10s\n" "$(printf '%0.s-' {1..70})" "----------"
 
             # Use jq to output JSON and parse it more safely
             echo "$grouped_json" | jq -r '.[] | @base64' | while read -r line; do
@@ -534,9 +543,14 @@ show_problems_grouped() {
                 problem=$(echo "$line" | base64 -d 2>/dev/null | jq -r '.problem // "Unknown"')
                 count=$(echo "$line" | base64 -d 2>/dev/null | jq -r '.count // 0')
                 
+                # Truncate problem to fit column width (68 chars to leave space)
+                if [[ ${#problem} -gt 68 ]]; then
+                    problem="${problem:0:65}..."
+                fi
+                
                 # Validate count is a number
                 if [[ "$count" =~ ^[0-9]+$ ]]; then
-                    printf "%-80s %10d\n" "$problem" "$count"
+                    printf "%-70s %10d\n" "$problem" "$count"
                 else
                     log_warn "Invalid count for problem: $problem (count: $count)"
                 fi
@@ -544,10 +558,13 @@ show_problems_grouped() {
 
             local total
             total=$(echo "$json_data" | jq '.data | length')
-            printf "\n%-80s %10d\n\n" "Total NEEDS_ATTENTION targets" "$total"
+            printf "\n%-70s %10d\n" "Total NEEDS_ATTENTION targets" "$total"
 
-            # Show detailed target list per problem
-            echo "$grouped_json" | jq -r '.[] | "\n\(.problem) (\(.count) targets):\n  - \(.targets | join("\n  - "))"'
+            # Show detailed target list per problem if requested
+            if [[ "$SHOW_DETAILS" == "true" ]]; then
+                printf "\n"
+                echo "$grouped_json" | jq -r '.[] | "\n\(.problem) (\(.count) targets):\n  - \(.targets | join("\n  - "))"'
+            fi
             printf "\n"
             ;;
     esac
