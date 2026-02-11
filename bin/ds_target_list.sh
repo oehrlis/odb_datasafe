@@ -505,12 +505,13 @@ show_problems_grouped() {
 
     log_info "Grouping NEEDS_ATTENTION targets by problem type"
 
-    # Extract and group by lifecycle-details
+    # Extract and group by lifecycle-details, filtering out nulls and empty strings
     local grouped_json
     grouped_json=$(echo "$json_data" | jq -r '
         .data 
+        | map(select(."lifecycle-details" != null and ."lifecycle-details" != ""))
         | group_by(."lifecycle-details") 
-        | map({problem: .[0]."lifecycle-details", count: length, targets: [.[] | ."display-name"]})
+        | map({problem: (.[0]."lifecycle-details" // "Unknown"), count: length, targets: [.[] | ."display-name"]})
         | sort_by(-.count)
     ')
 
@@ -527,8 +528,18 @@ show_problems_grouped() {
             printf "%-80s %10s\n" "Problem Type" "Count"
             printf "%-80s %10s\n" "$(printf '%0.s-' {1..80})" "----------"
 
-            echo "$grouped_json" | jq -r '.[] | "\(.problem)\t\(.count)"' | while IFS=$'\t' read -r problem count; do
-                printf "%-80s %10d\n" "$problem" "$count"
+            # Use jq to output JSON and parse it more safely
+            echo "$grouped_json" | jq -r '.[] | @base64' | while read -r line; do
+                local problem count
+                problem=$(echo "$line" | base64 -d 2>/dev/null | jq -r '.problem // "Unknown"')
+                count=$(echo "$line" | base64 -d 2>/dev/null | jq -r '.count // 0')
+                
+                # Validate count is a number
+                if [[ "$count" =~ ^[0-9]+$ ]]; then
+                    printf "%-80s %10d\n" "$problem" "$count"
+                else
+                    log_warn "Invalid count for problem: $problem (count: $count)"
+                fi
             done
 
             local total
