@@ -39,13 +39,13 @@ teardown() {
     run "${SCRIPT}" --help
     [[ "${status}" -eq 0 ]]
     [[ "${output}" =~ "Usage:" ]]
-    [[ "${output}" =~ "ds_connector_update.sh" ]]
+    [[ "${output}" =~ ds_connector_update.sh ]]
 }
 
 @test "ds_connector_update.sh: --version shows version" {
     run "${SCRIPT}" --version
     [[ "${status}" -eq 0 ]]
-    [[ "${output}" =~ "ds_connector_update.sh" ]]
+    [[ "${output}" =~ ds_connector_update.sh ]]
     [[ "${output}" =~ [0-9]+\.[0-9]+\.[0-9]+ ]]
 }
 
