@@ -27,6 +27,7 @@ fi
 : "${OCI_CLI_REGION:=}"
 : "${OCI_CLI_CONFIG_FILE:=${HOME}/.oci/config}"
 : "${DRY_RUN:=false}"
+: "${DS_TARGET_CACHE_TTL:=300}"
 
 # Global cache for resolved root compartment OCID
 _DS_ROOT_COMP_OCID_CACHE=""
@@ -60,6 +61,29 @@ _ds_target_cache_file_path() {
     mkdir -p "$cache_dir"
 
     echo "${cache_dir}/targets_${cache_hash}.json"
+}
+
+# ----------------------------------------------------------------------------
+# Function....: _ds_cache_mtime
+# Purpose.....: Get mtime (epoch seconds) for a file (macOS/Linux)
+# Parameters..: $1 - file path
+# Returns.....: 0 on success, 1 on failure
+# Output......: Epoch seconds to stdout
+# ----------------------------------------------------------------------------
+_ds_cache_mtime() {
+    local file="$1"
+
+    if stat -f '%m' "$file" > /dev/null 2>&1; then
+        stat -f '%m' "$file"
+        return 0
+    fi
+
+    if stat -c '%Y' "$file" > /dev/null 2>&1; then
+        stat -c '%Y' "$file"
+        return 0
+    fi
+
+    return 1
 }
 
 # =============================================================================
@@ -513,24 +537,31 @@ _ds_get_target_list_cached() {
     local cache_file
     cache_file=$(_ds_target_cache_file_path "$comp_ocid" "$lifecycle")
 
-        # Reuse cache if compartment and lifecycle match
-        if [[ -n "$_DS_TARGET_CACHE_JSON" && \
-                    "$_DS_TARGET_CACHE_COMP_OCID" == "$comp_ocid" && \
-                    "$_DS_TARGET_CACHE_LIFECYCLE" == "$lifecycle" ]]; then
-                log_debug "Using cached target list for compartment: $comp_ocid (lifecycle: ${lifecycle:-none}) [memory]"
+    # Reuse cache if compartment and lifecycle match and cache enabled
+    if [[ "${DS_TARGET_CACHE_TTL}" != "0" && -n "$_DS_TARGET_CACHE_JSON" && \
+                "$_DS_TARGET_CACHE_COMP_OCID" == "$comp_ocid" && \
+                "$_DS_TARGET_CACHE_LIFECYCLE" == "$lifecycle" ]]; then
+        log_debug "Using cached target list for compartment: $comp_ocid (lifecycle: ${lifecycle:-none}) [memory]"
+        printf '%s' "$_DS_TARGET_CACHE_JSON"
+        return 0
+    fi
+
+    if [[ "${DS_TARGET_CACHE_TTL}" != "0" && -f "$cache_file" ]]; then
+        local now cache_mtime cache_age
+        now=$(date +%s)
+        if cache_mtime=$(_ds_cache_mtime "$cache_file"); then
+            cache_age=$((now - cache_mtime))
+            if [[ $cache_age -le $DS_TARGET_CACHE_TTL ]]; then
+                log_debug "Using cached target list for compartment: $comp_ocid (lifecycle: ${lifecycle:-none}) [file] age=${cache_age}s"
+                _DS_TARGET_CACHE_COMP_OCID="$comp_ocid"
+                _DS_TARGET_CACHE_LIFECYCLE="$lifecycle"
+                _DS_TARGET_CACHE_FILE="$cache_file"
+                _DS_TARGET_CACHE_JSON=$(cat "$cache_file")
                 printf '%s' "$_DS_TARGET_CACHE_JSON"
                 return 0
+            fi
         fi
-
-        if [[ -f "$cache_file" ]]; then
-            log_debug "Using cached target list for compartment: $comp_ocid (lifecycle: ${lifecycle:-none}) [file]"
-            _DS_TARGET_CACHE_COMP_OCID="$comp_ocid"
-            _DS_TARGET_CACHE_LIFECYCLE="$lifecycle"
-            _DS_TARGET_CACHE_FILE="$cache_file"
-            _DS_TARGET_CACHE_JSON=$(cat "$cache_file")
-            printf '%s' "$_DS_TARGET_CACHE_JSON"
-            return 0
-        fi
+    fi
 
     log_debug "Fetching target list for compartment: $comp_ocid (lifecycle: ${lifecycle:-none})"
 

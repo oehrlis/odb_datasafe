@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `ds_target_activate.sh` supports `DATASAFE_PASSWORD_FILE` and `DATASAFE_CDB_PASSWORD_FILE`
   - Added shared password file lookup and base64 decoding helpers
 
+### Changed
+
+- **Target list cache TTL** in `lib/oci_helpers.sh`
+  - Adds `DS_TARGET_CACHE_TTL` to refresh cached target lists (set 0 to disable)
+  - Prevents stale lifecycle counts between scripts using cached vs live lists
+
 ## [0.6.1] - 2026-01-23
 
 ### Added
