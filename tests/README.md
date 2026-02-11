@@ -1,7 +1,7 @@
 # Test Suite for odb_datasafe
 
 This directory contains a comprehensive test suite for the OraDBA Data Safe
-Extension v0.2.0, built using the [BATS (Bash Automated Testing System)](https://github.com/bats-core/bats-core) framework.
+Extension v0.7.0, built using the [BATS (Bash Automated Testing System)](https://github.com/bats-core/bats-core) framework.
 
 ## 📋 Test Structure
 
@@ -26,8 +26,12 @@ Extension v0.2.0, built using the [BATS (Bash Automated Testing System)](https:/
 
 3. **Integration Tests** (`integration_*.bats`)
    - `integration_tests.bats` - End-to-end workflow and cross-component tests
+   - `integration_param_combinations.bats` - Parameter combinations and error handling tests (new 2026-02-11)
 
-4. **Utility Tests** (`*_helpers.bats`)
+4. **Edge Case Tests** (new 2026-02-11)
+   - `edge_case_tests.bats` - Edge cases, boundary conditions, and unusual inputs
+
+5. **Utility Tests** (`*_helpers.bats`)
    - `template_helpers.bats` - Build and framework validation tests
    - `basic_functionality.bats` - Core functionality and smoke tests
    - `quick_validation.bats` - Fast validation tests for CI/CD
@@ -89,6 +93,14 @@ make test
 
 The test suite provides comprehensive coverage across multiple dimensions:
 
+### Test Statistics (v0.7.0)
+
+- **Total Tests**: 227+
+- **Test Files**: 23
+- **Test Execution Time**: ~17 seconds
+- **Scripts Covered**: 23
+- **Library Functions**: ~50+
+
 ### Functional Coverage
 
 - ✅ **CLI Argument Parsing** - All option combinations and validation
@@ -97,17 +109,20 @@ The test suite provides comprehensive coverage across multiple dimensions:
 - ✅ **Data Safe Operations** - Target management, tag updates, connector assignments
 - ✅ **Output Formats** - JSON, CSV, table, count modes
 - ✅ **Error Handling** - Invalid inputs, missing resources, API failures
-- ✅ **Resolution Patterns** - Name/OCID dual resolution for compartments and targets (new 2026-01-22)
-- ✅ **Dry-Run Mode** - Read-only operations work, write operations blocked (new 2026-01-22)
+- ✅ **Resolution Patterns** - Name/OCID dual resolution for compartments and targets
+- ✅ **Dry-Run Mode** - Read-only operations work, write operations blocked
+- ✅ **Edge Cases** - Boundary conditions, unusual inputs, error paths (new 2026-02-11)
+- ✅ **Parameter Combinations** - Complex option combinations, integration scenarios (new 2026-02-11)
 
 ### Library Function Coverage
 
 - ✅ **common.sh functions**: `log_*`, `is_ocid`, `require_cmd`, `init_config`, etc.
 - ✅ **oci_helpers.sh functions**: `oci_exec`, `oci_exec_ro`, `oci_resolve_*`, `ds_*`, etc.
-- ✅ **Resolution helpers** (new 2026-01-22):
+- ✅ **Resolution helpers**:
   - `resolve_compartment_to_vars()` - Resolves compartment name or OCID to both NAME and OCID
   - `resolve_target_to_vars()` - Resolves target name or OCID to both NAME and OCID
 - ✅ **Integration patterns**: Library loading, function composition, error propagation
+- ✅ **Edge cases**: Long strings, empty values, special characters (new 2026-02-11)
 
 ### Script Coverage
 
@@ -115,9 +130,9 @@ The test suite provides comprehensive coverage across multiple dimensions:
 - ✅ **ds_target_update_tags.sh**: Environment detection, tag application, dry-run/apply
 - ✅ **ds_target_update_credentials.sh**: Credential sources, security, target selection
 - ✅ **ds_target_update_connector.sh**: Set/migrate/distribute modes, connector resolution
-- ✅ **ds_target_register.sh**: Registration validation, OCID resolution, dry-run (new 2026-01-22)
-- ✅ **ds_find_untagged_targets.sh**: Tag namespace filtering, output formats (new 2026-01-22)
-- ✅ **TEMPLATE.sh**: Standardization compliance verification (new 2026-01-22)
+- ✅ **ds_target_register.sh**: Registration validation, OCID resolution, dry-run
+- ✅ **ds_find_untagged_targets.sh**: Tag namespace filtering, output formats
+- ✅ **TEMPLATE.sh**: Standardization compliance verification
 
 ## 🔧 Test Architecture
 

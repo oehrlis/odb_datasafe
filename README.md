@@ -11,7 +11,7 @@ The `odb_datasafe` extension provides comprehensive tools for managing Oracle OC
 - **Service Installer** - Install Data Safe On-Premises Connectors as systemd services  
 - **Connector Management** - List, configure, and manage connectors
 - **OCI Integration** - Built on OCI CLI with helper functions
-- **Comprehensive Testing** - 127+ BATS tests with full coverage
+- **Comprehensive Testing** - 227+ BATS tests with full coverage
 
 ## Quick Start
 
