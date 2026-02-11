@@ -70,7 +70,7 @@ declare -A CONNECTOR_MAP
 usage() {
     local exit_code=${1:-0}
     cat << EOF
-USAGE: ${SCRIPT_NAME} [options]
+Usage: ${SCRIPT_NAME} [options]
 
 DESCRIPTION:
   Export Oracle Data Safe target databases to CSV or JSON format with enriched

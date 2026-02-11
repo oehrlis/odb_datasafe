@@ -97,7 +97,7 @@ CLUSTER_OCID=""
 usage() {
     local exit_code=${1:-0}
     cat << EOF
-USAGE: ${SCRIPT_NAME} [options]
+Usage: ${SCRIPT_NAME} [options]
 
 DESCRIPTION:
   Register a database (PDB or CDB\$ROOT) as an Oracle Data Safe target.

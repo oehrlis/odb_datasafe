@@ -73,7 +73,7 @@ COMP_OCID=""
 usage() {
     local exit_code=${1:-0}
     cat << EOF
-USAGE: ${SCRIPT_NAME} [options]
+Usage: ${SCRIPT_NAME} [options]
 
 DESCRIPTION:
   Find Data Safe target databases without tags in specified namespace.
