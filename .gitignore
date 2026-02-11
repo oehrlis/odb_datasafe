@@ -49,5 +49,8 @@ test/test_results/
 .env
 .env.local
 etc/datasafe.conf
-# --- EOF ----------------------------------------------------------------------
 
+# ignore secrets and local configs
+etc/*_pwd.b64
+
+# --- EOF ----------------------------------------------------------------------
