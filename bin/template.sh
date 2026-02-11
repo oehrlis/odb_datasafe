@@ -224,21 +224,15 @@ validate_inputs() {
 
     # Example: Resolve compartment (accepts name or OCID)
     if [[ -n "$COMPARTMENT" ]]; then
-        local comp_name comp_ocid
-        resolve_compartment_to_vars "$COMPARTMENT" comp_name comp_ocid \
+        resolve_compartment_to_vars "$COMPARTMENT" "COMP" \
             || die "Failed to resolve compartment: $COMPARTMENT"
-        COMP_NAME="$comp_name"
-        COMP_OCID="$comp_ocid"
         log_info "Compartment: ${COMP_NAME} (${COMP_OCID})"
     fi
 
     # Example: Resolve target (accepts name or OCID)
     # if [[ -n "$TARGETS" ]]; then
-    #     local target_name target_ocid
-    #     resolve_target_to_vars "$TARGETS" target_name target_ocid || \
-    #         die "Failed to resolve target: $TARGETS"
-    #     TARGET_NAME="$target_name"
-    #     TARGET_OCID="$target_ocid"
+    #     resolve_target_to_vars "$TARGETS" "TARGET" "$COMP_OCID" \
+    #         || die "Failed to resolve target: $TARGETS"
     #     log_info "Target: ${TARGET_NAME} (${TARGET_OCID})"
     # fi
 
@@ -290,11 +284,10 @@ do_work() {
             log_info "Processing target: $target"
 
             # Resolve to both name and OCID
-            local tgt_name tgt_ocid
-            resolve_target_to_vars "$target" tgt_name tgt_ocid \
+            resolve_target_to_vars "$target" "TGT" "$COMP_OCID" \
                 || die "Failed to resolve target: $target"
 
-            log_info "Resolved: ${tgt_name} (${tgt_ocid})"
+            log_info "Resolved: ${TGT_NAME} (${TGT_OCID})"
 
             # Do something with the target
             # Use oci_exec_ro() for reads, oci_exec() for writes

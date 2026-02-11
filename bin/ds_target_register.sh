@@ -295,11 +295,8 @@ validate_inputs() {
     fi
 
     # Resolve compartment using helper function (accepts name or OCID)
-    local comp_name comp_ocid
-    resolve_compartment_to_vars "$COMPARTMENT" comp_name comp_ocid \
+    resolve_compartment_to_vars "$COMPARTMENT" "COMP" \
         || die "Failed to resolve compartment: $COMPARTMENT"
-    COMP_NAME="$comp_name"
-    COMP_OCID="$comp_ocid"
     log_info "Target compartment: ${COMP_NAME} (${COMP_OCID})"
 
     # Resolve connector OCID (accept name or OCID)
