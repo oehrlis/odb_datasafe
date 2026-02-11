@@ -43,6 +43,9 @@ EOF
 # Log all calls for debugging
 echo "MOCK_OCI_CALL: $*" >&2
 
+# Save original arguments before parsing
+ORIG_ARGS="$*"
+
 # Parse arguments to determine behavior
 declare -A args
 while [[ $# -gt 0 ]]; do
@@ -85,13 +88,31 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Handle different command patterns
-if [[ "$*" == *"--version"* ]]; then
+# Handle different command patterns using original args
+if [[ "$ORIG_ARGS" == *"--version"* ]]; then
     echo "3.45.0"
     exit 0
 fi
 
-if [[ "$*" == *"iam compartment list"* ]]; then
+if [[ "$ORIG_ARGS" == *"iam compartment get"* ]]; then
+    # Simulate compartment get (single compartment by OCID)
+    local comp="${args[comp_id]}"
+    if [[ "$comp" == *"prod"* ]]; then
+        echo '{"data": {"id": "ocid1.compartment.oc1..prod", "name": "cmp-prod-db", "lifecycle-state": "ACTIVE"}}'
+    elif [[ "$comp" == *"test"* ]]; then
+        echo '{"data": {"id": "ocid1.compartment.oc1..test", "name": "cmp-test-db", "lifecycle-state": "ACTIVE"}}'
+    elif [[ "$comp" == *"dev"* ]]; then
+        echo '{"data": {"id": "ocid1.compartment.oc1..dev", "name": "cmp-dev-db", "lifecycle-state": "ACTIVE"}}'
+    elif [[ "$comp" == *"root-test"* ]]; then
+        echo '{"data": {"id": "ocid1.compartment.oc1..root-test", "name": "root-test", "lifecycle-state": "ACTIVE"}}'
+    else
+        echo "ServiceError: Compartment not found" >&2
+        exit 1
+    fi
+    exit 0
+fi
+
+if [[ "$ORIG_ARGS" == *"iam compartment list"* ]]; then
     # Simulate compartment listing with various scenarios
     if [[ "${args[comp_id]}" == *"root-test"* ]]; then
         cat << 'JSON'
@@ -112,7 +133,7 @@ JSON
     exit 0
 fi
 
-if [[ "$*" == *"data-safe target-database list"* ]]; then
+if [[ "$ORIG_ARGS" == *"data-safe target-database list"* ]]; then
     # Simulate target listing with various lifecycle states
     local comp="${args[comp_id]:-ocid1.compartment.oc1..root-test}"
     local state="${args[lifecycle_state]:-}"
@@ -189,7 +210,7 @@ JSON
     exit 0
 fi
 
-if [[ "$*" == *"data-safe target-database get"* ]]; then
+if [[ "$ORIG_ARGS" == *"data-safe target-database get"* ]]; then
     # Simulate getting a specific target
     cat << 'JSON'
 {
@@ -222,7 +243,7 @@ JSON
     exit 0
 fi
 
-if [[ "$*" == *"data-safe on-premises-connector list"* ]]; then
+if [[ "$ORIG_ARGS" == *"data-safe on-premises-connector list"* ]]; then
     # Simulate connector listing
     cat << 'JSON'
 {
@@ -251,13 +272,13 @@ JSON
     exit 0
 fi
 
-if [[ "$*" == *"data-safe target-database update"* ]]; then
+if [[ "$ORIG_ARGS" == *"data-safe target-database update"* ]]; then
     # Simulate update operation
     echo '{"opc-work-request-id": "ocid1.workrequest.oc1..work-update-123"}'
     exit 0
 fi
 
-if [[ "$*" == *"data-safe work-request get"* ]]; then
+if [[ "$ORIG_ARGS" == *"data-safe work-request get"* ]]; then
     # Simulate work request status
     cat << 'JSON'
 {
