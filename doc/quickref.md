@@ -78,6 +78,9 @@ bin/ds_target_refresh.sh --help
 ### 3. Basic Usage
 
 ```bash
+# Show help overview of all available tools
+bin/odb_datasafe_help.sh
+
 # List Data Safe targets (default: table view)
 bin/ds_target_list.sh
 
@@ -147,7 +150,25 @@ bin/ds_target_list.sh --problems -f json
 bin/ds_target_list.sh -T mydb01 -F all -f json
 ```
 
-### 4. Target-Connector Summary (New in v0.6.1)
+### 5. Getting Help
+
+The `odb_datasafe_help.sh` script provides an overview of all available tools:
+
+```bash
+# Show all available tools in table format
+bin/odb_datasafe_help.sh
+
+# Export as markdown for documentation
+bin/odb_datasafe_help.sh -f markdown
+
+# Export as CSV for processing
+bin/odb_datasafe_help.sh -f csv
+
+# Quiet mode (no header/footer)
+bin/odb_datasafe_help.sh -q
+```
+
+### 6. Target-Connector Summary (New in v0.6.1)
 
 The `ds_target_connector_summary.sh` script provides enhanced visibility of the relationship
 between targets and on-premises connectors:

@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Help script** `odb_datasafe_help.sh` to list all available tools
+  - Shows script name and extracted purpose/description from headers
+  - Supports table, markdown, and CSV output formats
+  - Automatically extracts descriptions from script headers (single-line or multi-line format)
+  - Useful for discovering available commands and their purposes
 - **Base64 password file support** for registration and activation
   - `ds_target_register.sh` loads `DATASAFE_PASSWORD_FILE` or `<user>_pwd.b64` from ORADBA_ETC or $ODB_DATASAFE_BASE/etc
   - `ds_target_activate.sh` supports `DATASAFE_PASSWORD_FILE` and `DATASAFE_CDB_PASSWORD_FILE`
