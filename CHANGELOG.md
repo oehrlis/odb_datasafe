@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-02-12
+
 ### Added
 
 - Enhanced lifecycle state filtering in `ds_target_update_connector.sh`:
@@ -16,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Better handling of targets in NEEDS_ATTENTION state
 - Embedded SQL payload support in `ds_database_prereqs.sh`
   - New `--embedded` option to use the embedded SQL zip payload
-  - Usage and payload update steps documented in `doc/ds_database_prereqs.md`
+  - Usage and payload update steps documented in `doc/database_prereqs.md`
   - Quick reference and install docs updated for embedded mode
 - Added database prereqs link in `doc/index.md`
 

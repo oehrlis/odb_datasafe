@@ -3,7 +3,7 @@
 Oracle Data Safe management extension for OraDBA - comprehensive tools for managing
 OCI Data Safe targets, connectors, and operations.
 
-Version: **0.7.0** | [Release Notes](release_notes/v0.7.0.md)
+Version: **0.9.0** | [Release Notes](release_notes/v0.9.0.md)
 
 ## Overview
 
@@ -19,7 +19,7 @@ The `odb_datasafe` extension provides a complete framework for working with Orac
 
 - **[Quick Reference](quickref.md)** - Fast reference for all commands
 - **[Installation Guide](install_datasafe_service.md)** - Setup instructions
-- **[Database Prereqs](ds_database_prereqs.md)** - On-prem DB preparation
+- **[Database Prereqs](database_prereqs.md)** - On-prem DB preparation
 - **[IAM Policies Guide](oci-iam-policies.md)** - Required OCI permissions
 - **[Release Notes](release_notes/)** - Version history and changes
 - **[CHANGELOG](../CHANGELOG.md)** - Complete version history
@@ -32,7 +32,7 @@ Extract the extension to your OraDBA local directory:
 
 ```bash
 cd ${ORADBA_LOCAL_BASE}
-tar -xzf odb_datasafe-0.7.0.tar.gz
+tar -xzf odb_datasafe-0.9.0.tar.gz
 
 # Source OraDBA environment
 source oraenv.sh
@@ -79,14 +79,13 @@ bin/ds_target_refresh.sh --help
 bin/ds_target_refresh.sh -T mydb01 --dry-run
 ```
 
-## Key Features (v0.7.0)
+## Key Features (v0.9.0)
 
-- ✅ **Connector visibility** — `ds_target_connector_summary.sh` groups targets by connector with lifecycle breakdowns.
-   Provides summary and detailed views with table, JSON, and CSV output.
-- ✅ **Authenticated CLI usage** — `require_oci_cli` verifies OCI CLI auth with cached checks and clear error guidance.
-- ✅ **Standardized compartment handling** — Consistent `-c` and `DS_ROOT_COMP` pattern across scripts.
-- ✅ **Safe dry-runs and debugging** — Uniform `--dry-run`, `--debug`, and logging behaviors.
-- ✅ **Comprehensive tests** — 127+ BATS tests covering scripts and libraries.
+- ✅ **Local prereq execution** — `ds_database_prereqs.sh` runs on the DB host for one scope.
+- ✅ **Embedded SQL payload** — `--embedded` enables prereqs without external SQL files.
+- ✅ **Connector update filtering** — Multi-state lifecycle support plus `--include-needs-attention`.
+- ✅ **Clear SQL source logging** — Logs embedded vs external SQL usage during prereq runs.
+- ✅ **Deprecation guidance** — `ds_target_prereqs.sh` marked deprecated in favor of local prereqs.
 
 ## Available Scripts
 

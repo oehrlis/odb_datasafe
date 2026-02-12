@@ -126,10 +126,14 @@ base64 "$ZIP_FILE" > "$PAYLOAD_B64"
 awk -v payload="$PAYLOAD_B64" '
   /^__PAYLOAD_BEGINS__$/ {
     print
+    print ": <<'\''__PAYLOAD_END__'\''"
     while ((getline line < payload) > 0) print line
     close(payload)
-    exit
+    print "__PAYLOAD_END__"
+    in_payload=1
+    next
   }
+  in_payload { next }
   { print }
 ' bin/ds_database_prereqs.sh > /tmp/ds_database_prereqs.sh
 
