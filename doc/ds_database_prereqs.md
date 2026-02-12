@@ -105,6 +105,8 @@ Password resolution order:
 
 - The script assumes the database environment is already configured.
 - Use `--force` to drop and recreate the Data Safe user when needed.
+- `create_ds_admin_prerequisites.sql` accepts the profile name as parameter 1.
+- `create_ds_admin_user.sql` updates the profile only when `FORCE` is FALSE to avoid ORA-28007.
 
 ## Updating the Embedded Payload
 

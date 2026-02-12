@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `ds_database_prereqs.sh` now logs which SQL source is used (embedded vs external)
+- `create_ds_admin_prerequisites.sql` now accepts the profile name as parameter 1
 
 ### Fixed
 
@@ -29,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Now correctly uses `onPremConnectorId` (camelCase) for updates
   - Resolves issue where connector assignments failed due to conflicting field names
 - Fixed embedded payload extraction by streaming base64 decode to avoid null byte loss
+- Fixed ORA-28007 handling in `create_ds_admin_user.sql` by skipping password reset when `FORCE` is FALSE
 
 ## [0.8.0] - 2026-02-11
 

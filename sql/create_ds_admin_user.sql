@@ -64,6 +64,9 @@ DECLARE
     -- Local types
     SUBTYPE text_type IS VARCHAR2(512 CHAR); -- NOSONAR G-2120 keep function independent
 
+    password_reuse EXCEPTION;
+    PRAGMA EXCEPTION_INIT(password_reuse, -28007);
+
     -- Local types and variables
     l_username   dba_users.username%TYPE    := '&ds_user';
     l_passwd     dba_users.password%TYPE    := '&ds_passwd';
@@ -95,10 +98,10 @@ BEGIN
             EXECUTE IMMEDIATE l_sql;
             sys.dbms_output.put_line('User ' || l_username || ' created with profile ' || l_profile);
         ELSE
-            sys.dbms_output.put_line('User ' || l_username || ' already exists. Resetting password and profile.');
-            l_sql := 'ALTER USER ' || l_username ||
-                ' IDENTIFIED BY "' || l_passwd || '"' ||
-                ' PROFILE ' || l_profile;
+            sys.dbms_output.put_line('User ' || l_username || ' already exists. Updating profile only.');
+            sys.dbms_output.put_line('Use FORCE=TRUE to reset the password.');
+
+            l_sql := 'ALTER USER ' || l_username || ' PROFILE ' || l_profile;
             EXECUTE IMMEDIATE l_sql;
         END IF;
     ELSE
@@ -114,6 +117,16 @@ BEGIN
     l_sql := 'GRANT CONNECT, RESOURCE TO ' || l_username;
     EXECUTE IMMEDIATE l_sql;
     sys.dbms_output.put_line('Grants CONNECT, RESOURCE applied to ' || l_username);
+EXCEPTION
+    WHEN password_reuse THEN
+        sys.dbms_output.put_line('Password reuse detected (ORA-28007). Continuing without password change.');
+        l_sql := 'ALTER USER ' || l_username || ' PROFILE ' || l_profile;
+        EXECUTE IMMEDIATE l_sql;
+        l_sql := 'GRANT CONNECT, RESOURCE TO ' || l_username;
+        EXECUTE IMMEDIATE l_sql;
+        sys.dbms_output.put_line('Grants CONNECT, RESOURCE applied to ' || l_username);
+    WHEN OTHERS THEN
+        RAISE;
 END;
 /
 
