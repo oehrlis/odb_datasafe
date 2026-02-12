@@ -1,13 +1,13 @@
 # OraDBA Data Safe Extension - Quick Reference
 
-**Version:** 0.7.0 | **Date:** 2026-02-11
+**Version:** 0.9.0 | **Date:** 2026-02-12
 
 ## 📁 Project Structure
 
 ```text
 odb_datasafe/                          # OraDBA Extension for Data Safe
-├── .extension                         # Extension metadata (v0.7.0)
-├── VERSION                            # 0.7.0
+├── .extension                         # Extension metadata (v0.9.0)
+├── VERSION                            # 0.9.0
 ├── README.md                          # Complete documentation
 ├── CHANGELOG.md                       # Release history
 ├── QUICKREF.md                        # This file

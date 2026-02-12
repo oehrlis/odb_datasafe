@@ -5,7 +5,7 @@
 # Script.....: ds_target_prereqs.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.02.11
-# Version....: v0.8.0
+# Version....: v0.9.0
 # Purpose....: Copy SQL prereq scripts to DB host and run them for one scope
 # Notes......: DEPRECATED - use ds_database_prereqs.sh for local execution
 # License....: Apache License Version 2.0
@@ -263,10 +263,10 @@ parse_args() {
                 CHECK_ONLY=true
                 shift
                 ;;
-            --oci-profile|--oci-region|--oci-config)
+            --oci-profile | --oci-region | --oci-config)
                 die "OCI options are not supported by this script"
                 ;;
-            -* )
+            -*)
                 die "Unknown option: $1 (use --help for usage)"
                 ;;
             *)
@@ -371,7 +371,7 @@ build_temp_sql_script() {
     TEMP_FILES+=("$tmp_sql")
 
     local -a args=()
-    (( $# )) && args=("$@")
+    (($#)) && args=("$@")
 
     {
         echo "set echo on"
@@ -408,7 +408,7 @@ build_temp_sql_script() {
 
         printf 'exit;%s' $'\n'
         echo
-    } >"$tmp_sql"
+    } > "$tmp_sql"
 
     printf '%s\n' "$tmp_sql"
 }

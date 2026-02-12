@@ -1,7 +1,7 @@
 # Test Suite for odb_datasafe
 
 This directory contains a comprehensive test suite for the OraDBA Data Safe
-Extension v0.7.0, built using the [BATS (Bash Automated Testing System)](https://github.com/bats-core/bats-core) framework.
+Extension v0.9.0, built using the [BATS (Bash Automated Testing System)](https://github.com/bats-core/bats-core) framework.
 
 ## 📋 Test Structure
 
@@ -93,7 +93,7 @@ make test
 
 The test suite provides comprehensive coverage across multiple dimensions:
 
-### Test Statistics (v0.7.0)
+### Test Statistics (v0.9.0)
 
 - **Total Tests**: 227+
 - **Test Files**: 23

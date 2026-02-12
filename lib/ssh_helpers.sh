@@ -5,7 +5,7 @@
 # Module.....: ssh_helpers.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.02.11
-# Version....: v0.8.0
+# Version....: v0.9.0
 # Purpose....: SSH/SCP helper functions for remote execution and file transfer
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
@@ -61,16 +61,16 @@ ssh_exec() {
     local cmd="$4"
 
     local -a opts=()
-    [[ -n "${SSH_CONNECT_TIMEOUT}" ]] && opts+=( -o "ConnectTimeout=${SSH_CONNECT_TIMEOUT}" )
-    [[ -n "${SSH_SERVER_ALIVE_INTERVAL}" ]] && opts+=( -o "ServerAliveInterval=${SSH_SERVER_ALIVE_INTERVAL}" )
-    [[ -n "${SSH_SERVER_ALIVE_COUNT_MAX}" ]] && opts+=( -o "ServerAliveCountMax=${SSH_SERVER_ALIVE_COUNT_MAX}" )
-    [[ -n "${SSH_STRICT_HOST_KEY_CHECKING}" ]] && opts+=( -o "StrictHostKeyChecking=${SSH_STRICT_HOST_KEY_CHECKING}" )
-    [[ -n "${SSH_KNOWN_HOSTS_FILE}" ]] && opts+=( -o "UserKnownHostsFile=${SSH_KNOWN_HOSTS_FILE}" )
+    [[ -n "${SSH_CONNECT_TIMEOUT}" ]] && opts+=(-o "ConnectTimeout=${SSH_CONNECT_TIMEOUT}")
+    [[ -n "${SSH_SERVER_ALIVE_INTERVAL}" ]] && opts+=(-o "ServerAliveInterval=${SSH_SERVER_ALIVE_INTERVAL}")
+    [[ -n "${SSH_SERVER_ALIVE_COUNT_MAX}" ]] && opts+=(-o "ServerAliveCountMax=${SSH_SERVER_ALIVE_COUNT_MAX}")
+    [[ -n "${SSH_STRICT_HOST_KEY_CHECKING}" ]] && opts+=(-o "StrictHostKeyChecking=${SSH_STRICT_HOST_KEY_CHECKING}")
+    [[ -n "${SSH_KNOWN_HOSTS_FILE}" ]] && opts+=(-o "UserKnownHostsFile=${SSH_KNOWN_HOSTS_FILE}")
 
     if [[ -n "${SSH_EXTRA_OPTS}" ]]; then
         local -a extra_opts=()
         read -r -a extra_opts <<< "${SSH_EXTRA_OPTS}"
-        opts+=( "${extra_opts[@]}" )
+        opts+=("${extra_opts[@]}")
     fi
 
     ssh -p "${port}" "${opts[@]}" "${user}@${host}" -- bash -lc "${cmd}"
@@ -94,14 +94,14 @@ ssh_scp_to() {
     local remote_path="$5"
 
     local -a opts=()
-    [[ -n "${SSH_CONNECT_TIMEOUT}" ]] && opts+=( -o "ConnectTimeout=${SSH_CONNECT_TIMEOUT}" )
-    [[ -n "${SSH_STRICT_HOST_KEY_CHECKING}" ]] && opts+=( -o "StrictHostKeyChecking=${SSH_STRICT_HOST_KEY_CHECKING}" )
-    [[ -n "${SSH_KNOWN_HOSTS_FILE}" ]] && opts+=( -o "UserKnownHostsFile=${SSH_KNOWN_HOSTS_FILE}" )
+    [[ -n "${SSH_CONNECT_TIMEOUT}" ]] && opts+=(-o "ConnectTimeout=${SSH_CONNECT_TIMEOUT}")
+    [[ -n "${SSH_STRICT_HOST_KEY_CHECKING}" ]] && opts+=(-o "StrictHostKeyChecking=${SSH_STRICT_HOST_KEY_CHECKING}")
+    [[ -n "${SSH_KNOWN_HOSTS_FILE}" ]] && opts+=(-o "UserKnownHostsFile=${SSH_KNOWN_HOSTS_FILE}")
 
     if [[ -n "${SSH_EXTRA_OPTS}" ]]; then
         local -a extra_opts=()
         read -r -a extra_opts <<< "${SSH_EXTRA_OPTS}"
-        opts+=( "${extra_opts[@]}" )
+        opts+=("${extra_opts[@]}")
     fi
 
     scp -P "${port}" "${opts[@]}" "${local_file}" "${user}@${host}:${remote_path}"

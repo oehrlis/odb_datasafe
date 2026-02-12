@@ -440,10 +440,10 @@ parse_args() {
                 CHECK_ONLY=true
                 shift
                 ;;
-            --oci-profile|--oci-region|--oci-config)
+            --oci-profile | --oci-region | --oci-config)
                 die "OCI options are not supported by this script"
                 ;;
-            -* )
+            -*)
                 die "Unknown option: $1 (use --help for usage)"
                 ;;
             *)
@@ -485,18 +485,18 @@ resolve_sql_dir() {
     candidate_script_dir="$SCRIPT_DIR"
     candidate_parent_sql="${SCRIPT_DIR}/../sql"
 
-    if [[ -f "${candidate_script_dir}/${PREREQ_SQL}" && \
-          -f "${candidate_script_dir}/${USER_SQL}" && \
-          -f "${candidate_script_dir}/${GRANTS_SQL}" ]]; then
+    if [[ -f "${candidate_script_dir}/${PREREQ_SQL}" &&
+        -f "${candidate_script_dir}/${USER_SQL}" &&
+        -f "${candidate_script_dir}/${GRANTS_SQL}" ]]; then
         SQL_DIR="$candidate_script_dir"
-                log_info "SQL source: external dir (script) ${SQL_DIR}"
-                log_info "SQL files: prereq=${PREREQ_SQL} user=${USER_SQL} grants=${GRANTS_SQL}"
+        log_info "SQL source: external dir (script) ${SQL_DIR}"
+        log_info "SQL files: prereq=${PREREQ_SQL} user=${USER_SQL} grants=${GRANTS_SQL}"
         return 0
     fi
 
-    if [[ -f "${candidate_parent_sql}/${PREREQ_SQL}" && \
-          -f "${candidate_parent_sql}/${USER_SQL}" && \
-          -f "${candidate_parent_sql}/${GRANTS_SQL}" ]]; then
+    if [[ -f "${candidate_parent_sql}/${PREREQ_SQL}" &&
+        -f "${candidate_parent_sql}/${USER_SQL}" &&
+        -f "${candidate_parent_sql}/${GRANTS_SQL}" ]]; then
         SQL_DIR="$candidate_parent_sql"
         log_info "SQL source: external dir (parent) ${SQL_DIR}"
         log_info "SQL files: prereq=${PREREQ_SQL} user=${USER_SQL} grants=${GRANTS_SQL}"
@@ -608,7 +608,7 @@ build_temp_sql_script() {
     TEMP_FILES+=("$tmp_sql")
 
     local -a args=()
-    (( $# )) && args=("$@")
+    (($#)) && args=("$@")
 
     {
         if [[ "${LOG_LEVEL^^}" == "DEBUG" || "${LOG_LEVEL^^}" == "TRACE" ]]; then
@@ -650,7 +650,7 @@ build_temp_sql_script() {
 
         printf 'exit;%s' $'\n'
         echo
-    } >"$tmp_sql"
+    } > "$tmp_sql"
 
     printf '%s\n' "$tmp_sql"
 }
@@ -678,7 +678,7 @@ run_sql_local() {
     out_file="$(mktemp "${TMPDIR:-/tmp}/${SCRIPT_NAME}.sqlplus.XXXXXX.log")"
     TEMP_FILES+=("$out_file")
 
-    if ! sqlplus -s -L / as sysdba @"${tmp_sql}" >"$out_file" 2>&1; then
+    if ! sqlplus -s -L / as sysdba @"${tmp_sql}" > "$out_file" 2>&1; then
         log_error "SQL*Plus failed while running ${sqlspec}."
         log_error "Use --debug for full SQL output. Showing last 20 lines:"
         tail -n 20 "$out_file" >&2
@@ -695,7 +695,8 @@ list_open_pdbs() {
     TEMP_FILES+=("$err_file")
 
     local cdb_flag
-    if ! cdb_flag=$(sqlplus -s -L / as sysdba 2>"$err_file" <<'SQL'
+    if ! cdb_flag=$(
+        sqlplus -s -L / as sysdba 2> "$err_file" << 'SQL'
 set pages 0 feedback off heading off verify off echo off termout off
 whenever sqlerror exit failure
 select cdb from v$database;
@@ -712,8 +713,8 @@ SQL
         if [[ -n "$out_text" ]]; then
             log_debug "sqlplus output: ${out_text}"
         fi
-        if [[ "$err_text" == *"ORA-00904"* || "$err_text" == *"ORA-00942"* || \
-              "$out_text" == *"ORA-00904"* || "$out_text" == *"ORA-00942"* ]]; then
+        if [[ "$err_text" == *"ORA-00904"* || "$err_text" == *"ORA-00942"* ||
+            "$out_text" == *"ORA-00904"* || "$out_text" == *"ORA-00942"* ]]; then
             log_info "Legacy/non-CDB detected; no PDBs to process."
             return 0
         fi
@@ -728,7 +729,8 @@ SQL
         return 0
     fi
 
-    if ! output=$(sqlplus -s -L / as sysdba 2>"$err_file" <<'SQL'
+    if ! output=$(
+        sqlplus -s -L / as sysdba 2> "$err_file" << 'SQL'
 set pages 0 feedback off heading off verify off echo off termout off
 whenever sqlerror exit failure
 select name from v$pdbs where open_mode = 'READ WRITE' and name <> 'PDB$SEED' order by name;
@@ -809,7 +811,8 @@ run_checks_scope() {
     log_info "Checking Data Safe setup for ${scope_label}"
 
     local check_sql
-    check_sql=$(cat <<EOF
+    check_sql=$(
+        cat << EOF
 @INLINE
 set pagesize 200
 set linesize 200
@@ -830,7 +833,7 @@ select granted_role from dba_role_privs where grantee=upper('${ds_user}') order 
 prompt === Privileges
 select privilege from dba_sys_privs where grantee=upper('${ds_user}') order by privilege;
 EOF
-)
+    )
 
     run_sql_local "$check_sql"
 }
@@ -840,10 +843,10 @@ main() {
 
     # Fast-path help/version to avoid requiring ORACLE_SID or sqlplus
     case "${1:-}" in
-        -h|--help)
+        -h | --help)
             usage
             ;;
-        -V|--version)
+        -V | --version)
             echo "${SCRIPT_NAME} ${SCRIPT_VERSION}"
             exit 0
             ;;
@@ -914,7 +917,7 @@ main "$@"
 exit 0
 
 __PAYLOAD_BEGINS__
-: <<'__PAYLOAD_END__'
+: << '__PAYLOAD_END__'
 UEsDBBQAAAAIANluTFxIUD0QzgIAACQJAAAhABwAY3JlYXRlX2RzX2FkbWluX3ByZXJlcXVp
 c2l0ZXMuc3FsVVQJAAOZzY1pnM2NaXV4CwABBPUBAAAEFAAAAO1WzU/bMBQ/x3/FEwdSJpW1
 TEMTFQfjvICFE2d2UtguVqFhi1RK17TaDvzxe3E/GWW7cJlEpcr2e+/3Pn+20m7D6Sv+WLsN
