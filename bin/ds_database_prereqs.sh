@@ -5,7 +5,7 @@
 # Script.....: ds_database_prereqs.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.02.12
-# Version....: v0.8.0
+# Version....: v0.9.0
 # Purpose....: Run Data Safe prereqs locally for one database scope
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
@@ -25,7 +25,7 @@ readonly SCRIPT_DIR
 SCRIPT_PATH="${SCRIPT_DIR}/${SCRIPT_NAME}"
 readonly SCRIPT_PATH
 
-SCRIPT_VERSION="0.8.0"
+SCRIPT_VERSION="0.9.0"
 readonly SCRIPT_VERSION
 
 # =============================================================================
@@ -276,8 +276,12 @@ extract_embedded_sql() {
     TEMP_FILES+=("$temp_dir" "$payload_file" "$zip_file")
 
     awk '
-/^__PAYLOAD_BEGINS__$/ {flag=1; next}
-flag {print}
+/^__PAYLOAD_BEGINS__$/ {flag=1; skip=1; next}
+flag && /^__PAYLOAD_END__$/ {exit}
+flag {
+    if (skip) { skip=0; next }
+    print
+}
 ' "$SCRIPT_PATH" > "$payload_file"
 
     if [[ ! -s "$payload_file" ]]; then
@@ -910,6 +914,7 @@ main "$@"
 exit 0
 
 __PAYLOAD_BEGINS__
+: <<'__PAYLOAD_END__'
 UEsDBBQAAAAIANluTFxIUD0QzgIAACQJAAAhABwAY3JlYXRlX2RzX2FkbWluX3ByZXJlcXVp
 c2l0ZXMuc3FsVVQJAAOZzY1pnM2NaXV4CwABBPUBAAAEFAAAAO1WzU/bMBQ/x3/FEwdSJpW1
 TEMTFQfjvICFE2d2UtguVqFhi1RK17TaDvzxe3E/GWW7cJlEpcr2e+/3Pn+20m7D6Sv+WLsN
@@ -1198,3 +1203,4 @@ AAAYABgAAAAAAAEAAAC0gSkDAABjcmVhdGVfZHNfYWRtaW5fdXNlci5zcWxVVAUAA37UjWl1
 eAsAAQT1AQAABBQAAABQSwECHgMUAAAACABVckxc1sAxKTwwAAAj+AAAFwAYAAAAAAABAAAA
 toHaCgAAZGF0YXNhZmVfcHJpdmlsZWdlcy5zcWxVVAUAAzHTjWl1eAsAAQT1AQAABBQAAABQ
 SwUGAAAAAAMAAwAiAQAAZzsAAAAA
+__PAYLOAD_END__
