@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.9.1] - 2026-02-12
 
+### Added
+
+- Added `--drop-user` mode to `ds_database_prereqs.sh` to drop the Data Safe user while keeping the profile
+
 ### Fixed
 
 - Fixed execute permission on `ds_database_prereqs.sh`

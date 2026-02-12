@@ -25,7 +25,7 @@ readonly SCRIPT_DIR
 SCRIPT_PATH="${SCRIPT_DIR}/${SCRIPT_NAME}"
 readonly SCRIPT_PATH
 
-SCRIPT_VERSION="0.9.0"
+SCRIPT_VERSION="0.9.1"
 readonly SCRIPT_VERSION
 
 # =============================================================================
@@ -225,6 +225,7 @@ find_password_file() {
 
 : "${DRY_RUN:=false}"
 : "${CHECK_ONLY:=false}"
+: "${DROP_USER:=false}"
 
 : "${RUN_ALL:=false}"
 : "${PDB:=}"
@@ -335,6 +336,7 @@ User naming behavior:
 
 Modes:
   --check                 Verify user/privileges only (no changes)
+    --drop-user             Drop the Data Safe user only (keep profile)
   -n, --dry-run           Show actions without executing
 
 Common:
@@ -438,6 +440,10 @@ parse_args() {
                 ;;
             --check)
                 CHECK_ONLY=true
+                shift
+                ;;
+            --drop-user)
+                DROP_USER=true
                 shift
                 ;;
             --oci-profile | --oci-region | --oci-config)
@@ -571,6 +577,7 @@ validate_inputs() {
     log_debug "Options: run_all=${RUN_ALL}, run_root=${RUN_ROOT}, pdbs=${PDBS:-}"
     log_debug "SQL_DIR=${SQL_DIR} prereq=${PREREQ_SQL} user_sql=${USER_SQL} grants=${GRANTS_SQL}"
     log_debug "DS user=${DATASAFE_USER} profile=${DS_PROFILE} force=${DS_FORCE}"
+    log_debug "Modes: check_only=${CHECK_ONLY} drop_user=${DROP_USER}"
 
     require_cmd sqlplus mktemp base64
     require_var ORACLE_SID
@@ -590,12 +597,14 @@ validate_inputs() {
         die "Choose exactly one scope: --pdb OR --root"
     fi
 
-    resolve_sql_dir
-    [[ -f "${SQL_DIR}/${PREREQ_SQL}" ]] || die "Missing SQL file: ${SQL_DIR}/${PREREQ_SQL} (use --sql-dir)"
-    [[ -f "${SQL_DIR}/${USER_SQL}" ]] || die "Missing SQL file: ${SQL_DIR}/${USER_SQL} (use --sql-dir)"
-    [[ -f "${SQL_DIR}/${GRANTS_SQL}" ]] || die "Missing SQL file: ${SQL_DIR}/${GRANTS_SQL} (use --sql-dir)"
+    if [[ "$DROP_USER" != "true" ]]; then
+        resolve_sql_dir
+        [[ -f "${SQL_DIR}/${PREREQ_SQL}" ]] || die "Missing SQL file: ${SQL_DIR}/${PREREQ_SQL} (use --sql-dir)"
+        [[ -f "${SQL_DIR}/${USER_SQL}" ]] || die "Missing SQL file: ${SQL_DIR}/${USER_SQL} (use --sql-dir)"
+        [[ -f "${SQL_DIR}/${GRANTS_SQL}" ]] || die "Missing SQL file: ${SQL_DIR}/${GRANTS_SQL} (use --sql-dir)"
 
-    resolve_password
+        resolve_password
+    fi
 }
 
 build_temp_sql_script() {
@@ -838,6 +847,37 @@ EOF
     run_sql_local "$check_sql"
 }
 
+run_drop_user_scope() {
+        local scope_label="$1"
+        local ds_user
+        ds_user="$(resolve_ds_user "$scope_label")"
+
+        log_info "Dropping Data Safe user for ${scope_label}: ${ds_user}"
+
+        local drop_sql
+        drop_sql=$(cat <<EOF
+@INLINE
+set serveroutput on size unlimited
+declare
+    l_user varchar2(128) := upper('${ds_user}');
+begin
+    execute immediate 'drop user ' || l_user || ' cascade';
+    dbms_output.put_line('Dropped user ' || l_user);
+exception
+    when others then
+        if sqlcode = -1918 then
+            dbms_output.put_line('User ' || l_user || ' does not exist');
+        else
+            raise;
+        end if;
+end;
+/
+EOF
+        )
+
+        run_sql_local "$drop_sql"
+}
+
 main() {
     trap cleanup EXIT
 
@@ -855,6 +895,44 @@ main() {
     parse_args "$@"
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
     validate_inputs
+
+    if [[ "$DROP_USER" == "true" ]]; then
+        if [[ "$RUN_ALL" == "true" ]]; then
+            RUN_ROOT=true
+            PDB=""
+            run_drop_user_scope "ROOT"
+
+            local pdb
+            local pdbs=""
+            if pdbs=$(list_open_pdbs); then
+                while IFS= read -r pdb; do
+                    [[ -z "$pdb" ]] && continue
+                    RUN_ROOT=false
+                    PDB="$pdb"
+                    run_drop_user_scope "PDB=${pdb}"
+                done <<< "$pdbs"
+            else
+                log_warn "Skipping PDB processing; unable to list PDBs."
+            fi
+        elif [[ "$RUN_ROOT" == "true" ]]; then
+            PDB=""
+            run_drop_user_scope "ROOT"
+        else
+            RUN_ROOT=false
+            local pdb
+            local -a pdb_list=()
+            IFS=',' read -r -a pdb_list <<< "${PDBS}"
+            for pdb in "${pdb_list[@]}"; do
+                pdb="${pdb//[[:space:]]/}"
+                [[ -z "$pdb" ]] && continue
+                PDB="$pdb"
+                run_drop_user_scope "PDB=${pdb}"
+            done
+        fi
+
+        log_info "Done"
+        return 0
+    fi
 
     if [[ "$RUN_ALL" == "true" ]]; then
         RUN_ROOT=true
