@@ -7,6 +7,7 @@
 # Date.......: 2026.02.11
 # Version....: v0.8.0
 # Purpose....: Copy SQL prereq scripts to DB host and run them for one scope
+# Notes......: DEPRECATED - use ds_database_prereqs.sh for local execution
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
 
@@ -24,6 +25,9 @@ readonly SCRIPT_DIR
 readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.7.1')"
 readonly SCRIPT_VERSION
+
+# Avoid auto error handling from environment overrides
+export AUTO_ERROR_HANDLING=false
 
 # shellcheck disable=SC1091
 source "${LIB_DIR}/ds_lib.sh" || {
@@ -94,6 +98,9 @@ Usage: ${SCRIPT_NAME} [OPTIONS]
 Description:
   Copy SQL scripts to a database host and execute prerequisites, user creation,
   and Data Safe grants for a single scope (PDB or CDB\$ROOT).
+
+Deprecated:
+    This script is deprecated. Prefer ds_database_prereqs.sh for local execution.
 
 Scope (choose one):
   --pdb PDB               Target a single PDB by name
@@ -218,12 +225,12 @@ parse_args() {
                 GRANTS_SQL="$2"
                 shift 2
                 ;;
-            -U | --ds-user)
+            -U | --ds-user | -ds-user)
                 need_val "$1" "${2:-}"
                 DATASAFE_USER="$2"
                 shift 2
                 ;;
-            -P | --ds-password)
+            -P | --ds-password | -ds-password)
                 need_val "$1" "${2:-}"
                 DATASAFE_PASSWORD="$2"
                 shift 2
@@ -320,6 +327,30 @@ validate_inputs() {
             DATASAFE_USER="${COMMON_USER_PREFIX}${DATASAFE_USER}"
         fi
     fi
+}
+
+# ------------------------------------------------------------------------------
+# Function....: resolve_ds_profile
+# Purpose.....: Resolve profile name for root vs PDB scope
+# Args........: $1 - scope label
+# Returns.....: Echoes resolved profile name
+# ------------------------------------------------------------------------------
+resolve_ds_profile() {
+    local scope="$1"
+    local base_profile="$DS_PROFILE"
+
+    if [[ -n "$COMMON_USER_PREFIX" && "$base_profile" == ${COMMON_USER_PREFIX}* ]]; then
+        base_profile="${base_profile#${COMMON_USER_PREFIX}}"
+    fi
+
+    if [[ "$scope" == "ROOT" ]]; then
+        if [[ -n "$COMMON_USER_PREFIX" ]]; then
+            printf '%s' "${COMMON_USER_PREFIX}${base_profile}"
+            return 0
+        fi
+    fi
+
+    printf '%s' "$base_profile"
 }
 
 # ------------------------------------------------------------------------------
@@ -462,8 +493,16 @@ run_prereqs() {
         force_arg="TRUE"
     fi
 
-    ssh_run_sql "${REMOTE_DIR%/}/${PREREQ_SQL}" "${DS_PROFILE}"
-    ssh_run_sql "${REMOTE_DIR%/}/${USER_SQL}" "${DATASAFE_USER}" "${DATASAFE_PASSWORD}" "${DS_PROFILE}" "${force_arg}"
+    local scope_label="PDB"
+    if [[ "$RUN_ROOT" == "true" ]]; then
+        scope_label="ROOT"
+    fi
+
+    local ds_profile
+    ds_profile="$(resolve_ds_profile "$scope_label")"
+
+    ssh_run_sql "${REMOTE_DIR%/}/${PREREQ_SQL}" "${ds_profile}"
+    ssh_run_sql "${REMOTE_DIR%/}/${USER_SQL}" "${DATASAFE_USER}" "${DATASAFE_PASSWORD}" "${ds_profile}" "${force_arg}"
     ssh_run_sql "${REMOTE_DIR%/}/${GRANTS_SQL}" "${DATASAFE_USER}" "${DS_GRANT_TYPE}" "${DS_GRANT_MODE}"
 }
 
@@ -492,6 +531,7 @@ run_checks() {
 # ------------------------------------------------------------------------------
 main() {
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
+    log_warn "DEPRECATED: Use ds_database_prereqs.sh for local execution"
 
     setup_error_handling
     parse_args "$@"

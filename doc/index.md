@@ -19,6 +19,7 @@ The `odb_datasafe` extension provides a complete framework for working with Orac
 
 - **[Quick Reference](quickref.md)** - Fast reference for all commands
 - **[Installation Guide](install_datasafe_service.md)** - Setup instructions
+- **[Database Prereqs](ds_database_prereqs.md)** - On-prem DB preparation
 - **[IAM Policies Guide](oci-iam-policies.md)** - Required OCI permissions
 - **[Release Notes](release_notes/)** - Version history and changes
 - **[CHANGELOG](../CHANGELOG.md)** - Complete version history
