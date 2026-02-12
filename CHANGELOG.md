@@ -21,12 +21,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Usage and payload update steps documented in `doc/database_prereqs.md`
   - Quick reference and install docs updated for embedded mode
 - Added database prereqs link in `doc/index.md`
+- Added chmod step to the embedded payload update instructions in `doc/database_prereqs.md`
 
 ### Changed
 
 - `ds_database_prereqs.sh` now logs which SQL source is used (embedded vs external)
 - `create_ds_admin_prerequisites.sql` now accepts the profile name as parameter 1
 - `ds_target_prereqs.sh` is marked deprecated in favor of local prereqs
+- Updated `create_ds_admin_prerequisites.sql` profile limits
+- Refreshed the embedded SQL payload in `ds_database_prereqs.sh` to include the latest prereq SQL
 
 ### Fixed
 
@@ -36,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed embedded payload extraction by streaming base64 decode to avoid null byte loss
 - Fixed ORA-28007 handling in `create_ds_admin_user.sql` by skipping password reset when `FORCE` is FALSE
 - Fixed shellcheck warning by exporting `AUTO_ERROR_HANDLING` in `ds_target_prereqs.sh`
+- Fixed usage display behavior for parameter errors in `ds_target_update_connector.sh`
 
 ## [0.8.0] - 2026-02-11
 
