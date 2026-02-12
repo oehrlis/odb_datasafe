@@ -525,6 +525,36 @@ ds_target_move.sh -c test-compartment -D prod-compartment --force
 ds_target_move.sh -c test-compartment -D prod-compartment --dry-run
 ```
 
+### Update Target Connectors
+
+```bash
+# Set specific connector for target (dry-run by default)
+ds_target_update_connector.sh set -T my-target --target-connector conn-prod-01
+
+# Apply connector to specific targets
+ds_target_update_connector.sh set -T target1,target2 --target-connector conn-prod-02 --apply
+
+# Include targets needing attention (shortcut for ACTIVE,NEEDS_ATTENTION)
+ds_target_update_connector.sh set --target-connector conn-prod-01 --include-needs-attention --apply
+
+# Work with specific lifecycle states
+ds_target_update_connector.sh set --target-connector conn-prod-01 -L NEEDS_ATTENTION --apply
+
+# Multiple lifecycle states (comma-separated)
+ds_target_update_connector.sh set --target-connector conn-prod-01 -L ACTIVE,NEEDS_ATTENTION --apply
+
+# Migrate all targets from old to new connector
+ds_target_update_connector.sh migrate -c my-compartment \
+  --source-connector conn-old --target-connector conn-new --apply
+
+# Distribute targets evenly across all available connectors
+ds_target_update_connector.sh distribute --apply
+
+# Distribute excluding specific connectors
+ds_target_update_connector.sh distribute \
+  --exclude-connectors "conn-old,conn-test" --apply
+```
+
 ### Get Detailed Target Info
 
 ```bash

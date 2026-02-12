@@ -10,9 +10,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Enhanced lifecycle state filtering in `ds_target_update_connector.sh`:
+  - Support for multiple lifecycle states (e.g., `ACTIVE,NEEDS_ATTENTION`)
+  - New `--include-needs-attention` shortcut parameter
+  - Better handling of targets in NEEDS_ATTENTION state
+
 ### Changed
 
 ### Fixed
+
+- Fixed connector ID field name inconsistency in `ds_target_update_connector.sh` to match OCI API specification
+  - Now correctly uses `onPremConnectorId` (camelCase) for updates
+  - Resolves issue where connector assignments failed due to conflicting field names
 
 ## [0.8.0] - 2026-02-11
 

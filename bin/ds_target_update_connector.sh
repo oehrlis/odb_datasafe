@@ -36,7 +36,7 @@ readonly SCRIPT_VERSION
 : "${SOURCE_CONNECTOR:=}"
 : "${TARGET_CONNECTOR:=}"
 : "${EXCLUDE_CONNECTORS:=}"
-: "${OPERATION_MODE:=set}"
+: "${OPERATION_MODE:=}"
 : "${APPLY_CHANGES:=false}"
 : "${WAIT_FOR_COMPLETION:=false}" # Default to no-wait for speed
 : "${EXCLUDE_AUTO:=false}"
@@ -91,6 +91,9 @@ Options:
                             Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
     -T, --targets LIST      Comma-separated target names or OCIDs
     -L, --lifecycle STATE   Filter by lifecycle state (default: ${LIFECYCLE_STATE})
+                            Supports: ACTIVE, NEEDS_ATTENTION, CREATING, UPDATING, DELETING
+                            Use comma-separated for multiple: ACTIVE,NEEDS_ATTENTION
+    --include-needs-attention  Include targets needing attention (shortcut for -L ACTIVE,NEEDS_ATTENTION)
     --exclude-auto          Exclude automatically created targets
 
   Connector:
@@ -131,6 +134,12 @@ Examples:
 
   # Apply connector to specific targets
   ${SCRIPT_NAME} set -T target1,target2 --target-connector conn-prod-02 --apply
+
+  # Include targets needing attention
+  ${SCRIPT_NAME} set --target-connector conn-prod-01 --include-needs-attention --apply
+
+  # Work with specific lifecycle states
+  ${SCRIPT_NAME} set --target-connector conn-prod-01 -L NEEDS_ATTENTION --apply
 
   # Migrate all targets from old to new connector in compartment
   ${SCRIPT_NAME} migrate -c my-compartment \
@@ -201,6 +210,10 @@ parse_args() {
                 need_val "$1" "${2:-}"
                 EXCLUDE_CONNECTORS="$2"
                 shift 2
+                ;;
+            --include-needs-attention)
+                LIFECYCLE_STATE="ACTIVE,NEEDS_ATTENTION"
+                shift
                 ;;
             --exclude-auto)
                 EXCLUDE_AUTO=true
@@ -501,10 +514,10 @@ update_target_connector() {
         if [[ -n "$current_conn_json" && "$current_conn_json" != "null" && "$current_conn_json" != "{}" ]]; then
             # Update existing connection option with new connector
             conn_json=$(echo "$current_conn_json" | jq --arg conn "$new_connector_ocid" \
-                '. + {"onPremiseConnectorId": $conn}')
+                '. + {"onPremConnectorId": $conn}')
         else
-            # Create minimal connection option with ONPREM type
-            conn_json="{\"connectionType\": \"ONPREM\", \"onPremiseConnectorId\": \"$new_connector_ocid\"}"
+            # Create minimal connection option with ONPREM_CONNECTOR type
+            conn_json="{\"connectionType\": \"ONPREM_CONNECTOR\", \"onPremConnectorId\": \"$new_connector_ocid\"}"
         fi
 
         # Build OCI command with optional wait
@@ -549,7 +562,36 @@ list_targets_in_compartment() {
     log_debug "Listing targets in compartment: $comp_ocid"
 
     local json_data
-    json_data=$(ds_list_targets "$comp_ocid" "$LIFECYCLE_STATE") || return 1
+    # Handle multiple lifecycle states
+    if [[ "$LIFECYCLE_STATE" == *","* ]]; then
+        log_debug "Using multiple lifecycle states: $LIFECYCLE_STATE"
+        # For multiple states, we'll get all targets and filter afterward
+        json_data=$(ds_list_targets "$comp_ocid" "ALL") || {
+            # Fallback: try getting active targets if ALL is not supported
+            log_debug "Fallback to ACTIVE state and post-filter"
+            json_data=$(ds_list_targets "$comp_ocid" "ACTIVE") || return 1
+        }
+        
+        # Filter by the specified lifecycle states
+        local -a states
+        IFS=',' read -ra states <<< "$LIFECYCLE_STATE"
+        local jq_filter='.data | map(select('
+        local first=true
+        for state in "${states[@]}"; do
+            state="${state// /}"  # Remove spaces
+            if [[ "$first" == "true" ]]; then
+                jq_filter+=".\"lifecycle-state\" == \"$state\""
+                first=false
+            else
+                jq_filter+=" or .\"lifecycle-state\" == \"$state\""
+            fi
+        done
+        jq_filter+='))'
+        
+        json_data=$(echo "$json_data" | jq "{data: ($jq_filter)}")
+    else
+        json_data=$(ds_list_targets "$comp_ocid" "$LIFECYCLE_STATE") || return 1
+    fi
 
     # Apply additional filtering if needed
     if [[ "$EXCLUDE_AUTO" == "true" ]]; then
