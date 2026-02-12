@@ -174,6 +174,51 @@ sudo install_datasafe_service.sh \
   --remove
 ```
 
+## Configure On-Premises Databases for Data Safe
+
+Use `ds_database_prereqs.sh` to create/update the Data Safe profile, user, and
+grants directly on the database host. This script runs locally (no SSH) and
+expects the Oracle environment to be sourced before execution.
+
+### Requirements
+
+- `ds_database_prereqs.sh` must be available on the DB server
+- SQL files are required unless you use `--embedded`
+- `ORACLE_SID` and `ORACLE_HOME` must be set (for example via `oraenv`)
+
+### Example Workflow
+
+```bash
+# Copy script to the database host (embedded payload)
+scp bin/ds_database_prereqs.sh oracle@dbhost:/opt/datasafe/
+ssh oracle@dbhost chmod 755 /opt/datasafe/ds_database_prereqs.sh
+
+# Copy script + SQL files (external SQL files)
+scp bin/ds_database_prereqs.sh sql/*.sql oracle@dbhost:/opt/datasafe/
+ssh oracle@dbhost chmod 755 /opt/datasafe/ds_database_prereqs.sh
+
+# Log in to the DB host and source environment
+ssh oracle@dbhost
+export ORACLE_SID=cdb01
+. oraenv <<< "${ORACLE_SID}" >/dev/null
+
+# Run for CDB$ROOT
+/opt/datasafe/ds_database_prereqs.sh --root -P "<password>"
+
+# Run for CDB$ROOT with embedded SQL
+/opt/datasafe/ds_database_prereqs.sh --root --embedded -P "<password>"
+
+# Run for all open PDBs + root
+/opt/datasafe/ds_database_prereqs.sh --all -P "<password>"
+```
+
+### Environment Sourcing Options
+
+- `oraenv` (Oracle standard)
+- Trivadis `basenv`
+- `dbstar`
+- OraDBA environment loader
+
 ## Command-Line Options
 
 ```text

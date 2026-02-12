@@ -14,14 +14,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Support for multiple lifecycle states (e.g., `ACTIVE,NEEDS_ATTENTION`)
   - New `--include-needs-attention` shortcut parameter
   - Better handling of targets in NEEDS_ATTENTION state
+- Embedded SQL payload support in `ds_database_prereqs.sh`
+  - New `--embedded` option to use the embedded SQL zip payload
+  - Usage and payload update steps documented in `doc/ds_database_prereqs.md`
+  - Quick reference and install docs updated for embedded mode
 
 ### Changed
+
+- `ds_database_prereqs.sh` now logs which SQL source is used (embedded vs external)
 
 ### Fixed
 
 - Fixed connector ID field name inconsistency in `ds_target_update_connector.sh` to match OCI API specification
   - Now correctly uses `onPremConnectorId` (camelCase) for updates
   - Resolves issue where connector assignments failed due to conflicting field names
+- Fixed embedded payload extraction by streaming base64 decode to avoid null byte loss
 
 ## [0.8.0] - 2026-02-11
 

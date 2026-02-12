@@ -150,6 +150,34 @@ bin/ds_target_list.sh --problems -f json
 bin/ds_target_list.sh -T mydb01 -F all -f json
 ```
 
+### 4. On-Prem Database Prereqs
+
+`ds_database_prereqs.sh` runs locally on the DB host and creates/updates the
+Data Safe profile, user, and grants. You can use the embedded payload in the
+script or provide the SQL files on the server. The Oracle environment must be
+sourced first.
+
+```bash
+# Copy to DB host (embedded payload)
+scp bin/ds_database_prereqs.sh oracle@dbhost:/opt/datasafe/
+ssh oracle@dbhost chmod 755 /opt/datasafe/ds_database_prereqs.sh
+
+# Copy to DB host (external SQL files)
+scp bin/ds_database_prereqs.sh sql/*.sql oracle@dbhost:/opt/datasafe/
+ssh oracle@dbhost chmod 755 /opt/datasafe/ds_database_prereqs.sh
+
+# Source environment on DB host
+export ORACLE_SID=cdb01
+. oraenv <<< "${ORACLE_SID}" >/dev/null
+
+# Run for root or all open PDBs
+/opt/datasafe/ds_database_prereqs.sh --root -P "<password>"
+/opt/datasafe/ds_database_prereqs.sh --all -P "<password>"
+
+# Use embedded payload
+/opt/datasafe/ds_database_prereqs.sh --root --embedded -P "<password>"
+```
+
 ### 5. Getting Help
 
 The `odb_datasafe_help.sh` script provides an overview of all available tools:
