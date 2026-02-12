@@ -78,6 +78,21 @@ Validate user and grants without applying changes:
 /opt/datasafe/ds_database_prereqs.sh --root --check
 ```
 
+## Drop User Only
+
+Drop the Data Safe user while keeping the profile intact:
+
+```bash
+/opt/datasafe/ds_database_prereqs.sh --root --drop-user
+```
+
+Scope options work the same as prereqs:
+
+```bash
+/opt/datasafe/ds_database_prereqs.sh --pdb APP1PDB --drop-user
+/opt/datasafe/ds_database_prereqs.sh --all --drop-user
+```
+
 ## User Naming Behavior
 
 - Root scope always uses a common user with `C##` prefix.
