@@ -285,10 +285,10 @@ step_delete_dependencies() {
 
         # Delete audit trails
         delete_audit_trails "${target_ocid}" "${target_name}"
-        
+
         # Delete assessments
         delete_assessments "${target_ocid}" "${target_name}"
-        
+
         # Delete security policies
         delete_security_policies "${target_ocid}" "${target_name}"
     done
@@ -343,7 +343,7 @@ delete_audit_trails() {
         --profile "${OCI_CLI_PROFILE}" \
         --all 2> /dev/null)"; then
         log_debug "  Could not list audit trails for ${target_name} (may not exist or access issue)"
-        return 0  # Continue processing - listing failure is not critical
+        return 0 # Continue processing - listing failure is not critical
     fi
 
     local trail_ocids
@@ -376,7 +376,7 @@ delete_audit_trails() {
     else
         log_debug "  Deleted ${count} audit trails for ${target_name}"
     fi
-    return 0  # Always return success - individual failures are logged but not critical
+    return 0 # Always return success - individual failures are logged but not critical
 }
 
 delete_assessments() {
@@ -391,7 +391,7 @@ delete_assessments() {
         --profile "${OCI_CLI_PROFILE}" \
         --all 2> /dev/null)"; then
         log_debug "  Could not list security assessments for ${target_name} (may not exist or access issue)"
-        return 0  # Continue processing - listing failure is not critical
+        return 0 # Continue processing - listing failure is not critical
     fi
 
     local assessment_ocids
@@ -424,7 +424,7 @@ delete_assessments() {
     else
         log_debug "  Deleted ${count} assessments for ${target_name}"
     fi
-    return 0  # Always return success - individual failures are logged but not critical
+    return 0 # Always return success - individual failures are logged but not critical
 }
 
 delete_security_policies() {
@@ -439,7 +439,7 @@ delete_security_policies() {
         --profile "${OCI_CLI_PROFILE}" \
         --all 2> /dev/null)"; then
         log_debug "  Could not list security policies for ${target_name} (may not exist or access issue)"
-        return 0  # Continue processing - listing failure is not critical
+        return 0 # Continue processing - listing failure is not critical
     fi
 
     local policy_ocids
@@ -472,7 +472,7 @@ delete_security_policies() {
     else
         log_debug "  Deleted ${count} security policies for ${target_name}"
     fi
-    return 0  # Always return success - individual failures are logged but not critical
+    return 0 # Always return success - individual failures are logged but not critical
 }
 
 # ------------------------------------------------------------------------------

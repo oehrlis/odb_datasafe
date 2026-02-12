@@ -848,14 +848,15 @@ EOF
 }
 
 run_drop_user_scope() {
-        local scope_label="$1"
-        local ds_user
-        ds_user="$(resolve_ds_user "$scope_label")"
+    local scope_label="$1"
+    local ds_user
+    ds_user="$(resolve_ds_user "$scope_label")"
 
-        log_info "Dropping Data Safe user for ${scope_label}: ${ds_user}"
+    log_info "Dropping Data Safe user for ${scope_label}: ${ds_user}"
 
-        local drop_sql
-        drop_sql=$(cat <<EOF
+    local drop_sql
+    drop_sql=$(
+        cat << EOF
 @INLINE
 set serveroutput on size unlimited
 declare
@@ -873,9 +874,9 @@ exception
 end;
 /
 EOF
-        )
+    )
 
-        run_sql_local "$drop_sql"
+    run_sql_local "$drop_sql"
 }
 
 main() {
@@ -995,7 +996,7 @@ main "$@"
 exit 0
 
 __PAYLOAD_BEGINS__
-: <<'__PAYLOAD_END__'
+: << '__PAYLOAD_END__'
 UEsDBBQAAAAIAKt4TFzVVd016QIAAKkJAAAhABwAY3JlYXRlX2RzX2FkbWluX3ByZXJlcXVp
 c2l0ZXMuc3FsVVQJAAMh3o1pIt6NaXV4CwABBPUBAAAEFAAAAO1WTW/TQBA9e3/FqIe6RQrY
 gVa0EYftetyuWHvNrp0WLqvQGLAU0hKnggM/nvE6aQKkwIELEpYie2fefM9bZTCAF3/xYYMB
