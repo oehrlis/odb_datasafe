@@ -138,4 +138,5 @@ awk -v payload="$PAYLOAD_B64" '
 ' bin/ds_database_prereqs.sh > /tmp/ds_database_prereqs.sh
 
 mv /tmp/ds_database_prereqs.sh bin/ds_database_prereqs.sh
+chmod 755 bin/ds_database_prereqs.sh
 ```
