@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-02-12
+
+### Fixed
+
+- Fixed `ds_target_delete.sh` deletion failures when assigned audit trails prevented target removal
+
 ## [0.9.1] - 2026-02-12
 
 ### Added

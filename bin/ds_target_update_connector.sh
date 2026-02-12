@@ -61,7 +61,6 @@ init_config
 # Output..: Usage text to stdout
 # ------------------------------------------------------------------------------
 usage() {
-    local exit_code=${1:-0}
     cat << EOF
 Usage: ${SCRIPT_NAME} [OPTIONS] MODE
 
@@ -158,7 +157,7 @@ Examples:
   ${SCRIPT_NAME} distribute --apply
 
 EOF
-    exit "$exit_code"
+    exit 0
 }
 
 # ------------------------------------------------------------------------------
@@ -284,7 +283,8 @@ validate_inputs() {
 
     # Show help if no operation mode specified
     if [[ -z "$OPERATION_MODE" ]]; then
-        usage 1
+        usage
+        exit 0
     fi
 
     # Validate operation mode
@@ -571,14 +571,14 @@ list_targets_in_compartment() {
             log_debug "Fallback to ACTIVE state and post-filter"
             json_data=$(ds_list_targets "$comp_ocid" "ACTIVE") || return 1
         }
-
+        
         # Filter by the specified lifecycle states
         local -a states
         IFS=',' read -ra states <<< "$LIFECYCLE_STATE"
         local jq_filter='.data | map(select('
         local first=true
         for state in "${states[@]}"; do
-            state="${state// /}" # Remove spaces
+            state="${state// /}"  # Remove spaces
             if [[ "$first" == "true" ]]; then
                 jq_filter+=".\"lifecycle-state\" == \"$state\""
                 first=false
@@ -587,7 +587,7 @@ list_targets_in_compartment() {
             fi
         done
         jq_filter+='))'
-
+        
         json_data=$(echo "$json_data" | jq "{data: ($jq_filter)}")
     else
         json_data=$(ds_list_targets "$comp_ocid" "$LIFECYCLE_STATE") || return 1

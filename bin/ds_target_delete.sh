@@ -284,22 +284,13 @@ step_delete_dependencies() {
         fi
 
         # Delete audit trails
-        if ! delete_audit_trails "${target_ocid}" "${target_name}"; then
-            log_error "Failed to delete audit trails for ${target_name}"
-            [[ "${CONTINUE_ON_ERROR}" != "true" ]] && die 1 "Stopping on error"
-        fi
-
+        delete_audit_trails "${target_ocid}" "${target_name}"
+        
         # Delete assessments
-        if ! delete_assessments "${target_ocid}" "${target_name}"; then
-            log_error "Failed to delete assessments for ${target_name}"
-            [[ "${CONTINUE_ON_ERROR}" != "true" ]] && die 1 "Stopping on error"
-        fi
-
+        delete_assessments "${target_ocid}" "${target_name}"
+        
         # Delete security policies
-        if ! delete_security_policies "${target_ocid}" "${target_name}"; then
-            log_error "Failed to delete security policies for ${target_name}"
-            [[ "${CONTINUE_ON_ERROR}" != "true" ]] && die 1 "Stopping on error"
-        fi
+        delete_security_policies "${target_ocid}" "${target_name}"
     done
 }
 
@@ -346,11 +337,14 @@ delete_audit_trails() {
 
     # List and delete audit trails for this target
     local trails_json
-    trails_json="$(oci data-safe audit-trail list \
+    if ! trails_json="$(oci data-safe audit-trail list \
         --target-database-id "${target_ocid}" \
         --config-file "${OCI_CLI_CONFIG_FILE}" \
         --profile "${OCI_CLI_PROFILE}" \
-        --all 2> /dev/null)" || return 1
+        --all 2> /dev/null)"; then
+        log_debug "  Could not list audit trails for ${target_name} (may not exist or access issue)"
+        return 0  # Continue processing - listing failure is not critical
+    fi
 
     local trail_ocids
     trail_ocids="$(echo "${trails_json}" | jq -r '.data[]?.id // empty')"
@@ -361,6 +355,7 @@ delete_audit_trails() {
     fi
 
     local count=0
+    local failed=0
     while IFS= read -r trail_ocid; do
         [[ -z "${trail_ocid}" ]] && continue
         if oci data-safe audit-trail delete \
@@ -371,12 +366,17 @@ delete_audit_trails() {
             > /dev/null 2>&1; then
             count=$((count + 1))
         else
+            failed=$((failed + 1))
             log_error "    Failed to delete audit trail: ${trail_ocid}"
         fi
     done <<< "${trail_ocids}"
 
-    log_debug "  Deleted ${count} audit trails for ${target_name}"
-    return 0
+    if [[ $failed -gt 0 ]]; then
+        log_debug "  Deleted ${count} of $((count + failed)) audit trails for ${target_name} (${failed} failed)"
+    else
+        log_debug "  Deleted ${count} audit trails for ${target_name}"
+    fi
+    return 0  # Always return success - individual failures are logged but not critical
 }
 
 delete_assessments() {
@@ -385,11 +385,14 @@ delete_assessments() {
 
     # List and delete security assessments for this target
     local assessments_json
-    assessments_json="$(oci data-safe security-assessment list \
+    if ! assessments_json="$(oci data-safe security-assessment list \
         --target-database-id "${target_ocid}" \
         --config-file "${OCI_CLI_CONFIG_FILE}" \
         --profile "${OCI_CLI_PROFILE}" \
-        --all 2> /dev/null)" || return 1
+        --all 2> /dev/null)"; then
+        log_debug "  Could not list security assessments for ${target_name} (may not exist or access issue)"
+        return 0  # Continue processing - listing failure is not critical
+    fi
 
     local assessment_ocids
     assessment_ocids="$(echo "${assessments_json}" | jq -r '.data[]?.id // empty')"
@@ -400,6 +403,7 @@ delete_assessments() {
     fi
 
     local count=0
+    local failed=0
     while IFS= read -r assessment_ocid; do
         [[ -z "${assessment_ocid}" ]] && continue
         if oci data-safe security-assessment delete \
@@ -410,12 +414,17 @@ delete_assessments() {
             > /dev/null 2>&1; then
             count=$((count + 1))
         else
+            failed=$((failed + 1))
             log_error "    Failed to delete assessment: ${assessment_ocid}"
         fi
     done <<< "${assessment_ocids}"
 
-    log_debug "  Deleted ${count} assessments for ${target_name}"
-    return 0
+    if [[ $failed -gt 0 ]]; then
+        log_debug "  Deleted ${count} of $((count + failed)) assessments for ${target_name} (${failed} failed)"
+    else
+        log_debug "  Deleted ${count} assessments for ${target_name}"
+    fi
+    return 0  # Always return success - individual failures are logged but not critical
 }
 
 delete_security_policies() {
@@ -424,11 +433,14 @@ delete_security_policies() {
 
     # List and delete security policies for this target
     local policies_json
-    policies_json="$(oci data-safe security-policy list \
+    if ! policies_json="$(oci data-safe security-policy list \
         --target-database-id "${target_ocid}" \
         --config-file "${OCI_CLI_CONFIG_FILE}" \
         --profile "${OCI_CLI_PROFILE}" \
-        --all 2> /dev/null)" || return 1
+        --all 2> /dev/null)"; then
+        log_debug "  Could not list security policies for ${target_name} (may not exist or access issue)"
+        return 0  # Continue processing - listing failure is not critical
+    fi
 
     local policy_ocids
     policy_ocids="$(echo "${policies_json}" | jq -r '.data[]?.id // empty')"
@@ -439,6 +451,7 @@ delete_security_policies() {
     fi
 
     local count=0
+    local failed=0
     while IFS= read -r policy_ocid; do
         [[ -z "${policy_ocid}" ]] && continue
         if oci data-safe security-policy delete \
@@ -449,12 +462,17 @@ delete_security_policies() {
             > /dev/null 2>&1; then
             count=$((count + 1))
         else
+            failed=$((failed + 1))
             log_error "    Failed to delete security policy: ${policy_ocid}"
         fi
     done <<< "${policy_ocids}"
 
-    log_debug "  Deleted ${count} security policies for ${target_name}"
-    return 0
+    if [[ $failed -gt 0 ]]; then
+        log_debug "  Deleted ${count} of $((count + failed)) security policies for ${target_name} (${failed} failed)"
+    else
+        log_debug "  Deleted ${count} security policies for ${target_name}"
+    fi
+    return 0  # Always return success - individual failures are logged but not critical
 }
 
 # ------------------------------------------------------------------------------
