@@ -50,6 +50,13 @@ init_config
 # FUNCTIONS
 # =============================================================================
 
+# ------------------------------------------------------------------------------
+# Function: usage
+# Purpose.: Display script usage information
+# Args....: None
+# Returns.: 0 (exits script)
+# Output..: Usage text to stdout
+# ------------------------------------------------------------------------------
 usage() {
     cat << EOF
 Usage: ${SCRIPT_NAME} [OPTIONS]
@@ -126,6 +133,13 @@ EOF
     exit 0
 }
 
+# ------------------------------------------------------------------------------
+# Function: parse_args
+# Purpose.: Parse command-line arguments
+# Args....: $@ - All command-line arguments
+# Returns.: 0 on success, exits on error
+# Output..: Sets global variables based on arguments
+# ------------------------------------------------------------------------------
 parse_args() {
     parse_common_opts "$@"
 
@@ -237,6 +251,13 @@ parse_args() {
     esac
 }
 
+# ------------------------------------------------------------------------------
+# Function: validate_inputs
+# Purpose.: Validate command-line arguments and required conditions
+# Args....: None
+# Returns.: 0 on success, exits on error
+# Output..: Log messages for validation steps
+# ------------------------------------------------------------------------------
 validate_inputs() {
     log_debug "Validating inputs..."
 
@@ -576,6 +597,13 @@ show_problems_grouped() {
 # Returns.: 0 on success, 1 on error
 # Output..: Target information based on selected format and mode
 # ------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+# Function: do_work
+# Purpose.: Main work function - fetch and display targets
+# Args....: None
+# Returns.: 0 on success, exits on error
+# Output..: Target list in requested format
+# ------------------------------------------------------------------------------
 do_work() {
     local json_data
 
@@ -658,6 +686,13 @@ do_work() {
 # MAIN
 # =============================================================================
 
+# ------------------------------------------------------------------------------
+# Function: main
+# Purpose.: Main entry point
+# Args....: None
+# Returns.: 0 on success, exits on error
+# Output..: Log messages
+# ------------------------------------------------------------------------------
 main() {
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
 
