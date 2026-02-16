@@ -41,6 +41,7 @@ source "${LIB_DIR}/ds_lib.sh"
 : "${COMPARTMENT:=}"             # Compartment name or OCID for connector lookup
 : "${CONNECTOR_NAME:=}"          # Connector name or OCID
 : "${CONNECTOR_HOME:=}"          # Connector installation directory
+: "${DATASAFE_ENV:=}"            # OraDBA environment name (alternative to connector params)
 : "${DRY_RUN:=false}"            # Dry-run mode (set by --dry-run flag)
 : "${SKIP_DOWNLOAD:=false}"      # Skip download step (bundle already downloaded)
 : "${BUNDLE_FILE:=}"             # Path to existing bundle file (if skip-download)
@@ -77,13 +78,20 @@ Description:
     4. Extracting the bundle in the connector directory
     5. Running setup.py update with the bundle password
 
-Required:
-  --connector NAME        Connector name or OCID (REQUIRED)
+Required (choose one):
+  Option 1: Use OraDBA environment (simplest)
+    --datasafe-home ENV   OraDBA environment name (e.g., dscon4)
+                          Automatically resolves connector home and metadata
+                          from ${ORADBA_BASE}/etc/oradba_homes.conf
 
-  Compartment (choose one):
-    -c, --compartment ID  Compartment OCID or name (for connector lookup)
-    OR set DS_CONNECTOR_COMP environment variable
-    OR set DS_ROOT_COMP environment variable in .env or datasafe.conf
+  Option 2: Specify connector manually
+    --connector NAME      Connector name or OCID
+    --connector-home PATH Connector installation directory (optional, auto-detected)
+
+    Compartment (required for Option 2):
+      -c, --compartment ID  Compartment OCID or name (for connector lookup)
+      OR set DS_CONNECTOR_COMP environment variable
+      OR set DS_ROOT_COMP environment variable in .env or datasafe.conf
 
 Options:
   Common Options:
@@ -102,7 +110,6 @@ Options:
     --oci-config FILE       OCI config file (default: ${OCI_CLI_CONFIG_FILE:-~/.oci/config})
 
   Connector Options:
-    --connector-home PATH   Connector installation directory
     --force-new-password    Generate new password (ignore existing)
 
   Bundle Options:
@@ -110,6 +117,9 @@ Options:
     --bundle-file PATH      Path to existing bundle zip file
 
 Examples:
+  # Update connector using OraDBA environment (recommended)
+  ${SCRIPT_NAME} --datasafe-home dscon4
+
   # Update connector by name (using DS_ROOT_COMP from config)
   ${SCRIPT_NAME} --connector my-connector
 
@@ -120,13 +130,13 @@ Examples:
   ${SCRIPT_NAME} --connector my-connector --connector-home /u01/app/oracle/product/datasafe
 
   # Dry-run to see what would be done
-  ${SCRIPT_NAME} --connector my-connector -c MyCompartment --dry-run
+  ${SCRIPT_NAME} --datasafe-home dscon4 --dry-run
 
   # Use existing bundle file (skip download)
   ${SCRIPT_NAME} --connector my-connector --skip-download --bundle-file /tmp/bundle.zip
 
   # Force new password generation
-  ${SCRIPT_NAME} --connector my-connector --force-new-password
+  ${SCRIPT_NAME} --datasafe-home dscon4 --force-new-password
 
 Environment Variables:
   OCI_CLI_PROFILE         Default OCI profile
@@ -134,6 +144,7 @@ Environment Variables:
   DS_ROOT_COMP            Default root compartment (name or OCID)
   DS_CONNECTOR_COMP       Default connector compartment (name or OCID)
                           Falls back to DS_ROOT_COMP if not set
+  ORADBA_BASE             OraDBA installation directory (for --datasafe-home)
 
 Compartment Resolution (priority order):
   1. -c/--compartment flag (highest priority)
@@ -152,6 +163,8 @@ Notes:
   - Existing password file is reused unless --force-new-password is specified
   - The script must be run as the connector owner (typically oracle user)
   - Version checking compares local setup.py version with online availability
+  - OraDBA integration: Use ds_connector_register_oradba.sh to add connector
+    metadata to oradba_homes.conf for use with --datasafe-home
 
 EOF
     exit 0
@@ -187,6 +200,11 @@ parse_args() {
             --connector-home)
                 need_val "$1" "${2:-}"
                 CONNECTOR_HOME="$2"
+                shift 2
+                ;;
+            --datasafe-home)
+                need_val "$1" "${2:-}"
+                DATASAFE_ENV="$2"
                 shift 2
                 ;;
             --skip-download)
@@ -235,6 +253,74 @@ parse_args() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: lookup_oradba_home
+# Purpose.: Lookup OraDBA datasafe home configuration
+# Args....: $1 - Environment name (e.g., dscon4)
+# Returns.: 0 on success, 1 on failure
+# Output..: Sets CONNECTOR_HOME, CONNECTOR_NAME (if found in description)
+# ------------------------------------------------------------------------------
+lookup_oradba_home() {
+    local env_name="$1"
+    local config_file="${ORADBA_BASE}/etc/oradba_homes.conf"
+    
+    if [[ ! -f "$config_file" ]]; then
+        log_error "OraDBA config not found: $config_file"
+        log_error "Make sure ORADBA_BASE is set correctly"
+        return 1
+    fi
+    
+    # Parse config file (format: env_name:path:product:position::description:version)
+    local line
+    line=$(grep "^${env_name}:" "$config_file" | head -1)
+    
+    if [[ -z "$line" ]]; then
+        log_error "DataSafe environment '${env_name}' not found in ${config_file}"
+        return 1
+    fi
+    
+    # Extract fields
+    local env path product position reserved desc version
+    IFS=':' read -r env path product position reserved desc version <<< "$line"
+    
+    if [[ "$product" != "datasafe" ]]; then
+        log_error "Environment '${env_name}' is not a DataSafe connector (product: ${product})"
+        return 1
+    fi
+    
+    CONNECTOR_HOME="$path"
+    log_debug "Resolved CONNECTOR_HOME from OraDBA: ${CONNECTOR_HOME}"
+    
+    # Extract connector info from description: (oci=xxx) or (oci=name,ocid)
+    if [[ "$desc" =~ \(oci=([^)]+)\) ]]; then
+        local oci_value="${BASH_REMATCH[1]}"
+        
+        # Check if it contains comma (both name and OCID)
+        if [[ "$oci_value" == *,* ]]; then
+            local conn_name conn_ocid
+            IFS=',' read -r conn_name conn_ocid <<< "$oci_value"
+            if [[ "$conn_name" =~ ^ocid1\. ]]; then
+                # First value is OCID, second is name (reversed)
+                CONNECTOR_NAME="$conn_ocid"
+            else
+                # First value is name
+                CONNECTOR_NAME="$conn_name"
+            fi
+        else
+            # Single value (name or OCID)
+            CONNECTOR_NAME="$oci_value"
+        fi
+        
+        log_debug "Extracted connector from description: ${CONNECTOR_NAME}"
+    else
+        log_warn "No (oci=...) found in description for ${env_name}"
+        log_warn "You can add it using: ds_connector_register_oradba.sh --datasafe-home ${env_name} --connector <name>"
+        return 1
+    fi
+    
+    return 0
+}
+
+# ------------------------------------------------------------------------------
 # Function: validate_inputs
 # Purpose.: Validate required inputs and resolve connector/compartment
 # Returns.: 0 on success, exits on error
@@ -248,32 +334,58 @@ validate_inputs() {
     require_oci_cli
     require_cmd unzip python3
 
-    # Require connector name
-    require_var CONNECTOR_NAME
-
-    # Resolve compartment for connector lookup
-    # Priority: -c/--compartment flag > DS_CONNECTOR_COMP > DS_ROOT_COMP
-    if [[ -n "$COMPARTMENT" ]]; then
-        resolve_compartment_to_vars "$COMPARTMENT" "COMP" \
-            || die "Failed to resolve compartment: $COMPARTMENT"
-        log_info "Compartment: ${COMP_NAME} (${COMP_OCID})"
-    elif [[ -n "${DS_CONNECTOR_COMP:-}" ]]; then
-        # Use DS_CONNECTOR_COMP as fallback (which itself can fall back to DS_ROOT_COMP)
-        resolve_compartment_to_vars "$DS_CONNECTOR_COMP" "COMP" \
-            || die "Failed to resolve DS_CONNECTOR_COMP: $DS_CONNECTOR_COMP"
-        log_info "Using DS_CONNECTOR_COMP: ${COMP_NAME} (${COMP_OCID})"
-    elif [[ -n "${DS_ROOT_COMP:-}" ]]; then
-        # Use DS_ROOT_COMP as final fallback
-        resolve_compartment_to_vars "$DS_ROOT_COMP" "COMP" \
-            || die "Failed to resolve DS_ROOT_COMP: $DS_ROOT_COMP"
-        log_info "Using DS_ROOT_COMP: ${COMP_NAME} (${COMP_OCID})"
+    # Parameter validation: check for conflicting parameters
+    if [[ -n "$DATASAFE_ENV" ]]; then
+        # Using --datasafe-home
+        if [[ -n "$CONNECTOR_NAME" ]] || [[ -n "$CONNECTOR_HOME" ]] || [[ -n "$COMPARTMENT" ]]; then
+            log_error "Cannot mix --datasafe-home with --connector, --connector-home, or --compartment"
+            log_error "Use either --datasafe-home OR (--connector + compartment options)"
+            die "Conflicting parameters provided"
+        fi
+        
+        # Check ORADBA_BASE is set
+        if [[ -z "${ORADBA_BASE:-}" ]]; then
+            log_error "ORADBA_BASE environment variable not set"
+            log_error "The --datasafe-home option requires OraDBA to be loaded"
+            die "ORADBA_BASE not set"
+        fi
+        
+        # Lookup OraDBA home configuration
+        lookup_oradba_home "$DATASAFE_ENV" || die "Failed to lookup OraDBA environment: $DATASAFE_ENV"
+        log_info "Using OraDBA environment: ${DATASAFE_ENV}"
+        log_info "Connector home: ${CONNECTOR_HOME}"
+        log_info "Connector: ${CONNECTOR_NAME}"
     else
-        log_error "Compartment required for connector lookup."
-        log_error "Please provide one of the following:"
-        log_error "  1. Use -c/--compartment option"
-        log_error "  2. Set DS_CONNECTOR_COMP environment variable"
-        log_error "  3. Set DS_ROOT_COMP environment variable in .env or datasafe.conf"
-        die "No compartment specified. Cannot proceed."
+        # Using traditional --connector parameters
+        # Require connector name
+        require_var CONNECTOR_NAME
+    fi
+
+    # Resolve compartment for connector lookup (only if not using datasafe-home)
+    if [[ -z "$DATASAFE_ENV" ]]; then
+        # Priority: -c/--compartment flag > DS_CONNECTOR_COMP > DS_ROOT_COMP
+        if [[ -n "$COMPARTMENT" ]]; then
+            resolve_compartment_to_vars "$COMPARTMENT" "COMP" \
+                || die "Failed to resolve compartment: $COMPARTMENT"
+            log_info "Compartment: ${COMP_NAME} (${COMP_OCID})"
+        elif [[ -n "${DS_CONNECTOR_COMP:-}" ]]; then
+            # Use DS_CONNECTOR_COMP as fallback (which itself can fall back to DS_ROOT_COMP)
+            resolve_compartment_to_vars "$DS_CONNECTOR_COMP" "COMP" \
+                || die "Failed to resolve DS_CONNECTOR_COMP: $DS_CONNECTOR_COMP"
+            log_info "Using DS_CONNECTOR_COMP: ${COMP_NAME} (${COMP_OCID})"
+        elif [[ -n "${DS_ROOT_COMP:-}" ]]; then
+            # Use DS_ROOT_COMP as final fallback
+            resolve_compartment_to_vars "$DS_ROOT_COMP" "COMP" \
+                || die "Failed to resolve DS_ROOT_COMP: $DS_ROOT_COMP"
+            log_info "Using DS_ROOT_COMP: ${COMP_NAME} (${COMP_OCID})"
+        else
+            log_error "Compartment required for connector lookup."
+            log_error "Please provide one of the following:"
+            log_error "  1. Use -c/--compartment option"
+            log_error "  2. Set DS_CONNECTOR_COMP environment variable"
+            log_error "  3. Set DS_ROOT_COMP environment variable in .env or datasafe.conf"
+            die "No compartment specified. Cannot proceed."
+        fi
     fi
 
     # Resolve connector (name or OCID)
@@ -555,8 +667,8 @@ get_local_connector_version() {
         return 0
     fi
 
-    # Alternative: Try running setup.py to get version
-    version=$(cd "$CONNECTOR_HOME" && python3 -c "import sys; sys.path.insert(0, '.'); exec(open('setup.py').read()); print(version if 'version' in dir() else '')" 2> /dev/null)
+    # Alternative: Run setup.py version command
+    version=$(cd "$CONNECTOR_HOME" && python3 setup.py version 2>/dev/null | grep -oP '(?<=version : )[0-9.]+' | head -1)
 
     if [[ -n "$version" ]]; then
         echo "$version"
