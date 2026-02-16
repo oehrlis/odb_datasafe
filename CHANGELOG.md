@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Replaced hardcoded `/opt/datasafe` paths in documentation examples with
+  `DATASAFE_BASE` in:
+  - `doc/quickref.md`
+  - `doc/database_prereqs.md`
+  - `doc/install_datasafe_service.md`
+- Added simplified `DATASAFE_BASE` setup guidance in `doc/standalone_usage.md`
+  using `DATASAFE_BASE="${ODB_DATASAFE_BASE:-${ORACLE_BASE}/local/datasafe}"`
+  so OraDBA and standalone usage share the same examples
+
 ## [0.10.1] - 2026-02-16
 
 ### Changed

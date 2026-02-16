@@ -34,6 +34,10 @@ cd /path/to/odb_datasafe
 cp etc/.env.example .env
 vim .env
 source .env
+
+# Base directory for local copy on DB/application hosts.
+# In OraDBA mode, ODB_DATASAFE_BASE is set automatically.
+export DATASAFE_BASE="${ODB_DATASAFE_BASE:-${ORACLE_BASE}/local/datasafe}"
 ```
 
 Set at least:

@@ -158,31 +158,35 @@ script or provide the SQL files on the server. The Oracle environment must be
 sourced first.
 
 ```bash
+# Base directory on the DB host.
+# In OraDBA mode, ODB_DATASAFE_BASE is set automatically.
+export DATASAFE_BASE="${ODB_DATASAFE_BASE:-${ORACLE_BASE}/local/datasafe}"
+
 # Copy to DB host (embedded payload)
-scp bin/ds_database_prereqs.sh oracle@dbhost:/opt/datasafe/
-ssh oracle@dbhost chmod 755 /opt/datasafe/ds_database_prereqs.sh
+scp bin/ds_database_prereqs.sh oracle@dbhost:${DATASAFE_BASE}/
+ssh oracle@dbhost chmod 755 ${DATASAFE_BASE}/ds_database_prereqs.sh
 
 # Copy to DB host (external SQL files)
-scp bin/ds_database_prereqs.sh sql/*.sql oracle@dbhost:/opt/datasafe/
-ssh oracle@dbhost chmod 755 /opt/datasafe/ds_database_prereqs.sh
+scp bin/ds_database_prereqs.sh sql/*.sql oracle@dbhost:${DATASAFE_BASE}/
+ssh oracle@dbhost chmod 755 ${DATASAFE_BASE}/ds_database_prereqs.sh
 
 # Source environment on DB host
 export ORACLE_SID=cdb01
 . oraenv <<< "${ORACLE_SID}" >/dev/null
 
 # Run for root or all open PDBs
-/opt/datasafe/ds_database_prereqs.sh --root -P "<password>"
-/opt/datasafe/ds_database_prereqs.sh --all -P "<password>"
+${DATASAFE_BASE}/ds_database_prereqs.sh --root -P "<password>"
+${DATASAFE_BASE}/ds_database_prereqs.sh --all -P "<password>"
 
 # Update secret for existing user (no drop)
-/opt/datasafe/ds_database_prereqs.sh --root -P "<password>" --update-secret
+${DATASAFE_BASE}/ds_database_prereqs.sh --root -P "<password>" --update-secret
 
 # Base64 password input (auto-decoded)
 DS_PW_B64=$(printf '%s' 'mySecret' | base64)
-/opt/datasafe/ds_database_prereqs.sh --root -P "${DS_PW_B64}"
+${DATASAFE_BASE}/ds_database_prereqs.sh --root -P "${DS_PW_B64}"
 
 # Use embedded payload
-/opt/datasafe/ds_database_prereqs.sh --root --embedded -P "<password>"
+${DATASAFE_BASE}/ds_database_prereqs.sh --root --embedded -P "<password>"
 ```
 
 ### 5. Getting Help

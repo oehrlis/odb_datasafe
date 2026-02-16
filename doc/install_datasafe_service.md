@@ -189,13 +189,17 @@ expects the Oracle environment to be sourced before execution.
 ### Example Workflow
 
 ```bash
+# Base directory on the DB host.
+# In OraDBA mode, ODB_DATASAFE_BASE is set automatically.
+export DATASAFE_BASE="${ODB_DATASAFE_BASE:-${ORACLE_BASE}/local/datasafe}"
+
 # Copy script to the database host (embedded payload)
-scp bin/ds_database_prereqs.sh oracle@dbhost:/opt/datasafe/
-ssh oracle@dbhost chmod 755 /opt/datasafe/ds_database_prereqs.sh
+scp bin/ds_database_prereqs.sh oracle@dbhost:${DATASAFE_BASE}/
+ssh oracle@dbhost chmod 755 ${DATASAFE_BASE}/ds_database_prereqs.sh
 
 # Copy script + SQL files (external SQL files)
-scp bin/ds_database_prereqs.sh sql/*.sql oracle@dbhost:/opt/datasafe/
-ssh oracle@dbhost chmod 755 /opt/datasafe/ds_database_prereqs.sh
+scp bin/ds_database_prereqs.sh sql/*.sql oracle@dbhost:${DATASAFE_BASE}/
+ssh oracle@dbhost chmod 755 ${DATASAFE_BASE}/ds_database_prereqs.sh
 
 # Log in to the DB host and source environment
 ssh oracle@dbhost
@@ -203,13 +207,13 @@ export ORACLE_SID=cdb01
 . oraenv <<< "${ORACLE_SID}" >/dev/null
 
 # Run for CDB$ROOT
-/opt/datasafe/ds_database_prereqs.sh --root -P "<password>"
+${DATASAFE_BASE}/ds_database_prereqs.sh --root -P "<password>"
 
 # Run for CDB$ROOT with embedded SQL
-/opt/datasafe/ds_database_prereqs.sh --root --embedded -P "<password>"
+${DATASAFE_BASE}/ds_database_prereqs.sh --root --embedded -P "<password>"
 
 # Run for all open PDBs + root
-/opt/datasafe/ds_database_prereqs.sh --all -P "<password>"
+${DATASAFE_BASE}/ds_database_prereqs.sh --all -P "<password>"
 ```
 
 ### Environment Sourcing Options

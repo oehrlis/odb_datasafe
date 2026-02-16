@@ -17,18 +17,26 @@ running it.
 
 ## Copy Files to the DB Host
 
+Set a base directory on the DB host:
+
+```bash
+export DATASAFE_BASE="${ODB_DATASAFE_BASE:-${ORACLE_BASE}/local/datasafe}"
+```
+
+In OraDBA mode, `ODB_DATASAFE_BASE` is set automatically.
+
 Option A (embedded payload):
 
 ```bash
-scp bin/ds_database_prereqs.sh oracle@dbhost:/opt/datasafe/
-ssh oracle@dbhost chmod 755 /opt/datasafe/ds_database_prereqs.sh
+scp bin/ds_database_prereqs.sh oracle@dbhost:${DATASAFE_BASE}/
+ssh oracle@dbhost chmod 755 ${DATASAFE_BASE}/ds_database_prereqs.sh
 ```
 
 Option B (external SQL files):
 
 ```bash
-scp bin/ds_database_prereqs.sh sql/*.sql oracle@dbhost:/opt/datasafe/
-ssh oracle@dbhost chmod 755 /opt/datasafe/ds_database_prereqs.sh
+scp bin/ds_database_prereqs.sh sql/*.sql oracle@dbhost:${DATASAFE_BASE}/
+ssh oracle@dbhost chmod 755 ${DATASAFE_BASE}/ds_database_prereqs.sh
 ```
 
 ## Source the Oracle Environment
@@ -49,25 +57,25 @@ Alternative environment loaders:
 ### CDB$ROOT only
 
 ```bash
-/opt/datasafe/ds_database_prereqs.sh --root -P "<password>"
+${DATASAFE_BASE}/ds_database_prereqs.sh --root -P "<password>"
 ```
 
 With embedded SQL:
 
 ```bash
-/opt/datasafe/ds_database_prereqs.sh --root --embedded -P "<password>"
+${DATASAFE_BASE}/ds_database_prereqs.sh --root --embedded -P "<password>"
 ```
 
 ### Single PDB
 
 ```bash
-/opt/datasafe/ds_database_prereqs.sh --pdb APP1PDB -P "<password>"
+${DATASAFE_BASE}/ds_database_prereqs.sh --pdb APP1PDB -P "<password>"
 ```
 
 ### Root + all open PDBs
 
 ```bash
-/opt/datasafe/ds_database_prereqs.sh --all -P "<password>"
+${DATASAFE_BASE}/ds_database_prereqs.sh --all -P "<password>"
 ```
 
 ## Check-Only Mode
@@ -75,7 +83,7 @@ With embedded SQL:
 Validate user and grants without applying changes:
 
 ```bash
-/opt/datasafe/ds_database_prereqs.sh --root --check
+${DATASAFE_BASE}/ds_database_prereqs.sh --root --check
 ```
 
 ## User Naming Behavior
@@ -108,7 +116,7 @@ Example (base64 input):
 
 ```bash
 DS_PW_B64=$(printf '%s' 'mySecret' | base64)
-/opt/datasafe/ds_database_prereqs.sh --root -P "${DS_PW_B64}"
+${DATASAFE_BASE}/ds_database_prereqs.sh --root -P "${DS_PW_B64}"
 ```
 
 ## User Management Behavior
@@ -123,13 +131,13 @@ Examples:
 
 ```bash
 # Update profile only (user exists)
-/opt/datasafe/ds_database_prereqs.sh --root -P "<secret>"
+${DATASAFE_BASE}/ds_database_prereqs.sh --root -P "<secret>"
 
 # Update secret without dropping the user
-/opt/datasafe/ds_database_prereqs.sh --root -P "<secret>" --update-secret
+${DATASAFE_BASE}/ds_database_prereqs.sh --root -P "<secret>" --update-secret
 
 # Drop and recreate the user
-/opt/datasafe/ds_database_prereqs.sh --root -P "<secret>" --force
+${DATASAFE_BASE}/ds_database_prereqs.sh --root -P "<secret>" --force
 ```
 
 ## Notes
