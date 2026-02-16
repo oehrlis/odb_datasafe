@@ -46,6 +46,13 @@ init_config
 # FUNCTIONS
 # =============================================================================
 
+# ------------------------------------------------------------------------------
+# Function: usage
+# Purpose.: Display script usage information
+# Args....: None
+# Returns.: 0 (exits script)
+# Output..: Usage text to stdout
+# ------------------------------------------------------------------------------
 usage() {
     cat << EOF
 Usage: ${SCRIPT_NAME} [OPTIONS]
@@ -198,6 +205,7 @@ parse_args() {
 # ------------------------------------------------------------------------------
 # Function: validate_inputs
 # Purpose.: Validate inputs and set defaults
+# Args....: None
 # Returns.: 0 on success, exits on error
 # Output..: Logs validation status
 # ------------------------------------------------------------------------------
@@ -427,6 +435,7 @@ show_details_csv() {
 # ------------------------------------------------------------------------------
 # Function: do_work
 # Purpose.: Main work function - orchestrates connector listing and display
+# Args....: None
 # Returns.: 0 on success, 1 on error
 # Output..: Connector information based on selected format
 # ------------------------------------------------------------------------------
@@ -515,6 +524,13 @@ do_work() {
 # MAIN
 # =============================================================================
 
+# ------------------------------------------------------------------------------
+# Function: main
+# Purpose.: Main entry point
+# Args....: None
+# Returns.: 0 on success, exits on error
+# Output..: Log messages
+# ------------------------------------------------------------------------------
 main() {
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
 
