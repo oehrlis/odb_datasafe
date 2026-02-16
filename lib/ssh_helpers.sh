@@ -6,7 +6,7 @@
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.02.11
 # Version....: v0.9.0
-# Purpose....: SSH/SCP helper functions for remote execution and file transfer
+# Purpose.: SSH/SCP helper functions for remote execution and file transfer
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
 
@@ -36,23 +36,23 @@ fi
 # =============================================================================
 
 # ------------------------------------------------------------------------------
-# Function....: ssh_require_tools
-# Purpose.....: Ensure ssh/scp are available locally
-# Returns.....: 0 on success, exits on missing tools
+# Function: ssh_require_tools
+# Purpose.: Ensure ssh/scp are available locally
+# Returns.: 0 on success, exits on missing tools
 # ------------------------------------------------------------------------------
 ssh_require_tools() {
     require_cmd ssh scp
 }
 
 # ------------------------------------------------------------------------------
-# Function....: ssh_exec
-# Purpose.....: Execute a command on a remote host via SSH
-# Args........: $1 - host
-#               $2 - user
-#               $3 - port
-#               $4 - command (string)
-# Returns.....: 0 on success, non-zero on failure
-# Output......: Command output to stdout/stderr
+# Function: ssh_exec
+# Purpose.: Execute a command on a remote host via SSH
+# Args....: $1 - Host
+#           $2 - User
+#           $3 - Port
+#           $4 - Command (string)
+# Returns.: 0 on success, non-zero on failure
+# Output..: Command output to stdout/stderr
 # ------------------------------------------------------------------------------
 ssh_exec() {
     local host="$1"
@@ -77,14 +77,14 @@ ssh_exec() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: ssh_scp_to
-# Purpose.....: Copy a local file to a remote host via SCP
-# Args........: $1 - local file
-#               $2 - host
-#               $3 - user
-#               $4 - port
-#               $5 - remote path
-# Returns.....: 0 on success, non-zero on failure
+# Function: ssh_scp_to
+# Purpose.: Copy a local file to a remote host via SCP
+# Args....: $1 - Local file
+#           $2 - Host
+#           $3 - User
+#           $4 - Port
+#           $5 - Remote path
+# Returns.: 0 on success, non-zero on failure
 # ------------------------------------------------------------------------------
 ssh_scp_to() {
     local local_file="$1"
@@ -108,12 +108,12 @@ ssh_scp_to() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: ssh_check
-# Purpose.....: Verify SSH connectivity to a remote host
-# Args........: $1 - host
-#               $2 - user
-#               $3 - port
-# Returns.....: 0 on success, non-zero on failure
+# Function: ssh_check
+# Purpose.: Verify SSH connectivity to a remote host
+# Args....: $1 - Host
+#           $2 - User
+#           $3 - Port
+# Returns.: 0 on success, non-zero on failure
 # ------------------------------------------------------------------------------
 ssh_check() {
     local host="$1"
