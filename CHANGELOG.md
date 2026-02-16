@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added `datasafe_help.sh` wrapper for `odb_datasafe_help.sh`
+- Added config file and OCI config summaries to `odb_datasafe_help.sh` output
+
 ## [0.9.2] - 2026-02-12
 
 ### Fixed

@@ -27,6 +27,13 @@ readonly SCRIPT_NAME
 # FUNCTIONS
 # =============================================================================
 
+# ------------------------------------------------------------------------------
+# Function: usage
+# Purpose.: Display usage information and exit
+# Args....: None
+# Returns.: 0 (exits script)
+# Output..: Usage text to stdout
+# ------------------------------------------------------------------------------
 usage() {
     cat << EOF
 Usage: ${SCRIPT_NAME} [OPTIONS]
@@ -58,6 +65,13 @@ EOF
 # Function: extract_purpose
 # Purpose.: Extract purpose/description from script header
 # Args....: $1 - script file path
+# Returns.: 0 on success
+# Output..: Purpose text to stdout
+# ------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+# Function: extract_purpose
+# Purpose.: Extract purpose/description from a script header
+# Args....: $1 - Script file path
 # Returns.: 0 on success
 # Output..: Purpose text to stdout
 # ------------------------------------------------------------------------------
@@ -122,6 +136,13 @@ extract_purpose() {
 # Returns.: 0 on success
 # Output..: Formatted table to stdout
 # ------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+# Function: show_table
+# Purpose.: Render script list in table format
+# Args....: None (reads from stdin)
+# Returns.: 0 on success
+# Output..: Formatted table to stdout
+# ------------------------------------------------------------------------------
 show_table() {
     printf "\n"
     printf "%-40s %s\n" "Script" "Purpose"
@@ -145,6 +166,13 @@ show_table() {
 # Returns.: 0 on success
 # Output..: Markdown table to stdout
 # ------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+# Function: show_markdown
+# Purpose.: Render script list in markdown table format
+# Args....: None (reads from stdin)
+# Returns.: 0 on success
+# Output..: Markdown table to stdout
+# ------------------------------------------------------------------------------
 show_markdown() {
     printf "\n"
     printf "| %-38s | %s |\n" "Script" "Purpose"
@@ -164,6 +192,13 @@ show_markdown() {
 # Returns.: 0 on success
 # Output..: CSV data to stdout
 # ------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+# Function: show_csv
+# Purpose.: Render script list in CSV format
+# Args....: None (reads from stdin)
+# Returns.: 0 on success
+# Output..: CSV lines to stdout
+# ------------------------------------------------------------------------------
 show_csv() {
     printf "script,purpose\n"
 
@@ -172,10 +207,101 @@ show_csv() {
     done
 }
 
+# ------------------------------------------------------------------------------
+# Function: resolve_base_dir
+# Purpose.: Determine extension base directory
+# Args....: None
+# Returns.: 0 on success
+# Output..: Base directory path to stdout
+# ------------------------------------------------------------------------------
+resolve_base_dir() {
+    local base_dir="${ODB_DATASAFE_BASE:-}"
+
+    if [[ -z "$base_dir" ]]; then
+        base_dir="$(cd "${SCRIPT_DIR}/.." && pwd)"
+    fi
+
+    printf '%s\n' "$base_dir"
+}
+
+# ------------------------------------------------------------------------------
+# Function: collect_config_files
+# Purpose.: List config files used by the extension
+# Args....: $1 - Extension base directory
+# Returns.: 0 on success
+# Output..: One config file path per line
+# ------------------------------------------------------------------------------
+collect_config_files() {
+    local base_dir="$1"
+    local -a configs=()
+
+    if [[ -f "${base_dir}/.env" ]]; then
+        configs+=("${base_dir}/.env")
+    fi
+
+    if [[ -n "${ORADBA_ETC:-}" && -f "${ORADBA_ETC}/datasafe.conf" ]]; then
+        configs+=("${ORADBA_ETC}/datasafe.conf")
+    fi
+
+    if [[ -f "${base_dir}/etc/datasafe.conf" ]]; then
+        configs+=("${base_dir}/etc/datasafe.conf")
+    fi
+
+    if [[ -n "${ORADBA_ETC:-}" && -f "${ORADBA_ETC}/${SCRIPT_NAME%.sh}.conf" ]]; then
+        configs+=("${ORADBA_ETC}/${SCRIPT_NAME%.sh}.conf")
+    fi
+
+    if [[ -f "${base_dir}/etc/${SCRIPT_NAME%.sh}.conf" ]]; then
+        configs+=("${base_dir}/etc/${SCRIPT_NAME%.sh}.conf")
+    fi
+
+    printf '%s\n' "${configs[@]}"
+}
+
+# ------------------------------------------------------------------------------
+# Function: print_footer
+# Purpose.: Print config and documentation footer
+# Args....: $1 - Extension base directory
+# Returns.: 0 on success
+# Output..: Footer text to stdout
+# ------------------------------------------------------------------------------
+print_footer() {
+    local base_dir="$1"
+    local -a configs=()
+    local config
+
+    mapfile -t configs < <(collect_config_files "$base_dir")
+
+    echo "Config files used:"
+    if [[ ${#configs[@]} -eq 0 ]]; then
+        echo "  (none found)"
+    else
+        for config in "${configs[@]}"; do
+            echo "  - ${config}"
+        done
+    fi
+
+    local oci_config="${OCI_CLI_CONFIG_FILE:-${HOME}/.oci/config}"
+    echo "OCI config: ${oci_config}"
+
+    echo ""
+    echo "For more information:"
+    echo "  - Quick Reference: doc/quickref.md"
+    echo "  - Documentation:   doc/index.md"
+    echo "  - Complete Guide:  README.md"
+}
+
 # =============================================================================
 # MAIN
 # =============================================================================
 
+# ------------------------------------------------------------------------------
+# Function: main
+# Purpose.: Main entry point
+# Args....: $@ - Command-line arguments
+# Returns.: 0 on success
+# Output..: Help output to stdout
+# ------------------------------------------------------------------------------
 main() {
     local output_format="table"
     local quiet=false
@@ -258,12 +384,11 @@ main() {
     # Show footer
     if [[ "$quiet" != "true" ]]; then
         local count=${#sorted_data[@]}
+        local base_dir
+        base_dir="$(resolve_base_dir)"
         echo "Total: $count scripts available"
         echo ""
-        echo "For more information:"
-        echo "  - Quick Reference: doc/quickref.md"
-        echo "  - Documentation:   doc/index.md"
-        echo "  - Complete Guide:  README.md"
+        print_footer "$base_dir"
     fi
 }
 
