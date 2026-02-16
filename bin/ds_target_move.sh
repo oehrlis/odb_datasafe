@@ -68,7 +68,9 @@ init_config
 # ------------------------------------------------------------------------------
 # Function: usage
 # Purpose.: Display command-line usage instructions and exit
-# Returns.: Exits with provided code (default 0)
+# Args....: $1 - Exit code (optional, default: 0)
+# Returns.: Exits with provided code
+# Output..: Usage information to stdout
 # ------------------------------------------------------------------------------
 usage() {
     local exit_code="${1:-0}"
@@ -118,8 +120,11 @@ EOF
 }
 
 # ------------------------------------------------------------------------------
-# Function....: parse_args
-# Purpose.....: Parse script-specific arguments from REM_ARGS
+# Function: parse_args
+# Purpose.: Parse script-specific arguments
+# Args....: $@ - All command-line arguments
+# Returns.: 0 on success, exits on error
+# Output..: Sets global variables based on arguments
 # ------------------------------------------------------------------------------
 parse_args() {
     parse_common_opts "$@"
@@ -207,7 +212,9 @@ parse_args() {
 # ------------------------------------------------------------------------------
 # Function: validate_inputs
 # Purpose.: Ensure required arguments are provided
+# Args....: None
 # Returns.: Exits on validation error
+# Output..: Log messages for validation steps
 # ------------------------------------------------------------------------------
 validate_inputs() {
     if [[ -z "${DEST_COMPARTMENT}" ]]; then
@@ -222,8 +229,11 @@ validate_inputs() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: preflight_checks
-# Purpose.....: Validate inputs and resolve targets and compartments
+# Function: preflight_checks
+# Purpose.: Validate inputs and resolve targets and compartments
+# Args....: None
+# Returns.: 0 on success, exits on error
+# Output..: Log messages and resolved targets
 # ------------------------------------------------------------------------------
 preflight_checks() {
     # Resolve destination compartment using helper
@@ -329,7 +339,13 @@ preflight_checks() {
 
 # --- Steps --------------------------------------------------------------------
 
-# Step 1: Move target dependencies
+# ------------------------------------------------------------------------------
+# Function: step_move_dependencies
+# Purpose.: Move target dependencies when enabled
+# Args....: None
+# Returns.: 0 on success
+# Output..: Log messages
+# ------------------------------------------------------------------------------
 step_move_dependencies() {
     [[ "${MOVE_DEPENDENCIES}" != "true" ]] && return 0
 
@@ -368,7 +384,13 @@ step_move_dependencies() {
     done
 }
 
-# Step 2: Move targets
+# ------------------------------------------------------------------------------
+# Function: step_move_targets
+# Purpose.: Move target databases
+# Args....: None
+# Returns.: 0 on success
+# Output..: Log messages
+# ------------------------------------------------------------------------------
 step_move_targets() {
     log_info "Step 2/2: Moving target databases..."
 
@@ -400,6 +422,14 @@ step_move_targets() {
 
 # --- Dependency moving helpers -----------------------------------------------
 
+# ------------------------------------------------------------------------------
+# Function: move_audit_trails
+# Purpose.: Move audit trails for a target
+# Args....: $1 - Target OCID
+#           $2 - Target name
+# Returns.: 0 on success
+# Output..: Log messages
+# ------------------------------------------------------------------------------
 move_audit_trails() {
     local target_ocid="$1"
     local target_name="$2"
@@ -438,6 +468,14 @@ move_audit_trails() {
     return 0
 }
 
+# ------------------------------------------------------------------------------
+# Function: move_assessments
+# Purpose.: Move security assessments for a target
+# Args....: $1 - Target OCID
+#           $2 - Target name
+# Returns.: 0 on success
+# Output..: Log messages
+# ------------------------------------------------------------------------------
 move_assessments() {
     local target_ocid="$1"
     local target_name="$2"
@@ -476,6 +514,14 @@ move_assessments() {
     return 0
 }
 
+# ------------------------------------------------------------------------------
+# Function: move_security_policies
+# Purpose.: Move security policies for a target
+# Args....: $1 - Target OCID
+#           $2 - Target name
+# Returns.: 0 on success
+# Output..: Log messages
+# ------------------------------------------------------------------------------
 move_security_policies() {
     local target_ocid="$1"
     local target_name="$2"
@@ -515,8 +561,11 @@ move_security_policies() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: run_move
-# Purpose.....: Orchestrate the move steps
+# Function: run_move
+# Purpose.: Orchestrate the move steps
+# Args....: None
+# Returns.: Exits with status code
+# Output..: Summary log messages
 # ------------------------------------------------------------------------------
 run_move() {
     step_move_dependencies
@@ -539,8 +588,11 @@ run_move() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: main
-# Purpose.....: Entry point
+# Function: main
+# Purpose.: Entry point
+# Args....: $@ - All command-line arguments
+# Returns.: 0 on success, exits on error
+# Output..: Log messages
 # ------------------------------------------------------------------------------
 main() {
     if [[ $# -eq 0 ]]; then
