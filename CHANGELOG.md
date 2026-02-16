@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mandatory prerequisites (`oci` and `jq`), and simple availability checks
 - Added documentation links to standalone usage and project README in `doc/index.md`
 
+### Fixed
+
+- Fixed `jq` field access in `ds_tg_report.sh` when listing targets missing tag namespace
+  (`display-name` now uses bracket notation)
+
 ## [0.9.2] - 2026-02-12
 
 ### Fixed

@@ -420,7 +420,7 @@ report_missing_tags() {
     fi
 
     if [[ "$OUTPUT_FORMAT" == "table" ]]; then
-        echo "$missing_targets" | jq -r '.\"display-name\"' | {
+        echo "$missing_targets" | jq -r '.["display-name"]' | {
             printf "%-50s\n" "Display Name"
             printf "%-50s\n" "$(printf '%.50s' '--------------------------------------------------')"
 
@@ -430,7 +430,7 @@ report_missing_tags() {
         }
     elif [[ "$OUTPUT_FORMAT" == "csv" ]]; then
         echo "Display Name"
-        echo "$missing_targets" | jq -r '.\"display-name\"'
+        echo "$missing_targets" | jq -r '.["display-name"]'
     else # json
         echo "$missing_targets"
     fi
