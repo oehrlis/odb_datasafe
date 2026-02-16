@@ -75,9 +75,11 @@ TEMP_FILES=()
 # =============================================================================
 
 # ------------------------------------------------------------------------------
-# Function....: cleanup
-# Purpose.....: Remove temporary files
-# Returns.....: 0
+# Function: cleanup
+# Purpose.: Remove temporary files
+# Args....: None
+# Returns.: 0 on success
+# Output..: None
 # ------------------------------------------------------------------------------
 cleanup() {
     local file=""
@@ -87,9 +89,11 @@ cleanup() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: usage
-# Purpose.....: Display usage information and exit
-# Returns.....: Exits the script
+# Function: usage
+# Purpose.: Display usage information and exit
+# Args....: None
+# Returns.: Exits the script
+# Output..: Usage information to stdout
 # ------------------------------------------------------------------------------
 usage() {
     cat << EOF
@@ -153,10 +157,11 @@ EOF
 }
 
 # ------------------------------------------------------------------------------
-# Function....: parse_args
-# Purpose.....: Parse command-line arguments
-# Args........: $@ - command-line arguments
-# Returns.....: 0 on success
+# Function: parse_args
+# Purpose.: Parse command-line arguments
+# Args....: $@ - command-line arguments
+# Returns.: 0 on success
+# Output..: Sets global variables based on arguments
 # ------------------------------------------------------------------------------
 parse_args() {
     parse_common_opts "$@"
@@ -282,9 +287,11 @@ parse_args() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: validate_inputs
-# Purpose.....: Validate required inputs and resolve defaults
-# Returns.....: 0 on success, exits on error
+# Function: validate_inputs
+# Purpose.: Validate required inputs and resolve defaults
+# Args....: None
+# Returns.: 0 on success, exits on error
+# Output..: Log messages for validation steps
 # ------------------------------------------------------------------------------
 validate_inputs() {
     log_debug "Validating inputs..."
@@ -330,10 +337,11 @@ validate_inputs() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: resolve_ds_profile
-# Purpose.....: Resolve profile name for root vs PDB scope
-# Args........: $1 - scope label
-# Returns.....: Echoes resolved profile name
+# Function: resolve_ds_profile
+# Purpose.: Resolve profile name for root vs PDB scope
+# Args....: $1 - scope label
+# Returns.: 0 on success
+# Output..: Resolved profile name to stdout
 # ------------------------------------------------------------------------------
 resolve_ds_profile() {
     local scope="$1"
@@ -354,12 +362,13 @@ resolve_ds_profile() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: build_temp_sql_script
-# Purpose.....: Create a temporary SQL*Plus script for execution
-# Args........: $1 - base name
-#               $2 - sqlspec (path or @INLINE)
-#               $@ - extra args passed to SQL file
-# Returns.....: Echoes path to temp SQL file
+# Function: build_temp_sql_script
+# Purpose.: Create a temporary SQL*Plus script for execution
+# Args....: $1 - base name
+#           $2 - sqlspec (path or @INLINE)
+#           $@ - extra args passed to SQL file
+# Returns.: 0 on success
+# Output..: Path to temp SQL file
 # ------------------------------------------------------------------------------
 build_temp_sql_script() {
     local base_name="$1"
@@ -414,20 +423,23 @@ build_temp_sql_script() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: build_env_cmd
-# Purpose.....: Build environment sourcing command for remote execution
-# Returns.....: Echoes command snippet
+# Function: build_env_cmd
+# Purpose.: Build environment sourcing command for remote execution
+# Args....: None
+# Returns.: 0 on success
+# Output..: Command snippet to stdout
 # ------------------------------------------------------------------------------
 build_env_cmd() {
     printf '%s' "export ORAENV_ASK=NO ORACLE_SID='%s'; if command -v oraenv >/dev/null 2>&1; then . oraenv >/dev/null 2>&1; fi" "$SID"
 }
 
 # ------------------------------------------------------------------------------
-# Function....: ssh_run_sql
-# Purpose.....: Copy a temp SQL script to remote and execute via sqlplus
-# Args........: $1 - sqlspec (path or @INLINE)
-#               $@ - extra args passed to SQL file
-# Returns.....: 0 on success
+# Function: ssh_run_sql
+# Purpose.: Copy a temp SQL script to remote and execute via sqlplus
+# Args....: $1 - sqlspec (path or @INLINE)
+#           $@ - extra args passed to SQL file
+# Returns.: 0 on success
+# Output..: Log messages
 # ------------------------------------------------------------------------------
 ssh_run_sql() {
     local sqlspec="$1"
@@ -460,9 +472,11 @@ ssh_run_sql() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: copy_sql_files
-# Purpose.....: Copy SQL files to remote host
-# Returns.....: 0 on success
+# Function: copy_sql_files
+# Purpose.: Copy SQL files to remote host
+# Args....: None
+# Returns.: 0 on success
+# Output..: Log messages
 # ------------------------------------------------------------------------------
 copy_sql_files() {
     log_info "Copy SQL files to ${HOST}:${REMOTE_DIR}"
@@ -479,9 +493,11 @@ copy_sql_files() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: run_prereqs
-# Purpose.....: Execute prereq, user, and grant scripts
-# Returns.....: 0 on success
+# Function: run_prereqs
+# Purpose.: Execute prereq, user, and grant scripts
+# Args....: None
+# Returns.: 0 on success
+# Output..: Log messages
 # ------------------------------------------------------------------------------
 run_prereqs() {
     log_info "Running Data Safe prerequisites"
@@ -507,9 +523,11 @@ run_prereqs() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: run_checks
-# Purpose.....: Verify user and privileges only
-# Returns.....: 0 on success
+# Function: run_checks
+# Purpose.: Verify user and privileges only
+# Args....: None
+# Returns.: 0 on success
+# Output..: Log messages
 # ------------------------------------------------------------------------------
 run_checks() {
     log_info "Checking Data Safe setup"
@@ -525,9 +543,11 @@ run_checks() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: main
-# Purpose.....: Main entry point
-# Returns.....: 0 on success
+# Function: main
+# Purpose.: Main entry point
+# Args....: $@ - command-line arguments
+# Returns.: 0 on success
+# Output..: Log messages
 # ------------------------------------------------------------------------------
 main() {
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
