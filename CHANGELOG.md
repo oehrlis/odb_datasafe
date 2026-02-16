@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added `datasafe_help.sh` wrapper for `odb_datasafe_help.sh`
 - Added config file and OCI config summaries to `odb_datasafe_help.sh` output
+- Added standalone usage guide `doc/standalone_usage.md` with tarball install example,
+  mandatory prerequisites (`oci` and `jq`), and simple availability checks
+- Added documentation links to standalone usage and project README in `doc/index.md`
 
 ## [0.9.2] - 2026-02-12
 
@@ -25,6 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added `--drop-user` mode to `ds_database_prereqs.sh` to drop the Data Safe user while keeping the profile
 
+### Changed
+
+- change / consolidate parameter --state to --lifecycle in ds_target_delete.sh,
+  ds_target_move.sh and ds_find_untagged_targets.sh for consistency with other
+  scripts and OCI API terminology.
+  
 ### Fixed
 
 - Fixed execute permission on `ds_database_prereqs.sh`
