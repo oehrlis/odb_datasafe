@@ -423,6 +423,7 @@ find_pass_file() {
 : "${DS_GRANT_TYPE:=GRANT}"
 : "${DS_GRANT_MODE:=ALL}"
 : "${COMMON_USER_PREFIX:=C##}"
+: "${USER_ACTION:=}"
 
 readonly DS_PASS_OPT_SHORT="-P"
 readonly DS_PASS_OPT_LONG="--ds-pass""word"
@@ -865,6 +866,20 @@ validate_inputs() {
         DS_UPDATE_SECRET=false
     fi
 
+    if [[ "$DROP_USER" == "true" ]]; then
+        USER_ACTION="drop user only (keep profile)"
+    elif [[ "$CHECK_ONLY" == "true" ]]; then
+        USER_ACTION="check only (no changes)"
+    elif [[ "$DS_FORCE" == "true" ]]; then
+        USER_ACTION="drop/recreate user"
+    elif [[ "$DS_UPDATE_SECRET" == "true" ]]; then
+        USER_ACTION="update secret (no drop)"
+    else
+        USER_ACTION="create if missing; update profile only"
+    fi
+
+    log_info "User action: ${USER_ACTION}"
+
     if [[ "$DROP_USER" != "true" ]]; then
         resolve_sql_dir
         [[ -f "${SQL_DIR}/${PREREQ_SQL}" ]] || die "Missing SQL file: ${SQL_DIR}/${PREREQ_SQL} (use --sql-dir)"
@@ -1123,7 +1138,7 @@ run_prereqs_scope() {
     local ds_profile
     ds_profile="$(resolve_ds_profile "$scope_label")"
 
-    log_info "Running Data Safe prerequisites for ${scope_label}"
+    log_info "Running Data Safe prerequisites for ${scope_label} (user action: ${USER_ACTION})"
 
     run_sql_local "${SQL_DIR%/}/${PREREQ_SQL}" "${ds_profile}"
     run_sql_local "${SQL_DIR%/}/${USER_SQL}" "${ds_user}" "${DATASAFE_PASS}" "${ds_profile}" "${force_arg}" "${update_arg}"
