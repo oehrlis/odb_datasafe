@@ -523,13 +523,13 @@ SQL:
     --grants-sql FILE       Grants SQL filename (default: ${GRANTS_SQL})
 
 Data Safe:
-    -U, --ds-user USER      Data Safe user (default: ${DATASAFE_USER})
+    -U, --ds-user USER        Data Safe user (default: ${DATASAFE_USER})
     ${DS_PASS_OPT_SHORT}, ${DS_PASS_OPT_LONG} VALUE  Data Safe secret (plain or base64)
-    ${DS_PASS_FILE_OPT} FILE    Base64 secret file (optional)
-  --ds-profile PROFILE    Database profile (default: ${DS_PROFILE})
-  --force                 Force recreate user if exists
-  --grant-type TYPE       Grant type (default: ${DS_GRANT_TYPE})
-  --grant-mode MODE       Grant mode (default: ${DS_GRANT_MODE})
+    ${DS_PASS_FILE_OPT} FILE      Base64 secret file (optional)
+    --ds-profile PROFILE      Database profile (default: ${DS_PROFILE})
+    --force                   Force recreate user if exists
+    --grant-type TYPE         Grant type (default: ${DS_GRANT_TYPE})
+    --grant-mode MODE         Grant mode (default: ${DS_GRANT_MODE})
 
 User naming behavior:
     - Root scope always uses common user with ${COMMON_USER_PREFIX} prefix.
@@ -542,25 +542,25 @@ User naming behavior:
         PDB : DS_ADMIN2
 
 Modes:
-  --check                 Verify user/privileges only (no changes)
-    --drop-user             Drop the Data Safe user only (keep profile)
-  -n, --dry-run           Show actions without executing
+    --check                   Verify user/privileges only (no changes)
+    --drop-user               Drop the Data Safe user only (keep profile)
+    -n, --dry-run             Show actions without executing
 
 Common:
-  -h, --help              Show this help
-  -V, --version           Show version
-  -v, --verbose           Enable verbose output
-  -d, --debug             Enable debug output
-  -q, --quiet             Quiet mode
-  --log-file FILE         Log to file
-  --no-color              Disable colored output
+    -h, --help                Show this help
+    -V, --version             Show version
+    -v, --verbose             Enable verbose output
+    -d, --debug               Enable debug output
+    -q, --quiet               Quiet mode
+    --log-file FILE           Log to file
+    --no-color                Disable colored output
 
 Examples:
     ${SCRIPT_NAME} --root -P "<secret>"
-        ${SCRIPT_NAME} --pdb APP1PDB -P "<secret>"
-        ${SCRIPT_NAME} --pdb APP1PDB,APP2PDB --force
+    ${SCRIPT_NAME} --pdb APP1PDB -P "<secret>"
+    ${SCRIPT_NAME} --pdb APP1PDB,APP2PDB --force
     ${SCRIPT_NAME} --all --force -P "<secret>"
-  ${SCRIPT_NAME} --root --check
+    ${SCRIPT_NAME} --root --check
 
 EOF
     exit 0
