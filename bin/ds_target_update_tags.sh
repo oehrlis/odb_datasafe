@@ -56,6 +56,7 @@ init_config
 # ------------------------------------------------------------------------------
 # Function: usage
 # Purpose.: Display script usage information
+# Args....: None
 # Returns.: 0 (exits script)
 # Output..: Usage text to stdout
 # ------------------------------------------------------------------------------
@@ -221,6 +222,7 @@ parse_args() {
 # ------------------------------------------------------------------------------
 # Function: validate_inputs
 # Purpose.: Validate command-line arguments and required conditions
+# Args....: None
 # Returns.: 0 on success, exits on error via die()
 # Output..: Log messages for validation steps
 # Notes...: Resolves compartments to both name and OCID
@@ -244,10 +246,11 @@ validate_inputs() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: get_env_from_compartment_name
-# Purpose.....: Derive environment from compartment name pattern
-# Parameters..: $1 - compartment name
-# Returns.....: Environment string (test|qs|prod|undef)
+# Function: get_env_from_compartment_name
+# Purpose.: Derive environment from compartment name pattern
+# Args....: $1 - Compartment name
+# Returns.: 0 on success
+# Output..: Environment string (test|qs|prod|undef)
 # ------------------------------------------------------------------------------
 get_env_from_compartment_name() {
     local comp_name="$1"
@@ -265,10 +268,11 @@ get_env_from_compartment_name() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: get_compartment_name
-# Purpose.....: Get compartment name from OCID
-# Parameters..: $1 - compartment OCID
-# Returns.....: Compartment name
+# Function: get_compartment_name
+# Purpose.: Get compartment name from OCID
+# Args....: $1 - Compartment OCID
+# Returns.: 0 on success
+# Output..: Compartment name to stdout
 # ------------------------------------------------------------------------------
 get_compartment_name() {
     local comp_id="$1"
@@ -280,13 +284,14 @@ get_compartment_name() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: build_tag_update_json
-# Purpose.....: Build JSON for tag updates
-# Parameters..: $1 - environment
-#               $2 - container stage
-#               $3 - container type
-#               $4 - classification
-# Returns.....: JSON string
+# Function: build_tag_update_json
+# Purpose.: Build JSON for tag updates
+# Args....: $1 - Environment
+#           $2 - Container stage
+#           $3 - Container type
+#           $4 - Classification
+# Returns.: 0 on success
+# Output..: JSON string to stdout
 # ------------------------------------------------------------------------------
 build_tag_update_json() {
     local env="$1"
@@ -309,11 +314,13 @@ EOF
 }
 
 # ------------------------------------------------------------------------------
-# Function....: update_target_tags
-# Purpose.....: Update tags for a single target
-# Parameters..: $1 - target OCID
-#               $2 - target name
-#               $3 - target compartment OCID
+# Function: update_target_tags
+# Purpose.: Update tags for a single target
+# Args....: $1 - Target OCID
+#           $2 - Target name
+#           $3 - Target compartment OCID
+# Returns.: 0 on success, 1 on error
+# Output..: Log messages
 # ------------------------------------------------------------------------------
 update_target_tags() {
     local target_ocid="$1"
@@ -373,10 +380,11 @@ update_target_tags() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: list_targets_in_compartment
-# Purpose.....: List all targets in compartment
-# Parameters..: $1 - compartment OCID or name
-# Returns.....: JSON array of targets
+# Function: list_targets_in_compartment
+# Purpose.: List all targets in compartment
+# Args....: $1 - Compartment OCID or name
+# Returns.: 0 on success, 1 on error
+# Output..: JSON array of targets to stdout
 # ------------------------------------------------------------------------------
 list_targets_in_compartment() {
     local compartment="$1"
@@ -385,10 +393,11 @@ list_targets_in_compartment() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: do_work
-# Purpose.....: Main work function - processes targets and updates tags
-# Returns.....: 0 on success, 1 if any errors occurred
-# Output......: Progress messages and summary statistics
+# Function: do_work
+# Purpose.: Main work function - processes targets and updates tags
+# Args....: None
+# Returns.: 0 on success, 1 if any errors occurred
+# Output..: Progress messages and summary statistics
 # ------------------------------------------------------------------------------
 do_work() {
     # Set DRY_RUN flag and show mode
@@ -486,6 +495,13 @@ do_work() {
 # MAIN
 # =============================================================================
 
+# ------------------------------------------------------------------------------
+# Function: main
+# Purpose.: Main entry point
+# Args....: None
+# Returns.: 0 on success, exits on error
+# Output..: Log messages
+# ------------------------------------------------------------------------------
 main() {
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
 
