@@ -35,6 +35,13 @@ readonly SCRIPT_VERSION
 : "${LOG_LEVEL:=INFO}"
 : "${LOG_FILE:=}"
 
+# ------------------------------------------------------------------------------
+# Function: _log_level_num
+# Purpose.: Map log level string to numeric severity
+# Args....: $1 - Log level string
+# Returns.: 0 on success
+# Output..: Numeric log level to stdout
+# ------------------------------------------------------------------------------
 _log_level_num() {
     case "${1^^}" in
         TRACE) echo 0 ;;
@@ -47,6 +54,14 @@ _log_level_num() {
     esac
 }
 
+# ------------------------------------------------------------------------------
+# Function: log
+# Purpose.: Emit a formatted log line
+# Args....: $1 - Log level
+#           $2 - Message (remaining args)
+# Returns.: 0 on success, exits on FATAL
+# Output..: Log line to stderr and optional log file
+# ------------------------------------------------------------------------------
 log() {
     local level="${1^^}"
     shift
@@ -71,17 +86,79 @@ log() {
     return 0
 }
 
+# ------------------------------------------------------------------------------
+# Function: log_trace
+# Purpose.: TRACE log wrapper
+# Args....: $@ - Message
+# Returns.: 0 on success
+# Output..: Log line to stderr
+# ------------------------------------------------------------------------------
 log_trace() { log TRACE "$@"; }
+
+# ------------------------------------------------------------------------------
+# Function: log_debug
+# Purpose.: DEBUG log wrapper
+# Args....: $@ - Message
+# Returns.: 0 on success
+# Output..: Log line to stderr
+# ------------------------------------------------------------------------------
 log_debug() { log DEBUG "$@"; }
+
+# ------------------------------------------------------------------------------
+# Function: log_info
+# Purpose.: INFO log wrapper
+# Args....: $@ - Message
+# Returns.: 0 on success
+# Output..: Log line to stderr
+# ------------------------------------------------------------------------------
 log_info() { log INFO "$@"; }
+
+# ------------------------------------------------------------------------------
+# Function: log_warn
+# Purpose.: WARN log wrapper
+# Args....: $@ - Message
+# Returns.: 0 on success
+# Output..: Log line to stderr
+# ------------------------------------------------------------------------------
 log_warn() { log WARN "$@"; }
+
+# ------------------------------------------------------------------------------
+# Function: log_error
+# Purpose.: ERROR log wrapper
+# Args....: $@ - Message
+# Returns.: 0 on success
+# Output..: Log line to stderr
+# ------------------------------------------------------------------------------
 log_error() { log ERROR "$@"; }
+
+# ------------------------------------------------------------------------------
+# Function: log_fatal
+# Purpose.: FATAL log wrapper
+# Args....: $@ - Message
+# Returns.: Exits on FATAL
+# Output..: Log line to stderr
+# ------------------------------------------------------------------------------
 log_fatal() { log FATAL "$@"; }
 
+# ------------------------------------------------------------------------------
+# Function: is_verbose
+# Purpose.: Check for verbose logging
+# Args....: None
+# Returns.: 0 if verbose, 1 otherwise
+# Output..: None
+# ------------------------------------------------------------------------------
 is_verbose() {
     [[ "${LOG_LEVEL^^}" == "DEBUG" || "${LOG_LEVEL^^}" == "TRACE" ]]
 }
 
+# ------------------------------------------------------------------------------
+# Function: die
+# Purpose.: Log an error and exit
+# Args....: $1 - Error message
+#           $2 - Exit code (optional)
+# Returns.: Exits with code
+# Output..: Error log to stderr
+# ------------------------------------------------------------------------------
 die() {
     local msg="$1"
     local code="${2:-1}"
@@ -93,6 +170,14 @@ die() {
 # HELPERS
 # =============================================================================
 
+# ------------------------------------------------------------------------------
+# Function: need_val
+# Purpose.: Validate that an option value is present
+# Args....: $1 - Flag name
+#           $2 - Value
+# Returns.: 0 on success, exits on error
+# Output..: Error log on failure
+# ------------------------------------------------------------------------------
 need_val() {
     local flag="$1"
     local val="${2:-}"
@@ -101,6 +186,13 @@ need_val() {
     fi
 }
 
+# ------------------------------------------------------------------------------
+# Function: require_cmd
+# Purpose.: Ensure required commands are available
+# Args....: $@ - Command names
+# Returns.: 0 on success, exits on error
+# Output..: Error log on failure
+# ------------------------------------------------------------------------------
 require_cmd() {
     local missing=()
     local cmd
@@ -112,6 +204,13 @@ require_cmd() {
     fi
 }
 
+# ------------------------------------------------------------------------------
+# Function: require_var
+# Purpose.: Ensure required variables are set
+# Args....: $@ - Variable names
+# Returns.: 0 on success, exits on error
+# Output..: Error log on failure
+# ------------------------------------------------------------------------------
 require_var() {
     local missing=()
     local var
@@ -123,6 +222,13 @@ require_var() {
     fi
 }
 
+# ------------------------------------------------------------------------------
+# Function: parse_common_opts
+# Purpose.: Parse common CLI flags
+# Args....: $@ - Command-line arguments
+# Returns.: 0 on success
+# Output..: Usage/version text as needed
+# ------------------------------------------------------------------------------
 parse_common_opts() {
     ARGS=()
 
@@ -172,6 +278,13 @@ parse_common_opts() {
     done
 }
 
+# ------------------------------------------------------------------------------
+# Function: decode_base64_file
+# Purpose.: Decode base64 file content with compatible flags
+# Args....: $1 - File path
+# Returns.: 0 on success, 1 on failure
+# Output..: Decoded content to stdout
+# ------------------------------------------------------------------------------
 decode_base64_file() {
     local file="$1"
 
@@ -188,6 +301,14 @@ decode_base64_file() {
     return 1
 }
 
+# ------------------------------------------------------------------------------
+# Function: find_password_file
+# Purpose.: Find the Data Safe password file
+# Args....: $1 - Username
+#           $2 - Explicit file path (optional)
+# Returns.: 0 if found, 1 otherwise
+# Output..: Password file path to stdout
+# ------------------------------------------------------------------------------
 find_password_file() {
     local username="$1"
     local explicit_file="${2:-}"
@@ -254,6 +375,13 @@ TEMP_FILES=()
 # FUNCTIONS
 # =============================================================================
 
+# ------------------------------------------------------------------------------
+# Function: cleanup
+# Purpose.: Remove temporary files recorded during execution
+# Args....: None
+# Returns.: 0 on success
+# Output..: None
+# ------------------------------------------------------------------------------
 cleanup() {
     local file=""
     for file in "${TEMP_FILES[@]:-}"; do
@@ -261,10 +389,24 @@ cleanup() {
     done
 }
 
+# ------------------------------------------------------------------------------
+# Function: has_embedded_sql
+# Purpose.: Detect embedded SQL payload marker
+# Args....: None
+# Returns.: 0 if payload exists, 1 otherwise
+# Output..: None
+# ------------------------------------------------------------------------------
 has_embedded_sql() {
     grep -q '^__PAYLOAD_BEGINS__$' "$SCRIPT_PATH"
 }
 
+# ------------------------------------------------------------------------------
+# Function: extract_embedded_sql
+# Purpose.: Extract embedded SQL payload into a temp directory
+# Args....: None
+# Returns.: 0 on success, exits on error
+# Output..: None (sets SQL_DIR)
+# ------------------------------------------------------------------------------
 extract_embedded_sql() {
     local temp_dir=""
     local payload_file=""
@@ -295,6 +437,13 @@ flag {
     SQL_DIR="$temp_dir"
 }
 
+# ------------------------------------------------------------------------------
+# Function: usage
+# Purpose.: Display usage information and exit
+# Args....: None
+# Returns.: 0 (exits script)
+# Output..: Usage text to stdout
+# ------------------------------------------------------------------------------
 usage() {
     cat << EOF
 Usage: ${SCRIPT_NAME} [OPTIONS]
@@ -359,6 +508,13 @@ EOF
     exit 0
 }
 
+# ------------------------------------------------------------------------------
+# Function: parse_args
+# Purpose.: Parse script-specific command-line arguments
+# Args....: $@ - Command-line arguments
+# Returns.: 0 on success
+# Output..: Warning messages for ignored args
+# ------------------------------------------------------------------------------
 parse_args() {
     parse_common_opts "$@"
 
@@ -465,9 +621,11 @@ parse_args() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: resolve_sql_dir
-# Purpose.....: Determine SQL directory if not explicitly set
-# Returns.....: 0 on success, exits on error
+# Function: resolve_sql_dir
+# Purpose.: Determine SQL directory if not explicitly set
+# Args....: None
+# Returns.: 0 on success, exits on error
+# Output..: Log messages for SQL source
 # ------------------------------------------------------------------------------
 resolve_sql_dir() {
     if [[ "$USE_EMBEDDED" == "true" ]]; then
@@ -519,6 +677,13 @@ resolve_sql_dir() {
     die "Missing SQL files in ${candidate_script_dir} and ${candidate_parent_sql} (use --sql-dir)"
 }
 
+# ------------------------------------------------------------------------------
+# Function: generate_password
+# Purpose.: Generate a random Data Safe password
+# Args....: None
+# Returns.: 0 on success
+# Output..: Password string to stdout
+# ------------------------------------------------------------------------------
 generate_password() {
     require_cmd openssl tr
 
@@ -527,6 +692,13 @@ generate_password() {
     printf '%s' "${rand}Aa1!"
 }
 
+# ------------------------------------------------------------------------------
+# Function: password_file_path
+# Purpose.: Resolve the default password file path
+# Args....: $1 - Username
+# Returns.: 0 on success
+# Output..: File path to stdout
+# ------------------------------------------------------------------------------
 password_file_path() {
     local username="$1"
     local filename="${username}_pwd.b64"
@@ -544,6 +716,13 @@ password_file_path() {
     echo "${PWD}/${filename}"
 }
 
+# ------------------------------------------------------------------------------
+# Function: resolve_password
+# Purpose.: Load or generate the Data Safe password
+# Args....: None
+# Returns.: 0 on success
+# Output..: Log messages; writes password file as needed
+# ------------------------------------------------------------------------------
 resolve_password() {
     if [[ "$CHECK_ONLY" == "true" ]]; then
         return 0
@@ -571,6 +750,13 @@ resolve_password() {
     log_info "Generated Data Safe password and wrote: $output_file"
 }
 
+# ------------------------------------------------------------------------------
+# Function: validate_inputs
+# Purpose.: Validate inputs and resolve SQL/password sources
+# Args....: None
+# Returns.: 0 on success, exits on error
+# Output..: Log messages
+# ------------------------------------------------------------------------------
 validate_inputs() {
     log_debug "Validating inputs..."
 
@@ -607,6 +793,15 @@ validate_inputs() {
     fi
 }
 
+# ------------------------------------------------------------------------------
+# Function: build_temp_sql_script
+# Purpose.: Build a temporary SQL*Plus script
+# Args....: $1 - Base name
+#           $2 - SQL spec (path or @INLINE)
+#           $3 - SQL args (optional)
+# Returns.: 0 on success
+# Output..: Temp SQL file path to stdout
+# ------------------------------------------------------------------------------
 build_temp_sql_script() {
     local base_name="$1"
     local sqlspec="$2"
@@ -664,6 +859,14 @@ build_temp_sql_script() {
     printf '%s\n' "$tmp_sql"
 }
 
+# ------------------------------------------------------------------------------
+# Function: run_sql_local
+# Purpose.: Execute SQL*Plus locally for a script or inline SQL
+# Args....: $1 - SQL spec
+#           $2 - SQL args (optional)
+# Returns.: 0 on success, 1 on failure
+# Output..: SQL*Plus output or error tail
+# ------------------------------------------------------------------------------
 run_sql_local() {
     local sqlspec="$1"
     shift || true
@@ -697,6 +900,13 @@ run_sql_local() {
     return 0
 }
 
+# ------------------------------------------------------------------------------
+# Function: list_open_pdbs
+# Purpose.: List open READ WRITE PDBs
+# Args....: None
+# Returns.: 0 on success, 1 on error
+# Output..: PDB names to stdout
+# ------------------------------------------------------------------------------
 list_open_pdbs() {
     local output
     local err_file
@@ -756,6 +966,13 @@ SQL
     printf '%s\n' "$output" | awk 'NF==1 && $1 ~ /^[A-Za-z0-9_$#]+$/ {print $1}'
 }
 
+# ------------------------------------------------------------------------------
+# Function: resolve_ds_user
+# Purpose.: Resolve Data Safe username for scope
+# Args....: $1 - Scope label
+# Returns.: 0 on success
+# Output..: Username to stdout
+# ------------------------------------------------------------------------------
 resolve_ds_user() {
     local scope="$1"
     local base_user="$DATASAFE_USER"
@@ -774,6 +991,13 @@ resolve_ds_user() {
     printf '%s' "$base_user"
 }
 
+# ------------------------------------------------------------------------------
+# Function: resolve_ds_profile
+# Purpose.: Resolve Data Safe profile for scope
+# Args....: $1 - Scope label
+# Returns.: 0 on success
+# Output..: Profile name to stdout
+# ------------------------------------------------------------------------------
 resolve_ds_profile() {
     local scope="$1"
     local base_profile="$DS_PROFILE"
@@ -792,6 +1016,13 @@ resolve_ds_profile() {
     printf '%s' "$base_profile"
 }
 
+# ------------------------------------------------------------------------------
+# Function: run_prereqs_scope
+# Purpose.: Run prereq SQL scripts for a scope
+# Args....: $1 - Scope label
+# Returns.: 0 on success, 1 on failure
+# Output..: Log messages and SQL*Plus output
+# ------------------------------------------------------------------------------
 run_prereqs_scope() {
     local scope_label="$1"
     local force_arg="FALSE"
@@ -812,6 +1043,13 @@ run_prereqs_scope() {
     run_sql_local "${SQL_DIR%/}/${GRANTS_SQL}" "${ds_user}" "${DS_GRANT_TYPE}" "${DS_GRANT_MODE}"
 }
 
+# ------------------------------------------------------------------------------
+# Function: run_checks_scope
+# Purpose.: Check user roles and privileges for a scope
+# Args....: $1 - Scope label
+# Returns.: 0 on success, 1 on failure
+# Output..: Log messages and SQL*Plus output
+# ------------------------------------------------------------------------------
 run_checks_scope() {
     local scope_label="$1"
     local ds_user
@@ -847,6 +1085,13 @@ EOF
     run_sql_local "$check_sql"
 }
 
+# ------------------------------------------------------------------------------
+# Function: run_drop_user_scope
+# Purpose.: Drop the Data Safe user for a scope
+# Args....: $1 - Scope label
+# Returns.: 0 on success, 1 on failure
+# Output..: Log messages and SQL*Plus output
+# ------------------------------------------------------------------------------
 run_drop_user_scope() {
     local scope_label="$1"
     local ds_user
@@ -879,6 +1124,13 @@ EOF
     run_sql_local "$drop_sql"
 }
 
+# ------------------------------------------------------------------------------
+# Function: main
+# Purpose.: Main entry point
+# Args....: $@ - Command-line arguments
+# Returns.: 0 on success, 1 on error
+# Output..: Log messages
+# ------------------------------------------------------------------------------
 main() {
     trap cleanup EXIT
 
