@@ -174,6 +174,9 @@ export ORACLE_SID=cdb01
 /opt/datasafe/ds_database_prereqs.sh --root -P "<password>"
 /opt/datasafe/ds_database_prereqs.sh --all -P "<password>"
 
+# Update secret for existing user (no drop)
+/opt/datasafe/ds_database_prereqs.sh --root -P "<password>" --update-secret
+
 # Base64 password input (auto-decoded)
 DS_PW_B64=$(printf '%s' 'mySecret' | base64)
 /opt/datasafe/ds_database_prereqs.sh --root -P "${DS_PW_B64}"

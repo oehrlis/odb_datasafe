@@ -92,16 +92,16 @@ Examples:
   - Root: `C##DS_ADMIN2`
   - PDB : `DS_ADMIN2`
 
-## Password Handling
+## Secret Handling
 
-Password resolution order:
+Secret resolution order:
 
 1. `--ds-password`
 2. `--password-file`
 3. `<user>_pwd.b64` in `ORADBA_ETC`, `ODB_DATASAFE_BASE/etc`, or current dir
 4. Auto-generate and write `<user>_pwd.b64`
 
-`--ds-password` accepts either a plain-text password or a base64-encoded value.
+`--ds-password` accepts either a plain-text secret or a base64-encoded value.
 If the value looks like valid base64, the script decodes it before use.
 
 Example (base64 input):
@@ -109,6 +109,27 @@ Example (base64 input):
 ```bash
 DS_PW_B64=$(printf '%s' 'mySecret' | base64)
 /opt/datasafe/ds_database_prereqs.sh --root -P "${DS_PW_B64}"
+```
+
+## User Management Behavior
+
+- **Create if missing**: default behavior when the user does not exist.
+- **Update profile only**: default behavior when the user exists (no secret change).
+- **Update secret (no drop)**: use `--update-secret` to set a new secret while
+  keeping the user and grants.
+- **Drop and recreate**: use `--force` to drop and recreate the user.
+
+Examples:
+
+```bash
+# Update profile only (user exists)
+/opt/datasafe/ds_database_prereqs.sh --root -P "<secret>"
+
+# Update secret without dropping the user
+/opt/datasafe/ds_database_prereqs.sh --root -P "<secret>" --update-secret
+
+# Drop and recreate the user
+/opt/datasafe/ds_database_prereqs.sh --root -P "<secret>" --force
 ```
 
 ## Notes

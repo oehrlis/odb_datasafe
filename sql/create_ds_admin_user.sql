@@ -10,18 +10,20 @@
 --             database. Optionally drop the user if it already exists.
 --             Supports setting a custom password and profile.
 --
--- Usage.....: @create_ds_admin_user.sql <username> <password> <profile> <force>
+-- Usage.....: @create_ds_admin_user.sql <username> <password> <profile> <force> <update_secret>
 -- Parameters:
 --   &1 - Username    (default: DS_ADMIN)
 --   &2 - Password    (default: empty string, must be provided if needed)
 --   &3 - Profile     (default: DEFAULT)
 --   &4 - Force Drop  (default: TRUE - drop user if exists)
+--   &5 - Update Secret (default: FALSE - update secret if user exists)
 --
--- Example....: @create_ds_admin_user.sql DS_ADMIN mySecurePW DEFAULT TRUE
+-- Example....: @create_ds_admin_user.sql DS_ADMIN mySecurePW DEFAULT TRUE FALSE
 --
 -- Behavior...:
 --   - Creates the user with the given password and profile.
 --   - Drops the user first if FORCE is TRUE and user exists.
+--   - Updates the user secret if UPDATE_SECRET is TRUE and user exists.
 --   - Grants CONNECT and RESOURCE roles.
 --   - Should be executed in CDB$ROOT with "_ORACLE_SCRIPT" enabled if needed.
 --
@@ -38,6 +40,7 @@ DEFINE _ds_user    = 'DS_ADMIN'
 DEFINE _ds_passwd  = 'DS_Admin.2025'
 DEFINE _ds_profile = 'DEFAULT'
 DEFINE _ds_force   = 'FALSE'
+DEFINE _ds_update_secret = 'FALSE'
 
 -- Assign passed parameters or use defaults ------------------------------------
 SET FEEDBACK OFF
@@ -46,14 +49,17 @@ COLUMN 1 NEW_VALUE 1 NOPRINT
 COLUMN 2 NEW_VALUE 2 NOPRINT
 COLUMN 3 NEW_VALUE 3 NOPRINT
 COLUMN 4 NEW_VALUE 4 NOPRINT
+COLUMN 5 NEW_VALUE 5 NOPRINT
 SELECT '' "1" FROM dual WHERE ROWNUM = 0; 
 SELECT '' "2" FROM dual WHERE ROWNUM = 0; 
 SELECT '' "3" FROM dual WHERE ROWNUM = 0; 
 SELECT '' "4" FROM dual WHERE ROWNUM = 0; 
+SELECT '' "5" FROM dual WHERE ROWNUM = 0; 
 DEFINE ds_user      = &1 &_ds_user
 DEFINE ds_passwd    = &2 &_ds_passwd
 DEFINE ds_profile   = &3 &_ds_profile
 DEFINE ds_force     = &4 &_ds_force
+DEFINE ds_update_secret = &5 &_ds_update_secret
 
 -- Configure SQLPlus -----------------------------------------------------------
 SPOOL create_ds_admin_user.log
@@ -72,6 +78,7 @@ DECLARE
     l_passwd     dba_users.password%TYPE    := '&ds_passwd';
     l_profile    dba_users.profile%TYPE     := '&ds_profile';
     l_force      VARCHAR2(10 CHAR)          := '&ds_force';
+    l_update_secret VARCHAR2(10 CHAR)       := '&ds_update_secret';
     l_user_exists   PLS_INTEGER;
     l_sql           text_type;              -- sql used in EXECUTE IMMEDIATE
 BEGIN
@@ -79,6 +86,7 @@ BEGIN
     l_username := UPPER(l_username);
     l_profile  := UPPER(l_profile);
     l_force    :=UPPER(l_force);
+    l_update_secret := UPPER(l_update_secret);
     -- Check if user exists
     SELECT COUNT(*) INTO l_user_exists FROM DBA_USERS WHERE USERNAME = l_username; -- Replace 'desired_username' with the username you want to check.
 
@@ -98,11 +106,19 @@ BEGIN
             EXECUTE IMMEDIATE l_sql;
             sys.dbms_output.put_line('User ' || l_username || ' created with profile ' || l_profile);
         ELSE
-            sys.dbms_output.put_line('User ' || l_username || ' already exists. Updating profile only.');
-            sys.dbms_output.put_line('Use FORCE=TRUE to reset the password.');
+            IF l_update_secret = 'TRUE' THEN
+                sys.dbms_output.put_line('User ' || l_username || ' already exists. Updating secret and profile.');
+                l_sql := 'ALTER USER ' || l_username ||
+                    ' IDENTIFIED BY "' || l_passwd || '"' ||
+                    ' PROFILE ' || l_profile;
+                EXECUTE IMMEDIATE l_sql;
+            ELSE
+                sys.dbms_output.put_line('User ' || l_username || ' already exists. Updating profile only.');
+                sys.dbms_output.put_line('Use UPDATE_SECRET=TRUE to reset the secret or FORCE=TRUE to drop/recreate.');
 
-            l_sql := 'ALTER USER ' || l_username || ' PROFILE ' || l_profile;
-            EXECUTE IMMEDIATE l_sql;
+                l_sql := 'ALTER USER ' || l_username || ' PROFILE ' || l_profile;
+                EXECUTE IMMEDIATE l_sql;
+            END IF;
         END IF;
     ELSE
         DBMS_OUTPUT.PUT_LINE('User '|| l_username || ' does not exist.');

@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated standalone tarball example in `doc/standalone_usage.md` to use
   `odb_datasafe-<version>.tar.gz` placeholder
 - `ds_database_prereqs.sh` now auto-detects base64 input for `--ds-password`
+- `ds_database_prereqs.sh` now supports updating the user secret without drop/recreate (`--update-secret`)
 
 ## [0.10.0] - 2026-02-16
 
