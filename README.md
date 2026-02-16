@@ -36,14 +36,20 @@ sudo systemctl status oracle_datasafe_my-connector.service
 **Update Data Safe Connector:**
 
 ```bash
-# 1. Update connector by name (auto-detects home directory)
+# Option 1: Using OraDBA environment (simplest)
+./bin/ds_connector_update.sh --datasafe-home dscon4
+
+# Option 2: Update connector by name (auto-detects home directory)
 ./bin/ds_connector_update.sh --connector my-connector -c MyCompartment
 
-# 2. Dry-run to see what would be done
-./bin/ds_connector_update.sh --connector my-connector -c MyCompartment --dry-run
+# Dry-run to see what would be done
+./bin/ds_connector_update.sh --datasafe-home dscon4 --dry-run
 
-# 3. Update with specific home directory
+# Update with specific home directory
 ./bin/ds_connector_update.sh --connector my-connector --connector-home /u01/app/oracle/product/datasafe
+
+# Register connector in OraDBA configuration (for --datasafe-home usage)
+./bin/ds_connector_register_oradba.sh --datasafe-home dscon4 --connector my-connector
 ```
 
 **Uninstall Services:**

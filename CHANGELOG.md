@@ -8,8 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.2] - 2026-02-16
+
+### Added
+
+- **OraDBA Integration** for `ds_connector_update.sh`:
+  - New `--datasafe-home` parameter for simplified connector updates using OraDBA environment names
+  - Automatic resolution of connector home and metadata from `${ORADBA_BASE}/etc/oradba_homes.conf`
+  - New `ds_connector_register_oradba.sh` script to register connector metadata in OraDBA configuration
+  - Support for three metadata formats: `(oci=name)`, `(oci=ocid)`, `(oci=name,ocid)`
+  - Complete parameter validation to prevent mixing `--datasafe-home` with `--connector` parameters
+
+### Fixed
+
+- **Version Check Bug** in `ds_connector_update.sh`:
+  - Replaced broken Python `exec()` method with `python3 setup.py version` command
+  - Updated version extraction to parse output format: "On-premises connector software version : 220517.00"
+  - Eliminates Python `__file__` error that prevented version comparison
+
 ### Changed
 
+- Updated usage documentation in `ds_connector_update.sh` to reflect new OraDBA integration options
 - Replaced hardcoded `/opt/datasafe` paths in documentation examples with
   `DATASAFE_BASE` in:
   - `doc/quickref.md`
