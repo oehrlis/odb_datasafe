@@ -191,6 +191,7 @@ parse_args() {
 # ------------------------------------------------------------------------------
 # Function: validate_inputs
 # Purpose.: Validate required inputs and dependencies
+# Args....: None
 # Returns.: 0 on success, exits on validation failure
 # Notes...: Checks for required commands, resolves compartment, builds target list
 # ------------------------------------------------------------------------------
@@ -264,7 +265,13 @@ validate_inputs() {
 
 # --- Steps --------------------------------------------------------------------
 
-# Step 1: Delete target dependencies
+# ------------------------------------------------------------------------------
+# Function: step_delete_dependencies
+# Purpose.: Delete target dependencies when enabled
+# Args....: None
+# Returns.: 0 on success
+# Output..: Log messages
+# ------------------------------------------------------------------------------
 step_delete_dependencies() {
     [[ "${DELETE_DEPENDENCIES}" != "true" ]] && return 0
 
@@ -294,7 +301,13 @@ step_delete_dependencies() {
     done
 }
 
-# Step 2: Delete targets
+# ------------------------------------------------------------------------------
+# Function: step_delete_targets
+# Purpose.: Delete target databases
+# Args....: None
+# Returns.: 0 on success
+# Output..: Log messages
+# ------------------------------------------------------------------------------
 step_delete_targets() {
     log_info "Step 2/2: Deleting target databases..."
 
@@ -331,6 +344,14 @@ step_delete_targets() {
 
 # --- Dependency deletion helpers ----------------------------------------------
 
+# ------------------------------------------------------------------------------
+# Function: delete_audit_trails
+# Purpose.: Delete audit trails for a target
+# Args....: $1 - Target OCID
+#           $2 - Target name
+# Returns.: 0 on success
+# Output..: Log messages
+# ------------------------------------------------------------------------------
 delete_audit_trails() {
     local target_ocid="$1"
     local target_name="$2"
@@ -379,6 +400,14 @@ delete_audit_trails() {
     return 0 # Always return success - individual failures are logged but not critical
 }
 
+# ------------------------------------------------------------------------------
+# Function: delete_assessments
+# Purpose.: Delete security assessments for a target
+# Args....: $1 - Target OCID
+#           $2 - Target name
+# Returns.: 0 on success
+# Output..: Log messages
+# ------------------------------------------------------------------------------
 delete_assessments() {
     local target_ocid="$1"
     local target_name="$2"
@@ -427,6 +456,14 @@ delete_assessments() {
     return 0 # Always return success - individual failures are logged but not critical
 }
 
+# ------------------------------------------------------------------------------
+# Function: delete_security_policies
+# Purpose.: Delete security policies for a target
+# Args....: $1 - Target OCID
+#           $2 - Target name
+# Returns.: 0 on success
+# Output..: Log messages
+# ------------------------------------------------------------------------------
 delete_security_policies() {
     local target_ocid="$1"
     local target_name="$2"
@@ -476,8 +513,11 @@ delete_security_policies() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: run_deletion
-# Purpose.....: Orchestrate the deletion steps
+# Function: run_deletion
+# Purpose.: Orchestrate the deletion steps
+# Args....: None
+# Returns.: Exits with status code
+# Output..: Summary log messages
 # ------------------------------------------------------------------------------
 run_deletion() {
     step_delete_dependencies
@@ -504,6 +544,13 @@ run_deletion() {
 # MAIN
 # =============================================================================
 
+# ------------------------------------------------------------------------------
+# Function: main
+# Purpose.: Main entry point
+# Args....: $@ - All command-line arguments
+# Returns.: 0 on success, exits on error
+# Output..: Log messages
+# ------------------------------------------------------------------------------
 main() {
     # Initialize framework and parse arguments
     init_config
