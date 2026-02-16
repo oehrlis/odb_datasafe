@@ -37,6 +37,13 @@ readonly COMMON_SH_LOADED=1
 # COLOR SETUP
 # =============================================================================
 
+# ------------------------------------------------------------------------------
+# Function: _init_colors
+# Purpose.: Initialize ANSI color variables
+# Args....: None
+# Returns.: 0 on success
+# Output..: None
+# ------------------------------------------------------------------------------
 _init_colors() {
     # Only use colors if: terminal + (LOG_COLORS=always OR (LOG_COLORS=auto AND tty))
     if [[ "${LOG_COLORS}" == "never" ]]; then
@@ -65,7 +72,13 @@ _init_colors
 # LOGGING FUNCTIONS
 # =============================================================================
 
-# Get numeric log level
+# ------------------------------------------------------------------------------
+# Function: _log_level_num
+# Purpose.: Map log level string to numeric severity
+# Args....: $1 - Log level string
+# Returns.: 0 on success
+# Output..: Numeric log level to stdout
+# ------------------------------------------------------------------------------
 _log_level_num() {
     case "${1^^}" in
         TRACE) echo 0 ;;
@@ -79,12 +92,12 @@ _log_level_num() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: log
-# Purpose.....: Generic logging function with levels and colors
-# Parameters..: $1 - log level (TRACE|DEBUG|INFO|WARN|ERROR|FATAL)
-#               $@ - message
-# Usage.......: log INFO "Processing started"
-#               log ERROR "Failed to connect"
+# Function: log
+# Purpose.: Generic logging function with levels and colors
+# Args....: $1 - Log level (TRACE|DEBUG|INFO|WARN|ERROR|FATAL)
+#           $@ - Message
+# Returns.: 0 on success, exits on FATAL
+# Output..: Log line to stderr and optional log file
 # ------------------------------------------------------------------------------
 log() {
     local level="${1^^}"
@@ -129,20 +142,67 @@ log() {
 }
 
 # Convenience wrappers
+# ------------------------------------------------------------------------------
+# Function: log_trace
+# Purpose.: TRACE log wrapper
+# Args....: $@ - Message
+# Returns.: 0 on success
+# Output..: Log line to stderr
+# ------------------------------------------------------------------------------
 log_trace() { log TRACE "$@"; }
+
+# ------------------------------------------------------------------------------
+# Function: log_debug
+# Purpose.: DEBUG log wrapper
+# Args....: $@ - Message
+# Returns.: 0 on success
+# Output..: Log line to stderr
+# ------------------------------------------------------------------------------
 log_debug() { log DEBUG "$@"; }
+
+# ------------------------------------------------------------------------------
+# Function: log_info
+# Purpose.: INFO log wrapper
+# Args....: $@ - Message
+# Returns.: 0 on success
+# Output..: Log line to stderr
+# ------------------------------------------------------------------------------
 log_info() { log INFO "$@"; }
+
+# ------------------------------------------------------------------------------
+# Function: log_warn
+# Purpose.: WARN log wrapper
+# Args....: $@ - Message
+# Returns.: 0 on success
+# Output..: Log line to stderr
+# ------------------------------------------------------------------------------
 log_warn() { log WARN "$@"; }
+
+# ------------------------------------------------------------------------------
+# Function: log_error
+# Purpose.: ERROR log wrapper
+# Args....: $@ - Message
+# Returns.: 0 on success
+# Output..: Log line to stderr
+# ------------------------------------------------------------------------------
 log_error() { log ERROR "$@"; }
+
+# ------------------------------------------------------------------------------
+# Function: log_fatal
+# Purpose.: FATAL log wrapper
+# Args....: $@ - Message
+# Returns.: Exits on FATAL
+# Output..: Log line to stderr
+# ------------------------------------------------------------------------------
 log_fatal() { log FATAL "$@"; }
 
 # ------------------------------------------------------------------------------
-# Function....: die
-# Purpose.....: Exit with error message
-# Parameters..: $1 - error message
-#               $2 - exit code (optional, default 1)
-# Usage.......: die "Configuration file not found"
-#               die "Invalid argument" 2
+# Function: die
+# Purpose.: Exit with error message
+# Args....: $1 - Error message
+#           $2 - Exit code (optional, default: 1)
+# Returns.: Exits with code
+# Output..: Error log to stderr
 # ------------------------------------------------------------------------------
 die() {
     local msg="$1"
@@ -156,8 +216,11 @@ die() {
 # =============================================================================
 
 # ------------------------------------------------------------------------------
-# Function....: stacktrace
-# Purpose.....: Print stack trace for debugging
+# Function: stacktrace
+# Purpose.: Print stack trace for debugging
+# Args....: None
+# Returns.: 0 on success
+# Output..: Stack trace to stderr
 # ------------------------------------------------------------------------------
 stacktrace() {
     local frame=0
@@ -170,10 +233,12 @@ stacktrace() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: error_handler
-# Purpose.....: Global error trap handler
-# Usage.......: trap error_handler ERR
-# Notes.......: Disables ERR trap to prevent recursion
+# Function: error_handler
+# Purpose.: Global error trap handler
+# Args....: None
+# Returns.: Exits with error code
+# Output..: Error details to stderr
+# Notes...: Disables ERR trap to prevent recursion
 # ------------------------------------------------------------------------------
 error_handler() {
     # CRITICAL: Disable ERR trap immediately to prevent infinite recursion
@@ -194,10 +259,12 @@ error_handler() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: cleanup
-# Purpose.....: Cleanup handler (override in your script)
-# Usage.......: trap cleanup EXIT
-# Notes.......: Scripts should define their own cleanup() if needed
+# Function: cleanup
+# Purpose.: Cleanup handler (override in your script)
+# Args....: None
+# Returns.: 0 on success
+# Output..: None
+# Notes...: Scripts should define their own cleanup() if needed
 # ------------------------------------------------------------------------------
 cleanup() {
     # Default cleanup - override in scripts if needed
@@ -205,9 +272,11 @@ cleanup() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: setup_error_handling
-# Purpose.....: Initialize error handling (call in scripts)
-# Usage.......: setup_error_handling
+# Function: setup_error_handling
+# Purpose.: Initialize error handling (call in scripts)
+# Args....: None
+# Returns.: 0 on success
+# Output..: None
 # ------------------------------------------------------------------------------
 setup_error_handling() {
     set -euo pipefail
@@ -225,10 +294,11 @@ setup_error_handling() {
 # =============================================================================
 
 # ------------------------------------------------------------------------------
-# Function....: require_cmd
-# Purpose.....: Check if required commands are available
-# Parameters..: $@ - command names
-# Usage.......: require_cmd oci jq curl
+# Function: require_cmd
+# Purpose.: Check if required commands are available
+# Args....: $@ - Command names
+# Returns.: 0 on success, exits on error
+# Output..: Error log on failure
 # ------------------------------------------------------------------------------
 require_cmd() {
     local missing=()
@@ -244,10 +314,11 @@ require_cmd() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: require_var
-# Purpose.....: Check if required variables are set
-# Parameters..: $@ - variable names
-# Usage.......: require_var OCI_PROFILE COMPARTMENT_OCID
+# Function: require_var
+# Purpose.: Check if required variables are set
+# Args....: $@ - Variable names
+# Returns.: 0 on success, exits on error
+# Output..: Error log on failure
 # ------------------------------------------------------------------------------
 require_var() {
     local missing=()
@@ -267,12 +338,12 @@ require_var() {
 # =============================================================================
 
 # ------------------------------------------------------------------------------
-# Function....: need_val
-# Purpose.....: Helper to ensure flag has a value
-# Parameters..: $1 - flag name (for error message)
-#               $2 - value (to check)
-# Usage.......: [[ $# -lt 2 ]] && need_val "--output"
-#               need_val "--output" "${2:-}"
+# Function: need_val
+# Purpose.: Helper to ensure flag has a value
+# Args....: $1 - Flag name (for error message)
+#           $2 - Value (to check)
+# Returns.: 0 on success, exits on error
+# Output..: Error log on failure
 # ------------------------------------------------------------------------------
 need_val() {
     local flag="$1"
@@ -283,14 +354,12 @@ need_val() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: parse_common_opts
-# Purpose.....: Parse common options that most scripts share
-# Parameters..: $@ - arguments to parse
-# Globals.....: Sets LOG_LEVEL, DRY_RUN, VERBOSE, DEBUG
-# Returns.....: Remaining args in ARGS array
-# Usage.......: parse_common_opts "$@"
-#               Then process remaining args: "${ARGS[@]}"
-# Notes.......: Call this FIRST, then parse script-specific args
+# Function: parse_common_opts
+# Purpose.: Parse common options that most scripts share
+# Args....: $@ - Arguments to parse
+# Returns.: 0 on success
+# Output..: Sets ARGS array and common globals
+# Notes...: Call this FIRST, then parse script-specific args
 # ------------------------------------------------------------------------------
 parse_common_opts() {
     ARGS=()
@@ -353,11 +422,12 @@ parse_common_opts() {
 # =============================================================================
 
 # ------------------------------------------------------------------------------
-# Function....: load_config
-# Purpose.....: Load configuration from file if exists
-# Parameters..: $1 - config file path
-# Usage.......: load_config "${SCRIPT_DIR}/../etc/datasafe.conf"
-# Notes.......: Silently skips if file doesn't exist
+# Function: load_config
+# Purpose.: Load configuration from file if exists
+# Args....: $1 - Config file path
+# Returns.: 0 on success
+# Output..: None
+# Notes...: Silently skips if file doesn't exist
 # ------------------------------------------------------------------------------
 load_config() {
     local config_file="$1"
@@ -371,13 +441,13 @@ load_config() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: init_config
-# Purpose.....: Initialize configuration cascade (defaults → .env → configs → CLI)
-# Parameters..: $1 - optional script-specific config file
-# Usage.......: init_config
-#               init_config "my_script.conf"
-# Notes.......: Call after setting defaults, before parse_common_opts
-#               .env file location: $ODB_DATASAFE_BASE/.env (extension base directory)
+# Function: init_config
+# Purpose.: Initialize configuration cascade (defaults → .env → configs → CLI)
+# Args....: $1 - Optional script-specific config file
+# Returns.: 0 on success
+# Output..: None
+# Notes...: Call after setting defaults, before parse_common_opts
+#           .env file location: $ODB_DATASAFE_BASE/.env (extension base directory)
 # ------------------------------------------------------------------------------
 init_config() {
     local script_conf="${1:-}"
@@ -427,11 +497,11 @@ init_config() {
 # =============================================================================
 
 # ------------------------------------------------------------------------------
-# Function....: confirm
-# Purpose.....: Ask user for confirmation
-# Parameters..: $1 - prompt message (optional)
-# Returns.....: 0 if yes, 1 if no
-# Usage.......: confirm "Delete all targets?" && do_delete
+# Function: confirm
+# Purpose.: Ask user for confirmation
+# Args....: $1 - Prompt message (optional)
+# Returns.: 0 if yes, 1 if no
+# Output..: Prompt to stdout
 # ------------------------------------------------------------------------------
 confirm() {
     local prompt="${1:-Are you sure?}"
@@ -449,22 +519,22 @@ confirm() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: is_ocid
-# Purpose.....: Check if string is an OCID
-# Parameters..: $1 - string to check
-# Returns.....: 0 if OCID, 1 if not
-# Usage.......: is_ocid "$target" && echo "It's an OCID"
+# Function: is_ocid
+# Purpose.: Check if string is an OCID
+# Args....: $1 - String to check
+# Returns.: 0 if OCID, 1 if not
+# Output..: None
 # ------------------------------------------------------------------------------
 is_ocid() {
     [[ "$1" =~ ^ocid1\. ]]
 }
 
 # ------------------------------------------------------------------------------
-# Function....: decode_base64_file
-# Purpose.....: Decode base64 file content to stdout
-# Parameters..: $1 - base64 file path
-# Returns.....: 0 on success, 1 on decode failure
-# Output......: Decoded content to stdout
+# Function: decode_base64_file
+# Purpose.: Decode base64 file content to stdout
+# Args....: $1 - Base64 file path
+# Returns.: 0 on success, 1 on decode failure
+# Output..: Decoded content to stdout
 # ------------------------------------------------------------------------------
 decode_base64_file() {
     local file="$1"
@@ -489,13 +559,13 @@ decode_base64_file() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: find_password_file
-# Purpose.....: Locate password file by explicit path or username pattern
-# Parameters..: $1 - username
-#               $2 - explicit file path (optional)
-# Returns.....: 0 on success, 1 if not found
-# Output......: Resolved file path to stdout
-# Notes.......: Searches ORADBA_ETC first, then $ODB_DATASAFE_BASE/etc
+# Function: find_password_file
+# Purpose.: Locate password file by explicit path or username pattern
+# Args....: $1 - Username
+#           $2 - Explicit file path (optional)
+# Returns.: 0 on success, 1 if not found
+# Output..: Resolved file path to stdout
+# Notes...: Searches ORADBA_ETC first, then $ODB_DATASAFE_BASE/etc
 # ------------------------------------------------------------------------------
 find_password_file() {
     local username="$1"
