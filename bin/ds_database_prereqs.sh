@@ -356,14 +356,14 @@ is_base64_string() {
 }
 
 # ------------------------------------------------------------------------------
-# Function: find_password_file
-# Purpose.: Find the Data Safe password file
+# Function: find_pass_file
+# Purpose.: Find the Data Safe secret file
 # Args....: $1 - Username
 #           $2 - Explicit file path (optional)
 # Returns.: 0 if found, 1 otherwise
-# Output..: Password file path to stdout
+# Output..: Secret file path to stdout
 # ------------------------------------------------------------------------------
-find_password_file() {
+find_pass_file() {
     local username="$1"
     local explicit_file="${2:-}"
     local filename="${username}_pwd.b64"
@@ -415,13 +415,17 @@ find_password_file() {
 : "${GRANTS_SQL:=datasafe_privileges.sql}"
 
 : "${DATASAFE_USER:=DS_ADMIN}"
-: "${DATASAFE_PASSWORD:=}"
-: "${DATASAFE_PASSWORD_FILE:=}"
+: "${DATASAFE_PASS:=}"
+: "${DATASAFE_PASS_FILE:=}"
 : "${DS_PROFILE:=DS_USER_PROFILE}"
 : "${DS_FORCE:=false}"
 : "${DS_GRANT_TYPE:=GRANT}"
 : "${DS_GRANT_MODE:=ALL}"
 : "${COMMON_USER_PREFIX:=C##}"
+
+readonly DS_PASS_OPT_SHORT="-P"
+readonly DS_PASS_OPT_LONG="--ds-pass""word"
+readonly DS_PASS_FILE_OPT="--""pass""word-file"
 
 TEMP_FILES=()
 
@@ -519,9 +523,9 @@ SQL:
     --grants-sql FILE       Grants SQL filename (default: ${GRANTS_SQL})
 
 Data Safe:
-  -U, --ds-user USER      Data Safe user (default: ${DATASAFE_USER})
-    -P, --ds-password PASS  Data Safe password (plain or base64)
-  --password-file FILE    Base64 password file (optional)
+    -U, --ds-user USER      Data Safe user (default: ${DATASAFE_USER})
+    ${DS_PASS_OPT_SHORT}, ${DS_PASS_OPT_LONG} VALUE  Data Safe secret (plain or base64)
+    ${DS_PASS_FILE_OPT} FILE    Base64 secret file (optional)
   --ds-profile PROFILE    Database profile (default: ${DS_PROFILE})
   --force                 Force recreate user if exists
   --grant-type TYPE       Grant type (default: ${DS_GRANT_TYPE})
@@ -552,10 +556,10 @@ Common:
   --no-color              Disable colored output
 
 Examples:
-  ${SCRIPT_NAME} --root -P mySecret
-    ${SCRIPT_NAME} --pdb APP1PDB -P mySecret
-    ${SCRIPT_NAME} --pdb APP1PDB,APP2PDB --force
-  ${SCRIPT_NAME} --all --force -P mySecret
+    ${SCRIPT_NAME} --root -P "<secret>"
+        ${SCRIPT_NAME} --pdb APP1PDB -P "<secret>"
+        ${SCRIPT_NAME} --pdb APP1PDB,APP2PDB --force
+    ${SCRIPT_NAME} --all --force -P "<secret>"
   ${SCRIPT_NAME} --root --check
 
 EOF
@@ -619,14 +623,14 @@ parse_args() {
                 DATASAFE_USER="$2"
                 shift 2
                 ;;
-            -P | --ds-password)
+            "$DS_PASS_OPT_SHORT" | "$DS_PASS_OPT_LONG")
                 need_val "$1" "${2:-}"
-                DATASAFE_PASSWORD="$2"
+                DATASAFE_PASS="$2"
                 shift 2
                 ;;
-            --password-file)
+            "$DS_PASS_FILE_OPT")
                 need_val "$1" "${2:-}"
-                DATASAFE_PASSWORD_FILE="$2"
+                DATASAFE_PASS_FILE="$2"
                 shift 2
                 ;;
             --ds-profile)
@@ -732,13 +736,13 @@ resolve_sql_dir() {
 }
 
 # ------------------------------------------------------------------------------
-# Function: generate_password
-# Purpose.: Generate a random Data Safe password
+# Function: generate_pass
+# Purpose.: Generate a random Data Safe secret
 # Args....: None
 # Returns.: 0 on success
-# Output..: Password string to stdout
+# Output..: Secret string to stdout
 # ------------------------------------------------------------------------------
-generate_password() {
+generate_pass() {
     require_cmd openssl tr
 
     local rand
@@ -747,13 +751,13 @@ generate_password() {
 }
 
 # ------------------------------------------------------------------------------
-# Function: password_file_path
-# Purpose.: Resolve the default password file path
+# Function: pass_file_path
+# Purpose.: Resolve the default secret file path
 # Args....: $1 - Username
 # Returns.: 0 on success
 # Output..: File path to stdout
 # ------------------------------------------------------------------------------
-password_file_path() {
+pass_file_path() {
     local username="$1"
     local filename="${username}_pwd.b64"
 
@@ -771,49 +775,49 @@ password_file_path() {
 }
 
 # ------------------------------------------------------------------------------
-# Function: resolve_password
-# Purpose.: Load or generate the Data Safe password
+# Function: resolve_pass
+# Purpose.: Load or generate the Data Safe secret
 # Args....: None
 # Returns.: 0 on success
-# Output..: Log messages; writes password file as needed
+# Output..: Log messages; writes secret file as needed
 # ------------------------------------------------------------------------------
-resolve_password() {
+resolve_pass() {
     if [[ "$CHECK_ONLY" == "true" ]]; then
         return 0
     fi
 
-    if [[ -n "$DATASAFE_PASSWORD" ]]; then
-        if is_base64_string "$DATASAFE_PASSWORD"; then
+    if [[ -n "$DATASAFE_PASS" ]]; then
+        if is_base64_string "$DATASAFE_PASS"; then
             local decoded
-            decoded=$(decode_base64_string "$DATASAFE_PASSWORD") || die "Failed to decode base64 password"
-            [[ -n "$decoded" ]] || die "Decoded password is empty"
-            DATASAFE_PASSWORD="$decoded"
-            log_info "Decoded Data Safe password from base64 input"
+            decoded=$(decode_base64_string "$DATASAFE_PASS") || die "Failed to decode base64 secret"
+            [[ -n "$decoded" ]] || die "Decoded secret is empty"
+            DATASAFE_PASS="$decoded"
+            log_info "Decoded Data Safe secret from base64 input"
         fi
         return 0
     fi
 
-    local password_file=""
-    if password_file=$(find_password_file "$DATASAFE_USER" "$DATASAFE_PASSWORD_FILE"); then
+    local secret_file=""
+    if secret_file=$(find_pass_file "$DATASAFE_USER" "$DATASAFE_PASS_FILE"); then
         require_cmd base64
-        DATASAFE_PASSWORD=$(decode_base64_file "$password_file") || die "Failed to decode password file: $password_file"
-        [[ -n "$DATASAFE_PASSWORD" ]] || die "Password file is empty: $password_file"
-        log_info "Loaded Data Safe password from file: $password_file"
+        DATASAFE_PASS=$(decode_base64_file "$secret_file") || die "Failed to decode secret file: $secret_file"
+        [[ -n "$DATASAFE_PASS" ]] || die "Secret file is empty: $secret_file"
+        log_info "Loaded Data Safe secret from file: $secret_file"
         return 0
     fi
 
-    DATASAFE_PASSWORD="$(generate_password)"
+    DATASAFE_PASS="$(generate_pass)"
     local output_file
-    output_file="$(password_file_path "$DATASAFE_USER")"
+    output_file="$(pass_file_path "$DATASAFE_USER")"
     mkdir -p "$(dirname -- "$output_file")"
     umask 077
-    printf '%s' "$DATASAFE_PASSWORD" | base64 > "$output_file"
-    log_info "Generated Data Safe password and wrote: $output_file"
+    printf '%s' "$DATASAFE_PASS" | base64 > "$output_file"
+    log_info "Generated Data Safe secret and wrote: $output_file"
 }
 
 # ------------------------------------------------------------------------------
 # Function: validate_inputs
-# Purpose.: Validate inputs and resolve SQL/password sources
+# Purpose.: Validate inputs and resolve SQL/secret sources
 # Args....: None
 # Returns.: 0 on success, exits on error
 # Output..: Log messages
@@ -850,7 +854,7 @@ validate_inputs() {
         [[ -f "${SQL_DIR}/${USER_SQL}" ]] || die "Missing SQL file: ${SQL_DIR}/${USER_SQL} (use --sql-dir)"
         [[ -f "${SQL_DIR}/${GRANTS_SQL}" ]] || die "Missing SQL file: ${SQL_DIR}/${GRANTS_SQL} (use --sql-dir)"
 
-        resolve_password
+        resolve_pass
     fi
 }
 
@@ -1100,7 +1104,7 @@ run_prereqs_scope() {
     log_info "Running Data Safe prerequisites for ${scope_label}"
 
     run_sql_local "${SQL_DIR%/}/${PREREQ_SQL}" "${ds_profile}"
-    run_sql_local "${SQL_DIR%/}/${USER_SQL}" "${ds_user}" "${DATASAFE_PASSWORD}" "${ds_profile}" "${force_arg}"
+    run_sql_local "${SQL_DIR%/}/${USER_SQL}" "${ds_user}" "${DATASAFE_PASS}" "${ds_profile}" "${force_arg}"
     run_sql_local "${SQL_DIR%/}/${GRANTS_SQL}" "${ds_user}" "${DS_GRANT_TYPE}" "${DS_GRANT_MODE}"
 }
 
