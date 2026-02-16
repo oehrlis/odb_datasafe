@@ -6,7 +6,7 @@
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.02.11
 # Version....: v0.7.0
-# Purpose....: OCI CLI wrapper functions for Oracle Data Safe operations
+# Purpose.: OCI CLI wrapper functions for Oracle Data Safe operations
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
 
@@ -42,12 +42,12 @@ _DS_TARGET_CACHE_FILE=""
 _OCI_CLI_AUTH_CHECKED=""
 
 # ----------------------------------------------------------------------------
-# Function....: _ds_target_cache_file_path
-# Purpose.....: Deterministic cache path for target lists
-# Parameters..: $1 - compartment OCID
-#               $2 - lifecycle filter (may be empty)
-# Returns.....: Echoes cache file path
-# Notes.......: Stable path allows reuse across subshells/command substitutions
+# Function: _ds_target_cache_file_path
+# Purpose.: Deterministic cache path for target lists
+# Args....: $1 - Compartment OCID
+#           $2 - Lifecycle filter (may be empty)
+# Returns.: Echoes cache file path
+# Notes...: Stable path allows reuse across subshells/command substitutions
 # ----------------------------------------------------------------------------
 _ds_target_cache_file_path() {
     local comp_ocid="$1"
@@ -65,11 +65,11 @@ _ds_target_cache_file_path() {
 }
 
 # ----------------------------------------------------------------------------
-# Function....: _ds_cache_mtime
-# Purpose.....: Get mtime (epoch seconds) for a file (macOS/Linux)
-# Parameters..: $1 - file path
-# Returns.....: 0 on success, 1 on failure
-# Output......: Epoch seconds to stdout
+# Function: _ds_cache_mtime
+# Purpose.: Get mtime (epoch seconds) for a file (macOS/Linux)
+# Args....: $1 - File path
+# Returns.: 0 on success, 1 on failure
+# Output..: Epoch seconds to stdout
 # ----------------------------------------------------------------------------
 _ds_cache_mtime() {
     local file="$1"
@@ -92,10 +92,10 @@ _ds_cache_mtime() {
 # =============================================================================
 
 # ------------------------------------------------------------------------------
-# Function....: is_ocid
-# Purpose.....: Check if string is an OCID
-# Parameters..: $1 - string to check
-# Returns.....: 0 if OCID, 1 otherwise
+# Function: is_ocid
+# Purpose.: Check if string is an OCID
+# Args....: $1 - String to check
+# Returns.: 0 if OCID, 1 otherwise
 # ------------------------------------------------------------------------------
 is_ocid() {
     local str="$1"
@@ -103,12 +103,13 @@ is_ocid() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: check_oci_cli_auth
-# Purpose.....: Verify OCI CLI is authenticated and working
-# Returns.....: 0 if authenticated, 1 if not
-# Output......: Error message to stderr if authentication fails
-# Notes.......: Uses 'oci os ns get' as a lightweight test command
-#               Results are cached to avoid repeated checks
+# Function: check_oci_cli_auth
+# Purpose.: Verify OCI CLI is authenticated and working
+# Args....: None
+# Returns.: 0 if authenticated, 1 if not
+# Output..: Error message to stderr if authentication fails
+# Notes...: Uses 'oci os ns get' as a lightweight test command
+#           Results are cached to avoid repeated checks
 # ------------------------------------------------------------------------------
 check_oci_cli_auth() {
     # Return cached result if available
@@ -158,12 +159,12 @@ check_oci_cli_auth() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: require_oci_cli
-# Purpose.....: Check OCI CLI availability and authentication
-# Returns.....: 0 if all checks pass, exits with error otherwise
-# Usage.......: require_oci_cli
-# Notes.......: Combines tool existence check and authentication test
-#               This is the recommended function for scripts to use
+# Function: require_oci_cli
+# Purpose.: Check OCI CLI availability and authentication
+# Args....: None
+# Returns.: 0 if all checks pass, exits with error otherwise
+# Notes...: Combines tool existence check and authentication test
+#           This is the recommended function for scripts to use
 # ------------------------------------------------------------------------------
 require_oci_cli() {
     # Check if oci command exists
@@ -176,11 +177,11 @@ require_oci_cli() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: get_root_compartment_ocid
-# Purpose.....: Get root compartment OCID (resolves name if needed)
-# Returns.....: Root compartment OCID on stdout
-# Environment.: Uses DS_ROOT_COMP (can be name or OCID)
-# Usage.......: root_comp=$(get_root_compartment_ocid) || die "Failed"
+# Function: get_root_compartment_ocid
+# Purpose.: Get root compartment OCID (resolves name if needed)
+# Args....: None
+# Returns.: Root compartment OCID on stdout
+# Notes...: Uses DS_ROOT_COMP (can be name or OCID)
 # ------------------------------------------------------------------------------
 get_root_compartment_ocid() {
     # Return cached value if available
@@ -225,12 +226,12 @@ get_root_compartment_ocid() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: get_connector_compartment_ocid
-# Purpose.....: Get connector compartment OCID (resolves name if needed)
-# Returns.....: Connector compartment OCID on stdout
-# Environment.: Uses DS_CONNECTOR_COMP (falls back to DS_ROOT_COMP)
-# Usage.......: conn_comp=$(get_connector_compartment_ocid) || die "Failed"
-# Notes.......: Defaults to DS_ROOT_COMP if DS_CONNECTOR_COMP not set
+# Function: get_connector_compartment_ocid
+# Purpose.: Get connector compartment OCID (resolves name if needed)
+# Args....: None
+# Returns.: Connector compartment OCID on stdout
+# Notes...: Uses DS_CONNECTOR_COMP (falls back to DS_ROOT_COMP)
+#           Defaults to DS_ROOT_COMP if DS_CONNECTOR_COMP not set
 # ------------------------------------------------------------------------------
 get_connector_compartment_ocid() {
     # Return cached value if available
@@ -279,12 +280,13 @@ get_connector_compartment_ocid() {
 # =============================================================================
 
 # ------------------------------------------------------------------------------
-# Function....: oci_exec
-# Purpose.....: Execute OCI CLI with standard options and error handling
-# Parameters..: $@ - oci command and arguments
-# Usage.......: oci_exec data-safe target-database list --compartment-id "$comp"
-# Notes.......: Handles profile, region, config file, dry-run, and error logging
-#               For read-only operations in dry-run mode, use oci_exec_ro
+# Function: oci_exec
+# Purpose.: Execute OCI CLI with standard options and error handling
+# Args....: $@ - OCI command and arguments
+# Returns.: 0 on success, non-zero on error
+# Output..: Command output to stdout
+# Notes...: Handles profile, region, config file, dry-run, and error logging
+#           For read-only operations in dry-run mode, use oci_exec_ro
 # ------------------------------------------------------------------------------
 oci_exec() {
     # Build command with subcommand first, global options afterwards (matches user expectation)
@@ -321,12 +323,12 @@ oci_exec() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: oci_exec_ro
-# Purpose.....: Execute read-only OCI CLI (always runs, even in dry-run)
-# Parameters..: $@ - oci command and arguments
-# Returns.....: 0 on success, non-zero on error
-# Usage.......: oci_exec_ro iam compartment list --all
-# Notes.......: Use for lookups/queries that don't modify resources
+# Function: oci_exec_ro
+# Purpose.: Execute read-only OCI CLI (always runs, even in dry-run)
+# Args....: $@ - OCI command and arguments
+# Returns.: 0 on success, non-zero on error
+# Output..: Command output to stdout
+# Notes...: Use for lookups/queries that don't modify resources
 # ------------------------------------------------------------------------------
 oci_exec_ro() {
     # Build command with subcommand first, global options afterwards (matches user expectation)
@@ -361,11 +363,10 @@ oci_exec_ro() {
 # =============================================================================
 
 # ------------------------------------------------------------------------------
-# Function....: oci_resolve_compartment_ocid
-# Purpose.....: Resolve compartment name to OCID, or validate OCID
-# Parameters..: $1 - compartment name or OCID
-# Returns.....: 0 on success, 1 on error; OCID on stdout
-# Usage.......: comp_ocid=$(oci_resolve_compartment_ocid "MyCompartment") || die "Failed"
+# Function: oci_resolve_compartment_ocid
+# Purpose.: Resolve compartment name to OCID, or validate OCID
+# Args....: $1 - Compartment name or OCID
+# Returns.: 0 on success, 1 on error; OCID on stdout
 # ------------------------------------------------------------------------------
 oci_resolve_compartment_ocid() {
     local input="$1"
@@ -396,11 +397,10 @@ oci_resolve_compartment_ocid() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: oci_resolve_compartment_name
-# Purpose.....: Resolve compartment OCID to name
-# Parameters..: $1 - compartment OCID
-# Returns.....: Name on stdout
-# Usage.......: comp_name=$(oci_resolve_compartment_name "$ocid")
+# Function: oci_resolve_compartment_name
+# Purpose.: Resolve compartment OCID to name
+# Args....: $1 - Compartment OCID
+# Returns.: Name on stdout
 # ------------------------------------------------------------------------------
 oci_resolve_compartment_name() {
     local ocid="$1"
@@ -425,12 +425,11 @@ oci_resolve_compartment_name() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: oci_get_compartment_name
-# Purpose.....: Get name for compartment or tenancy OCID
-# Parameters..: $1 - compartment or tenancy OCID
-# Returns.....: Name on stdout (or original OCID if resolution fails)
-# Usage.......: name=$(oci_get_compartment_name "$ocid")
-# Notes.......: Handles both compartment and tenancy OCIDs gracefully
+# Function: oci_get_compartment_name
+# Purpose.: Get name for compartment or tenancy OCID
+# Args....: $1 - Compartment or tenancy OCID
+# Returns.: Name on stdout (or original OCID if resolution fails)
+# Notes...: Handles both compartment and tenancy OCIDs gracefully
 # ------------------------------------------------------------------------------
 oci_get_compartment_name() {
     local ocid="$1"
@@ -468,12 +467,11 @@ oci_get_compartment_name() {
 # =============================================================================
 
 # ------------------------------------------------------------------------------
-# Function....: ds_list_targets
-# Purpose.....: List Data Safe targets in compartment
-# Parameters..: $1 - compartment OCID or name
-#               $2 - lifecycle filter (optional, e.g., "ACTIVE,NEEDS_ATTENTION")
-# Returns.....: JSON array of targets
-# Usage.......: targets=$(ds_list_targets "$comp" "ACTIVE")
+# Function: ds_list_targets
+# Purpose.: List Data Safe targets in compartment
+# Args....: $1 - Compartment OCID or name
+#           $2 - Lifecycle filter (optional, e.g., "ACTIVE,NEEDS_ATTENTION")
+# Returns.: JSON array of targets
 # ------------------------------------------------------------------------------
 ds_list_targets() {
     local compartment="$1"
@@ -502,11 +500,10 @@ ds_list_targets() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: ds_get_target
-# Purpose.....: Get details for a single Data Safe target
-# Parameters..: $1 - target OCID
-# Returns.....: JSON object with target details
-# Usage.......: target=$(ds_get_target "$target_ocid")
+# Function: ds_get_target
+# Purpose.: Get details for a single Data Safe target
+# Args....: $1 - Target OCID
+# Returns.: JSON object with target details
 # ------------------------------------------------------------------------------
 ds_get_target() {
     local target_ocid="$1"
@@ -522,12 +519,12 @@ ds_get_target() {
 }
 
 # ----------------------------------------------------------------------------
-# Function....: _ds_get_target_list_cached
-# Purpose.....: Fetch target list with caching per compartment+lifecycle
-# Parameters..: $1 - compartment OCID
-#               $2 - lifecycle filter (optional)
-# Returns.....: JSON of target list to stdout
-# Notes.......: Internal helper used by ds_list_targets and ds_resolve_target_ocid
+# Function: _ds_get_target_list_cached
+# Purpose.: Fetch target list with caching per compartment+lifecycle
+# Args....: $1 - Compartment OCID
+#           $2 - Lifecycle filter (optional)
+# Returns.: JSON of target list to stdout
+# Notes...: Internal helper used by ds_list_targets and ds_resolve_target_ocid
 # ----------------------------------------------------------------------------
 _ds_get_target_list_cached() {
     local comp_ocid="$1"
@@ -593,12 +590,11 @@ _ds_get_target_list_cached() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: ds_resolve_target_ocid
-# Purpose.....: Resolve target name to OCID
-# Parameters..: $1 - target name or OCID
-#               $2 - compartment OCID or name (optional, for name resolution)
-# Returns.....: 0 on success, 1 on error; OCID on stdout
-# Usage.......: target_ocid=$(ds_resolve_target_ocid "my-target" "$comp") || die "Failed"
+# Function: ds_resolve_target_ocid
+# Purpose.: Resolve target name to OCID
+# Args....: $1 - Target name or OCID
+#           $2 - Compartment OCID or name (optional, for name resolution)
+# Returns.: 0 on success, 1 on error; OCID on stdout
 # ------------------------------------------------------------------------------
 ds_resolve_target_ocid() {
     local input="$1"
@@ -682,11 +678,10 @@ ds_resolve_target_ocid() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: ds_resolve_target_name
-# Purpose.....: Resolve target OCID to name
-# Parameters..: $1 - target OCID
-# Returns.....: 0 on success (name on stdout), 1 on error (message on stderr)
-# Usage.......: target_name=$(ds_resolve_target_name "$target_ocid")
+# Function: ds_resolve_target_name
+# Purpose.: Resolve target OCID to name
+# Args....: $1 - Target OCID
+# Returns.: 0 on success (name on stdout), 1 on error (message on stderr)
 # ------------------------------------------------------------------------------
 ds_resolve_target_name() {
     local ocid="$1"
@@ -714,11 +709,10 @@ ds_resolve_target_name() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: ds_get_target_compartment
-# Purpose.....: Get compartment OCID for a target
-# Parameters..: $1 - target OCID
-# Returns.....: Compartment OCID on stdout
-# Usage.......: comp=$(ds_get_target_compartment "$target_ocid")
+# Function: ds_get_target_compartment
+# Purpose.: Get compartment OCID for a target
+# Args....: $1 - Target OCID
+# Returns.: Compartment OCID on stdout
 # ------------------------------------------------------------------------------
 ds_get_target_compartment() {
     local target_ocid="$1"
@@ -745,14 +739,13 @@ ds_get_target_compartment() {
 # =============================================================================
 
 # ------------------------------------------------------------------------------
-# Function....: resolve_compartment_to_vars
-# Purpose.....: Resolve compartment (name or OCID) to both NAME and OCID variables
-# Parameters..: $1 - compartment name or OCID
-#               $2 - variable name prefix (e.g., "COMPARTMENT" for COMPARTMENT_NAME/COMPARTMENT_OCID)
-# Returns.....: 0 on success, 1 on error
-# Output......: Sets ${prefix}_NAME and ${prefix}_OCID global variables
-# Usage.......: resolve_compartment_to_vars "$comp" "COMPARTMENT" || die "Failed"
-# Notes.......: Use with eval or declare -g in calling function
+# Function: resolve_compartment_to_vars
+# Purpose.: Resolve compartment (name or OCID) to both NAME and OCID variables
+# Args....: $1 - Compartment name or OCID
+#           $2 - Variable name prefix (e.g., "COMPARTMENT" for COMPARTMENT_NAME/COMPARTMENT_OCID)
+# Returns.: 0 on success, 1 on error
+# Output..: Sets ${prefix}_NAME and ${prefix}_OCID global variables
+# Notes...: Use with eval or declare -g in calling function
 # ------------------------------------------------------------------------------
 resolve_compartment_to_vars() {
     local input="$1"
@@ -781,14 +774,13 @@ resolve_compartment_to_vars() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: resolve_target_to_vars
-# Purpose.....: Resolve target (name or OCID) to both name and OCID variables
-# Parameters..: $1 - target name or OCID
-#               $2 - variable name prefix (e.g., "TARGET" for TARGET_NAME/TARGET_OCID)
-#               $3 - compartment OCID for name resolution (optional if input is OCID)
-# Returns.....: 0 on success, 1 on error
-# Output......: Sets ${prefix}_NAME and ${prefix}_OCID global variables
-# Usage.......: resolve_target_to_vars "$target" "TARGET" "$comp_ocid" || die "Failed"
+# Function: resolve_target_to_vars
+# Purpose.: Resolve target (name or OCID) to both name and OCID variables
+# Args....: $1 - Target name or OCID
+#           $2 - Variable name prefix (e.g., "TARGET" for TARGET_NAME/TARGET_OCID)
+#           $3 - Compartment OCID for name resolution (optional if input is OCID)
+# Returns.: 0 on success, 1 on error
+# Output..: Sets ${prefix}_NAME and ${prefix}_OCID global variables
 # ------------------------------------------------------------------------------
 resolve_target_to_vars() {
     local input="$1"
@@ -827,10 +819,9 @@ resolve_target_to_vars() {
 # =============================================================================
 
 # ------------------------------------------------------------------------------
-# Function....: ds_refresh_target
-# Purpose.....: Refresh a Data Safe target
-# Parameters..: $1 - target OCID
-# Usage.......: ds_refresh_target "$target_ocid"
+# Function: ds_refresh_target
+# Purpose.: Refresh a Data Safe target
+# Args....: $1 - Target OCID
 # ------------------------------------------------------------------------------
 ds_refresh_target() {
     local target_ocid="$1"
@@ -882,12 +873,11 @@ ds_refresh_target() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: ds_update_target_tags
-# Purpose.....: Update freeform and/or defined tags on a target
-# Parameters..: $1 - target OCID
-#               $2 - freeform tags JSON (optional)
-#               $3 - defined tags JSON (optional)
-# Usage.......: ds_update_target_tags "$ocid" '{"env":"prod"}' '{}'
+# Function: ds_update_target_tags
+# Purpose.: Update freeform and/or defined tags on a target
+# Args....: $1 - Target OCID
+#           $2 - Freeform tags JSON (optional)
+#           $3 - Defined tags JSON (optional)
 # ------------------------------------------------------------------------------
 ds_update_target_tags() {
     local target_ocid="$1"
@@ -923,11 +913,10 @@ ds_update_target_tags() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: ds_update_target_service
-# Purpose.....: Update service name for a target
-# Parameters..: $1 - target OCID
-#               $2 - new service name
-# Usage.......: ds_update_target_service "$ocid" "mydb_exa.domain.com"
+# Function: ds_update_target_service
+# Purpose.: Update service name for a target
+# Args....: $1 - Target OCID
+#           $2 - New service name
 # ------------------------------------------------------------------------------
 ds_update_target_service() {
     local target_ocid="$1"
@@ -970,10 +959,9 @@ ds_update_target_service() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: ds_delete_target
-# Purpose.....: Delete a Data Safe target
-# Parameters..: $1 - target OCID
-# Usage.......: ds_delete_target "$target_ocid"
+# Function: ds_delete_target
+# Purpose.: Delete a Data Safe target
+# Args....: $1 - Target OCID
 # ------------------------------------------------------------------------------
 ds_delete_target() {
     local target_ocid="$1"
@@ -1002,11 +990,10 @@ ds_delete_target() {
 # =============================================================================
 
 # ------------------------------------------------------------------------------
-# Function....: ds_count_by_lifecycle
-# Purpose.....: Count targets by lifecycle state
-# Parameters..: $1 - targets JSON (from ds_list_targets)
-# Returns.....: Summary string
-# Usage.......: summary=$(ds_count_by_lifecycle "$targets")
+# Function: ds_count_by_lifecycle
+# Purpose.: Count targets by lifecycle state
+# Args....: $1 - Targets JSON (from ds_list_targets)
+# Returns.: Summary string
 # ------------------------------------------------------------------------------
 ds_count_by_lifecycle() {
     local targets_json="$1"
@@ -1054,11 +1041,10 @@ resolve_compartment_for_operation() {
 # =============================================================================
 
 # ------------------------------------------------------------------------------
-# Function....: ds_list_connectors
-# Purpose.....: List all on-premises connectors in a compartment
-# Parameters..: $1 - compartment OCID
-# Returns.....: 0 on success, connector list JSON on stdout
-# Usage.......: connectors=$(ds_list_connectors "$comp_ocid")
+# Function: ds_list_connectors
+# Purpose.: List all on-premises connectors in a compartment
+# Args....: $1 - Compartment OCID
+# Returns.: 0 on success, connector list JSON on stdout
 # ------------------------------------------------------------------------------
 ds_list_connectors() {
     local compartment_ocid="$1"
@@ -1075,12 +1061,11 @@ ds_list_connectors() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: ds_resolve_connector_ocid
-# Purpose.....: Resolve connector name to OCID
-# Parameters..: $1 - connector name or OCID
-#               $2 - compartment OCID (required if $1 is a name)
-# Returns.....: 0 on success (OCID on stdout), 1 on error
-# Usage.......: connector_ocid=$(ds_resolve_connector_ocid "$name" "$comp_ocid")
+# Function: ds_resolve_connector_ocid
+# Purpose.: Resolve connector name to OCID
+# Args....: $1 - Connector name or OCID
+#           $2 - Compartment OCID (required if $1 is a name)
+# Returns.: 0 on success (OCID on stdout), 1 on error
 # ------------------------------------------------------------------------------
 ds_resolve_connector_ocid() {
     local input="$1"
@@ -1131,11 +1116,10 @@ ds_resolve_connector_ocid() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: ds_resolve_connector_name
-# Purpose.....: Resolve connector OCID to name
-# Parameters..: $1 - connector OCID
-# Returns.....: 0 on success (name on stdout), 1 on error
-# Usage.......: connector_name=$(ds_resolve_connector_name "$connector_ocid")
+# Function: ds_resolve_connector_name
+# Purpose.: Resolve connector OCID to name
+# Args....: $1 - Connector OCID
+# Returns.: 0 on success (name on stdout), 1 on error
 # ------------------------------------------------------------------------------
 ds_resolve_connector_name() {
     local ocid="$1"
@@ -1163,11 +1147,10 @@ ds_resolve_connector_name() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: ds_get_connector_details
-# Purpose.....: Get connector details
-# Parameters..: $1 - connector OCID
-# Returns.....: 0 on success, connector details JSON on stdout
-# Usage.......: details=$(ds_get_connector_details "$connector_ocid")
+# Function: ds_get_connector_details
+# Purpose.: Get connector details
+# Args....: $1 - Connector OCID
+# Returns.: 0 on success, connector details JSON on stdout
 # ------------------------------------------------------------------------------
 ds_get_connector_details() {
     local connector_ocid="$1"
@@ -1183,15 +1166,14 @@ ds_get_connector_details() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: ds_generate_connector_bundle
-# Purpose.....: Generate on-premises connector installation bundle
-# Parameters..: $1 - connector OCID
-#               $2 - bundle password
-# Returns.....: 0 on success, 1 on error
-# Output......: Work request details JSON
-# Usage.......: ds_generate_connector_bundle "$connector_ocid" "$password"
-# Notes.......: This operation is asynchronous. The bundle generation happens
-#               via a work request. Use ds_wait_for_work_request to monitor.
+# Function: ds_generate_connector_bundle
+# Purpose.: Generate on-premises connector installation bundle
+# Args....: $1 - Connector OCID
+#           $2 - Bundle password
+# Returns.: 0 on success, 1 on error
+# Output..: Work request details JSON
+# Notes...: This operation is asynchronous. The bundle generation happens
+#           via a work request. Use ds_wait_for_work_request to monitor.
 # ------------------------------------------------------------------------------
 ds_generate_connector_bundle() {
     local connector_ocid="$1"
@@ -1222,14 +1204,13 @@ ds_generate_connector_bundle() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: ds_download_connector_bundle
-# Purpose.....: Download connector installation bundle to file
-# Parameters..: $1 - connector OCID
-#               $2 - output file path
-# Returns.....: 0 on success, 1 on error
-# Usage.......: ds_download_connector_bundle "$connector_ocid" "/path/to/bundle.zip"
-# Notes.......: Downloads the pre-generated connector bundle. Run
-#               ds_generate_connector_bundle first.
+# Function: ds_download_connector_bundle
+# Purpose.: Download connector installation bundle to file
+# Args....: $1 - Connector OCID
+#           $2 - Output file path
+# Returns.: 0 on success, 1 on error
+# Notes...: Downloads the pre-generated connector bundle. Run
+#           ds_generate_connector_bundle first.
 # ------------------------------------------------------------------------------
 ds_download_connector_bundle() {
     local connector_ocid="$1"
