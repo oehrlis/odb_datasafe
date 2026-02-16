@@ -46,6 +46,7 @@ init_config
 # ------------------------------------------------------------------------------
 # Function: usage
 # Purpose.: Display script usage information
+# Args....: None
 # Returns.: 0 (exits script)
 # Output..: Usage text to stdout
 # ------------------------------------------------------------------------------
@@ -160,6 +161,7 @@ parse_args() {
 # ------------------------------------------------------------------------------
 # Function: validate_inputs
 # Purpose.: Validate command-line arguments and required conditions
+# Args....: None
 # Returns.: 0 on success, exits on error via die()
 # Output..: Log messages for validation steps
 # ------------------------------------------------------------------------------
@@ -248,6 +250,7 @@ fetch_cluster_nodes() {
 # ------------------------------------------------------------------------------
 # Function: display_connection_details
 # Purpose.: Fetch and display target connection details
+# Args....: None
 # Returns.: 0 on success, 1 on error
 # Output..: Formatted target and connection information
 # ------------------------------------------------------------------------------
@@ -400,6 +403,13 @@ display_connection_details() {
 # MAIN
 # =============================================================================
 
+# ------------------------------------------------------------------------------
+# Function: main
+# Purpose.: Main entry point
+# Args....: None
+# Returns.: 0 on success, exits on error
+# Output..: Log messages
+# ------------------------------------------------------------------------------
 main() {
     log_info \"Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}\"
 
