@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-02-16
+
+### Changed
+
+- Simplified documentation maintenance by replacing hardcoded version/date text
+  with references to `VERSION` and `doc/release_notes/` in `README.md`,
+  `doc/index.md`, and `doc/quickref.md`
+- Updated `doc/index.md` key features to reflect the latest release scope
+- Standardized the "Available Scripts" table formatting in `doc/index.md`
+- Updated standalone tarball example in `doc/standalone_usage.md` to use
+  `odb_datasafe-<version>.tar.gz` placeholder
+
 ## [0.10.0] - 2026-02-16
 
 ### Added

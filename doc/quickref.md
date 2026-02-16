@@ -1,13 +1,13 @@
 # OraDBA Data Safe Extension - Quick Reference
 
-**Version:** 0.9.0 | **Date:** 2026-02-12
+Current version: see [`../VERSION`](../VERSION) | [Release Notes](release_notes/)
 
 ## 📁 Project Structure
 
 ```text
 odb_datasafe/                          # OraDBA Extension for Data Safe
-├── .extension                         # Extension metadata (v0.9.0)
-├── VERSION                            # 0.9.0
+├── .extension                         # Extension metadata
+├── VERSION                            # Current extension version
 ├── README.md                          # Complete documentation
 ├── CHANGELOG.md                       # Release history
 ├── QUICKREF.md                        # This file
@@ -196,7 +196,7 @@ bin/odb_datasafe_help.sh -f csv
 bin/odb_datasafe_help.sh -q
 ```
 
-### 6. Target-Connector Summary (New in v0.6.1)
+### 6. Target-Connector Summary
 
 The `ds_target_connector_summary.sh` script provides enhanced visibility of the relationship
 between targets and on-premises connectors:
@@ -496,7 +496,6 @@ bin/ds_target_refresh.sh --profile test --region eu-frankfurt-1 ...
 
 ---
 
-**Last Updated:** 2026-01-09  
 **Maintainer:** Stefan Oehrli (oes) <stefan.oehrli@oradba.ch>
 
 ## 🆕 New in v0.3.0

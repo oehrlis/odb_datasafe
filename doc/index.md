@@ -3,7 +3,7 @@
 Oracle Data Safe management extension for OraDBA - comprehensive tools for managing
 OCI Data Safe targets, connectors, and operations.
 
-Version: **0.9.0** | [Release Notes](release_notes/v0.9.0.md)
+Current version: see [`../VERSION`](../VERSION) | [Release Notes](release_notes/)
 
 ## Overview
 
@@ -34,7 +34,7 @@ Extract the extension to your OraDBA local directory:
 
 ```bash
 cd ${ORADBA_LOCAL_BASE}
-tar -xzf odb_datasafe-0.9.0.tar.gz
+tar -xzf odb_datasafe-<version>.tar.gz
 
 # Source OraDBA environment
 source oraenv.sh
@@ -81,35 +81,35 @@ bin/ds_target_refresh.sh --help
 bin/ds_target_refresh.sh -T mydb01 --dry-run
 ```
 
-## Key Features (v0.9.0)
+## Key Features
 
-- ✅ **Local prereq execution** — `ds_database_prereqs.sh` runs on the DB host for one scope.
-- ✅ **Embedded SQL payload** — `--embedded` enables prereqs without external SQL files.
-- ✅ **Connector update filtering** — Multi-state lifecycle support plus `--include-needs-attention`.
-- ✅ **Clear SQL source logging** — Logs embedded vs external SQL usage during prereq runs.
-- ✅ **Deprecation guidance** — `ds_target_prereqs.sh` marked deprecated in favor of local prereqs.
+- ✅ **Standalone usage guide** — `doc/standalone_usage.md` provides tarball install and minimal run steps.
+- ✅ **Help wrapper and config visibility** — `datasafe_help.sh` plus config/OCI config summaries in help output.
+- ✅ **Consistent script headers** — function/script header format standardized across `bin/` and `lib/`.
+- ✅ **Reporting fix in target-group report** — `ds_tg_report.sh` handles `display-name` field access correctly.
 
 ## Available Scripts
 
-| Script        | Purpose                              |
-| `ds_target_list.sh` | List Data Safe targets with filtering |
-| `ds_target_list_connector.sh` | List Data Safe on-premises connectors |
-| `ds_target_details.sh` | Show detailed target information |
-| `ds_target_refresh.sh` | Refresh target database credentials |
-| `ds_target_register.sh` | Register new Data Safe target |
-| `ds_target_update_connector.sh` | Update target connector |
-| `ds_target_update_credentials.sh` | Update target credentials |
-| `ds_target_update_service.sh` | Update connector service configuration |
-| `ds_target_update_tags.sh` | Update target tags |
-| `ds_target_delete.sh` | Remove Data Safe target |
-| `ds_target_audit_trail.sh` | Manage audit trail configuration |
-| `ds_target_export.sh` | Export target information |
-| `ds_target_move.sh` | Move target to different compartment |
-| `ds_target_connect_details.sh` | Show connection details |
-| `ds_find_untagged_targets.sh` | Find targets without tags |
-| `ds_tg_report.sh` | Generate target group report |
-| `install_datasafe_service.sh` | Install connector as systemd service |
-| `uninstall_all_datasafe_services.sh` | Remove all connector services |
+| Script                               | Purpose                                |
+|--------------------------------------|----------------------------------------|
+| `ds_target_list.sh`                  | List Data Safe targets with filtering  |
+| `ds_target_list_connector.sh`        | List Data Safe on-premises connectors  |
+| `ds_target_details.sh`               | Show detailed target information       |
+| `ds_target_refresh.sh`               | Refresh target database credentials    |
+| `ds_target_register.sh`              | Register new Data Safe target          |
+| `ds_target_update_connector.sh`      | Update target connector                |
+| `ds_target_update_credentials.sh`    | Update target credentials              |
+| `ds_target_update_service.sh`        | Update connector service configuration |
+| `ds_target_update_tags.sh`           | Update target tags                     |
+| `ds_target_delete.sh`                | Remove Data Safe target                |
+| `ds_target_audit_trail.sh`           | Manage audit trail configuration       |
+| `ds_target_export.sh`                | Export target information              |
+| `ds_target_move.sh`                  | Move target to different compartment   |
+| `ds_target_connect_details.sh`       | Show connection details                |
+| `ds_find_untagged_targets.sh`        | Find targets without tags              |
+| `ds_tg_report.sh`                    | Generate target group report           |
+| `install_datasafe_service.sh`        | Install connector as systemd service   |
+| `uninstall_all_datasafe_services.sh` | Remove all connector services          |
 
 ## Project Structure
 

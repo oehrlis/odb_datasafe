@@ -16,7 +16,7 @@ Extract the release tarball into a dedicated folder (for example `datasafe`):
 ```bash
 mkdir -p ~/datasafe
 cd ~/datasafe
-tar -xzf /path/to/odb_datasafe-0.9.0.tar.gz
+tar -xzf /path/to/odb_datasafe-<version>.tar.gz
 cd odb_datasafe
 ```
 
