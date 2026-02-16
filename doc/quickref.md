@@ -21,6 +21,7 @@ odb_datasafe/                          # OraDBA Extension for Data Safe
 │   ├── ds_target_refresh.sh           # Refresh Data Safe targets
 │   ├── ds_target_update_*.sh          # Update target properties
 │   ├── ds_connector_update.sh         # Update Data Safe connector
+│   ├── ds_connector_register_oradba.sh # Register connector in OraDBA config
 │   └── install_datasafe_service.sh    # Install connector as service
 │
 ├── lib/                               # Shared library framework
@@ -261,20 +262,32 @@ bin/ds_target_connector_summary.sh -D -F display-name,lifecycle-state,id
 # List all connectors
 bin/ds_target_list_connector.sh
 
-# Update a connector (automated update process)
+# Update a connector using OraDBA environment (simplest)
+bin/ds_connector_update.sh --datasafe-home dscon4
+
+# Update a connector (traditional method with compartment)
 bin/ds_connector_update.sh --connector my-connector -c MyCompartment
 
 # Dry-run to see what would be done
-bin/ds_connector_update.sh --connector my-connector -c MyCompartment --dry-run
+bin/ds_connector_update.sh --datasafe-home dscon4 --dry-run
 
 # Update with specific home directory
 bin/ds_connector_update.sh --connector my-connector --connector-home /u01/app/oracle/product/datasafe
 
 # Force new password generation
-bin/ds_connector_update.sh --connector my-connector --force-new-password
+bin/ds_connector_update.sh --datasafe-home dscon4 --force-new-password
 
 # Use existing bundle file (skip download)
 bin/ds_connector_update.sh --connector my-connector --skip-download --bundle-file /tmp/bundle.zip
+
+# Register connector in OraDBA configuration (for --datasafe-home usage)
+bin/ds_connector_register_oradba.sh --datasafe-home dscon4 --connector my-connector
+
+# Register connector OCID
+bin/ds_connector_register_oradba.sh --datasafe-home dscon4 --connector ocid1.datasafe...
+
+# Preview registration changes (dry-run)
+bin/ds_connector_register_oradba.sh --datasafe-home dscon4 --connector my-connector --dry-run
 ```
 
 ## 📚 Library Functions (Quick Reference)
