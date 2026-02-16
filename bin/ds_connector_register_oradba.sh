@@ -77,13 +77,13 @@ Options:
 
 Examples:
   # Register connector name
-  ${SCRIPT_NAME} --datasafe-home dscon4 --connector ds-conn-exacc-wob-vwg-ha4
+  ${SCRIPT_NAME} --datasafe-home dscon4 --connector ds-conn-ha4
 
   # Register connector OCID
   ${SCRIPT_NAME} --datasafe-home dscon4 --connector ocid1.datasafe...
 
   # Dry-run to preview changes
-  ${SCRIPT_NAME} --datasafe-home dscon4 --connector ds-conn-exacc-wob-vwg-ha4 --dry-run
+  ${SCRIPT_NAME} --datasafe-home dscon4 --connector ds-conn-ha4 --dry-run
 
 Environment Variables:
   ORADBA_BASE             OraDBA installation directory (required)
