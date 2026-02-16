@@ -22,6 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--connector-home`).
 - `bin/ds_connector_update.sh` compartment fallback order is now
   `--compartment` → `DS_ROOT_COMP` → `DS_CONNECTOR_COMP`.
+- `bin/ds_connector_update.sh` now performs parameter/conflict validation before
+  OCI/tool prerequisite checks so argument errors are reported consistently in
+  test and minimal environments.
+- `bin/ds_connector_register_oradba.sh` now validates required arguments before
+  `ORADBA_BASE` environment checks for clearer error reporting.
+- `.github/workflows/release.yml` now has an explicit mandatory test gate
+  (`make test`) to ensure releases fail when tests fail.
 
 ## [0.11.0] - 2026-02-16
 

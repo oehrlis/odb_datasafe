@@ -5,7 +5,7 @@
 # Script.....: ds_connector_register_oradba.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.02.16
-# Version....: v0.10.2
+# Version....: v0.11.1
 # Purpose....: Register Data Safe connector metadata in oradba_homes.conf
 # Usage......: ds_connector_register_oradba.sh [OPTIONS]
 # License....: Apache License Version 2.0
@@ -152,16 +152,17 @@ parse_args() {
 validate_inputs() {
     log_debug "Validating inputs..."
 
+    # Require parameters first so argument errors are reported before
+    # environment checks in lightweight test environments.
+    require_var DATASAFE_ENV
+    require_var CONNECTOR_INFO
+
     # Check ORADBA_BASE is set
     if [[ -z "${ORADBA_BASE:-}" ]]; then
         log_error "ORADBA_BASE environment variable not set"
         log_error "This script requires OraDBA to be loaded"
         die "ORADBA_BASE not set"
     fi
-
-    # Require parameters
-    require_var DATASAFE_ENV
-    require_var CONNECTOR_INFO
 
     # Check config file exists
     local config_file="${ORADBA_BASE}/etc/oradba_homes.conf"

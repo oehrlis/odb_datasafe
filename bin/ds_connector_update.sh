@@ -78,7 +78,7 @@ Description:
     4. Extracting the bundle in the connector directory
     5. Running setup.py update with the bundle password
 
-Required (choose one):
+REQUIRED (choose one):
   Option 1: Use OraDBA environment (simplest)
     --datasafe-home ENV   OraDBA environment name (e.g., dscon4)
                           Automatically resolves connector home and metadata
@@ -332,10 +332,6 @@ lookup_oradba_home() {
 validate_inputs() {
     log_debug "Validating inputs..."
 
-    # Check required commands
-    require_oci_cli
-    require_cmd unzip python3
-
     # Parameter validation: check for conflicting parameters
     if [[ -n "$DATASAFE_ENV" ]]; then
         # Using --datasafe-home
@@ -362,6 +358,11 @@ validate_inputs() {
         # Require connector name
         require_var CONNECTOR_NAME
     fi
+
+    # Check required commands (after parameter validation so argument errors
+    # are reported even when OCI CLI is not available in test environments)
+    require_oci_cli
+    require_cmd unzip python3
 
     # Resolve compartment for connector lookup (used for connector names in both modes)
     # Priority: -c/--compartment flag > DS_ROOT_COMP > DS_CONNECTOR_COMP
