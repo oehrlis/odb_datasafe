@@ -279,8 +279,8 @@ lookup_oradba_home() {
     fi
     
     # Extract fields
-    local env path product position reserved desc version
-    IFS=':' read -r env path product position reserved desc version <<< "$line"
+    local _env path product _position _reserved desc _version
+    IFS=':' read -r _env path product _position _reserved desc _version <<< "$line"
     
     if [[ "$product" != "datasafe" ]]; then
         log_error "Environment '${env_name}' is not a DataSafe connector (product: ${product})"
@@ -291,7 +291,8 @@ lookup_oradba_home() {
     log_debug "Resolved CONNECTOR_HOME from OraDBA: ${CONNECTOR_HOME}"
     
     # Extract connector info from description: (oci=xxx) or (oci=name,ocid)
-    if [[ "$desc" =~ \(oci=([^)]+)\) ]]; then
+    local oci_pattern='\(oci=([^)]+)\)'
+    if [[ "$desc" =~ $oci_pattern ]]; then
         local oci_value="${BASH_REMATCH[1]}"
         
         # Check if it contains comma (both name and OCID)
