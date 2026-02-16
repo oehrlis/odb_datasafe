@@ -61,6 +61,7 @@ init_config
 # ------------------------------------------------------------------------------
 # Function: usage
 # Purpose.: Display usage information and help message
+# Args....: $1 - Exit code (optional, default: 0)
 # Returns.: 0 (exits after display)
 # Output..: Usage information to stdout
 # ------------------------------------------------------------------------------
@@ -128,8 +129,10 @@ EOF
 # ------------------------------------------------------------------------------
 # Function: need_val
 # Purpose.: Check if option has a value
-# Args....: $1 - option name, $2 - value
+# Args....: $1 - option name
+#           $2 - value
 # Returns.: 0 on success, exits on error
+# Output..: None
 # ------------------------------------------------------------------------------
 need_val() {
     [[ -n "${2:-}" ]] || die "Option $1 requires a value"
@@ -138,6 +141,7 @@ need_val() {
 # ------------------------------------------------------------------------------
 # Function: parse_arguments
 # Purpose.: Parse command-line arguments
+# Args....: $@ - All command-line arguments
 # Returns.: 0 on success, exits on error
 # ------------------------------------------------------------------------------
 parse_arguments() {
@@ -224,7 +228,9 @@ parse_arguments() {
 # ------------------------------------------------------------------------------
 # Function: validate_inputs
 # Purpose.: Validate required inputs and dependencies
+# Args....: None
 # Returns.: 0 on success, exits on validation failure
+# Output..: Log messages for validation steps
 # ------------------------------------------------------------------------------
 validate_inputs() {
     log_debug "Validating inputs..."
@@ -287,6 +293,7 @@ build_connector_map() {
 # Purpose.: Fetch detailed information for target and add to DETAILS_JSON
 # Args....: $1 - target OCID
 # Returns.: 0 on success, 1 on error
+# Output..: Updates DETAILS_JSON array
 # ------------------------------------------------------------------------------
 collect_target_details() {
     local target_ocid="$1"
@@ -461,6 +468,7 @@ compute_output_filename() {
 # ------------------------------------------------------------------------------
 # Function: emit_output
 # Purpose.: Output collected details in requested format
+# Args....: None
 # Returns.: 0 on success
 # Output..: Details to stdout or file depending on format and TO_FILE flag
 # Notes...: CSV always writes to file; json/table default to stdout unless TO_FILE=true
@@ -570,6 +578,7 @@ list_targets_in_compartment() {
 # ------------------------------------------------------------------------------
 # Function: do_work
 # Purpose.: Main work function - discover targets and collect details
+# Args....: None
 # Returns.: 0 on success, 1 on error
 # ------------------------------------------------------------------------------
 do_work() {
@@ -659,6 +668,13 @@ do_work() {
 # MAIN
 # =============================================================================
 
+# ------------------------------------------------------------------------------
+# Function: main
+# Purpose.: Main entry point
+# Args....: $@ - All command-line arguments
+# Returns.: 0 on success, exits on error
+# Output..: Log messages
+# ------------------------------------------------------------------------------
 main() {
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
 
