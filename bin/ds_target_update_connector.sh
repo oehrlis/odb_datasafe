@@ -57,6 +57,7 @@ init_config
 # ------------------------------------------------------------------------------
 # Function: usage
 # Purpose.: Display script usage information
+# Args....: $1 - Exit code (optional, default: 0)
 # Returns.: 0 (exits script)
 # Output..: Usage text to stdout
 # ------------------------------------------------------------------------------
@@ -273,6 +274,7 @@ parse_args() {
 # ------------------------------------------------------------------------------
 # Function: validate_inputs
 # Purpose.: Validate command-line arguments and required conditions
+# Args....: None
 # Returns.: 0 on success, exits on error via die()
 # Output..: Log messages for validation steps
 # Notes...: Resolves compartments and validates operation mode requirements
@@ -341,10 +343,11 @@ validate_inputs() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: resolve_connector_ocid
-# Purpose.....: Resolve connector name to OCID
-# Parameters..: $1 - connector name or OCID
-# Returns.....: connector OCID
+# Function: resolve_connector_ocid
+# Purpose.: Resolve connector name to OCID
+# Args....: $1 - Connector name or OCID
+# Returns.: 0 on success, 1 on error
+# Output..: Connector OCID to stdout
 # ------------------------------------------------------------------------------
 resolve_connector_ocid() {
     local connector="$1"
@@ -393,10 +396,11 @@ resolve_connector_ocid() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: get_connector_name
-# Purpose.....: Get connector display name by OCID
-# Parameters..: $1 - connector OCID
-# Returns.....: connector display name
+# Function: get_connector_name
+# Purpose.: Get connector display name by OCID
+# Args....: $1 - Connector OCID
+# Returns.: 0 on success, 1 on error
+# Output..: Connector display name to stdout
 # ------------------------------------------------------------------------------
 get_connector_name() {
     local connector_ocid="$1"
@@ -408,9 +412,11 @@ get_connector_name() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: list_available_connectors
-# Purpose.....: List all available on-premises connectors
-# Returns.....: JSON array of connectors
+# Function: list_available_connectors
+# Purpose.: List all available on-premises connectors
+# Args....: None
+# Returns.: 0 on success, 1 on error
+# Output..: JSON array of connectors to stdout
 # ------------------------------------------------------------------------------
 list_available_connectors() {
     log_debug "Listing available on-premises connectors..."
@@ -463,12 +469,14 @@ list_available_connectors() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: update_target_connector
-# Purpose.....: Update connector for a single target
-# Parameters..: $1 - target OCID
-#               $2 - target name
-#               $3 - new connector OCID
-#               $4 - new connector name
+# Function: update_target_connector
+# Purpose.: Update connector for a single target
+# Args....: $1 - Target OCID
+#           $2 - Target name
+#           $3 - New connector OCID
+#           $4 - New connector name
+# Returns.: 0 on success, 1 on error
+# Output..: Log messages
 # ------------------------------------------------------------------------------
 update_target_connector() {
     local target_ocid="$1"
@@ -548,10 +556,11 @@ update_target_connector() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: list_targets_in_compartment
-# Purpose.....: List targets in compartment with optional filtering
-# Parameters..: $1 - compartment OCID or name
-# Returns.....: JSON array of targets
+# Function: list_targets_in_compartment
+# Purpose.: List targets in compartment with optional filtering
+# Args....: $1 - Compartment OCID or name
+# Returns.: 0 on success, 1 on error
+# Output..: JSON array of targets to stdout
 # ------------------------------------------------------------------------------
 list_targets_in_compartment() {
     local compartment="$1"
@@ -602,8 +611,11 @@ list_targets_in_compartment() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: do_set_mode
-# Purpose.....: Execute set operation mode
+# Function: do_set_mode
+# Purpose.: Execute set operation mode
+# Args....: None
+# Returns.: 0 on success, 1 on error
+# Output..: Log messages
 # ------------------------------------------------------------------------------
 do_set_mode() {
     log_info "Executing SET mode..."
@@ -715,8 +727,11 @@ do_set_mode() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: do_migrate_mode
-# Purpose.....: Execute migrate operation mode
+# Function: do_migrate_mode
+# Purpose.: Execute migrate operation mode
+# Args....: None
+# Returns.: 0 on success, 1 on error
+# Output..: Log messages
 # ------------------------------------------------------------------------------
 do_migrate_mode() {
     log_info "Executing MIGRATE mode..."
@@ -773,8 +788,11 @@ do_migrate_mode() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: do_distribute_mode
-# Purpose.....: Execute distribute operation mode
+# Function: do_distribute_mode
+# Purpose.: Execute distribute operation mode
+# Args....: None
+# Returns.: 0 on success, 1 on error
+# Output..: Log messages
 # ------------------------------------------------------------------------------
 do_distribute_mode() {
     log_info "Executing DISTRIBUTE mode..."
@@ -857,6 +875,7 @@ do_distribute_mode() {
 # ------------------------------------------------------------------------------
 # Function: do_work
 # Purpose.: Main work orchestration function - dispatches to mode-specific handlers
+# Args....: None
 # Returns.: 0 on success, 1 on error
 # Output..: Progress messages and results from mode-specific functions
 # ------------------------------------------------------------------------------
@@ -890,6 +909,13 @@ do_work() {
 # MAIN
 # =============================================================================
 
+# ------------------------------------------------------------------------------
+# Function: main
+# Purpose.: Main entry point
+# Args....: None
+# Returns.: 0 on success, exits on error
+# Output..: Log messages
+# ------------------------------------------------------------------------------
 main() {
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
 
