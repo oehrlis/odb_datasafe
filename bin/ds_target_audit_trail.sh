@@ -56,6 +56,7 @@ init_config
 # ------------------------------------------------------------------------------
 # Function: usage
 # Purpose.: Display script usage information
+# Args....: None
 # Returns.: 0 (exits script)
 # Output..: Usage text to stdout
 # ------------------------------------------------------------------------------
@@ -211,6 +212,7 @@ parse_args() {
 # ------------------------------------------------------------------------------
 # Function: validate_inputs
 # Purpose.: Validate command-line arguments and required conditions
+# Args....: None
 # Returns.: 0 on success, exits on error via die()
 # Output..: Log messages for validation steps
 # ------------------------------------------------------------------------------
@@ -260,6 +262,7 @@ validate_inputs() {
 # ------------------------------------------------------------------------------
 # Function: resolve_targets
 # Purpose.: Resolve target names/OCIDs to list of target OCIDs
+# Args....: None
 # Returns.: 0 on success, 1 on error
 # Output..: Populates RESOLVED_TARGETS array
 # ------------------------------------------------------------------------------
@@ -308,6 +311,7 @@ resolve_targets() {
 # ------------------------------------------------------------------------------
 # Function: start_audit_trails
 # Purpose.: Start audit trails for resolved targets
+# Args....: None
 # Returns.: 0 on partial/full success, 1 on all failures
 # Output..: Log messages and error counters
 # ------------------------------------------------------------------------------
@@ -356,6 +360,13 @@ start_audit_trails() {
 # MAIN
 # =============================================================================
 
+# ------------------------------------------------------------------------------
+# Function: main
+# Purpose.: Main entry point
+# Args....: $@ - All command-line arguments
+# Returns.: 0 on success, exits on error
+# Output..: Log messages
+# ------------------------------------------------------------------------------
 main() {
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
 
