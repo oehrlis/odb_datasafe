@@ -302,6 +302,60 @@ decode_base64_file() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: decode_base64_string
+# Purpose.: Decode base64 string content with compatible flags
+# Args....: $1 - Base64 string
+# Returns.: 0 on success, 1 on failure
+# Output..: Decoded content to stdout
+# ------------------------------------------------------------------------------
+decode_base64_string() {
+    local input="$1"
+
+    if printf '%s' "$input" | base64 --decode 2> /dev/null; then
+        return 0
+    fi
+    if printf '%s' "$input" | base64 -d 2> /dev/null; then
+        return 0
+    fi
+    if printf '%s' "$input" | base64 -D 2> /dev/null; then
+        return 0
+    fi
+
+    return 1
+}
+
+# ------------------------------------------------------------------------------
+# Function: is_base64_string
+# Purpose.: Check whether a string is valid base64-encoded content
+# Args....: $1 - Candidate string
+# Returns.: 0 if base64, 1 otherwise
+# Output..: None
+# Notes...: Performs a strict round-trip (decode then re-encode) check
+# ------------------------------------------------------------------------------
+is_base64_string() {
+    local input="$1"
+    local normalized
+
+    normalized=$(printf '%s' "$input" | tr -d '\n\r ')
+    [[ -n "$normalized" ]] || return 1
+
+    if [[ ! "$normalized" =~ ^[A-Za-z0-9+/=]+$ ]]; then
+        return 1
+    fi
+
+    if (( ${#normalized} % 4 != 0 )); then
+        return 1
+    fi
+
+    local decoded
+    decoded=$(decode_base64_string "$normalized") || return 1
+
+    local reencoded
+    reencoded=$(printf '%s' "$decoded" | base64 2> /dev/null | tr -d '\n\r ')
+    [[ "$reencoded" == "$normalized" ]]
+}
+
+# ------------------------------------------------------------------------------
 # Function: find_password_file
 # Purpose.: Find the Data Safe password file
 # Args....: $1 - Username
@@ -466,7 +520,7 @@ SQL:
 
 Data Safe:
   -U, --ds-user USER      Data Safe user (default: ${DATASAFE_USER})
-  -P, --ds-password PASS  Data Safe password (or via password file)
+    -P, --ds-password PASS  Data Safe password (plain or base64)
   --password-file FILE    Base64 password file (optional)
   --ds-profile PROFILE    Database profile (default: ${DS_PROFILE})
   --force                 Force recreate user if exists
@@ -729,6 +783,13 @@ resolve_password() {
     fi
 
     if [[ -n "$DATASAFE_PASSWORD" ]]; then
+        if is_base64_string "$DATASAFE_PASSWORD"; then
+            local decoded
+            decoded=$(decode_base64_string "$DATASAFE_PASSWORD") || die "Failed to decode base64 password"
+            [[ -n "$decoded" ]] || die "Decoded password is empty"
+            DATASAFE_PASSWORD="$decoded"
+            log_info "Decoded Data Safe password from base64 input"
+        fi
         return 0
     fi
 
