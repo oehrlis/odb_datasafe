@@ -88,7 +88,7 @@ CLUSTER_OCID=""
 # ------------------------------------------------------------------------------
 
 # ------------------------------------------------------------------------------
-# Function: Usage
+# Function: usage
 # Purpose.: Display usage information and exit
 # Args....: $1 - Exit code (optional, default: 0)
 # Returns.: Exits with specified code
@@ -254,6 +254,7 @@ parse_args() {
 # ------------------------------------------------------------------------------
 # Function: validate_inputs
 # Purpose.: Validate command-line inputs and resolve OCIDs
+# Args....: None
 # Returns.: 0 on success, exits on error
 # Output..: Info messages about resolved resources
 # Notes...: Sets COMP_OCID, COMP_NAME, CONNECTOR_OCID, SERVICE_NAME, DISPLAY_NAME
@@ -371,6 +372,7 @@ validate_inputs() {
 # ------------------------------------------------------------------------------
 # Function: check_target_exists
 # Purpose.: Check if a target with the display name already exists
+# Args....: None
 # Returns.: 0 if target exists, 1 if not found
 # Output..: Info messages about target existence
 # ------------------------------------------------------------------------------
@@ -395,7 +397,8 @@ check_target_exists() {
 # ------------------------------------------------------------------------------
 # Function: show_registration_plan
 # Purpose.: Display the registration plan summary
-# Returns.: 0
+# Args....: None
+# Returns.: 0 on success
 # Output..: Registration plan details to log
 # ------------------------------------------------------------------------------
 show_registration_plan() {
@@ -423,6 +426,7 @@ show_registration_plan() {
 # ------------------------------------------------------------------------------
 # Function: register_target
 # Purpose.: Register the target database in Data Safe
+# Args....: None
 # Returns.: 0 on success, exits on error
 # Output..: Success/error messages
 # Notes...: Creates JSON payload and executes OCI CLI command
