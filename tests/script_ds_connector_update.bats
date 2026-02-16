@@ -38,6 +38,12 @@ setup() {
     [[ "$output" == *"Checking local and online connector versions"* ]]
 }
 
+@test "ds_connector_update.sh usage mentions --check-only option" {
+    run "${BIN_DIR}/ds_connector_update.sh" --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--check-only"* ]]
+}
+
 @test "ds_connector_update.sh requires connector name" {
     run "${BIN_DIR}/ds_connector_update.sh" -c test-compartment
     [ "$status" -eq 1 ]

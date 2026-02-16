@@ -5,7 +5,7 @@
 # Script.....: ds_connector_update.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.02.11
-# Version....: v0.11.1
+# Version....: v0.11.2
 # Purpose....: Automate Oracle Data Safe On-Premises Connector updates
 # Usage......: ds_connector_update.sh [OPTIONS]
 # License....: Apache License Version 2.0
@@ -46,6 +46,7 @@ source "${LIB_DIR}/ds_lib.sh"
 : "${SKIP_DOWNLOAD:=false}"      # Skip download step (bundle already downloaded)
 : "${BUNDLE_FILE:=}"             # Path to existing bundle file (if skip-download)
 : "${FORCE_NEW_PASSWORD:=false}" # Force generation of new password
+: "${CHECK_ONLY:=false}"         # Run version check only and exit
 
 # Runtime variables (populated during execution)
 COMP_NAME=""           # Resolved compartment name
@@ -112,6 +113,7 @@ Options:
 
   Connector Options:
     --force-new-password    Generate new password (ignore existing)
+        --check-only            Run version check only and exit
 
   Bundle Options:
     --skip-download         Skip download (use existing bundle file)
@@ -132,6 +134,9 @@ Examples:
 
   # Dry-run to see what would be done
   ${SCRIPT_NAME} --datasafe-home dscon4 --dry-run
+
+    # Check versions only (no update actions)
+    ${SCRIPT_NAME} --datasafe-home dscon4 --check-only
 
   # Use existing bundle file (skip download)
   ${SCRIPT_NAME} --connector my-connector --skip-download --bundle-file /tmp/bundle.zip
@@ -219,6 +224,10 @@ parse_args() {
                 ;;
             --force-new-password)
                 FORCE_NEW_PASSWORD=true
+                shift
+                ;;
+            --check-only)
+                CHECK_ONLY=true
                 shift
                 ;;
             --oci-profile)
@@ -505,11 +514,12 @@ download_bundle() {
     # Create temporary directory for bundle
     TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/datasafe_update.XXXXXX")
     local bundle_file="${TEMP_DIR}/connector_bundle.zip"
+    local bundle_config_file="${TEMP_DIR}/connector_bundle_config.zip"
 
     # Step 1: Generate bundle configuration
     log_info "Step 1/3: Generating bundle configuration..."
     local work_request_json
-    work_request_json=$(ds_generate_connector_bundle "$CONNECTOR_OCID" "$BUNDLE_PASSWORD") || {
+    work_request_json=$(ds_generate_connector_bundle "$CONNECTOR_OCID" "$BUNDLE_PASSWORD" "$bundle_config_file") || {
         die "Failed to generate connector bundle"
     }
 
@@ -839,6 +849,12 @@ do_work() {
     log_info "Step 0: Version Check"
     log_info "═══════════════════════════════════════════════════════════════════"
     check_and_display_versions
+
+    if [[ "${CHECK_ONLY}" == "true" ]]; then
+        log_info ""
+        log_info "CHECK-ONLY MODE: Skipping password, download, extract, and setup update steps"
+        return 0
+    fi
 
     # Step 1: Get or create bundle password
     log_info ""

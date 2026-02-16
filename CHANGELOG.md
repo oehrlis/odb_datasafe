@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.2] - 2026-02-16
+
+### Added
+
+- `bin/ds_connector_update.sh` adds `--check-only` mode to run only connector
+  version/status checks and skip password, bundle, and update actions.
+
+### Fixed
+
+- `lib/oci_helpers.sh` now calls
+  `generate-on-prem-connector-configuration` with the required `--file`
+  option to prevent OCI CLI failure during bundle generation.
+- `bin/datasafe_env.sh` now resolves script path more robustly in `ksh` and
+  ensures `DATASAFE_SCRIPT_BIN` is valid before appending it to `PATH`.
+- `bin/datasafe_env.sh` now handles empty `PATH` safely when initializing
+  standalone shell environments.
+
 ## [0.11.1] - 2026-02-16
 
 ### Fixed

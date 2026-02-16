@@ -5,7 +5,7 @@
 # Script.....: datasafe_env.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.02.16
-# Version....: v0.11.0
+# Version....: v0.11.2
 # Purpose....: Sourceable standalone shell environment for odb_datasafe
 # Usage......: source /path/to/odb_datasafe/bin/datasafe_env.sh
 # License....: Apache License Version 2.0
@@ -24,11 +24,22 @@ if [ -n "${BASH_VERSION:-}" ]; then
     _ds_env_script_path="${BASH_SOURCE[0]}"
 fi
 if [ -z "${_ds_env_script_path}" ]; then
-    _ds_env_script_path="$(eval 'printf "%s" "${.sh.file:-}"' 2> /dev/null)"
+    _ds_env_script_path="$(eval 'printf "%s" "${.sh.file}"' 2> /dev/null)"
 fi
 if [ -z "${_ds_env_script_path}" ]; then
     _ds_env_script_path="$0"
 fi
+
+# If only a command name is available, resolve it to an absolute path.
+case "${_ds_env_script_path}" in
+    */*) ;;
+    *)
+        _ds_env_resolved_path="$(command -v -- "${_ds_env_script_path}" 2> /dev/null || true)"
+        if [ -n "${_ds_env_resolved_path}" ]; then
+            _ds_env_script_path="${_ds_env_resolved_path}"
+        fi
+        ;;
+esac
 
 _ds_env_script_name="$(basename "${_ds_env_script_path}")"
 _ds_env_script_dir="$(cd "$(dirname "${_ds_env_script_path}")" && pwd)"
@@ -68,10 +79,26 @@ fi
 export DATASAFE_BASE="${DATASAFE_BASE:-${DATASAFE_BASE_DEFAULT}}"
 export DATASAFE_SCRIPT_BIN="${DATASAFE_SCRIPT_BIN:-${DATASAFE_SCRIPT_BIN_DEFAULT}}"
 
+# Ensure DATASAFE_SCRIPT_BIN points to a valid bin directory.
+if [ ! -d "${DATASAFE_SCRIPT_BIN}" ]; then
+    if [ -d "${DATASAFE_BASE}/bin" ]; then
+        DATASAFE_SCRIPT_BIN="${DATASAFE_BASE}/bin"
+    else
+        DATASAFE_SCRIPT_BIN="${DATASAFE_SCRIPT_BIN_DEFAULT}"
+    fi
+    export DATASAFE_SCRIPT_BIN
+fi
+
 # Add bin directory to PATH once (append at end)
 case ":${PATH}:" in
     *":${DATASAFE_SCRIPT_BIN}:"*) ;;
-    *) export PATH="${PATH}:${DATASAFE_SCRIPT_BIN}" ;;
+    *)
+        if [ -n "${PATH:-}" ]; then
+            export PATH="${PATH}:${DATASAFE_SCRIPT_BIN}"
+        else
+            export PATH="${DATASAFE_SCRIPT_BIN}"
+        fi
+        ;;
 esac
 
 # ------------------------------------------------------------------------------
@@ -88,5 +115,6 @@ alias dsversion='ds_version.sh'
 # Cleanup internal variables
 unset _ds_env_script_path _ds_env_script_name _ds_env_script_dir _ds_env_base_dir
 unset _ds_env_script_version _ds_env_is_sourced
+unset _ds_env_resolved_path
 
 # EOF --------------------------------------------------------------------------

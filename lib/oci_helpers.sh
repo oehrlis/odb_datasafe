@@ -1170,6 +1170,7 @@ ds_get_connector_details() {
 # Purpose.: Generate on-premises connector installation bundle
 # Args....: $1 - Connector OCID
 #           $2 - Bundle password
+#           $3 - Output file path for generated connector configuration
 # Returns.: 0 on success, 1 on error
 # Output..: Work request details JSON
 # Notes...: This operation is asynchronous. The bundle generation happens
@@ -1178,6 +1179,7 @@ ds_get_connector_details() {
 ds_generate_connector_bundle() {
     local connector_ocid="$1"
     local password="$2"
+    local output_file="${3:-}"
 
     if ! is_ocid "$connector_ocid"; then
         die "Invalid connector OCID: $connector_ocid"
@@ -1185,6 +1187,10 @@ ds_generate_connector_bundle() {
 
     if [[ -z "$password" ]]; then
         die "Bundle password is required"
+    fi
+
+    if [[ -z "$output_file" ]]; then
+        die "Output file path is required for bundle generation"
     fi
 
     local connector_name
@@ -1200,7 +1206,8 @@ ds_generate_connector_bundle() {
     # Generate bundle - returns work request
     oci_exec data-safe on-prem-connector generate-on-prem-connector-configuration \
         --on-prem-connector-id "$connector_ocid" \
-        --password "$password"
+        --password "$password" \
+        --file "$output_file"
 }
 
 # ------------------------------------------------------------------------------
