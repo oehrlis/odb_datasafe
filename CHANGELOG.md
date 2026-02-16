@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `bin/datasafe_env.sh` now supports sourcing from both `bash` and `ksh` by
+  using shell-compatible script-path detection (`BASH_SOURCE[0]` or `.sh.file`)
+  and by avoiding readonly global variable collisions on repeated sourcing.
+
 ## [0.11.0] - 2026-02-16
 
 ### Added
