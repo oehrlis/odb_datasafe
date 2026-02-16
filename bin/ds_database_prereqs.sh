@@ -343,7 +343,7 @@ is_base64_string() {
         return 1
     fi
 
-    if (( ${#normalized} % 4 != 0 )); then
+    if ((${#normalized} % 4 != 0)); then
         return 1
     fi
 
