@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ds_database_prereqs.sh` now supports updating the user secret without drop/recreate (`--update-secret`)
 - `ds_database_prereqs.sh` now logs the user action mode (check, update, recreate)
 - `ds_database_prereqs.sh` now warns on ORA-28007 with guidance to use a different secret or `--force`
+- `ds_database_prereqs.sh` now forces SQL*Plus output for user updates so ORA-28007 warnings appear in non-verbose runs
 
 ## [0.10.0] - 2026-02-16
 

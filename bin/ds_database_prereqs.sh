@@ -915,6 +915,9 @@ build_temp_sql_script() {
         if [[ "${LOG_LEVEL^^}" == "DEBUG" || "${LOG_LEVEL^^}" == "TRACE" ]]; then
             echo "set echo on"
             echo "set termout on"
+        elif [[ "${TERMOUT_FORCE:-false}" == "true" ]]; then
+            echo "set echo off"
+            echo "set termout on"
         else
             echo "set echo off"
             echo "set termout off"
@@ -968,10 +971,19 @@ run_sql_local() {
     local sqlspec="$1"
     shift || true
 
+    local termout_force="false"
+    if [[ "$sqlspec" != @INLINE* ]]; then
+        local sql_base
+        sql_base="$(basename -- "$sqlspec")"
+        if [[ "$sql_base" == "$USER_SQL" ]]; then
+            termout_force="true"
+        fi
+    fi
+
     local seq
     seq="$(date +%s)"
     local tmp_sql
-    tmp_sql="$(build_temp_sql_script "${SCRIPT_NAME}_${ORACLE_SID}_${seq}" "$sqlspec" "$@")"
+    TERMOUT_FORCE="$termout_force" tmp_sql="$(build_temp_sql_script "${SCRIPT_NAME}_${ORACLE_SID}_${seq}" "$sqlspec" "$@")"
 
     if [[ "$DRY_RUN" == "true" ]]; then
         log_info "DRY-RUN: would run sqlplus @${tmp_sql}"
