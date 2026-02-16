@@ -135,7 +135,7 @@ BEGIN
     sys.dbms_output.put_line('Grants CONNECT, RESOURCE applied to ' || l_username);
 EXCEPTION
     WHEN password_reuse THEN
-        sys.dbms_output.put_line('Password reuse detected (ORA-28007). Continuing without password change.');
+        sys.dbms_output.put_line('WARNING: Secret reuse detected (ORA-28007). Continuing without secret change.');
         l_sql := 'ALTER USER ' || l_username || ' PROFILE ' || l_profile;
         EXECUTE IMMEDIATE l_sql;
         l_sql := 'GRANT CONNECT, RESOURCE TO ' || l_username;

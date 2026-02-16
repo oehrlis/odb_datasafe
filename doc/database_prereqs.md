@@ -138,6 +138,7 @@ Examples:
 - Use `--force` to drop and recreate the Data Safe user when needed.
 - `create_ds_admin_prerequisites.sql` accepts the profile name as parameter 1.
 - `create_ds_admin_user.sql` updates the profile only when `FORCE` is FALSE to avoid ORA-28007.
+- If you see an ORA-28007 reuse warning, use a different secret or rerun with `--force`.
 
 ## Updating the Embedded Payload
 
