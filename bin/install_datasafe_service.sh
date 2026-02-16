@@ -69,6 +69,13 @@ RED='' GREEN='' YELLOW='' BLUE='' BOLD='' NC=''
 # Functions
 # ------------------------------------------------------------------------------
 
+# ------------------------------------------------------------------------------
+# Function: init_colors
+# Purpose.: Initialize ANSI color variables
+# Args....: None
+# Returns.: 0 on success
+# Output..: None
+# ------------------------------------------------------------------------------
 # Initialize colors
 init_colors() {
     if [[ "$USE_COLOR" == "true" ]] && [[ -t 1 ]]; then
@@ -83,6 +90,14 @@ init_colors() {
     fi
 }
 
+# ------------------------------------------------------------------------------
+# Function: print_message
+# Purpose.: Print a formatted message with optional color
+# Args....: $1 - Message level
+#           $@ - Message text
+# Returns.: 0 on success
+# Output..: Message to stdout/stderr
+# ------------------------------------------------------------------------------
 # Print colored message
 print_message() {
     local level="$1"
@@ -99,6 +114,13 @@ print_message() {
     esac
 }
 
+# ------------------------------------------------------------------------------
+# Function: usage
+# Purpose.: Display usage information and exit
+# Args....: None
+# Returns.: 0 (exits script)
+# Output..: Usage text to stdout
+# ------------------------------------------------------------------------------
 # Usage information
 usage() {
     cat << EOF
@@ -189,8 +211,13 @@ EOF
 }
 
 # ------------------------------------------------------------------------------
-# Check if running as root (only for install/uninstall operations)
+# Function: check_root
+# Purpose.: Validate root requirements for install/uninstall operations
+# Args....: None
+# Returns.: 0 on success, exits on error
+# Output..: Log messages
 # ------------------------------------------------------------------------------
+# Check if running as root (only for install/uninstall operations)
 check_root() {
     # Root only required for install/uninstall
     if $INSTALL_MODE || $UNINSTALL_MODE; then
@@ -212,6 +239,13 @@ check_root() {
     fi
 }
 
+# ------------------------------------------------------------------------------
+# Function: discover_connectors
+# Purpose.: Discover available connector directories
+# Args....: $1 - Base directory (optional)
+# Returns.: 0 on success, 1 on error
+# Output..: Connector names to stdout
+# ------------------------------------------------------------------------------
 # Discover available connectors
 discover_connectors() {
     local base="${1:-${CONNECTOR_BASE}}"
@@ -235,6 +269,13 @@ discover_connectors() {
     printf '%s\n' "${connectors[@]}"
 }
 
+# ------------------------------------------------------------------------------
+# Function: list_connectors
+# Purpose.: List available connectors and status
+# Args....: None
+# Returns.: 0 on success, 1 on error
+# Output..: Connector list to stdout
+# ------------------------------------------------------------------------------
 # List available connectors
 list_connectors() {
     print_message STEP "Scanning for Data Safe connectors in: $CONNECTOR_BASE"
@@ -283,6 +324,14 @@ list_connectors() {
     echo "Total: ${#connectors[@]} connector(s) found"
 }
 
+# ------------------------------------------------------------------------------
+# Function: validate_connector
+# Purpose.: Validate connector directory and prerequisites
+# Args....: $1 - Connector name
+#           $2 - Base directory
+# Returns.: 0 on success, 1 on error
+# Output..: Log messages
+# ------------------------------------------------------------------------------
 # Validate connector directory
 validate_connector() {
     local connector="$1"
@@ -359,6 +408,13 @@ validate_connector() {
     return 0
 }
 
+# ------------------------------------------------------------------------------
+# Function: select_connector_interactive
+# Purpose.: Prompt for connector selection interactively
+# Args....: None
+# Returns.: 0 on success, 1 on error
+# Output..: Prompts and status messages
+# ------------------------------------------------------------------------------
 # Interactive connector selection
 select_connector_interactive() {
     local -a connectors
@@ -402,6 +458,13 @@ select_connector_interactive() {
     print_message SUCCESS "Selected connector: $CONNECTOR_NAME"
 }
 
+# ------------------------------------------------------------------------------
+# Function: generate_service_file
+# Purpose.: Generate systemd service unit content
+# Args....: None
+# Returns.: 0 on success
+# Output..: Service file content to stdout
+# ------------------------------------------------------------------------------
 # Generate service file content
 generate_service_file() {
     cat << EOF
@@ -455,6 +518,13 @@ WantedBy=multi-user.target
 EOF
 }
 
+# ------------------------------------------------------------------------------
+# Function: generate_sudoers_file
+# Purpose.: Generate sudoers file content
+# Args....: None
+# Returns.: 0 on success
+# Output..: Sudoers file content to stdout
+# ------------------------------------------------------------------------------
 # Generate sudoers file content
 generate_sudoers_file() {
     cat << EOF
@@ -475,6 +545,13 @@ $OS_USER ALL=(ALL) NOPASSWD: /bin/journalctl -u $SERVICE_NAME*
 EOF
 }
 
+# ------------------------------------------------------------------------------
+# Function: generate_readme
+# Purpose.: Generate service README documentation
+# Args....: None
+# Returns.: 0 on success, 1 on error
+# Output..: Writes README file
+# ------------------------------------------------------------------------------
 # Generate README file
 generate_readme() {
     local readme="$README_FILE"
@@ -619,6 +696,13 @@ EOF
     chmod 644 "$readme"
 }
 
+# ------------------------------------------------------------------------------
+# Function: prepare_service
+# Purpose.: Prepare service configuration files (non-root)
+# Args....: None
+# Returns.: 0 on success, 1 on error
+# Output..: Log messages and generated files
+# ------------------------------------------------------------------------------
 # Prepare service configuration (non-root)
 prepare_service() {
     print_message STEP "Preparing Data Safe Connector Service Configuration"
@@ -720,6 +804,13 @@ prepare_service() {
     echo
 }
 
+# ------------------------------------------------------------------------------
+# Function: install_service
+# Purpose.: Install service configuration to system (root)
+# Args....: None
+# Returns.: 0 on success, 1 on error
+# Output..: Log messages and systemctl output
+# ------------------------------------------------------------------------------
 # Install service to system (requires root)
 install_service() {
     print_message STEP "Installing Data Safe Connector Service to System"
@@ -843,6 +934,13 @@ install_service() {
     echo
 }
 
+# ------------------------------------------------------------------------------
+# Function: check_service
+# Purpose.: Check service installation status
+# Args....: None
+# Returns.: 0 on success
+# Output..: Status details to stdout
+# ------------------------------------------------------------------------------
 # Check service status
 check_service() {
     SERVICE_NAME="oracle_datasafe_${CONNECTOR_NAME}.service"
@@ -917,6 +1015,13 @@ check_service() {
     fi
 }
 
+# ------------------------------------------------------------------------------
+# Function: uninstall_service
+# Purpose.: Uninstall service from system (root)
+# Args....: None
+# Returns.: 0 on success
+# Output..: Log messages
+# ------------------------------------------------------------------------------
 # Remove service from system (requires root)
 uninstall_service() {
     SERVICE_NAME="oracle_datasafe_${CONNECTOR_NAME}.service"
@@ -973,6 +1078,13 @@ uninstall_service() {
     print_message INFO "To reinstall: sudo $SCRIPT_NAME --install -n $CONNECTOR_NAME"
 }
 
+# ------------------------------------------------------------------------------
+# Function: parse_arguments
+# Purpose.: Parse command-line arguments
+# Args....: $@ - All command-line arguments
+# Returns.: 0 on success, exits on error
+# Output..: Sets global flags and variables
+# ------------------------------------------------------------------------------
 # Parse command-line arguments
 parse_arguments() {
     while [[ $# -gt 0 ]]; do
@@ -1059,6 +1171,13 @@ parse_arguments() {
     fi
 }
 
+# ------------------------------------------------------------------------------
+# Function: main
+# Purpose.: Main entry point
+# Args....: $@ - All command-line arguments
+# Returns.: 0 on success, exits on error
+# Output..: Log messages
+# ------------------------------------------------------------------------------
 # Main function
 main() {
     # Initialize colors
