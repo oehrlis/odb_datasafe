@@ -52,6 +52,7 @@ init_config
 # ------------------------------------------------------------------------------
 # Function: usage
 # Purpose.: Display script usage information
+# Args....: None
 # Returns.: 0 (exits script)
 # Output..: Usage text to stdout
 # ------------------------------------------------------------------------------
@@ -195,6 +196,7 @@ parse_args() {
 # ------------------------------------------------------------------------------
 # Function: validate_inputs
 # Purpose.: Validate command-line arguments and required conditions
+# Args....: None
 # Returns.: 0 on success, exits on error via die()
 # Output..: Log messages for validation steps
 # Notes...: Resolves compartments and validates domain
@@ -237,11 +239,12 @@ validate_inputs() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: compute_new_service_name
-# Purpose.....: Transform current service to "<base>_exa.<domain>"
-# Parameters..: $1 - current service name
-#               $2 - domain
-# Returns.....: New service name
+# Function: compute_new_service_name
+# Purpose.: Transform current service to "<base>_exa.<domain>"
+# Args....: $1 - Current service name
+#           $2 - Domain
+# Returns.: 0 on success
+# Output..: New service name to stdout
 # ------------------------------------------------------------------------------
 compute_new_service_name() {
     local current="$1"
@@ -276,11 +279,13 @@ compute_new_service_name() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: update_target_service
-# Purpose.....: Update service name for a single target
-# Parameters..: $1 - target OCID
-#               $2 - target name
-#               $3 - current service name
+# Function: update_target_service
+# Purpose.: Update service name for a single target
+# Args....: $1 - Target OCID
+#           $2 - Target name
+#           $3 - Current service name
+# Returns.: 0 on success, 1 on error
+# Output..: Log messages
 # ------------------------------------------------------------------------------
 update_target_service() {
     local target_ocid="$1"
@@ -332,10 +337,11 @@ update_target_service() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: list_targets_in_compartment
-# Purpose.....: List targets in compartment with current service names
-# Parameters..: $1 - compartment OCID or name
-# Returns.....: JSON array of targets
+# Function: list_targets_in_compartment
+# Purpose.: List targets in compartment with current service names
+# Args....: $1 - Compartment OCID or name
+# Returns.: 0 on success, 1 on error
+# Output..: JSON array of targets to stdout
 # ------------------------------------------------------------------------------
 list_targets_in_compartment() {
     local compartment="$1"
@@ -344,10 +350,11 @@ list_targets_in_compartment() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: get_target_details
-# Purpose.....: Get target details including service name
-# Parameters..: $1 - target OCID
-# Returns.....: JSON object with target details
+# Function: get_target_details
+# Purpose.: Get target details including service name
+# Args....: $1 - Target OCID
+# Returns.: 0 on success, 1 on error
+# Output..: JSON object with target details to stdout
 # ------------------------------------------------------------------------------
 get_target_details() {
     local target_ocid="$1"
@@ -360,10 +367,11 @@ get_target_details() {
 }
 
 # ------------------------------------------------------------------------------
-# Function....: do_work
-# Purpose.....: Main work function - processes targets and updates service names
-# Returns.....: 0 on success, 1 if any errors occurred
-# Output......: Progress messages and summary statistics
+# Function: do_work
+# Purpose.: Main work function - processes targets and updates service names
+# Args....: None
+# Returns.: 0 on success, 1 if any errors occurred
+# Output..: Progress messages and summary statistics
 # ------------------------------------------------------------------------------
 do_work() {
     # Show execution mode
@@ -476,6 +484,13 @@ do_work() {
 # MAIN
 # =============================================================================
 
+# ------------------------------------------------------------------------------
+# Function: main
+# Purpose.: Main entry point
+# Args....: None
+# Returns.: 0 on success, exits on error
+# Output..: Log messages
+# ------------------------------------------------------------------------------
 main() {
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
 
