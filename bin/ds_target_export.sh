@@ -67,6 +67,13 @@ declare -A CONNECTOR_MAP
 # Functions
 # ------------------------------------------------------------------------------
 
+# ------------------------------------------------------------------------------
+# Function: usage
+# Purpose.: Display script usage information
+# Args....: $1 - Exit code (optional, default: 0)
+# Returns.: 0 (exits script)
+# Output..: Usage text to stdout
+# ------------------------------------------------------------------------------
 usage() {
     local exit_code=${1:-0}
     cat << EOF
@@ -111,6 +118,13 @@ EOF
     exit "$exit_code"
 }
 
+# ------------------------------------------------------------------------------
+# Function: parse_args
+# Purpose.: Parse command-line arguments
+# Args....: $@ - All command-line arguments
+# Returns.: 0 on success, exits on error
+# Output..: Sets global variables based on arguments
+# ------------------------------------------------------------------------------
 parse_args() {
     local remaining=()
 
@@ -155,6 +169,13 @@ parse_args() {
     done
 }
 
+# ------------------------------------------------------------------------------
+# Function: validate_inputs
+# Purpose.: Validate command-line inputs and resolve compartment
+# Args....: None
+# Returns.: 0 on success, exits on error
+# Output..: Log messages for validation steps
+# ------------------------------------------------------------------------------
 validate_inputs() {
     log_debug "Validating inputs..."
 
@@ -195,6 +216,13 @@ validate_inputs() {
     log_info "Output format: $FORMAT -> $OUTPUT_FILE"
 }
 
+# ------------------------------------------------------------------------------
+# Function: build_connector_map
+# Purpose.: Build a connector OCID-to-name mapping
+# Args....: None
+# Returns.: 0 on success
+# Output..: Populates CONNECTOR_MAP
+# ------------------------------------------------------------------------------
 build_connector_map() {
     log_info "Building connector map..."
 
@@ -215,6 +243,13 @@ build_connector_map() {
     log_debug "Loaded ${#CONNECTOR_MAP[@]} connectors"
 }
 
+# ------------------------------------------------------------------------------
+# Function: get_connector_name
+# Purpose.: Resolve connector name from OCID
+# Args....: $1 - Connector OCID
+# Returns.: 0 on success
+# Output..: Connector name to stdout
+# ------------------------------------------------------------------------------
 get_connector_name() {
     local ocid="$1"
     [[ -z "$ocid" ]] && {
@@ -224,6 +259,13 @@ get_connector_name() {
     echo "${CONNECTOR_MAP[$ocid]:-$ocid}"
 }
 
+# ------------------------------------------------------------------------------
+# Function: parse_display_name
+# Purpose.: Parse display name into cluster/CDB/PDB parts
+# Args....: $1 - Display name
+# Returns.: 0 on success
+# Output..: Pipe-delimited cluster|cdb|pdb to stdout
+# ------------------------------------------------------------------------------
 parse_display_name() {
     # Parse <cluster>_<cdb>_<pdb> format
     local name="$1"
@@ -241,11 +283,25 @@ parse_display_name() {
     echo "$cluster|$cdb|$pdb"
 }
 
+# ------------------------------------------------------------------------------
+# Function: sanitize_csv
+# Purpose.: Escape CSV fields
+# Args....: $1 - Field value
+# Returns.: 0 on success
+# Output..: Sanitized field to stdout
+# ------------------------------------------------------------------------------
 sanitize_csv() {
     # Escape quotes and remove newlines for CSV
     echo "${1:-N/A}" | tr -d '\n' | sed 's/"/""/g'
 }
 
+# ------------------------------------------------------------------------------
+# Function: export_targets
+# Purpose.: Export targets in requested format
+# Args....: None
+# Returns.: 0 on success, exits on error
+# Output..: Writes export output to file
+# ------------------------------------------------------------------------------
 export_targets() {
     log_info "Fetching targets from compartment..."
 
@@ -398,6 +454,13 @@ export_targets() {
     log_info "Successfully exported $EXPORTED_COUNT targets to $OUTPUT_FILE"
 }
 
+# ------------------------------------------------------------------------------
+# Function: main
+# Purpose.: Main entry point
+# Args....: $@ - All command-line arguments
+# Returns.: 0 on success, exits on error
+# Output..: Log messages
+# ------------------------------------------------------------------------------
 main() {
     # Initialize framework and parse arguments
     init_config
