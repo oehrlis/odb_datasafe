@@ -20,7 +20,7 @@
 # Options:
 #   -c, --compartment COMP      Compartment name or OCID (default: DS_ROOT_COMP)
 #   -n, --namespace NS          Tag namespace to check (default: DBSec)
-#   -s, --state STATE           Lifecycle state filter (default: ACTIVE)
+#   -s, --lifecycle STATE           Lifecycle state filter (default: ACTIVE)
 #   -o, --output FORMAT         Output format: table, csv, json (default: table)
 #   --oci-config FILE           OCI config file
 #   --oci-profile PROFILE       OCI profile to use
@@ -83,7 +83,7 @@ DESCRIPTION:
 OPTIONS:
   -c, --compartment COMP      Compartment name or OCID (default: DS_ROOT_COMP)
   -n, --namespace NS          Tag namespace to check (default: DBSec)
-  -s, --state STATE           Lifecycle state filter (default: ACTIVE)
+  -s, --lifecycle STATE           Lifecycle state filter (default: ACTIVE)
   -o, --output FORMAT         Output format: table, csv, json (default: table)
   --oci-config FILE           OCI config file
   --oci-profile PROFILE       OCI profile to use
@@ -128,7 +128,7 @@ parse_args() {
                 TAG_NAMESPACE="$2"
                 shift 2
                 ;;
-            -s | --state)
+            -s | --lifecycle)
                 STATE_FILTERS="$2"
                 shift 2
                 ;;
