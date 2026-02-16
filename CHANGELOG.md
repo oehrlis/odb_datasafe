@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mandatory prerequisites (`oci` and `jq`), and simple availability checks
 - Added documentation links to standalone usage and project README in `doc/index.md`
 
+### Changed
+
+- Standardized function headers across bin/ and lib/ scripts
+
 ### Fixed
 
 - Fixed `jq` field access in `ds_tg_report.sh` when listing targets missing tag namespace
