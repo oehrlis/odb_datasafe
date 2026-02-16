@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-02-16
+
 ### Added
 
 - Added `datasafe_help.sh` wrapper for `odb_datasafe_help.sh`
