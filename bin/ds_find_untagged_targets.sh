@@ -64,7 +64,7 @@ COMP_OCID=""
 # ------------------------------------------------------------------------------
 
 # ------------------------------------------------------------------------------
-# Function: Usage
+# Function: usage
 # Purpose.: Display usage information and exit
 # Args....: $1 - Exit code (optional, default: 0)
 # Returns.: Exits with specified code
@@ -158,6 +158,7 @@ parse_args() {
 # ------------------------------------------------------------------------------
 # Function: validate_inputs
 # Purpose.: Validate command-line inputs and resolve compartment OCID
+# Args....: None
 # Returns.: 0 on success, exits on error
 # Output..: Info messages about resolved resources
 # Notes...: Sets COMP_NAME, COMP_OCID
@@ -196,6 +197,7 @@ validate_inputs() {
 # ------------------------------------------------------------------------------
 # Function: find_untagged_targets
 # Purpose.: Find targets without tags in specified namespace
+# Args....: None
 # Returns.: 0 on success, exits on error
 # Output..: Target list in specified format
 # ------------------------------------------------------------------------------
