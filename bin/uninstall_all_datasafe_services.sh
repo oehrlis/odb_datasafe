@@ -32,6 +32,13 @@ USE_COLOR=true
 # Colors
 RED='' GREEN='' YELLOW='' BLUE='' BOLD='' NC=''
 
+# ------------------------------------------------------------------------------
+# Function: init_colors
+# Purpose.: Initialize ANSI color variables
+# Args....: None
+# Returns.: 0 on success
+# Output..: None
+# ------------------------------------------------------------------------------
 # Initialize colors
 init_colors() {
     if [[ "$USE_COLOR" == "true" ]] && [[ -t 1 ]]; then
@@ -46,6 +53,14 @@ init_colors() {
     fi
 }
 
+# ------------------------------------------------------------------------------
+# Function: print_message
+# Purpose.: Print a formatted message with optional color
+# Args....: $1 - Message level
+#           $@ - Message text
+# Returns.: 0 on success
+# Output..: Message to stdout/stderr
+# ------------------------------------------------------------------------------
 # Print message
 print_message() {
     local level="$1"
@@ -62,6 +77,13 @@ print_message() {
     esac
 }
 
+# ------------------------------------------------------------------------------
+# Function: usage
+# Purpose.: Display usage information and exit
+# Args....: None
+# Returns.: 0 (exits script)
+# Output..: Usage text to stdout
+# ------------------------------------------------------------------------------
 # Usage
 usage() {
     cat << EOF
@@ -115,6 +137,13 @@ EOF
     exit 0
 }
 
+# ------------------------------------------------------------------------------
+# Function: check_root
+# Purpose.: Validate root requirements for uninstall operations
+# Args....: None
+# Returns.: 0 on success, exits on error
+# Output..: Log messages
+# ------------------------------------------------------------------------------
 # Check if running as root (only for uninstall operations)
 check_root() {
     # Root only required for uninstall
@@ -137,6 +166,13 @@ check_root() {
     fi
 }
 
+# ------------------------------------------------------------------------------
+# Function: discover_services
+# Purpose.: Discover installed Data Safe services
+# Args....: None
+# Returns.: 0 on success
+# Output..: Service names to stdout
+# ------------------------------------------------------------------------------
 # Discover installed services
 discover_services() {
     local -a services=()
@@ -148,18 +184,39 @@ discover_services() {
     printf '%s\n' "${services[@]}"
 }
 
+# ------------------------------------------------------------------------------
+# Function: find_sudoers_files
+# Purpose.: Find matching sudoers files
+# Args....: $1 - Pattern to match
+# Returns.: 0 on success
+# Output..: Matching file paths to stdout
+# ------------------------------------------------------------------------------
 # Find sudoers files
 find_sudoers_files() {
     local pattern="$1"
     find /etc/sudoers.d/ -type f -name "*datasafe*" 2> /dev/null | grep -E "$pattern" || true
 }
 
+# ------------------------------------------------------------------------------
+# Function: find_readme_files
+# Purpose.: Find connector README files
+# Args....: $1 - Base directory (optional)
+# Returns.: 0 on success
+# Output..: Matching file paths to stdout
+# ------------------------------------------------------------------------------
 # Find README files
 find_readme_files() {
     local base="${1:-/appl/oracle/product/dsconnect}"
     find "$base" -type f -name "SERVICE_README.md" 2> /dev/null || true
 }
 
+# ------------------------------------------------------------------------------
+# Function: list_services
+# Purpose.: List installed services and related files
+# Args....: None
+# Returns.: 0 on success, 1 when none found
+# Output..: Service listing to stdout
+# ------------------------------------------------------------------------------
 # List services
 list_services() {
     print_message STEP "Discovering installed Data Safe Connector services"
@@ -216,6 +273,13 @@ list_services() {
     return 0
 }
 
+# ------------------------------------------------------------------------------
+# Function: remove_all_services
+# Purpose.: Remove all Data Safe services from the system
+# Args....: None
+# Returns.: 0 on success
+# Output..: Log messages and summary
+# ------------------------------------------------------------------------------
 # Remove all services
 remove_all_services() {
     local -a services
@@ -337,6 +401,13 @@ remove_all_services() {
     print_message INFO "To reinstall: sudo install_datasafe_service.sh --install -n <connector>"
 }
 
+# ------------------------------------------------------------------------------
+# Function: parse_arguments
+# Purpose.: Parse command-line arguments
+# Args....: $@ - All command-line arguments
+# Returns.: 0 on success, exits on error
+# Output..: Sets global flags
+# ------------------------------------------------------------------------------
 # Parse arguments
 parse_arguments() {
     while [[ $# -gt 0 ]]; do
@@ -379,6 +450,13 @@ parse_arguments() {
     fi
 }
 
+# ------------------------------------------------------------------------------
+# Function: main
+# Purpose.: Main entry point
+# Args....: $@ - All command-line arguments
+# Returns.: 0 on success, exits on error
+# Output..: Log messages
+# ------------------------------------------------------------------------------
 # Main
 main() {
     parse_arguments "$@"
