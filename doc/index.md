@@ -4,6 +4,7 @@ Oracle Data Safe management extension for OraDBA - comprehensive tools for manag
 OCI Data Safe targets, connectors, and operations.
 
 Current version: see [`../VERSION`](../VERSION) | [Release Notes](release_notes/)
+Latest release: [v0.11.1](release_notes/v0.11.1.md)
 
 ## Overview
 
@@ -24,6 +25,7 @@ The `odb_datasafe` extension provides a complete framework for working with Orac
 - **[Database Prereqs](database_prereqs.md)** - On-prem DB preparation
 - **[IAM Policies Guide](oci-iam-policies.md)** - Required OCI permissions
 - **[Release Notes](release_notes/)** - Version history and changes
+- **[v0.11.1 Release Note](release_notes/v0.11.1.md)** - Connector compartment and shell compatibility fixes
 - **[CHANGELOG](../CHANGELOG.md)** - Complete version history
 
 ## Quick Start
@@ -85,6 +87,7 @@ bin/ds_target_refresh.sh -T mydb01 --dry-run
 
 - ✅ **Standalone usage guide** — `doc/standalone_usage.md` provides tarball install and minimal run steps.
 - ✅ **Help wrapper and config visibility** — `datasafe_help.sh` plus config/OCI config summaries in help output.
+- ✅ **Connector update compartment fix (`v0.11.1`)** — `ds_connector_update.sh` supports `--datasafe-home` with `--compartment` and prefers `DS_ROOT_COMP` fallback.
 - ✅ **Consistent script headers** — function/script header format standardized across `bin/` and `lib/`.
 - ✅ **Reporting fix in target-group report** — `ds_tg_report.sh` handles `display-name` field access correctly.
 

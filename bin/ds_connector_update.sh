@@ -5,7 +5,7 @@
 # Script.....: ds_connector_update.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.02.11
-# Version....: v0.7.0
+# Version....: v0.11.1
 # Purpose....: Automate Oracle Data Safe On-Premises Connector updates
 # Usage......: ds_connector_update.sh [OPTIONS]
 # License....: Apache License Version 2.0
@@ -88,8 +88,9 @@ Required (choose one):
     --connector NAME      Connector name or OCID
     --connector-home PATH Connector installation directory (optional, auto-detected)
 
-    Compartment (required for Option 2):
+        Compartment (required when connector is specified by name):
       -c, --compartment ID  Compartment OCID or name (for connector lookup)
+                                                    Can be used with both --datasafe-home and --connector
       OR set DS_CONNECTOR_COMP environment variable
       OR set DS_ROOT_COMP environment variable in .env or datasafe.conf
 
@@ -148,8 +149,8 @@ Environment Variables:
 
 Compartment Resolution (priority order):
   1. -c/--compartment flag (highest priority)
-  2. DS_CONNECTOR_COMP environment variable
-  3. DS_ROOT_COMP environment variable (recommended)
+    2. DS_ROOT_COMP environment variable (recommended)
+    3. DS_CONNECTOR_COMP environment variable
 
 Config Files (loaded in order):
   1. ${SCRIPT_DIR}/../.env
@@ -338,9 +339,9 @@ validate_inputs() {
     # Parameter validation: check for conflicting parameters
     if [[ -n "$DATASAFE_ENV" ]]; then
         # Using --datasafe-home
-        if [[ -n "$CONNECTOR_NAME" ]] || [[ -n "$CONNECTOR_HOME" ]] || [[ -n "$COMPARTMENT" ]]; then
-            log_error "Cannot mix --datasafe-home with --connector, --connector-home, or --compartment"
-            log_error "Use either --datasafe-home OR (--connector + compartment options)"
+        if [[ -n "$CONNECTOR_NAME" ]] || [[ -n "$CONNECTOR_HOME" ]]; then
+            log_error "Cannot mix --datasafe-home with --connector or --connector-home"
+            log_error "Use either --datasafe-home OR (--connector + optional --connector-home)"
             die "Conflicting parameters provided"
         fi
         
@@ -362,31 +363,20 @@ validate_inputs() {
         require_var CONNECTOR_NAME
     fi
 
-    # Resolve compartment for connector lookup (only if not using datasafe-home)
-    if [[ -z "$DATASAFE_ENV" ]]; then
-        # Priority: -c/--compartment flag > DS_CONNECTOR_COMP > DS_ROOT_COMP
-        if [[ -n "$COMPARTMENT" ]]; then
-            resolve_compartment_to_vars "$COMPARTMENT" "COMP" \
-                || die "Failed to resolve compartment: $COMPARTMENT"
-            log_info "Compartment: ${COMP_NAME} (${COMP_OCID})"
-        elif [[ -n "${DS_CONNECTOR_COMP:-}" ]]; then
-            # Use DS_CONNECTOR_COMP as fallback (which itself can fall back to DS_ROOT_COMP)
-            resolve_compartment_to_vars "$DS_CONNECTOR_COMP" "COMP" \
-                || die "Failed to resolve DS_CONNECTOR_COMP: $DS_CONNECTOR_COMP"
-            log_info "Using DS_CONNECTOR_COMP: ${COMP_NAME} (${COMP_OCID})"
-        elif [[ -n "${DS_ROOT_COMP:-}" ]]; then
-            # Use DS_ROOT_COMP as final fallback
-            resolve_compartment_to_vars "$DS_ROOT_COMP" "COMP" \
-                || die "Failed to resolve DS_ROOT_COMP: $DS_ROOT_COMP"
-            log_info "Using DS_ROOT_COMP: ${COMP_NAME} (${COMP_OCID})"
-        else
-            log_error "Compartment required for connector lookup."
-            log_error "Please provide one of the following:"
-            log_error "  1. Use -c/--compartment option"
-            log_error "  2. Set DS_CONNECTOR_COMP environment variable"
-            log_error "  3. Set DS_ROOT_COMP environment variable in .env or datasafe.conf"
-            die "No compartment specified. Cannot proceed."
-        fi
+    # Resolve compartment for connector lookup (used for connector names in both modes)
+    # Priority: -c/--compartment flag > DS_ROOT_COMP > DS_CONNECTOR_COMP
+    if [[ -n "$COMPARTMENT" ]]; then
+        resolve_compartment_to_vars "$COMPARTMENT" "COMP" \
+            || die "Failed to resolve compartment: $COMPARTMENT"
+        log_info "Compartment: ${COMP_NAME} (${COMP_OCID})"
+    elif [[ -n "${DS_ROOT_COMP:-}" ]]; then
+        resolve_compartment_to_vars "$DS_ROOT_COMP" "COMP" \
+            || die "Failed to resolve DS_ROOT_COMP: $DS_ROOT_COMP"
+        log_info "Using DS_ROOT_COMP: ${COMP_NAME} (${COMP_OCID})"
+    elif [[ -n "${DS_CONNECTOR_COMP:-}" ]]; then
+        resolve_compartment_to_vars "$DS_CONNECTOR_COMP" "COMP" \
+            || die "Failed to resolve DS_CONNECTOR_COMP: $DS_CONNECTOR_COMP"
+        log_info "Using DS_CONNECTOR_COMP: ${COMP_NAME} (${COMP_OCID})"
     fi
 
     # Resolve connector (name or OCID)
@@ -398,6 +388,11 @@ validate_inputs() {
     else
         CONNECTOR_DISP_NAME="$CONNECTOR_NAME"
         if [[ -z "$COMP_OCID" ]]; then
+            log_error "Compartment required for connector lookup."
+            log_error "Please provide one of the following:"
+            log_error "  1. Use -c/--compartment option"
+            log_error "  2. Set DS_ROOT_COMP environment variable in .env or datasafe.conf"
+            log_error "  3. Set DS_CONNECTOR_COMP environment variable"
             die "Compartment required to resolve connector name: $CONNECTOR_NAME"
         fi
         CONNECTOR_OCID=$(ds_resolve_connector_ocid "$CONNECTOR_NAME" "$COMP_OCID") \

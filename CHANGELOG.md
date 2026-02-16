@@ -8,11 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-02-16
+
 ### Fixed
 
 - `bin/datasafe_env.sh` now supports sourcing from both `bash` and `ksh` by
   using shell-compatible script-path detection (`BASH_SOURCE[0]` or `.sh.file`)
   and by avoiding readonly global variable collisions on repeated sourcing.
+- `bin/ds_connector_update.sh` now resolves connector compartment context when
+  using `--datasafe-home` if the connector is configured by name.
+- `bin/ds_connector_update.sh` now allows `--compartment` together with
+  `--datasafe-home` (still rejecting invalid mixing with `--connector` and
+  `--connector-home`).
+- `bin/ds_connector_update.sh` compartment fallback order is now
+  `--compartment` → `DS_ROOT_COMP` → `DS_CONNECTOR_COMP`.
 
 ## [0.11.0] - 2026-02-16
 

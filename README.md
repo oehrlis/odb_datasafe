@@ -1,6 +1,7 @@
 # OraDBA Data Safe Extension (odb_datasafe)
 
 **Version:** see [`VERSION`](VERSION) and [`doc/release_notes/`](doc/release_notes/)  
+**Latest Release:** [`v0.11.1`](doc/release_notes/v0.11.1.md)  
 **Purpose:** Simplified OCI Data Safe target and connector management
 
 ## Overview
@@ -120,6 +121,9 @@ export DS_ROOT_COMP="ocid1.compartment.oc1....."
 
 - ✅ **Connector update automation** — `ds_connector_update.sh` automates
   connector updates with bundle download, password management, and setup.py integration.
+- ✅ **Connector compartment resolution fix (`v0.11.1`)** — `ds_connector_update.sh`
+  now supports `--datasafe-home` with explicit `--compartment` and prefers
+  `DS_ROOT_COMP` before `DS_CONNECTOR_COMP`.
 - ✅ **Connector visibility** — `ds_target_connector_summary.sh` groups targets
   by connector with lifecycle breakdowns.
   Provides summary and detailed modes with table, JSON, and CSV output.
