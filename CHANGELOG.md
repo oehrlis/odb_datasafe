@@ -8,6 +8,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-02-16
+
+### Added
+
+- Added `bin/ds_version.sh` for standalone extension version and metadata output.
+- Added extension integrity/change reporting in `ds_version.sh` based on
+  `.extension.checksum` with `.checksumignore` support.
+- Added `bin/datasafe_env.sh` as a sourceable standalone environment helper
+  with convenience aliases:
+  - `ds`, `cdds`
+  - `dshelp`, `dsversion`
+
+### Changed
+
+- Moved standalone environment helper from `etc/` to `bin/`.
+- Updated standalone documentation to source `bin/datasafe_env.sh` and to add
+  it to `~/.bash_profile`.
+- Updated quick reference to include `ds_version.sh` and `datasafe_env.sh`.
+- Bumped extension version to `0.11.0` in `VERSION` and `.extension`.
+
+### Fixed
+
+- `ds_version.sh` now excludes `.extension.checksum` from "additional files".
+- `ds_version.sh` now de-duplicates missing/modified/additional file entries in
+  integrity output.
+
 ## [0.10.2] - 2026-02-16
 
 ### Added

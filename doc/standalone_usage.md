@@ -34,15 +34,23 @@ cp etc/.env.example .env
 vim .env
 source .env
 
-# Base directory for local copy on DB/application hosts.
-# In OraDBA mode, ODB_DATASAFE_BASE is set automatically.
-export DATASAFE_BASE="${ODB_DATASAFE_BASE:-${ORACLE_BASE}/local/datasafe}"
+# Load Data Safe standalone shell environment
+source bin/datasafe_env.sh
 ```
 
 Set at least:
 
 - `DS_ROOT_COMP` (compartment OCID or name)
 - `OCI_CLI_PROFILE` (for example `DEFAULT`)
+
+## Persist Shell Setup
+
+Add this line to your `~/.bash_profile` so the environment is loaded
+automatically for new sessions:
+
+```bash
+source /path/to/odb_datasafe/bin/datasafe_env.sh
+```
 
 ## Run Commands Directly
 

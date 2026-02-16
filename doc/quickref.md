@@ -22,6 +22,8 @@ odb_datasafe/                          # OraDBA Extension for Data Safe
 │   ├── ds_target_update_*.sh          # Update target properties
 │   ├── ds_connector_update.sh         # Update Data Safe connector
 │   ├── ds_connector_register_oradba.sh # Register connector in OraDBA config
+│   ├── datasafe_env.sh                # Sourceable standalone shell environment
+│   ├── ds_version.sh                  # Show extension version and integrity
 │   └── install_datasafe_service.sh    # Install connector as service
 │
 ├── lib/                               # Shared library framework
@@ -81,6 +83,9 @@ bin/ds_target_refresh.sh --help
 ```bash
 # Show help overview of all available tools
 bin/odb_datasafe_help.sh
+
+# Show extension version, metadata, and integrity status
+bin/ds_version.sh
 
 # List Data Safe targets (default: table view)
 bin/ds_target_list.sh
