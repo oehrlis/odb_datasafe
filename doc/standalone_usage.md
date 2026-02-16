@@ -17,7 +17,6 @@ Extract the release tarball into a dedicated folder (for example `datasafe`):
 mkdir -p ~/datasafe
 cd ~/datasafe
 tar -xzf /path/to/odb_datasafe-<version>.tar.gz
-cd odb_datasafe
 ```
 
 ## Verify Prerequisites
@@ -30,7 +29,7 @@ command -v jq >/dev/null && jq --version
 ## Minimal Setup
 
 ```bash
-cd /path/to/odb_datasafe
+cd /path/to/datasafe
 cp etc/.env.example .env
 vim .env
 source .env
