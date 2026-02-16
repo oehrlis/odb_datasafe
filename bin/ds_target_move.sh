@@ -83,7 +83,7 @@ Either provide explicit targets (-T) or scan a compartment (-c).
 Target selection (choose one):
     -T, --targets <LIST>            Comma-separated target names or OCIDs
     (or) use lifecycle-state filtering:
-    -s, --state <LIST>              Comma-separated states (default: ${STATE_FILTERS})
+    -s, --lifecycle <LIST>              Comma-separated states (default: ${STATE_FILTERS})
 
 Scope:
     -c, --compartment <OCID|NAME>   Source compartment OCID or name (env: COMPARTMENT/COMP_OCID)
@@ -135,7 +135,7 @@ parse_args() {
                 TARGETS="$2"
                 shift 2
                 ;;
-            -s | --state)
+            -s | --lifecycle)
                 need_val "$1" "${2:-}"
                 STATE_FILTERS="$2"
                 shift 2
