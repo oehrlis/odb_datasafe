@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `bin/ds_connector_update.sh` adds `--check-only` mode to run only connector
   version/status checks and skip password, bundle, and update actions.
+- `bin/ds_connector_update.sh` adds `--check-all` mode to scan
+  `${ORADBA_BASE}/etc/oradba_homes.conf` for `product=datasafe` entries and run
+  connector version/status checks in batch mode.
 
 ### Fixed
 
@@ -24,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ensures `DATASAFE_SCRIPT_BIN` is valid before appending it to `PATH`.
 - `bin/datasafe_env.sh` now handles empty `PATH` safely when initializing
   standalone shell environments.
+- `bin/ds_connector_update.sh --check-all` now reports missing `(oci=...)`
+  metadata as warnings and continues, instead of failing the full batch.
 
 ## [0.11.1] - 2026-02-16
 

@@ -276,6 +276,12 @@ bin/ds_connector_update.sh --connector my-connector -c MyCompartment
 # Dry-run to see what would be done
 bin/ds_connector_update.sh --datasafe-home dscon4 --dry-run
 
+# Check a single connector version/status only (no update)
+bin/ds_connector_update.sh --datasafe-home dscon4 --check-only
+
+# Check all datasafe connectors from oradba_homes.conf (batch check)
+bin/ds_connector_update.sh --check-all
+
 # Update with specific home directory
 bin/ds_connector_update.sh --connector my-connector --connector-home /u01/app/oracle/product/datasafe
 

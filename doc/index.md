@@ -87,8 +87,9 @@ bin/ds_target_refresh.sh -T mydb01 --dry-run
 
 - ✅ **Standalone usage guide** — `doc/standalone_usage.md` provides tarball install and minimal run steps.
 - ✅ **Help wrapper and config visibility** — `datasafe_help.sh` plus config/OCI config summaries in help output.
-- ✅ **Connector update compartment fix (`v0.11.1`)** — `ds_connector_update.sh`
-  supports `--datasafe-home` with `--compartment` and prefers `DS_ROOT_COMP` fallback.
+- ✅ **Connector check modes (`v0.11.2`)** — `ds_connector_update.sh`
+   supports `--check-only` for single connectors and `--check-all` for batch checks of
+   `product=datasafe` entries in OraDBA config.
 - ✅ **Consistent script headers** — function/script header format standardized across `bin/` and `lib/`.
 - ✅ **Reporting fix in target-group report** — `ds_tg_report.sh` handles `display-name` field access correctly.
 

@@ -47,6 +47,7 @@ source "${LIB_DIR}/ds_lib.sh"
 : "${BUNDLE_FILE:=}"             # Path to existing bundle file (if skip-download)
 : "${FORCE_NEW_PASSWORD:=false}" # Force generation of new password
 : "${CHECK_ONLY:=false}"         # Run version check only and exit
+: "${CHECK_ALL:=false}"          # Check all connectors from oradba_homes.conf
 
 # Runtime variables (populated during execution)
 COMP_NAME=""           # Resolved compartment name
@@ -114,6 +115,7 @@ Options:
   Connector Options:
     --force-new-password    Generate new password (ignore existing)
         --check-only            Run version check only and exit
+        --check-all             Check all datasafe connectors in oradba_homes.conf
 
   Bundle Options:
     --skip-download         Skip download (use existing bundle file)
@@ -137,6 +139,9 @@ Examples:
 
     # Check versions only (no update actions)
     ${SCRIPT_NAME} --datasafe-home dscon4 --check-only
+
+    # Check all registered datasafe connectors from OraDBA config
+    ${SCRIPT_NAME} --check-all
 
   # Use existing bundle file (skip download)
   ${SCRIPT_NAME} --connector my-connector --skip-download --bundle-file /tmp/bundle.zip
@@ -230,6 +235,10 @@ parse_args() {
                 CHECK_ONLY=true
                 shift
                 ;;
+            --check-all)
+                CHECK_ALL=true
+                shift
+                ;;
             --oci-profile)
                 need_val "$1" "${2:-}"
                 OCI_CLI_PROFILE="$2"
@@ -260,6 +269,40 @@ parse_args() {
     if [[ ${#remaining[@]} -gt 0 ]]; then
         log_warn "Ignoring positional arguments: ${remaining[*]}"
     fi
+}
+
+# ------------------------------------------------------------------------------
+# Function: extract_connector_from_description
+# Purpose.: Extract connector name/ocid from OraDBA description field
+# Args....: $1 - Description text (may contain '(oci=...)')
+# Returns.: 0 on success, 1 if no connector info found
+# Output..: Connector name or OCID to stdout
+# ------------------------------------------------------------------------------
+extract_connector_from_description() {
+    local desc="$1"
+    local oci_pattern='\(oci=([^)]+)\)'
+
+    if [[ ! "$desc" =~ $oci_pattern ]]; then
+        return 1
+    fi
+
+    local oci_value="${BASH_REMATCH[1]}"
+
+    # Handle format: (oci=name,ocid) or (oci=ocid,name)
+    if [[ "$oci_value" == *,* ]]; then
+        local conn_name conn_ocid
+        IFS=',' read -r conn_name conn_ocid <<< "$oci_value"
+
+        if [[ "$conn_name" =~ ^ocid1\. ]]; then
+            echo "$conn_ocid"
+        else
+            echo "$conn_name"
+        fi
+        return 0
+    fi
+
+    echo "$oci_value"
+    return 0
 }
 
 # ------------------------------------------------------------------------------
@@ -301,26 +344,7 @@ lookup_oradba_home() {
     log_debug "Resolved CONNECTOR_HOME from OraDBA: ${CONNECTOR_HOME}"
     
     # Extract connector info from description: (oci=xxx) or (oci=name,ocid)
-    local oci_pattern='\(oci=([^)]+)\)'
-    if [[ "$desc" =~ $oci_pattern ]]; then
-        local oci_value="${BASH_REMATCH[1]}"
-        
-        # Check if it contains comma (both name and OCID)
-        if [[ "$oci_value" == *,* ]]; then
-            local conn_name conn_ocid
-            IFS=',' read -r conn_name conn_ocid <<< "$oci_value"
-            if [[ "$conn_name" =~ ^ocid1\. ]]; then
-                # First value is OCID, second is name (reversed)
-                CONNECTOR_NAME="$conn_ocid"
-            else
-                # First value is name
-                CONNECTOR_NAME="$conn_name"
-            fi
-        else
-            # Single value (name or OCID)
-            CONNECTOR_NAME="$oci_value"
-        fi
-        
+    if CONNECTOR_NAME=$(extract_connector_from_description "$desc"); then
         log_debug "Extracted connector from description: ${CONNECTOR_NAME}"
     else
         log_warn "No (oci=...) found in description for ${env_name}"
@@ -340,6 +364,27 @@ lookup_oradba_home() {
 # ------------------------------------------------------------------------------
 validate_inputs() {
     log_debug "Validating inputs..."
+
+    # --check-all is a dedicated batch check mode
+    if [[ "${CHECK_ALL}" == "true" ]]; then
+        if [[ -n "$DATASAFE_ENV" ]] || [[ -n "$CONNECTOR_NAME" ]] || [[ -n "$CONNECTOR_HOME" ]]; then
+            log_error "Cannot mix --check-all with --datasafe-home, --connector, or --connector-home"
+            die "Conflicting parameters provided"
+        fi
+
+        if [[ "$SKIP_DOWNLOAD" == "true" ]] || [[ -n "$BUNDLE_FILE" ]] || [[ "$FORCE_NEW_PASSWORD" == "true" ]]; then
+            log_error "Cannot use update/download options with --check-all"
+            die "Conflicting parameters provided"
+        fi
+
+        if [[ -z "${ORADBA_BASE:-}" ]]; then
+            log_error "ORADBA_BASE environment variable not set"
+            log_error "The --check-all option requires OraDBA to be loaded"
+            die "ORADBA_BASE not set"
+        fi
+
+        CHECK_ONLY=true
+    fi
 
     # Parameter validation: check for conflicting parameters
     if [[ -n "$DATASAFE_ENV" ]]; then
@@ -371,7 +416,11 @@ validate_inputs() {
     # Check required commands (after parameter validation so argument errors
     # are reported even when OCI CLI is not available in test environments)
     require_oci_cli
-    require_cmd unzip python3
+    if [[ "${CHECK_ONLY}" == "true" ]]; then
+        require_cmd python3
+    else
+        require_cmd unzip python3
+    fi
 
     # Resolve compartment for connector lookup (used for connector names in both modes)
     # Priority: -c/--compartment flag > DS_ROOT_COMP > DS_CONNECTOR_COMP
@@ -443,6 +492,81 @@ validate_inputs() {
             die "Bundle file not found: $BUNDLE_FILE"
         fi
     fi
+}
+
+# ------------------------------------------------------------------------------
+# Function: check_all_connectors
+# Purpose.: Check versions for all datasafe connectors from oradba_homes.conf
+# Returns.: 0 always (non-fatal warnings per connector)
+# Output..: Per-connector checks and summary
+# ------------------------------------------------------------------------------
+check_all_connectors() {
+    local config_file="${ORADBA_BASE}/etc/oradba_homes.conf"
+
+    if [[ ! -f "$config_file" ]]; then
+        die "OraDBA config not found: $config_file"
+    fi
+
+    log_info "Checking all datasafe connectors from: ${config_file}"
+
+    local total_datasafe=0
+    local checked_connectors=0
+    local missing_oci=0
+    local skipped_connectors=0
+
+    local line env_name path product _position _reserved desc _version connector_info
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        [[ "$line" =~ ^# ]] && continue
+
+        IFS=':' read -r env_name path product _position _reserved desc _version <<< "$line"
+
+        if [[ "$product" != "datasafe" ]]; then
+            continue
+        fi
+        total_datasafe=$((total_datasafe + 1))
+
+        if ! connector_info=$(extract_connector_from_description "$desc"); then
+            log_warn "${env_name}: missing (oci=...) metadata, skipping"
+            missing_oci=$((missing_oci + 1))
+            continue
+        fi
+
+        CONNECTOR_HOME="$path"
+        CONNECTOR_NAME="$connector_info"
+
+        if is_ocid "$CONNECTOR_NAME"; then
+            CONNECTOR_OCID="$CONNECTOR_NAME"
+            CONNECTOR_DISP_NAME=$(ds_resolve_connector_name "$CONNECTOR_OCID" 2> /dev/null) \
+                || CONNECTOR_DISP_NAME="$CONNECTOR_OCID"
+        else
+            CONNECTOR_DISP_NAME="$CONNECTOR_NAME"
+            if [[ -z "$COMP_OCID" ]]; then
+                log_warn "${env_name}: connector '${CONNECTOR_NAME}' requires compartment resolution; set -c/DS_ROOT_COMP/DS_CONNECTOR_COMP"
+                skipped_connectors=$((skipped_connectors + 1))
+                continue
+            fi
+            CONNECTOR_OCID=$(ds_resolve_connector_ocid "$CONNECTOR_NAME" "$COMP_OCID" 2> /dev/null) || {
+                log_warn "${env_name}: failed to resolve connector name '${CONNECTOR_NAME}', skipping"
+                skipped_connectors=$((skipped_connectors + 1))
+                continue
+            }
+        fi
+
+        checked_connectors=$((checked_connectors + 1))
+        log_info ""
+        log_info "── ${env_name}: ${CONNECTOR_DISP_NAME} ─────────────────────────────────────────"
+        check_and_display_versions
+    done < "$config_file"
+
+    log_info ""
+    log_info "Batch check summary"
+    log_info "  datasafe entries: ${total_datasafe}"
+    log_info "  checked: ${checked_connectors}"
+    log_info "  missing (oci=...): ${missing_oci}"
+    log_info "  skipped: ${skipped_connectors}"
+
+    return 0
 }
 
 # ------------------------------------------------------------------------------
@@ -937,6 +1061,12 @@ main() {
 
     # Validate inputs
     validate_inputs
+
+    if [[ "${CHECK_ALL}" == "true" ]]; then
+        check_all_connectors
+        log_info "${SCRIPT_NAME} completed successfully"
+        return 0
+    fi
 
     # Do the work
     do_work

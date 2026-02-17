@@ -44,6 +44,12 @@ setup() {
     [[ "$output" == *"--check-only"* ]]
 }
 
+@test "ds_connector_update.sh usage mentions --check-all option" {
+    run "${BIN_DIR}/ds_connector_update.sh" --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--check-all"* ]]
+}
+
 @test "ds_connector_update.sh requires connector name" {
     run "${BIN_DIR}/ds_connector_update.sh" -c test-compartment
     [ "$status" -eq 1 ]
@@ -73,6 +79,12 @@ setup() {
     run "${BIN_DIR}/ds_connector_update.sh" --datasafe-home dscon4 --compartment test-comp
     [ "$status" -eq 1 ]
     [[ "$output" != *"Cannot mix --datasafe-home"* ]]
+}
+
+@test "ds_connector_update.sh shows error when mixing --check-all with --datasafe-home" {
+    run "${BIN_DIR}/ds_connector_update.sh" --check-all --datasafe-home dscon4
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Cannot mix --check-all"* ]] || [[ "$output" == *"Conflicting"* ]]
 }
 
 @test "ds_connector_register_oradba.sh exists and is executable" {
