@@ -65,8 +65,8 @@ Description:
         the DataSafe connector itself.
 
 Required:
-  --datasafe-home ENV     OraDBA environment name (e.g., dscon4)
-  --connector INFO        Connector name or OCID to register
+  --datasafe-home ENV       OraDBA environment name (e.g., dscon4)
+  --connector INFO          Connector name or OCID to register
 
 Options:
   Common Options:
@@ -86,7 +86,7 @@ Examples:
   ${SCRIPT_NAME} --datasafe-home dscon4 --connector ds-conn-ha4 --dry-run
 
 Environment Variables:
-  ORADBA_BASE             OraDBA installation directory (required)
+  ORADBA_BASE               OraDBA installation directory (required)
 
 Notes:
   - The script updates the description field in oradba_homes.conf

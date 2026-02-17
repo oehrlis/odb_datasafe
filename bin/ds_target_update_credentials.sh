@@ -96,12 +96,12 @@ Options:
     -L, --lifecycle STATE   Filter by lifecycle state (default: ${LIFECYCLE_STATE})
 
   Credentials:
-        -U, --ds-user USER      Database username (default: ${DS_USER:-not set})
-        -P, --ds-secret VALUE   Database secret (plain or base64)
-                --secret-file FILE  Base64 secret file (optional)
+    -U, --ds-user USER      Database username (default: ${DS_USER:-not set})
+    -P, --ds-secret VALUE   Database secret (plain or base64)
+    --secret-file FILE      Base64 secret file (optional)
     --cred-file FILE        JSON file with {\"userName\": \"user\", \"password\": \"pass\"}
-                --root              Root normalization hint (common user with ${COMMON_USER_PREFIX})
-        --no-prompt             Fail instead of prompting for missing secret
+    --root                  Root normalization hint (common user with ${COMMON_USER_PREFIX})
+    --no-prompt             Fail instead of prompting for missing secret
 
   Execution:
     --apply                 Apply changes (default: dry-run only)
@@ -111,14 +111,14 @@ Options:
 
 Credential Sources (in order of precedence):
   1. --cred-file JSON file
-    2. -U/--ds-user and -P/--ds-secret options
-    3. Environment variables (DS_USER/DS_SECRET)
-    4. --secret-file or <user>_pwd.b64 lookup
-  4. Interactive prompt (unless --no-prompt)
+  2. -U/--ds-user and -P/--ds-secret options  
+  3. Environment variables (DS_USER/DS_SECRET)
+  4. --secret-file or <user>_pwd.b64 lookup
+  5. Interactive prompt (unless --no-prompt)
 
 Examples:
-    # Dry-run with specific username (will prompt for secret)
-    ${SCRIPT_NAME} -U myuser
+  # Dry-run with specific username (will prompt for secret)
+  ${SCRIPT_NAME} -U myuser
 
   # Apply changes using credentials file (async)
   ${SCRIPT_NAME} --cred-file creds.json --apply
@@ -126,10 +126,10 @@ Examples:
   # Apply changes and wait for completion
   ${SCRIPT_NAME} --cred-file creds.json --apply --wait-for-state ACCEPTED
 
-    # Update specific targets with username/secret
-    ${SCRIPT_NAME} -T target1,target2 -U myuser -P mysecret --apply
+  # Update specific targets with username/secret
+  ${SCRIPT_NAME} -T target1,target2 -U myuser -P mysecret --apply
 
-    # Bulk update for compartment (interactive secret, wait for state)
+  # Bulk update for compartment (interactive secret, wait for state)
   ${SCRIPT_NAME} -c my-compartment -U dbuser --apply --wait-for-state ACCEPTED
 
 EOF

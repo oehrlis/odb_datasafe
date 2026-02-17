@@ -82,19 +82,19 @@ Description:
 
 REQUIRED (choose one):
   Option 1: Use OraDBA environment (simplest)
-    --datasafe-home ENV   OraDBA environment name (e.g., dscon4)
-                          Automatically resolves connector home and metadata
-                          from ${ORADBA_BASE}/etc/oradba_homes.conf
+    --datasafe-home ENV     OraDBA environment name (e.g., dscon4)
+                            Automatically resolves connector home and metadata
+                            from ${ORADBA_BASE}/etc/oradba_homes.conf
 
   Option 2: Specify connector manually
-    --connector NAME      Connector name or OCID
-    --connector-home PATH Connector installation directory (optional, auto-detected)
+    --connector NAME        Connector name or OCID
+    --connector-home PATH   Connector installation directory (optional, auto-detected)
 
     Compartment (required when connector is specified by name):
-    -c, --compartment ID  Compartment OCID or name (for connector lookup)
-                                                    Can be used with both --datasafe-home and --connector
-      OR set DS_CONNECTOR_COMP environment variable
-      OR set DS_ROOT_COMP environment variable in .env or datasafe.conf
+    -c, --compartment ID    Compartment OCID or name (for connector lookup)
+                            Can be used with both --datasafe-home and --connector
+                            OR set DS_CONNECTOR_COMP environment variable
+                            OR set DS_ROOT_COMP environment variable in .env or datasafe.conf
 
 Options:
   Common Options:
@@ -150,12 +150,12 @@ Examples:
   ${SCRIPT_NAME} --datasafe-home dscon4 --force-new-bundle-key
 
 Environment Variables:
-  OCI_CLI_PROFILE         Default OCI profile
-  OCI_CLI_REGION          Default OCI region
-  DS_ROOT_COMP            Default root compartment (name or OCID)
-  DS_CONNECTOR_COMP       Default connector compartment (name or OCID)
-                          Falls back to DS_ROOT_COMP if not set
-  ORADBA_BASE             OraDBA installation directory (for --datasafe-home)
+  OCI_CLI_PROFILE           Default OCI profile
+  OCI_CLI_REGION            Default OCI region
+  DS_ROOT_COMP              Default root compartment (name or OCID)
+  DS_CONNECTOR_COMP         Default connector compartment (name or OCID)
+                            Falls back to DS_ROOT_COMP if not set
+  ORADBA_BASE               OraDBA installation directory (for --datasafe-home)
 
 Compartment Resolution (priority order):
   1. -c/--compartment flag (highest priority)

@@ -89,21 +89,21 @@ Options:
     --oci-config FILE       OCI config file (default: ${OCI_CLI_CONFIG_FILE})
 
   Target Selection:
-        -c, --compartment ID    Compartment OCID or name
+    -c, --compartment ID    Compartment OCID or name
     -T, --targets LIST      Comma-separated target names or OCIDs
     -L, --lifecycle STATE   Filter by lifecycle state (default: INACTIVE)
 
-    Execution:
-        --apply                 Apply changes (default: dry-run only)
-        -n, --dry-run           Dry-run mode (show what would be done)
-        --wait-for-state STATE  Wait for operation completion with state (e.g., ACCEPTED)
-                                                        Default: async (no wait)
+  Execution:
+    --apply                 Apply changes (default: dry-run only)
+    -n, --dry-run           Dry-run mode (show what would be done)
+    --wait-for-state STATE  Wait for operation completion with state (e.g., ACCEPTED)
+                            Default: async (no wait)
 
-    Credentials:
-        -U, --ds-user USER      Data Safe database user (default: DS_ADMIN)
-        -P, --ds-secret VALUE   Data Safe secret (plain or base64)
-                --secret-file FILE  Base64 secret file (optional)
-                --root              Root normalization hint (common user with ${COMMON_USER_PREFIX})
+  Credentials:
+    -U, --ds-user USER      Data Safe database user (default: DS_ADMIN)
+    -P, --ds-secret VALUE   Data Safe secret (plain or base64)
+    --secret-file FILE      Base64 secret file (optional)
+    --root                  Root normalization hint (common user with ${COMMON_USER_PREFIX})
 
 Credential Sources (in order of precedence):
     1. Command-line options (-P/--ds-secret, --secret-file)
