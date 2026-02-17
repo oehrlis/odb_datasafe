@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.2] - 2026-02-17
+
+### Fixed
+
+- `bin/ds_connector_update.sh` no longer calls the non-existent OCI CLI
+  command `data-safe on-prem-connector download`.
+- Bundle retrieval now uses
+  `generate-on-prem-connector-configuration --file <bundle.zip>` directly,
+  matching current OCI CLI behavior.
+- Simplified update flow by removing the redundant second download step and
+  associated work-request polling in `download_bundle`.
+
 ## [0.12.1] - 2026-02-17
 
 ### Fixed

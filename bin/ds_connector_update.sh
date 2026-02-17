@@ -75,10 +75,10 @@ Usage: ${SCRIPT_NAME} [OPTIONS]
 Description:
   Automate Oracle Data Safe On-Premises Connector updates by:
     1. Checking local and online connector versions
-        2. Generating a bundle key (or reusing existing)
+    2. Generating a bundle key (or reusing existing)
     3. Downloading the connector installation bundle from OCI Data Safe
     4. Extracting the bundle in the connector directory
-        5. Running setup.py update with the bundle key
+    5. Running setup.py update with the bundle key
 
 REQUIRED (choose one):
   Option 1: Use OraDBA environment (simplest)
@@ -90,8 +90,8 @@ REQUIRED (choose one):
     --connector NAME      Connector name or OCID
     --connector-home PATH Connector installation directory (optional, auto-detected)
 
-        Compartment (required when connector is specified by name):
-      -c, --compartment ID  Compartment OCID or name (for connector lookup)
+    Compartment (required when connector is specified by name):
+    -c, --compartment ID  Compartment OCID or name (for connector lookup)
                                                     Can be used with both --datasafe-home and --connector
       OR set DS_CONNECTOR_COMP environment variable
       OR set DS_ROOT_COMP environment variable in .env or datasafe.conf
@@ -113,7 +113,7 @@ Options:
     --oci-config FILE       OCI config file (default: ${OCI_CLI_CONFIG_FILE:-~/.oci/config})
 
   Connector Options:
-        --force-new-bundle-key  Generate new bundle key (ignore existing)
+    --force-new-bundle-key  Generate new bundle key (ignore existing)
     --check-only            Run version check only and exit
     --check-all             Check all datasafe connectors in oradba_homes.conf
 
@@ -146,8 +146,8 @@ Examples:
   # Use existing bundle file (skip download)
   ${SCRIPT_NAME} --connector my-connector --skip-download --bundle-file /tmp/bundle.zip
 
-    # Force new bundle key generation
-    ${SCRIPT_NAME} --datasafe-home dscon4 --force-new-bundle-key
+  # Force new bundle key generation
+  ${SCRIPT_NAME} --datasafe-home dscon4 --force-new-bundle-key
 
 Environment Variables:
   OCI_CLI_PROFILE         Default OCI profile
@@ -159,8 +159,8 @@ Environment Variables:
 
 Compartment Resolution (priority order):
   1. -c/--compartment flag (highest priority)
-    2. DS_ROOT_COMP environment variable (recommended)
-    3. DS_CONNECTOR_COMP environment variable
+  2. DS_ROOT_COMP environment variable (recommended)
+  3. DS_CONNECTOR_COMP environment variable
 
 Config Files (loaded in order):
   1. ${SCRIPT_DIR}/../.env
@@ -170,8 +170,8 @@ Config Files (loaded in order):
 Notes:
   - During update, the connector cannot connect to target databases
   - Connection resumes after update completes
-    - Bundle key is stored as base64 in etc/<connector-name>_pwd.b64
-    - Existing key file is reused unless --force-new-bundle-key is specified
+  - Bundle key is stored as base64 in etc/<connector-name>_pwd.b64
+  - Existing key file is reused unless --force-new-bundle-key is specified
   - The script must be run as the connector owner (typically oracle user)
   - Version checking compares local setup.py version with online availability
   - OraDBA integration: Use ds_connector_register_oradba.sh to add connector
@@ -704,73 +704,18 @@ download_bundle() {
     # Create temporary directory for bundle
     TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/datasafe_update.XXXXXX")
     local bundle_file="${TEMP_DIR}/connector_bundle.zip"
-    local bundle_config_file="${TEMP_DIR}/connector_bundle_config.zip"
 
-    # Step 1: Generate bundle configuration
-    log_info "Step 1/3: Generating bundle configuration..."
-    local work_request_json
-    work_request_json=$(ds_generate_connector_bundle "$CONNECTOR_OCID" "$BUNDLE_KEY" "$bundle_config_file") || {
+    # OCI CLI writes the connector bundle directly via --file.
+    log_info "Step 1/1: Generating and downloading bundle..."
+    ds_generate_connector_bundle "$CONNECTOR_OCID" "$BUNDLE_KEY" "$bundle_file" || {
         die "Failed to generate connector bundle"
     }
 
     if [[ "${DRY_RUN}" == "true" ]]; then
-        log_info "[DRY-RUN] Would wait for bundle generation to complete"
         log_info "[DRY-RUN] Would download bundle to: ${bundle_file}"
         BUNDLE_FILE="$bundle_file"
         return 0
     fi
-
-    # Extract work request ID
-    local work_request_id
-    work_request_id=$(echo "$work_request_json" | jq -r '."opc-work-request-id" // .data.id // empty')
-
-    if [[ -n "$work_request_id" ]]; then
-        log_info "Work request ID: ${work_request_id}"
-        log_info "Waiting for bundle generation to complete (this may take a minute)..."
-
-        # Wait for work request to complete (poll every 10 seconds, max 5 minutes)
-        local max_wait=300
-        local elapsed=0
-        local status=""
-
-        while [[ $elapsed -lt $max_wait ]]; do
-            status=$(oci data-safe work-request get --work-request-id "$work_request_id" \
-                --query 'data.status' --raw-output 2> /dev/null || echo "UNKNOWN")
-
-            case "$status" in
-                SUCCEEDED)
-                    log_info "Bundle generation completed successfully"
-                    break
-                    ;;
-                FAILED)
-                    die "Bundle generation failed"
-                    ;;
-                IN_PROGRESS | ACCEPTED)
-                    sleep 10
-                    elapsed=$((elapsed + 10))
-                    ;;
-                *)
-                    log_warn "Unknown work request status: $status"
-                    sleep 10
-                    elapsed=$((elapsed + 10))
-                    ;;
-            esac
-        done
-
-        if [[ "$status" != "SUCCEEDED" ]]; then
-            die "Bundle generation timed out or failed"
-        fi
-    else
-        log_info "Bundle generation initiated (no work request ID returned)"
-        log_info "Waiting 30 seconds for bundle to be ready..."
-        sleep 30
-    fi
-
-    # Step 2: Download the bundle
-    log_info "Step 2/3: Downloading bundle..."
-    ds_download_connector_bundle "$CONNECTOR_OCID" "$bundle_file" || {
-        die "Failed to download connector bundle"
-    }
 
     log_info "Bundle downloaded to: ${bundle_file}"
     BUNDLE_FILE="$bundle_file"
