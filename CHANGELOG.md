@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.12.3] - 2026-02-17
+## [0.13.0] - 2026-02-17
 
 ### Changed
 
@@ -23,6 +23,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   support and plain/base64 secret input handling.
 - `bin/ds_target_activate.sh` removed deprecated `--cdb-user` /
   `--cdb-password` flags and now uses root normalization for CDB\$ROOT targets.
+- Added shared secret helpers in `lib/common.sh` (`decode_base64_string`,
+  `is_base64_string`, `trim_trailing_crlf`, `normalize_secret_value`) and
+  refactored extension scripts to use them.
+
+### Fixed
+
+- Secret handling now ignores accidental trailing CR/LF characters from decoded
+  secret files and credential-file values in extension scripts, avoiding
+  newline-related authentication failures.
 
 ### Documentation
 
@@ -30,6 +39,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `<user>_pwd.b64` files in `${ODB_DATASAFE_BASE}/etc`.
 - Added example for generating a random secret and storing it as base64 for
   auto-discovery by `ds_database_prereqs.sh`.
+- Updated `doc/index.md`, `doc/quickref.md`, and `README.md` to reference
+  `v0.13.0` and the new `--ds-secret` usage examples.
 
 ## [0.12.2] - 2026-02-17
 

@@ -650,11 +650,15 @@ ds_target_export.sh -c prod-compartment -D 2025-01-01
 ```bash
 # Register a PDB
 ds_target_register.sh -H db01 --sid cdb01 --pdb APP1PDB \
-  -c prod-compartment --connector my-connector --ds-password <password>
+  -c prod-compartment --connector my-connector --ds-secret <secret>
 
 # Register CDB$ROOT  
 ds_target_register.sh -H db01 --sid cdb01 --root \
-  -c prod-compartment --connector my-connector --ds-password <password>
+  -c prod-compartment --connector my-connector --ds-secret <secret>
+
+# Register using secret file (<user>_pwd.b64)
+ds_target_register.sh -H db01 --sid cdb01 --pdb APP1PDB \
+  -c prod-compartment --connector my-connector --secret-file /path/to/DS_ADMIN_pwd.b64
 
 # Check if target already exists
 ds_target_register.sh -H db01 --sid cdb01 --pdb APP1PDB \
@@ -662,7 +666,7 @@ ds_target_register.sh -H db01 --sid cdb01 --pdb APP1PDB \
 
 # Dry-run to preview registration plan
 ds_target_register.sh -H db01 --sid cdb01 --pdb APP1PDB \
-  -c prod-compartment --connector my-connector --ds-password <password> --dry-run
+  -c prod-compartment --connector my-connector --ds-secret <secret> --dry-run
 ```
 
 ### New in v0.3.2

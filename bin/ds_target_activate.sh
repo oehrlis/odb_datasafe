@@ -242,60 +242,6 @@ parse_args() {
     fi
 }
 
-# ------------------------------------------------------------------------------
-# Function: decode_base64_string
-# Purpose.: Decode base64 string content to stdout
-# Args....: $1 - Base64 string
-# Returns.: 0 on success, 1 on decode failure
-# Output..: Decoded content to stdout
-# ------------------------------------------------------------------------------
-decode_base64_string() {
-    local input="$1"
-    local decoded=""
-
-    if decoded=$(printf '%s' "$input" | base64 --decode 2> /dev/null); then
-        printf '%s' "$decoded"
-        return 0
-    fi
-
-    if decoded=$(printf '%s' "$input" | base64 -d 2> /dev/null); then
-        printf '%s' "$decoded"
-        return 0
-    fi
-
-    if decoded=$(printf '%s' "$input" | base64 -D 2> /dev/null); then
-        printf '%s' "$decoded"
-        return 0
-    fi
-
-    return 1
-}
-
-# ------------------------------------------------------------------------------
-# Function: is_base64_string
-# Purpose.: Check if input looks like valid base64 and decodes to printable text
-# Args....: $1 - Input string
-# Returns.: 0 if valid base64-like secret, 1 otherwise
-# Output..: None
-# ------------------------------------------------------------------------------
-is_base64_string() {
-    local input="$1"
-    local normalized decoded
-
-    [[ -n "$input" ]] || return 1
-
-    normalized=$(printf '%s' "$input" | tr -d '[:space:]')
-    [[ -n "$normalized" ]] || return 1
-    [[ "$normalized" =~ ^[A-Za-z0-9+/=]+$ ]] || return 1
-    [[ $(( ${#normalized} % 4 )) -eq 0 ]] || return 1
-
-    decoded=$(decode_base64_string "$normalized") || return 1
-    [[ -n "$decoded" ]] || return 1
-
-    return 0
-}
-
-# ------------------------------------------------------------------------------
 # Function: resolve_ds_user
 # Purpose.: Resolve Data Safe username for scope
 # Args....: $1 - Scope label (PDB or ROOT)
@@ -338,12 +284,16 @@ validate_inputs() {
     DS_USER_PDB="$(resolve_ds_user "PDB")"
     DS_USER_ROOT="$(resolve_ds_user "ROOT")"
 
-    if [[ -n "$DS_SECRET" ]] && is_base64_string "$DS_SECRET"; then
-        local decoded
-        decoded=$(decode_base64_string "$DS_SECRET") || die "Failed to decode base64 secret"
-        [[ -n "$decoded" ]] || die "Decoded secret is empty"
-        DS_SECRET="$decoded"
-        log_info "Decoded Data Safe secret from base64 input"
+    if [[ -n "$DS_SECRET" ]]; then
+        local is_b64="false"
+        if is_base64_string "$DS_SECRET"; then
+            is_b64="true"
+        fi
+        DS_SECRET=$(normalize_secret_value "$DS_SECRET") || die "Failed to decode base64 secret"
+        [[ -n "$DS_SECRET" ]] || die "Decoded secret is empty"
+        if [[ "$is_b64" == "true" ]]; then
+            log_info "Decoded Data Safe secret from base64 input"
+        fi
     fi
 
     if [[ -z "$DS_SECRET" ]]; then
@@ -359,11 +309,13 @@ validate_inputs() {
         if secret_file=$(find_password_file "$primary_user" "${DATASAFE_SECRET_FILE:-}"); then
             require_cmd base64
             DS_SECRET=$(decode_base64_file "$secret_file") || die "Failed to decode base64 secret file: $secret_file"
+            DS_SECRET=$(trim_trailing_crlf "$DS_SECRET")
             [[ -n "$DS_SECRET" ]] || die "Secret file is empty: $secret_file"
             log_info "Loaded Data Safe secret from file: $secret_file"
         elif [[ -z "${DATASAFE_SECRET_FILE:-}" ]] && secret_file=$(find_password_file "$secondary_user"); then
             require_cmd base64
             DS_SECRET=$(decode_base64_file "$secret_file") || die "Failed to decode base64 secret file: $secret_file"
+            DS_SECRET=$(trim_trailing_crlf "$DS_SECRET")
             [[ -n "$DS_SECRET" ]] || die "Secret file is empty: $secret_file"
             log_info "Loaded Data Safe secret from alternate user file: $secret_file"
         fi
@@ -382,6 +334,7 @@ validate_inputs() {
         echo -n "Enter secret for user '$prompt_user': " >&2
         read -rs DS_SECRET
         echo >&2
+        DS_SECRET=$(trim_trailing_crlf "$DS_SECRET")
 
         [[ -n "$DS_SECRET" ]] || die "Data Safe secret cannot be empty"
     fi

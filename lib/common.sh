@@ -559,6 +559,98 @@ decode_base64_file() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: decode_base64_string
+# Purpose.: Decode base64 string content to stdout
+# Args....: $1 - Base64 string
+# Returns.: 0 on success, 1 on decode failure
+# Output..: Decoded content to stdout
+# ------------------------------------------------------------------------------
+decode_base64_string() {
+    local input="$1"
+    local decoded=""
+
+    if decoded=$(printf '%s' "$input" | base64 --decode 2> /dev/null); then
+        printf '%s' "$decoded"
+        return 0
+    fi
+
+    if decoded=$(printf '%s' "$input" | base64 -d 2> /dev/null); then
+        printf '%s' "$decoded"
+        return 0
+    fi
+
+    if decoded=$(printf '%s' "$input" | base64 -D 2> /dev/null); then
+        printf '%s' "$decoded"
+        return 0
+    fi
+
+    return 1
+}
+
+# ------------------------------------------------------------------------------
+# Function: is_base64_string
+# Purpose.: Check whether input looks like valid base64 text
+# Args....: $1 - Input string
+# Returns.: 0 if base64-like and decodable, 1 otherwise
+# Output..: None
+# ------------------------------------------------------------------------------
+is_base64_string() {
+    local input="$1"
+    local normalized decoded
+
+    [[ -n "$input" ]] || return 1
+
+    normalized=$(printf '%s' "$input" | tr -d '[:space:]')
+    [[ -n "$normalized" ]] || return 1
+    [[ "$normalized" =~ ^[A-Za-z0-9+/=]+$ ]] || return 1
+    [[ $(( ${#normalized} % 4 )) -eq 0 ]] || return 1
+
+    decoded=$(decode_base64_string "$normalized") || return 1
+    [[ -n "$decoded" ]] || return 1
+
+    return 0
+}
+
+# ------------------------------------------------------------------------------
+# Function: trim_trailing_crlf
+# Purpose.: Trim accidental trailing CR/LF characters from a value
+# Args....: $1 - Input value
+# Returns.: 0 on success
+# Output..: Normalized value to stdout
+# Notes...: Preserves internal whitespace and non-trailing newlines
+# ------------------------------------------------------------------------------
+trim_trailing_crlf() {
+    local value="$1"
+
+    while [[ "$value" == *$'\n' || "$value" == *$'\r' ]]; do
+        value="${value%$'\n'}"
+        value="${value%$'\r'}"
+    done
+
+    printf '%s' "$value"
+}
+
+# ------------------------------------------------------------------------------
+# Function: normalize_secret_value
+# Purpose.: Normalize secret input from cli/env/file payload
+# Args....: $1 - Secret value (plain or base64)
+# Returns.: 0 on success, 1 on decode failure
+# Output..: Normalized secret value to stdout
+# Notes...: Decodes base64-like input and trims trailing CR/LF characters
+# ------------------------------------------------------------------------------
+normalize_secret_value() {
+    local input="$1"
+    local value="$input"
+
+    if [[ -n "$value" ]] && is_base64_string "$value"; then
+        value=$(decode_base64_string "$value") || return 1
+    fi
+
+    value=$(trim_trailing_crlf "$value")
+    printf '%s' "$value"
+}
+
+# ------------------------------------------------------------------------------
 # Function: find_password_file
 # Purpose.: Locate password file by explicit path or username pattern
 # Args....: $1 - Username

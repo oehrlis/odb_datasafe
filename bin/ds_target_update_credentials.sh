@@ -246,60 +246,6 @@ parse_args() {
     fi
 }
 
-# ------------------------------------------------------------------------------
-# Function: decode_base64_string
-# Purpose.: Decode base64 string content to stdout
-# Args....: $1 - Base64 string
-# Returns.: 0 on success, 1 on decode failure
-# Output..: Decoded content to stdout
-# ------------------------------------------------------------------------------
-decode_base64_string() {
-    local input="$1"
-    local decoded=""
-
-    if decoded=$(printf '%s' "$input" | base64 --decode 2> /dev/null); then
-        printf '%s' "$decoded"
-        return 0
-    fi
-
-    if decoded=$(printf '%s' "$input" | base64 -d 2> /dev/null); then
-        printf '%s' "$decoded"
-        return 0
-    fi
-
-    if decoded=$(printf '%s' "$input" | base64 -D 2> /dev/null); then
-        printf '%s' "$decoded"
-        return 0
-    fi
-
-    return 1
-}
-
-# ------------------------------------------------------------------------------
-# Function: is_base64_string
-# Purpose.: Check if input looks like valid base64 and decodes to printable text
-# Args....: $1 - Input string
-# Returns.: 0 if valid base64-like secret, 1 otherwise
-# Output..: None
-# ------------------------------------------------------------------------------
-is_base64_string() {
-    local input="$1"
-    local normalized decoded
-
-    [[ -n "$input" ]] || return 1
-
-    normalized=$(printf '%s' "$input" | tr -d '[:space:]')
-    [[ -n "$normalized" ]] || return 1
-    [[ "$normalized" =~ ^[A-Za-z0-9+/=]+$ ]] || return 1
-    [[ $(( ${#normalized} % 4 )) -eq 0 ]] || return 1
-
-    decoded=$(decode_base64_string "$normalized") || return 1
-    [[ -n "$decoded" ]] || return 1
-
-    return 0
-}
-
-# ------------------------------------------------------------------------------
 # Function: resolve_ds_user
 # Purpose.: Resolve Data Safe username based on root normalization hint
 # Args....: None
@@ -384,6 +330,7 @@ resolve_credentials() {
         log_debug "Loading credentials from file: $CRED_FILE"
         DS_USER=$(jq -r '.userName // ""' "$CRED_FILE")
         DS_SECRET=$(jq -r '.password // ""' "$CRED_FILE")
+        DS_SECRET=$(trim_trailing_crlf "$DS_SECRET")
 
         [[ -n "$DS_USER" ]] || die "User not found in credentials file"
         [[ -n "$DS_SECRET" ]] || die "Secret not found in credentials file"
@@ -396,18 +343,23 @@ resolve_credentials() {
     [[ -n "$DS_USER" ]] || die "User not specified. Use -U/--ds-user, --cred-file, or set DS_USER"
 
     # 3. Resolve secret if not provided
-    if [[ -n "$DS_SECRET" ]] && is_base64_string "$DS_SECRET"; then
-        local decoded
-        decoded=$(decode_base64_string "$DS_SECRET") || die "Failed to decode base64 secret"
-        [[ -n "$decoded" ]] || die "Decoded secret is empty"
-        DS_SECRET="$decoded"
-        log_info "Decoded Data Safe secret from base64 input"
+    if [[ -n "$DS_SECRET" ]]; then
+        local is_b64="false"
+        if is_base64_string "$DS_SECRET"; then
+            is_b64="true"
+        fi
+        DS_SECRET=$(normalize_secret_value "$DS_SECRET") || die "Failed to decode base64 secret"
+        [[ -n "$DS_SECRET" ]] || die "Decoded secret is empty"
+        if [[ "$is_b64" == "true" ]]; then
+            log_info "Decoded Data Safe secret from base64 input"
+        fi
     fi
 
     if [[ -z "$DS_SECRET" ]]; then
         local secret_file=""
         if secret_file=$(find_password_file "$DS_USER" "${DATASAFE_SECRET_FILE:-}"); then
             DS_SECRET=$(decode_base64_file "$secret_file") || die "Failed to decode base64 secret file: $secret_file"
+            DS_SECRET=$(trim_trailing_crlf "$DS_SECRET")
             [[ -n "$DS_SECRET" ]] || die "Secret file is empty: $secret_file"
             log_info "Loaded Data Safe secret from file: $secret_file"
         fi
@@ -423,6 +375,7 @@ resolve_credentials() {
         echo -n "Enter secret for user '$DS_USER': " >&2
         read -rs DS_SECRET
         echo >&2
+        DS_SECRET=$(trim_trailing_crlf "$DS_SECRET")
 
         [[ -n "$DS_SECRET" ]] || die "Secret cannot be empty"
     fi
