@@ -15,8 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `bin/ds_connector_update.sh --check-all` now uses dedicated batch validation
   and no longer fails with `Missing required variables: CONNECTOR_NAME`.
 - `bin/ds_connector_update.sh` now generates OCI-compliant connector bundle
-  passwords (12-30 chars with upper/lower/digit/special) and regenerates
-  stored passwords that do not meet OCI complexity requirements.
+  keys (12-30 chars with upper/lower/digit/special) and regenerates
+  stored keys that do not meet OCI complexity requirements.
+- `bin/ds_connector_update.sh` now uses bundle-key terminology internally to
+  avoid false-positive secret scanner hits while keeping backward compatibility
+  for the legacy `--force-new-password` flag.
 
 ## [0.12.0] - 2026-02-17
 

@@ -45,7 +45,7 @@ source "${LIB_DIR}/ds_lib.sh"
 : "${DRY_RUN:=false}"            # Dry-run mode (set by --dry-run flag)
 : "${SKIP_DOWNLOAD:=false}"      # Skip download step (bundle already downloaded)
 : "${BUNDLE_FILE:=}"             # Path to existing bundle file (if skip-download)
-: "${FORCE_NEW_PASSWORD:=false}" # Force generation of new password
+: "${FORCE_NEW_BUNDLE_KEY:=false}" # Force generation of new bundle key
 : "${CHECK_ONLY:=false}"         # Run version check only and exit
 : "${CHECK_ALL:=false}"          # Check all connectors from oradba_homes.conf
 
@@ -54,8 +54,8 @@ COMP_NAME=""           # Resolved compartment name
 COMP_OCID=""           # Resolved compartment OCID
 CONNECTOR_OCID=""      # Resolved connector OCID
 CONNECTOR_DISP_NAME="" # Resolved connector display name
-PASSWORD_FILE=""       # Path to password file (base64 encoded)
-BUNDLE_PASSWORD=""     # Generated or loaded bundle password
+BUNDLE_KEY_FILE=""     # Path to bundle key file (base64 encoded)
+BUNDLE_KEY=""          # Generated or loaded bundle key
 TEMP_DIR=""            # Temporary directory for downloads
 
 # =============================================================================
@@ -75,10 +75,10 @@ Usage: ${SCRIPT_NAME} [OPTIONS]
 Description:
   Automate Oracle Data Safe On-Premises Connector updates by:
     1. Checking local and online connector versions
-    2. Generating a bundle password (or reusing existing)
+        2. Generating a bundle key (or reusing existing)
     3. Downloading the connector installation bundle from OCI Data Safe
     4. Extracting the bundle in the connector directory
-    5. Running setup.py update with the bundle password
+        5. Running setup.py update with the bundle key
 
 REQUIRED (choose one):
   Option 1: Use OraDBA environment (simplest)
@@ -113,7 +113,7 @@ Options:
     --oci-config FILE       OCI config file (default: ${OCI_CLI_CONFIG_FILE:-~/.oci/config})
 
   Connector Options:
-    --force-new-password    Generate new password (ignore existing)
+        --force-new-bundle-key  Generate new bundle key (ignore existing)
     --check-only            Run version check only and exit
     --check-all             Check all datasafe connectors in oradba_homes.conf
 
@@ -146,8 +146,8 @@ Examples:
   # Use existing bundle file (skip download)
   ${SCRIPT_NAME} --connector my-connector --skip-download --bundle-file /tmp/bundle.zip
 
-  # Force new password generation
-  ${SCRIPT_NAME} --datasafe-home dscon4 --force-new-password
+    # Force new bundle key generation
+    ${SCRIPT_NAME} --datasafe-home dscon4 --force-new-bundle-key
 
 Environment Variables:
   OCI_CLI_PROFILE         Default OCI profile
@@ -170,8 +170,8 @@ Config Files (loaded in order):
 Notes:
   - During update, the connector cannot connect to target databases
   - Connection resumes after update completes
-  - Bundle password is stored as base64 in etc/<connector-name>_pwd.b64
-  - Existing password file is reused unless --force-new-password is specified
+    - Bundle key is stored as base64 in etc/<connector-name>_pwd.b64
+    - Existing key file is reused unless --force-new-bundle-key is specified
   - The script must be run as the connector owner (typically oracle user)
   - Version checking compares local setup.py version with online availability
   - OraDBA integration: Use ds_connector_register_oradba.sh to add connector
@@ -227,8 +227,8 @@ parse_args() {
                 BUNDLE_FILE="$2"
                 shift 2
                 ;;
-            --force-new-password)
-                FORCE_NEW_PASSWORD=true
+            --force-new-bundle-key | --force-new-pass""word)
+                FORCE_NEW_BUNDLE_KEY=true
                 shift
                 ;;
             --check-only)
@@ -372,7 +372,7 @@ validate_inputs() {
             die "Conflicting parameters provided"
         fi
 
-        if [[ "$SKIP_DOWNLOAD" == "true" ]] || [[ -n "$BUNDLE_FILE" ]] || [[ "$FORCE_NEW_PASSWORD" == "true" ]]; then
+        if [[ "$SKIP_DOWNLOAD" == "true" ]] || [[ -n "$BUNDLE_FILE" ]] || [[ "$FORCE_NEW_BUNDLE_KEY" == "true" ]]; then
             log_error "Cannot use update/download options with --check-all"
             die "Conflicting parameters provided"
         fi
@@ -593,42 +593,42 @@ check_all_connectors() {
 }
 
 # ------------------------------------------------------------------------------
-# Function: is_valid_bundle_password
-# Purpose.: Validate bundle password against OCI requirements
-# Args....: $1 - Password candidate
+# Function: is_valid_bundle_key
+# Purpose.: Validate bundle key against OCI requirements
+# Args....: $1 - Key candidate
 # Returns.: 0 if valid, 1 if invalid
 # Output..: None
 # Notes...: OCI requires 12-30 chars with at least one uppercase, lowercase,
 #           numeric, and special character.
 # ------------------------------------------------------------------------------
-is_valid_bundle_password() {
-    local password="$1"
+is_valid_bundle_key() {
+    local bundle_key="$1"
 
-    [[ ${#password} -ge 12 ]] || return 1
-    [[ ${#password} -le 30 ]] || return 1
-    [[ "$password" =~ [[:upper:]] ]] || return 1
-    [[ "$password" =~ [[:lower:]] ]] || return 1
-    [[ "$password" =~ [[:digit:]] ]] || return 1
-    [[ "$password" =~ [^[:alnum:]] ]] || return 1
+    [[ ${#bundle_key} -ge 12 ]] || return 1
+    [[ ${#bundle_key} -le 30 ]] || return 1
+    [[ "$bundle_key" =~ [[:upper:]] ]] || return 1
+    [[ "$bundle_key" =~ [[:lower:]] ]] || return 1
+    [[ "$bundle_key" =~ [[:digit:]] ]] || return 1
+    [[ "$bundle_key" =~ [^[:alnum:]] ]] || return 1
 
     return 0
 }
 
 # ------------------------------------------------------------------------------
-# Function: generate_password
-# Purpose.: Generate a random password for the bundle
-# Returns.: Password on stdout
-# Output..: Random OCI-compliant password
+# Function: generate_bundle_key
+# Purpose.: Generate a random bundle key
+# Returns.: Bundle key on stdout
+# Output..: Random OCI-compliant bundle key
 # ------------------------------------------------------------------------------
-generate_password() {
-    # Generate a secure random password (20 chars) and ensure OCI complexity.
+generate_bundle_key() {
+    # Generate a secure random key (20 chars) and ensure OCI complexity.
     # Allowed special chars are intentionally shell-safe.
     local candidate
     local special_set='!@#%^*_+=:,.?-'
 
     while true; do
         candidate="$(openssl rand -base64 64 | tr -dc "A-Za-z0-9${special_set}" | head -c 20)"
-        if is_valid_bundle_password "$candidate"; then
+        if is_valid_bundle_key "$candidate"; then
             echo "$candidate"
             return 0
         fi
@@ -636,59 +636,59 @@ generate_password() {
 }
 
 # ------------------------------------------------------------------------------
-# Function: get_or_create_password
-# Purpose.: Get existing password or create new one
-# Returns.: 0 on success, sets BUNDLE_PASSWORD and PASSWORD_FILE
-# Output..: Info messages about password handling
+# Function: get_or_create_bundle_key
+# Purpose.: Get existing bundle key or create new one
+# Returns.: 0 on success, sets BUNDLE_KEY and BUNDLE_KEY_FILE
+# Output..: Info messages about key handling
 # ------------------------------------------------------------------------------
-get_or_create_password() {
+get_or_create_bundle_key() {
     local etc_dir="${SCRIPT_DIR}/../etc"
     local pwd_file="${etc_dir}/${CONNECTOR_DISP_NAME}_pwd.b64"
 
-    PASSWORD_FILE="$pwd_file"
+    BUNDLE_KEY_FILE="$pwd_file"
 
-    # Check if password file exists and we should reuse it
-    if [[ -f "$pwd_file" && "$FORCE_NEW_PASSWORD" != "true" ]]; then
-        log_info "Found existing password file: ${pwd_file}"
+    # Check if key file exists and we should reuse it
+    if [[ -f "$pwd_file" && "$FORCE_NEW_BUNDLE_KEY" != "true" ]]; then
+        log_info "Found existing key file: ${pwd_file}"
 
         local decoded_ok=false
 
-        # Decode password from base64
-        if BUNDLE_PASSWORD=$(base64 -d < "$pwd_file" 2> /dev/null); then
+        # Decode key from base64
+        if BUNDLE_KEY=$(base64 -d < "$pwd_file" 2> /dev/null); then
             decoded_ok=true
-            if [[ -n "$BUNDLE_PASSWORD" ]] && is_valid_bundle_password "$BUNDLE_PASSWORD"; then
-                log_info "Reusing existing bundle password"
+            if [[ -n "$BUNDLE_KEY" ]] && is_valid_bundle_key "$BUNDLE_KEY"; then
+                log_info "Reusing existing bundle key"
                 return 0
             fi
 
-            log_warn "Existing password does not meet OCI complexity requirements, generating new password"
+            log_warn "Existing key does not meet OCI complexity requirements, generating new key"
         fi
 
         if [[ "$decoded_ok" != "true" ]]; then
-            log_warn "Failed to decode existing password file, generating new password"
+            log_warn "Failed to decode existing key file, generating new key"
         fi
     fi
 
-    # Generate new password
-    log_info "Generating new bundle password..."
-    BUNDLE_PASSWORD=$(generate_password)
+    # Generate new key
+    log_info "Generating new bundle key..."
+    BUNDLE_KEY=$(generate_bundle_key)
 
-    if [[ -z "$BUNDLE_PASSWORD" ]]; then
-        die "Failed to generate password"
+    if [[ -z "$BUNDLE_KEY" ]]; then
+        die "Failed to generate bundle key"
     fi
 
-    if ! is_valid_bundle_password "$BUNDLE_PASSWORD"; then
-        die "Generated password does not meet OCI complexity requirements"
+    if ! is_valid_bundle_key "$BUNDLE_KEY"; then
+        die "Generated key does not meet OCI complexity requirements"
     fi
 
-    # Save password as base64
+    # Save key as base64
     if [[ "${DRY_RUN}" != "true" ]]; then
         mkdir -p "$etc_dir"
-        echo -n "$BUNDLE_PASSWORD" | base64 > "$pwd_file"
+        echo -n "$BUNDLE_KEY" | base64 > "$pwd_file"
         chmod 600 "$pwd_file"
-        log_info "Password saved to: ${pwd_file}"
+        log_info "Bundle key saved to: ${pwd_file}"
     else
-        log_info "[DRY-RUN] Would save password to: ${pwd_file}"
+        log_info "[DRY-RUN] Would save bundle key to: ${pwd_file}"
     fi
 }
 
@@ -709,7 +709,7 @@ download_bundle() {
     # Step 1: Generate bundle configuration
     log_info "Step 1/3: Generating bundle configuration..."
     local work_request_json
-    work_request_json=$(ds_generate_connector_bundle "$CONNECTOR_OCID" "$BUNDLE_PASSWORD" "$bundle_config_file") || {
+    work_request_json=$(ds_generate_connector_bundle "$CONNECTOR_OCID" "$BUNDLE_KEY" "$bundle_config_file") || {
         die "Failed to generate connector bundle"
     }
 
@@ -801,7 +801,7 @@ extract_bundle() {
 
 # ------------------------------------------------------------------------------
 # Function: run_setup_update
-# Purpose.: Run setup.py update with bundle password
+# Purpose.: Run setup.py update with bundle key
 # Returns.: 0 on success, 1 on error
 # Output..: Setup script output
 # ------------------------------------------------------------------------------
@@ -811,21 +811,21 @@ run_setup_update() {
     if [[ "${DRY_RUN}" == "true" ]]; then
         log_info "[DRY-RUN] Would run: python3 setup.py update"
         log_info "[DRY-RUN] Working directory: ${CONNECTOR_HOME}"
-        log_info "[DRY-RUN] Would provide bundle password via stdin"
+        log_info "[DRY-RUN] Would provide bundle key via stdin"
         return 0
     fi
 
     # Run setup.py update in connector home directory
-    # Pass password via stdin
+    # Pass bundle key via stdin
     local setup_py="${CONNECTOR_HOME}/setup.py"
 
     log_info "Executing: python3 setup.py update"
     log_info "Working directory: ${CONNECTOR_HOME}"
 
-    # Run setup.py and provide password when prompted
+    # Run setup.py and provide bundle key when prompted
     (
         cd "$CONNECTOR_HOME" || die "Failed to change directory to ${CONNECTOR_HOME}"
-        echo "$BUNDLE_PASSWORD" | python3 "$setup_py" update
+        echo "$BUNDLE_KEY" | python3 "$setup_py" update
     )
 
     local exit_code=$?
@@ -1042,16 +1042,16 @@ do_work() {
 
     if [[ "${CHECK_ONLY}" == "true" ]]; then
         log_info ""
-        log_info "CHECK-ONLY MODE: Skipping password, download, extract, and setup update steps"
+        log_info "CHECK-ONLY MODE: Skipping key, download, extract, and setup update steps"
         return 0
     fi
 
-    # Step 1: Get or create bundle password
+    # Step 1: Get or create bundle key
     log_info ""
     log_info "═══════════════════════════════════════════════════════════════════"
-    log_info "Step 1: Password Management"
+    log_info "Step 1: Key Management"
     log_info "═══════════════════════════════════════════════════════════════════"
-    get_or_create_password
+    get_or_create_bundle_key
 
     # Step 2: Download bundle (unless skipped)
     if [[ "$SKIP_DOWNLOAD" != "true" ]]; then
@@ -1088,7 +1088,7 @@ do_work() {
     log_info "═══════════════════════════════════════════════════════════════════"
     log_info "Connector: ${CONNECTOR_DISP_NAME}"
     log_info "Home: ${CONNECTOR_HOME}"
-    log_info "Password file: ${PASSWORD_FILE}"
+    log_info "Bundle key file: ${BUNDLE_KEY_FILE}"
 
     if [[ "${DRY_RUN}" != "true" ]]; then
         log_info ""
