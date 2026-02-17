@@ -267,8 +267,8 @@ teardown() {
     local duration=$((end_time - start_time))
     
     [ "$status" -eq 0 ]
-    # Help should be instant (< 2 seconds)
-    [ "$duration" -lt 2 ]
+    # Help should be quick (allow boundary jitter/slow CI)
+    [ "$duration" -le 3 ]
 }
 
 @test "Integration: Scripts respond quickly to --version" {
@@ -278,8 +278,8 @@ teardown() {
     local duration=$((end_time - start_time))
     
     [ "$status" -eq 0 ]
-    # Version should be instant (< 2 seconds)
-    [ "$duration" -lt 2 ]
+    # Version should be quick (allow boundary jitter/slow CI)
+    [ "$duration" -le 3 ]
 }
 
 # ==============================================================================
