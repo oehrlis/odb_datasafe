@@ -119,6 +119,28 @@ DS_PW_B64=$(printf '%s' 'mySecret' | base64)
 ${DATASAFE_BASE}/ds_database_prereqs.sh --root -P "${DS_PW_B64}"
 ```
 
+Example (pre-create secret file used by auto-discovery):
+
+```bash
+mkdir -p "${ODB_DATASAFE_BASE}/etc"
+printf '%s' 'mySecret' | base64 > "${ODB_DATASAFE_BASE}/etc/DS_ADMIN_pwd.b64"
+chmod 600 "${ODB_DATASAFE_BASE}/etc/DS_ADMIN_pwd.b64"
+
+# Script will discover and use DS_ADMIN_pwd.b64 automatically
+${DATASAFE_BASE}/ds_database_prereqs.sh --root --ds-user DS_ADMIN
+```
+
+Example (generate random secret and store as base64 file):
+
+```bash
+mkdir -p "${ODB_DATASAFE_BASE}/etc"
+RAND_SECRET=$(openssl rand -base64 24 | tr -d '\n')
+printf '%s' "${RAND_SECRET}" | base64 > "${ODB_DATASAFE_BASE}/etc/DS_ADMIN_pwd.b64"
+chmod 600 "${ODB_DATASAFE_BASE}/etc/DS_ADMIN_pwd.b64"
+
+${DATASAFE_BASE}/ds_database_prereqs.sh --root --ds-user DS_ADMIN
+```
+
 ## User Management Behavior
 
 - **Create if missing**: default behavior when the user does not exist.

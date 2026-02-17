@@ -32,10 +32,13 @@ readonly SCRIPT_VERSION
 : "${COMPARTMENT:=}"
 : "${TARGETS:=}"
 : "${LIFECYCLE_STATE:=ACTIVE}"
-: "${DS_USERNAME:=${DATASAFE_USER:-}}"
-: "${DS_PASSWORD:=}"
+: "${DS_USER:=${DATASAFE_USER:-}}"
+: "${DS_SECRET:=${DATASAFE_SECRET:-${DS_PASSWORD:-}}}"
 : "${NO_PROMPT:=false}"
 : "${CRED_FILE:=}"
+: "${DATASAFE_SECRET_FILE:=${DATASAFE_PASSWORD_FILE:-}}"
+: "${RUN_ROOT:=false}"
+: "${COMMON_USER_PREFIX:=C##}"
 : "${APPLY_CHANGES:=false}"
 : "${WAIT_FOR_STATE:=}" # Empty = async (no wait); "ACCEPTED" or other for sync wait
 
@@ -70,7 +73,7 @@ usage() {
 Usage: ${SCRIPT_NAME} [OPTIONS]
 
 Description:
-  Update Oracle Data Safe target database credentials (username/password).
+    Update Oracle Data Safe target database credentials (user/secret).
   Supports individual targets or bulk updates with flexible credential sources.
 
 Options:
@@ -93,10 +96,12 @@ Options:
     -L, --lifecycle STATE   Filter by lifecycle state (default: ${LIFECYCLE_STATE})
 
   Credentials:
-    -U, --username USER     Database username (default: ${DS_USERNAME:-not set})
-    -P, --password PASS     Database password (use with caution)
+        -U, --ds-user USER      Database username (default: ${DS_USER:-not set})
+        -P, --ds-secret VALUE   Database secret (plain or base64)
+                --secret-file FILE  Base64 secret file (optional)
     --cred-file FILE        JSON file with {\"userName\": \"user\", \"password\": \"pass\"}
-    --no-prompt             Fail instead of prompting for missing password
+                --root              Root normalization hint (common user with ${COMMON_USER_PREFIX})
+        --no-prompt             Fail instead of prompting for missing secret
 
   Execution:
     --apply                 Apply changes (default: dry-run only)
@@ -106,13 +111,14 @@ Options:
 
 Credential Sources (in order of precedence):
   1. --cred-file JSON file
-  2. -U/--username and -P/--password options
-  3. Environment variables (DS_USERNAME/DS_PASSWORD)
+    2. -U/--ds-user and -P/--ds-secret options
+    3. Environment variables (DS_USER/DS_SECRET)
+    4. --secret-file or <user>_pwd.b64 lookup
   4. Interactive prompt (unless --no-prompt)
 
 Examples:
-  # Dry-run with specific username (will prompt for password)
-  ${SCRIPT_NAME} -U myuser
+    # Dry-run with specific username (will prompt for secret)
+    ${SCRIPT_NAME} -U myuser
 
   # Apply changes using credentials file (async)
   ${SCRIPT_NAME} --cred-file creds.json --apply
@@ -120,10 +126,10 @@ Examples:
   # Apply changes and wait for completion
   ${SCRIPT_NAME} --cred-file creds.json --apply --wait-for-state ACCEPTED
 
-  # Update specific targets with username/password
-  ${SCRIPT_NAME} -T target1,target2 -U myuser -P mypass --apply
+    # Update specific targets with username/secret
+    ${SCRIPT_NAME} -T target1,target2 -U myuser -P mysecret --apply
 
-  # Bulk update for compartment (interactive password, wait for state)
+    # Bulk update for compartment (interactive secret, wait for state)
   ${SCRIPT_NAME} -c my-compartment -U dbuser --apply --wait-for-state ACCEPTED
 
 EOF
@@ -161,20 +167,35 @@ parse_args() {
                 LIFECYCLE_STATE="$2"
                 shift 2
                 ;;
-            -U | --username)
+            -U | --ds-user | --username)
                 need_val "$1" "${2:-}"
-                DS_USERNAME="$2"
+                DS_USER="$2"
+                if [[ "$1" == "--username" ]]; then
+                    log_warn "Option --username is deprecated, use --ds-user"
+                fi
                 shift 2
                 ;;
-            -P | --password)
+            -P | --ds-secret | --password)
                 need_val "$1" "${2:-}"
-                DS_PASSWORD="$2"
+                DS_SECRET="$2"
+                if [[ "$1" == "--password" ]]; then
+                    log_warn "Option --password is deprecated, use --ds-secret"
+                fi
+                shift 2
+                ;;
+            --secret-file)
+                need_val "$1" "${2:-}"
+                DATASAFE_SECRET_FILE="$2"
                 shift 2
                 ;;
             --cred-file)
                 need_val "$1" "${2:-}"
                 CRED_FILE="$2"
                 shift 2
+                ;;
+            --root)
+                RUN_ROOT=true
+                shift
                 ;;
             --no-prompt)
                 NO_PROMPT=true
@@ -226,6 +247,81 @@ parse_args() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: decode_base64_string
+# Purpose.: Decode base64 string content to stdout
+# Args....: $1 - Base64 string
+# Returns.: 0 on success, 1 on decode failure
+# Output..: Decoded content to stdout
+# ------------------------------------------------------------------------------
+decode_base64_string() {
+    local input="$1"
+    local decoded=""
+
+    if decoded=$(printf '%s' "$input" | base64 --decode 2> /dev/null); then
+        printf '%s' "$decoded"
+        return 0
+    fi
+
+    if decoded=$(printf '%s' "$input" | base64 -d 2> /dev/null); then
+        printf '%s' "$decoded"
+        return 0
+    fi
+
+    if decoded=$(printf '%s' "$input" | base64 -D 2> /dev/null); then
+        printf '%s' "$decoded"
+        return 0
+    fi
+
+    return 1
+}
+
+# ------------------------------------------------------------------------------
+# Function: is_base64_string
+# Purpose.: Check if input looks like valid base64 and decodes to printable text
+# Args....: $1 - Input string
+# Returns.: 0 if valid base64-like secret, 1 otherwise
+# Output..: None
+# ------------------------------------------------------------------------------
+is_base64_string() {
+    local input="$1"
+    local normalized decoded
+
+    [[ -n "$input" ]] || return 1
+
+    normalized=$(printf '%s' "$input" | tr -d '[:space:]')
+    [[ -n "$normalized" ]] || return 1
+    [[ "$normalized" =~ ^[A-Za-z0-9+/=]+$ ]] || return 1
+    [[ $(( ${#normalized} % 4 )) -eq 0 ]] || return 1
+
+    decoded=$(decode_base64_string "$normalized") || return 1
+    [[ -n "$decoded" ]] || return 1
+
+    return 0
+}
+
+# ------------------------------------------------------------------------------
+# Function: resolve_ds_user
+# Purpose.: Resolve Data Safe username based on root normalization hint
+# Args....: None
+# Returns.: 0 on success
+# Output..: Username to stdout
+# ------------------------------------------------------------------------------
+resolve_ds_user() {
+    local base_user="$DS_USER"
+
+    if [[ -n "$COMMON_USER_PREFIX" && "$base_user" == ${COMMON_USER_PREFIX}* ]]; then
+        base_user="${base_user#${COMMON_USER_PREFIX}}"
+    fi
+
+    if [[ "$RUN_ROOT" == "true" && -n "$COMMON_USER_PREFIX" ]]; then
+        printf '%s' "${COMMON_USER_PREFIX}${base_user}"
+        return 0
+    fi
+
+    printf '%s' "$base_user"
+}
+
+# ------------------------------------------------------------------------------
 # Function: validate_inputs
 # Purpose.: Validate required inputs and dependencies
 # Returns.: 0 on success, exits on validation failure
@@ -238,7 +334,7 @@ validate_inputs() {
     require_cmd base64
 
     # If neither targets nor compartment specified, show help
-    if [[ -z "$TARGETS" && -z "$COMPARTMENT" && -z "$CRED_FILE" && -z "$DS_USERNAME" ]]; then
+    if [[ -z "$TARGETS" && -z "$COMPARTMENT" && -z "$CRED_FILE" && -z "$DS_USER" ]]; then
         usage
     fi
 
@@ -270,13 +366,15 @@ validate_inputs() {
             die "Invalid credentials file format. Expected JSON with userName/password fields"
         fi
     fi
+
+    DS_USER="$(resolve_ds_user)"
 }
 
 # ------------------------------------------------------------------------------
 # Function: resolve_credentials
-# Purpose.: Resolve username/password from various sources
+# Purpose.: Resolve user/secret from various sources
 # Returns.: 0 on success, exits on error
-# Notes...: Sets DS_USERNAME and DS_PASSWORD global variables
+# Notes...: Sets DS_USER and DS_SECRET global variables
 # ------------------------------------------------------------------------------
 resolve_credentials() {
     log_debug "Resolving credentials..."
@@ -284,35 +382,52 @@ resolve_credentials() {
     # 1. Use credentials file if provided
     if [[ -n "$CRED_FILE" ]]; then
         log_debug "Loading credentials from file: $CRED_FILE"
-        DS_USERNAME=$(jq -r '.userName // ""' "$CRED_FILE")
-        DS_PASSWORD=$(jq -r '.password // ""' "$CRED_FILE")
+        DS_USER=$(jq -r '.userName // ""' "$CRED_FILE")
+        DS_SECRET=$(jq -r '.password // ""' "$CRED_FILE")
 
-        [[ -n "$DS_USERNAME" ]] || die "Username not found in credentials file"
-        [[ -n "$DS_PASSWORD" ]] || die "Password not found in credentials file"
+        [[ -n "$DS_USER" ]] || die "User not found in credentials file"
+        [[ -n "$DS_SECRET" ]] || die "Secret not found in credentials file"
 
         log_info "Credentials loaded from file: $CRED_FILE"
         return 0
     fi
 
-    # 2. Check if we have username
-    [[ -n "$DS_USERNAME" ]] || die "Username not specified. Use -U/--username, --cred-file, or set DS_USERNAME"
+    # 2. Check if we have user
+    [[ -n "$DS_USER" ]] || die "User not specified. Use -U/--ds-user, --cred-file, or set DS_USER"
 
-    # 3. Resolve password if not provided
-    if [[ -z "$DS_PASSWORD" ]]; then
-        if [[ "$NO_PROMPT" == "true" ]]; then
-            die "Password not specified and --no-prompt set. Use -P/--password, --cred-file, or set DS_PASSWORD"
-        fi
-
-        # Interactive prompt for password
-        log_info "Password not provided, prompting..."
-        echo -n "Enter password for user '$DS_USERNAME': " >&2
-        read -rs DS_PASSWORD
-        echo >&2
-
-        [[ -n "$DS_PASSWORD" ]] || die "Password cannot be empty"
+    # 3. Resolve secret if not provided
+    if [[ -n "$DS_SECRET" ]] && is_base64_string "$DS_SECRET"; then
+        local decoded
+        decoded=$(decode_base64_string "$DS_SECRET") || die "Failed to decode base64 secret"
+        [[ -n "$decoded" ]] || die "Decoded secret is empty"
+        DS_SECRET="$decoded"
+        log_info "Decoded Data Safe secret from base64 input"
     fi
 
-    log_info "Using credentials for user: $DS_USERNAME"
+    if [[ -z "$DS_SECRET" ]]; then
+        local secret_file=""
+        if secret_file=$(find_password_file "$DS_USER" "${DATASAFE_SECRET_FILE:-}"); then
+            DS_SECRET=$(decode_base64_file "$secret_file") || die "Failed to decode base64 secret file: $secret_file"
+            [[ -n "$DS_SECRET" ]] || die "Secret file is empty: $secret_file"
+            log_info "Loaded Data Safe secret from file: $secret_file"
+        fi
+    fi
+
+    if [[ -z "$DS_SECRET" ]]; then
+        if [[ "$NO_PROMPT" == "true" ]]; then
+            die "Secret not specified and --no-prompt set. Use -P/--ds-secret, --secret-file, --cred-file, or set DS_SECRET"
+        fi
+
+        # Interactive prompt for secret
+        log_info "Secret not provided, prompting..."
+        echo -n "Enter secret for user '$DS_USER': " >&2
+        read -rs DS_SECRET
+        echo >&2
+
+        [[ -n "$DS_SECRET" ]] || die "Secret cannot be empty"
+    fi
+
+    log_info "Using credentials for user: $DS_USER"
 }
 
 # ------------------------------------------------------------------------------
@@ -326,8 +441,8 @@ create_temp_cred_json() {
 
     # Create credentials JSON
     jq -n \
-        --arg user "$DS_USERNAME" \
-        --arg pass "$DS_PASSWORD" \
+        --arg user "$DS_USER" \
+        --arg pass "$DS_SECRET" \
         '{userName: $user, password: $pass}' > "$TMP_CRED_JSON"
 
     log_debug "Created temporary credentials file: $TMP_CRED_JSON"
@@ -361,8 +476,8 @@ update_target_credentials() {
     log_debug "Processing target: $target_name ($target_ocid)"
 
     log_info "Target: $target_name"
-    log_info "  Username: $DS_USERNAME"
-    log_info "  Password: [hidden]"
+    log_info "  User: $DS_USER"
+    log_info "  Secret: [hidden]"
 
     if [[ "$APPLY_CHANGES" == "true" ]]; then
         log_info "  Updating credentials..."
@@ -370,8 +485,8 @@ update_target_credentials() {
         # Prepare credentials JSON for API call
         local cred_json
         cred_json=$(jq -n \
-            --arg user "$DS_USERNAME" \
-            --arg pass "$DS_PASSWORD" \
+            --arg user "$DS_USER" \
+            --arg pass "$DS_SECRET" \
             '{userName: $user, password: $pass}')
 
         # Build OCI command

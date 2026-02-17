@@ -14,4 +14,6 @@ setup() {
     run "${BIN_DIR}/ds_target_register.sh" --help
     [ "$status" -eq 0 ]
     [[ "$output" == *"Usage:"* ]] || [[ "$output" == *"usage:"* ]] || [[ "$output" == *"USAGE:"* ]]
+    [[ "$output" == *"--ds-secret"* ]]
+    [[ "$output" == *"--secret-file"* ]]
 }

@@ -35,12 +35,11 @@ readonly SCRIPT_VERSION
 : "${DRY_RUN:=false}"
 : "${APPLY_CHANGES:=false}"
 : "${WAIT_FOR_STATE:=}"
-: "${DS_PASSWORD:=}"
+: "${DS_SECRET:=${DATASAFE_SECRET:-${DS_PASSWORD:-}}}"
 : "${DS_USER:=DS_ADMIN}"
-: "${DS_CDB_PASSWORD:=}"
-: "${DS_CDB_USER:=C##DS_ADMIN}"
-: "${DATASAFE_PASSWORD_FILE:=}"
-: "${DATASAFE_CDB_PASSWORD_FILE:=}"
+: "${DATASAFE_SECRET_FILE:=${DATASAFE_PASSWORD_FILE:-}}"
+: "${RUN_ROOT:=false}"
+: "${COMMON_USER_PREFIX:=C##}"
 : "${NO_PROMPT:=false}"
 
 # Counters
@@ -51,6 +50,10 @@ SKIPPED_COUNT=0
 # Temporary credential files
 TMP_CRED_JSON=""
 TMP_CDB_CRED_JSON=""
+
+# Resolved users by scope
+DS_USER_PDB=""
+DS_USER_ROOT=""
 
 # =============================================================================
 # FUNCTIONS
@@ -68,7 +71,7 @@ Usage: ${SCRIPT_NAME} [OPTIONS] [TARGETS...]
 
 Description:
   Activate inactive Oracle Data Safe target databases by updating their
-  credentials. Supports different credentials for CDB\$ROOT vs PDB targets.
+    credentials. Uses one Data Safe user/secret model with scope normalization.
   
     Provide either explicit targets or a compartment to activate INACTIVE targets.
 
@@ -96,20 +99,17 @@ Options:
         --wait-for-state STATE  Wait for operation completion with state (e.g., ACCEPTED)
                                                         Default: async (no wait)
 
-  PDB Credentials:
-    -U, --ds-user USER      PDB database user (default: DS_ADMIN)
-    -P, --ds-password PASS  PDB database password (required)
-
-  CDB\$ROOT Credentials:
-    --cdb-user USER         CDB\$ROOT database user (default: C##DS_ADMIN)
-    --cdb-password PASS     CDB\$ROOT database password (default: prompt)
+    Credentials:
+        -U, --ds-user USER      Data Safe database user (default: DS_ADMIN)
+        -P, --ds-secret VALUE   Data Safe secret (plain or base64)
+                --secret-file FILE  Base64 secret file (optional)
+                --root              Root normalization hint (common user with ${COMMON_USER_PREFIX})
 
 Credential Sources (in order of precedence):
-    1. Command-line options (-P, --cdb-password)
-    2. Environment variables (DS_PASSWORD, DS_CDB_PASSWORD)
-    3. Password files (DATASAFE_PASSWORD_FILE / DATASAFE_CDB_PASSWORD_FILE
-         or <user>_pwd.b64 in ORADBA_ETC or $ODB_DATASAFE_BASE/etc)
-    4. Interactive prompt (with option to use same password for both)
+    1. Command-line options (-P/--ds-secret, --secret-file)
+    2. Environment variables (DS_SECRET/DATASAFE_SECRET)
+    3. Secret file (<user>_pwd.b64 in ORADBA_ETC or $ODB_DATASAFE_BASE/etc)
+    4. Interactive prompt
 
 CDB\$ROOT Detection:
   Targets are identified as CDB\$ROOT using (in order):
@@ -118,27 +118,26 @@ CDB\$ROOT Detection:
   3. Tag "DBSec.ContainerType: cdbroot"
 
 Examples:
-  # Activate all INACTIVE targets (will prompt for passwords)
+    # Activate all INACTIVE targets (will prompt for secret)
   ${SCRIPT_NAME}
 
-  # Activate with passwords from command line
-  ${SCRIPT_NAME} -P 'pdb_password' --cdb-password 'cdb_password'
-
-  # Use same password for both PDB and CDB
-  ${SCRIPT_NAME} -P 'password'
+    # Activate with secret from command line
+    ${SCRIPT_NAME} -P 'my_secret'
 
   # Activate specific compartment
-  ${SCRIPT_NAME} -c MyCompartment -P 'password'
+    ${SCRIPT_NAME} -c MyCompartment -P 'my_secret'
 
   # Activate specific targets (dry-run)
-  ${SCRIPT_NAME} -T target1,target2 -P 'password' --dry-run
+    ${SCRIPT_NAME} -T target1,target2 -P 'my_secret' --dry-run
+
+    # Use root normalization hint for common user naming
+    ${SCRIPT_NAME} --root -U DS_ADMIN -P 'my_secret' -T mydb_CDBROOT
 
   # Activate with progress monitoring
-  ${SCRIPT_NAME} --wait -P 'password'
+    ${SCRIPT_NAME} --wait -P 'my_secret'
 
   # Use environment variables
-  export DS_PASSWORD='pdb_pass'
-  export DS_CDB_PASSWORD='cdb_pass'
+    export DS_SECRET='my_secret'
   ${SCRIPT_NAME}
 
 EOF
@@ -185,20 +184,22 @@ parse_args() {
                 DS_USER="$2"
                 shift 2
                 ;;
-            -P | --ds-password)
+            -P | --ds-secret | --ds-password)
                 need_val "$1" "${2:-}"
-                DS_PASSWORD="$2"
+                DS_SECRET="$2"
+                if [[ "$1" == "--ds-password" ]]; then
+                    log_warn "Option --ds-password is deprecated, use --ds-secret"
+                fi
                 shift 2
                 ;;
-            --cdb-user)
+            --secret-file)
                 need_val "$1" "${2:-}"
-                DS_CDB_USER="$2"
+                DATASAFE_SECRET_FILE="$2"
                 shift 2
                 ;;
-            --cdb-password)
-                need_val "$1" "${2:-}"
-                DS_CDB_PASSWORD="$2"
-                shift 2
+            --root)
+                RUN_ROOT=true
+                shift
                 ;;
             --wait-for-state)
                 need_val "$1" "${2:-}"
@@ -242,10 +243,88 @@ parse_args() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: decode_base64_string
+# Purpose.: Decode base64 string content to stdout
+# Args....: $1 - Base64 string
+# Returns.: 0 on success, 1 on decode failure
+# Output..: Decoded content to stdout
+# ------------------------------------------------------------------------------
+decode_base64_string() {
+    local input="$1"
+    local decoded=""
+
+    if decoded=$(printf '%s' "$input" | base64 --decode 2> /dev/null); then
+        printf '%s' "$decoded"
+        return 0
+    fi
+
+    if decoded=$(printf '%s' "$input" | base64 -d 2> /dev/null); then
+        printf '%s' "$decoded"
+        return 0
+    fi
+
+    if decoded=$(printf '%s' "$input" | base64 -D 2> /dev/null); then
+        printf '%s' "$decoded"
+        return 0
+    fi
+
+    return 1
+}
+
+# ------------------------------------------------------------------------------
+# Function: is_base64_string
+# Purpose.: Check if input looks like valid base64 and decodes to printable text
+# Args....: $1 - Input string
+# Returns.: 0 if valid base64-like secret, 1 otherwise
+# Output..: None
+# ------------------------------------------------------------------------------
+is_base64_string() {
+    local input="$1"
+    local normalized decoded
+
+    [[ -n "$input" ]] || return 1
+
+    normalized=$(printf '%s' "$input" | tr -d '[:space:]')
+    [[ -n "$normalized" ]] || return 1
+    [[ "$normalized" =~ ^[A-Za-z0-9+/=]+$ ]] || return 1
+    [[ $(( ${#normalized} % 4 )) -eq 0 ]] || return 1
+
+    decoded=$(decode_base64_string "$normalized") || return 1
+    [[ -n "$decoded" ]] || return 1
+
+    return 0
+}
+
+# ------------------------------------------------------------------------------
+# Function: resolve_ds_user
+# Purpose.: Resolve Data Safe username for scope
+# Args....: $1 - Scope label (PDB or ROOT)
+# Returns.: 0 on success
+# Output..: Username to stdout
+# ------------------------------------------------------------------------------
+resolve_ds_user() {
+    local scope="$1"
+    local base_user="$DS_USER"
+
+    if [[ -n "$COMMON_USER_PREFIX" && "$base_user" == ${COMMON_USER_PREFIX}* ]]; then
+        base_user="${base_user#${COMMON_USER_PREFIX}}"
+    fi
+
+    if [[ "$scope" == "ROOT" ]]; then
+        if [[ -n "$COMMON_USER_PREFIX" ]]; then
+            printf '%s' "${COMMON_USER_PREFIX}${base_user}"
+            return 0
+        fi
+    fi
+
+    printf '%s' "$base_user"
+}
+
+# ------------------------------------------------------------------------------
 # Function: validate_inputs
 # Purpose.: Validate required inputs and dependencies
 # Returns.: 0 on success, exits on validation failure
-# Notes...: Checks for required commands and handles password prompting
+# Notes...: Checks for required commands and resolves secret sources
 # ------------------------------------------------------------------------------
 validate_inputs() {
     log_debug "Validating inputs..."
@@ -256,62 +335,58 @@ validate_inputs() {
         usage
     fi
 
-    # Try password file for PDB user (explicit file or <user>_pwd.b64)
-    if [[ -z "$DS_PASSWORD" ]]; then
-        local password_file=""
-        if password_file=$(find_password_file "$DS_USER" "${DATASAFE_PASSWORD_FILE:-}"); then
+    DS_USER_PDB="$(resolve_ds_user "PDB")"
+    DS_USER_ROOT="$(resolve_ds_user "ROOT")"
+
+    if [[ -n "$DS_SECRET" ]] && is_base64_string "$DS_SECRET"; then
+        local decoded
+        decoded=$(decode_base64_string "$DS_SECRET") || die "Failed to decode base64 secret"
+        [[ -n "$decoded" ]] || die "Decoded secret is empty"
+        DS_SECRET="$decoded"
+        log_info "Decoded Data Safe secret from base64 input"
+    fi
+
+    if [[ -z "$DS_SECRET" ]]; then
+        local secret_file=""
+        local primary_user="$DS_USER_PDB"
+        local secondary_user="$DS_USER_ROOT"
+
+        if [[ "$RUN_ROOT" == "true" ]]; then
+            primary_user="$DS_USER_ROOT"
+            secondary_user="$DS_USER_PDB"
+        fi
+
+        if secret_file=$(find_password_file "$primary_user" "${DATASAFE_SECRET_FILE:-}"); then
             require_cmd base64
-            DS_PASSWORD=$(decode_base64_file "$password_file") || die "Failed to decode base64 password file: $password_file"
-            [[ -n "$DS_PASSWORD" ]] || die "Password file is empty: $password_file"
-            log_info "Loaded PDB password from file: $password_file"
+            DS_SECRET=$(decode_base64_file "$secret_file") || die "Failed to decode base64 secret file: $secret_file"
+            [[ -n "$DS_SECRET" ]] || die "Secret file is empty: $secret_file"
+            log_info "Loaded Data Safe secret from file: $secret_file"
+        elif [[ -z "${DATASAFE_SECRET_FILE:-}" ]] && secret_file=$(find_password_file "$secondary_user"); then
+            require_cmd base64
+            DS_SECRET=$(decode_base64_file "$secret_file") || die "Failed to decode base64 secret file: $secret_file"
+            [[ -n "$DS_SECRET" ]] || die "Secret file is empty: $secret_file"
+            log_info "Loaded Data Safe secret from alternate user file: $secret_file"
         fi
     fi
 
-    # Try password file for CDB$ROOT user (explicit file or <user>_pwd.b64)
-    if [[ -z "$DS_CDB_PASSWORD" ]]; then
-        local cdb_password_file=""
-        if cdb_password_file=$(find_password_file "$DS_CDB_USER" "${DATASAFE_CDB_PASSWORD_FILE:-}"); then
-            require_cmd base64
-            DS_CDB_PASSWORD=$(decode_base64_file "$cdb_password_file") || die "Failed to decode base64 password file: $cdb_password_file"
-            [[ -n "$DS_CDB_PASSWORD" ]] || die "Password file is empty: $cdb_password_file"
-            log_info "Loaded CDB\$ROOT password from file: $cdb_password_file"
-        fi
-    fi
-
-    # Handle password prompting
-    if [[ -z "$DS_PASSWORD" ]]; then
+    if [[ -z "$DS_SECRET" ]]; then
         if [[ "${NO_PROMPT}" == "true" ]]; then
-            die "PDB password not provided and prompting is disabled. Use -P/--ds-password or DS_PASSWORD."
+            die "Data Safe secret not provided and prompting is disabled. Use -P/--ds-secret, --secret-file, or DS_SECRET."
         fi
 
-        log_info "PDB password not provided, prompting..."
-        echo -n "Enter password for PDB user '$DS_USER': " >&2
-        read -rs DS_PASSWORD
+        local prompt_user="$DS_USER_PDB"
+        if [[ "$RUN_ROOT" == "true" ]]; then
+            prompt_user="$DS_USER_ROOT"
+        fi
+        log_info "Data Safe secret not provided, prompting..."
+        echo -n "Enter secret for user '$prompt_user': " >&2
+        read -rs DS_SECRET
         echo >&2
 
-        [[ -n "$DS_PASSWORD" ]] || die "PDB password cannot be empty"
+        [[ -n "$DS_SECRET" ]] || die "Data Safe secret cannot be empty"
     fi
 
-    # Handle CDB password prompting
-    if [[ -z "$DS_CDB_PASSWORD" ]]; then
-        if [[ "${NO_PROMPT}" == "true" ]]; then
-            log_info "CDB\$ROOT password not provided; using PDB password"
-            DS_CDB_PASSWORD="$DS_PASSWORD"
-        else
-            log_info "CDB\$ROOT password not provided, prompting..."
-            echo -n "Enter password for CDB\$ROOT user '$DS_CDB_USER' (press Enter to use same as PDB): " >&2
-            read -rs DS_CDB_PASSWORD
-            echo >&2
-
-            # If empty, use same as PDB password
-            if [[ -z "$DS_CDB_PASSWORD" ]]; then
-                log_info "Using same password for CDB\$ROOT as PDB"
-                DS_CDB_PASSWORD="$DS_PASSWORD"
-            fi
-        fi
-    fi
-
-    log_info "Using credentials - PDB: $DS_USER, CDB\$ROOT: $DS_CDB_USER"
+    log_info "Using credentials - PDB user: $DS_USER_PDB, CDB\$ROOT user: $DS_USER_ROOT"
 }
 
 # ------------------------------------------------------------------------------
@@ -324,16 +399,16 @@ create_temp_cred_json() {
     # Create PDB credentials file
     TMP_CRED_JSON=$(mktemp)
     jq -n \
-        --arg user "$DS_USER" \
-        --arg pass "$DS_PASSWORD" \
+        --arg user "$DS_USER_PDB" \
+        --arg pass "$DS_SECRET" \
         '{userName: $user, password: $pass}' > "$TMP_CRED_JSON"
     log_debug "Created PDB credentials file: $TMP_CRED_JSON"
 
     # Create CDB credentials file
     TMP_CDB_CRED_JSON=$(mktemp)
     jq -n \
-        --arg user "$DS_CDB_USER" \
-        --arg pass "$DS_CDB_PASSWORD" \
+        --arg user "$DS_USER_ROOT" \
+        --arg pass "$DS_SECRET" \
         '{userName: $user, password: $pass}' > "$TMP_CDB_CRED_JSON"
     log_debug "Created CDB credentials file: $TMP_CDB_CRED_JSON"
 }

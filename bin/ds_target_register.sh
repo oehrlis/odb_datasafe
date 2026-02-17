@@ -28,7 +28,8 @@
 #   --port PORT                 Listener port (default: 1521)
 #   --service SERVICE           Service name (default: auto-derived)
 #   --ds-user USER              Data Safe user (default: DS_ADMIN)
-#   --ds-password PASS          Data Safe password (required)
+#   --ds-secret VALUE           Data Safe secret (required)
+#   --secret-file FILE          Base64 secret file (optional)
 #   -N, --display-name NAME     Display name (default: auto-generated)
 #   --description DESC          Description
 #   --cluster CLUSTER           VM Cluster name or OCID (optional)
@@ -70,8 +71,9 @@ CONNECTOR_COMPARTMENT=""
 LISTENER_PORT="1521"
 SERVICE_NAME=""
 DS_USER="DS_ADMIN"
-DS_PASSWORD=""
-DATASAFE_PASSWORD_FILE="${DATASAFE_PASSWORD_FILE:-}"
+DS_SECRET="${DATASAFE_SECRET:-${DS_PASSWORD:-}}"
+DATASAFE_SECRET_FILE="${DATASAFE_SECRET_FILE:-${DATASAFE_PASSWORD_FILE:-}}"
+COMMON_USER_PREFIX="${COMMON_USER_PREFIX:-C##}"
 DISPLAY_NAME=""
 DESCRIPTION=""
 CLUSTER=""
@@ -112,10 +114,11 @@ REQUIRED OPTIONS:
   --sid SID                   Database SID
   -c, --compartment COMP      Target compartment (name or OCID)
   --connector CONN            On-premises connector (name or OCID)
-  --ds-password PASS          Data Safe user password
+    -P, --ds-secret VALUE       Data Safe secret (plain or base64)
+    --secret-file FILE          Base64 secret file (optional)
 
-PASSWORD FILE SUPPORT:
-    - Uses DATASAFE_PASSWORD_FILE if set
+SECRET FILE SUPPORT:
+    - Uses DATASAFE_SECRET_FILE if set
     - Otherwise looks for <ds-user>_pwd.b64 in ORADBA_ETC or $ODB_DATASAFE_BASE/etc
 
 CONNECTION:
@@ -137,11 +140,11 @@ MODES:
 EXAMPLES:
   # Register a PDB
   ds_target_register.sh -H db01 --sid cdb01 --pdb APP1PDB \\
-    -c prod-compartment --connector my-connector --ds-password <password>
+        -c prod-compartment --connector my-connector --ds-secret <secret>
   
   # Register CDB\$ROOT
   ds_target_register.sh -H db01 --sid cdb01 --root \\
-    -c prod-compartment --connector my-connector --ds-password <password>
+        -c prod-compartment --connector my-connector --ds-secret <secret>
   
   # Check if target exists
   ds_target_register.sh -H db01 --sid cdb01 --pdb APP1PDB \\
@@ -208,8 +211,15 @@ parse_args() {
                 DS_USER="$2"
                 shift 2
                 ;;
-            --ds-password)
-                DS_PASSWORD="$2"
+            -P | --ds-secret | --ds-password)
+                DS_SECRET="$2"
+                if [[ "$1" == "--ds-password" ]]; then
+                    log_warn "Option --ds-password is deprecated, use --ds-secret"
+                fi
+                shift 2
+                ;;
+            --secret-file)
+                DATASAFE_SECRET_FILE="$2"
                 shift 2
                 ;;
             -N | --display-name)
@@ -252,6 +262,84 @@ parse_args() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: decode_base64_string
+# Purpose.: Decode base64 string content to stdout
+# Args....: $1 - Base64 string
+# Returns.: 0 on success, 1 on decode failure
+# Output..: Decoded content to stdout
+# ------------------------------------------------------------------------------
+decode_base64_string() {
+    local input="$1"
+    local decoded=""
+
+    if decoded=$(printf '%s' "$input" | base64 --decode 2> /dev/null); then
+        printf '%s' "$decoded"
+        return 0
+    fi
+
+    if decoded=$(printf '%s' "$input" | base64 -d 2> /dev/null); then
+        printf '%s' "$decoded"
+        return 0
+    fi
+
+    if decoded=$(printf '%s' "$input" | base64 -D 2> /dev/null); then
+        printf '%s' "$decoded"
+        return 0
+    fi
+
+    return 1
+}
+
+# ------------------------------------------------------------------------------
+# Function: is_base64_string
+# Purpose.: Check if input looks like valid base64 and decodes to printable text
+# Args....: $1 - Input string
+# Returns.: 0 if valid base64-like secret, 1 otherwise
+# Output..: None
+# ------------------------------------------------------------------------------
+is_base64_string() {
+    local input="$1"
+    local normalized decoded
+
+    [[ -n "$input" ]] || return 1
+
+    normalized=$(printf '%s' "$input" | tr -d '[:space:]')
+    [[ -n "$normalized" ]] || return 1
+    [[ "$normalized" =~ ^[A-Za-z0-9+/=]+$ ]] || return 1
+    [[ $(( ${#normalized} % 4 )) -eq 0 ]] || return 1
+
+    decoded=$(decode_base64_string "$normalized") || return 1
+    [[ -n "$decoded" ]] || return 1
+
+    return 0
+}
+
+# ------------------------------------------------------------------------------
+# Function: resolve_ds_user
+# Purpose.: Resolve Data Safe username for scope
+# Args....: $1 - Scope label (PDB or ROOT)
+# Returns.: 0 on success
+# Output..: Username to stdout
+# ------------------------------------------------------------------------------
+resolve_ds_user() {
+    local scope="$1"
+    local base_user="$DS_USER"
+
+    if [[ -n "$COMMON_USER_PREFIX" && "$base_user" == ${COMMON_USER_PREFIX}* ]]; then
+        base_user="${base_user#${COMMON_USER_PREFIX}}"
+    fi
+
+    if [[ "$scope" == "ROOT" ]]; then
+        if [[ -n "$COMMON_USER_PREFIX" ]]; then
+            printf '%s' "${COMMON_USER_PREFIX}${base_user}"
+            return 0
+        fi
+    fi
+
+    printf '%s' "$base_user"
+}
+
+# ------------------------------------------------------------------------------
 # Function: validate_inputs
 # Purpose.: Validate command-line inputs and resolve OCIDs
 # Args....: None
@@ -279,20 +367,34 @@ validate_inputs() {
         die "Choose exactly one scope: --pdb OR --root (not both)"
     fi
 
-    # Resolve password from file if needed (explicit file or <user>_pwd.b64)
-    if [[ "$CHECK_ONLY" != "true" && -z "$DS_PASSWORD" ]]; then
-        local password_file=""
-        if password_file=$(find_password_file "$DS_USER" "${DATASAFE_PASSWORD_FILE:-}"); then
+    if [[ "$RUN_ROOT" == "true" ]]; then
+        DS_USER="$(resolve_ds_user "ROOT")"
+    else
+        DS_USER="$(resolve_ds_user "PDB")"
+    fi
+
+    if [[ "$CHECK_ONLY" != "true" && -n "$DS_SECRET" ]] && is_base64_string "$DS_SECRET"; then
+        local decoded
+        decoded=$(decode_base64_string "$DS_SECRET") || die "Failed to decode base64 secret"
+        [[ -n "$decoded" ]] || die "Decoded secret is empty"
+        DS_SECRET="$decoded"
+        log_info "Decoded Data Safe secret from base64 input"
+    fi
+
+    # Resolve secret from file if needed (explicit file or <user>_pwd.b64)
+    if [[ "$CHECK_ONLY" != "true" && -z "$DS_SECRET" ]]; then
+        local secret_file=""
+        if secret_file=$(find_password_file "$DS_USER" "${DATASAFE_SECRET_FILE:-}"); then
             require_cmd base64
-            DS_PASSWORD=$(decode_base64_file "$password_file") || die "Failed to decode base64 password file: $password_file"
-            [[ -n "$DS_PASSWORD" ]] || die "Password file is empty: $password_file"
-            log_info "Loaded Data Safe password from file: $password_file"
+            DS_SECRET=$(decode_base64_file "$secret_file") || die "Failed to decode base64 secret file: $secret_file"
+            [[ -n "$DS_SECRET" ]] || die "Secret file is empty: $secret_file"
+            log_info "Loaded Data Safe secret from file: $secret_file"
         fi
     fi
 
-    # Password required unless check-only
-    if [[ "$CHECK_ONLY" != "true" && -z "$DS_PASSWORD" ]]; then
-        die "Missing required option: --ds-password (not needed with --check)"
+    # Secret required unless check-only
+    if [[ "$CHECK_ONLY" != "true" && -z "$DS_SECRET" ]]; then
+        die "Missing required option: --ds-secret (not needed with --check)"
     fi
 
     # Resolve compartment using helper function (accepts name or OCID)
@@ -419,6 +521,7 @@ show_registration_plan() {
     log_info "  Compartment:   $COMP_OCID"
     log_info "  Connector:     $CONNECTOR_OCID"
     log_info "  DS User:       $DS_USER"
+    log_info "  DS Secret:     [hidden]"
     [[ -n "$CLUSTER" ]] && log_info "  Cluster:       $CLUSTER"
     [[ -n "$DESCRIPTION" ]] && log_info "  Description:   $DESCRIPTION"
 }
@@ -466,7 +569,7 @@ register_target() {
         --arg name "$DISPLAY_NAME" \
         --arg desc "$desc" \
         --arg user "$DS_USER" \
-        --arg pass "$DS_PASSWORD" \
+        --arg pass "$DS_SECRET" \
         --arg conn "$CONNECTOR_OCID" \
         --argjson dbd "$db_details" \
         '{

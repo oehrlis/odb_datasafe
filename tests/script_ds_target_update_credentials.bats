@@ -14,4 +14,6 @@ setup() {
     run "${BIN_DIR}/ds_target_update_credentials.sh" --help
     [ "$status" -eq 0 ]
     [[ "$output" == *"Usage:"* ]] || [[ "$output" == *"usage:"* ]]
+    [[ "$output" == *"--ds-user"* ]]
+    [[ "$output" == *"--ds-secret"* ]]
 }

@@ -8,6 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.3] - 2026-02-17
+
+### Changed
+
+- Removed deprecated `bin/ds_target_prereqs.sh` in favor of
+  `bin/ds_database_prereqs.sh`.
+- Completed secret-handling consolidation toward `ds_database_prereqs.sh`
+  patterns for:
+  - `bin/ds_target_activate.sh`
+  - `bin/ds_target_register.sh`
+  - `bin/ds_target_update_credentials.sh`
+- Unified target scripts on `--ds-user` + `--ds-secret` with `--secret-file`
+  support and plain/base64 secret input handling.
+- `bin/ds_target_activate.sh` removed deprecated `--cdb-user` /
+  `--cdb-password` flags and now uses root normalization for CDB\$ROOT targets.
+
+### Documentation
+
+- `doc/database_prereqs.md` now includes examples for pre-creating
+  `<user>_pwd.b64` files in `${ODB_DATASAFE_BASE}/etc`.
+- Added example for generating a random secret and storing it as base64 for
+  auto-discovery by `ds_database_prereqs.sh`.
+
 ## [0.12.2] - 2026-02-17
 
 ### Fixed

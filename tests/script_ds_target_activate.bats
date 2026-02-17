@@ -49,20 +49,19 @@ teardown() {
 @test "ds_target_activate.sh accepts --dry-run option" {
     # Note: Without valid credentials/OCI setup, this may fail,
     # but we're testing that the option is recognized
-    export DS_PASSWORD="test"
-    export DS_CDB_PASSWORD="test"
+    export DS_SECRET="test"
     run bash -c "echo '' | ${BIN_DIR}/ds_target_activate.sh --dry-run --help 2>&1; echo \"\$?\""
     # Should at least parse the option without syntax errors
 }
 
-@test "ds_target_activate.sh accepts PDB password option" {
+@test "ds_target_activate.sh accepts ds secret option" {
     run "${BIN_DIR}/ds_target_activate.sh" --help
-    [[ "$output" == *"-P"* ]] || [[ "$output" == *"--ds-password"* ]]
+    [[ "$output" == *"-P"* ]] || [[ "$output" == *"--ds-secret"* ]]
 }
 
-@test "ds_target_activate.sh accepts CDB password option" {
+@test "ds_target_activate.sh accepts root normalization option" {
     run "${BIN_DIR}/ds_target_activate.sh" --help
-    [[ "$output" == *"--cdb-password"* ]]
+    [[ "$output" == *"--root"* ]]
 }
 
 @test "ds_target_activate.sh accepts compartment option" {
