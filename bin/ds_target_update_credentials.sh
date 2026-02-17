@@ -33,10 +33,10 @@ readonly SCRIPT_VERSION
 : "${TARGETS:=}"
 : "${LIFECYCLE_STATE:=ACTIVE}"
 : "${DS_USER:=${DATASAFE_USER:-}}"
-: "${DS_SECRET:=${DATASAFE_SECRET:-${DS_PASSWORD:-}}}"
+: "${DS_SECRET:=${DATASAFE_SECRET:-}}"
 : "${NO_PROMPT:=false}"
 : "${CRED_FILE:=}"
-: "${DATASAFE_SECRET_FILE:=${DATASAFE_PASSWORD_FILE:-}}"
+: "${DATASAFE_SECRET_FILE:=}"
 : "${RUN_ROOT:=false}"
 : "${COMMON_USER_PREFIX:=C##}"
 : "${APPLY_CHANGES:=false}"
@@ -97,8 +97,8 @@ Options:
 
   Credentials:
     -U, --ds-user USER      Database username (default: ${DS_USER:-not set})
-    -P, --ds-secret VALUE   Database secret (plain or base64)
-    --secret-file FILE      Base64 secret file (optional)
+        -P, --ds-secret VALUE   Database secret (plain or base64)
+        --secret-file FILE      Base64 secret file (optional)
     --cred-file FILE        JSON file with {\"userName\": \"user\", \"password\": \"pass\"}
     --root                  Root normalization hint (common user with ${COMMON_USER_PREFIX})
     --no-prompt             Fail instead of prompting for missing secret
@@ -111,9 +111,9 @@ Options:
 
 Credential Sources (in order of precedence):
   1. --cred-file JSON file
-  2. -U/--ds-user and -P/--ds-secret options  
-  3. Environment variables (DS_USER/DS_SECRET)
-  4. --secret-file or <user>_pwd.b64 lookup
+        2. -U/--ds-user and -P/--ds-secret options
+    3. Environment variables (DS_USER/DS_SECRET)
+        4. --secret-file or <user>_pwd.b64 lookup
   5. Interactive prompt (unless --no-prompt)
 
 Examples:
@@ -175,12 +175,9 @@ parse_args() {
                 fi
                 shift 2
                 ;;
-            -P | --ds-secret | --password)
+            -P | --ds-secret)
                 need_val "$1" "${2:-}"
                 DS_SECRET="$2"
-                if [[ "$1" == "--password" ]]; then
-                    log_warn "Option --password is deprecated, use --ds-secret"
-                fi
                 shift 2
                 ;;
             --secret-file)

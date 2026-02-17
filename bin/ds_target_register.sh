@@ -71,8 +71,8 @@ CONNECTOR_COMPARTMENT=""
 LISTENER_PORT="1521"
 SERVICE_NAME=""
 DS_USER="DS_ADMIN"
-DS_SECRET="${DATASAFE_SECRET:-${DS_PASSWORD:-}}"
-DATASAFE_SECRET_FILE="${DATASAFE_SECRET_FILE:-${DATASAFE_PASSWORD_FILE:-}}"
+DS_SECRET="${DATASAFE_SECRET:-}"
+DATASAFE_SECRET_FILE="${DATASAFE_SECRET_FILE:-}"
 COMMON_USER_PREFIX="${COMMON_USER_PREFIX:-C##}"
 DISPLAY_NAME=""
 DESCRIPTION=""
@@ -114,11 +114,11 @@ REQUIRED OPTIONS:
   --sid SID                 Database SID
   -c, --compartment COMP    Target compartment (name or OCID)
   --connector CONN          On-premises connector (name or OCID)
-  -P, --ds-secret VALUE     Data Safe secret (plain or base64)
-  --secret-file FILE        Base64 secret file (optional)
+    -P, --ds-secret VALUE     Data Safe secret (plain or base64)
+    --secret-file FILE        Base64 secret file (optional)
 
 SECRET FILE SUPPORT:
-  - Uses DATASAFE_SECRET_FILE if set
+    - Uses DATASAFE_SECRET_FILE if set
   - Otherwise looks for <ds-user>_pwd.b64 in ORADBA_ETC or $ODB_DATASAFE_BASE/etc
 
 CONNECTION:
@@ -211,11 +211,8 @@ parse_args() {
                 DS_USER="$2"
                 shift 2
                 ;;
-            -P | --ds-secret | --ds-password)
+            -P | --ds-secret)
                 DS_SECRET="$2"
-                if [[ "$1" == "--ds-password" ]]; then
-                    log_warn "Option --ds-password is deprecated, use --ds-secret"
-                fi
                 shift 2
                 ;;
             --secret-file)

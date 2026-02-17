@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `bin/ds_target_activate.sh`, `bin/ds_target_register.sh`, and
+  `bin/ds_target_update_credentials.sh` use `-P/--ds-secret` and
+  `--secret-file` as canonical credential options.
+- Removed legacy option-alias compatibility handling from the same target
+  scripts.
+
 ## [0.13.0] - 2026-02-17
 
 ### Changed
@@ -200,7 +208,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Standardized the "Available Scripts" table formatting in `doc/index.md`
 - Updated standalone tarball example in `doc/standalone_usage.md` to use
   `odb_datasafe-<version>.tar.gz` placeholder
-- `ds_database_prereqs.sh` now auto-detects base64 input for `--ds-password`
+- `ds_database_prereqs.sh` now auto-detects base64 input for the secret option
 - `ds_database_prereqs.sh` now supports updating the user secret without drop/recreate (`--update-secret`)
 - `ds_database_prereqs.sh` now logs the user action mode (check, update, recreate)
 - `ds_database_prereqs.sh` now warns on ORA-28007 with guidance to use a different secret or `--force`

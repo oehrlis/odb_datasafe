@@ -35,9 +35,9 @@ readonly SCRIPT_VERSION
 : "${DRY_RUN:=false}"
 : "${APPLY_CHANGES:=false}"
 : "${WAIT_FOR_STATE:=}"
-: "${DS_SECRET:=${DATASAFE_SECRET:-${DS_PASSWORD:-}}}"
+: "${DS_SECRET:=${DATASAFE_SECRET:-}}"
 : "${DS_USER:=DS_ADMIN}"
-: "${DATASAFE_SECRET_FILE:=${DATASAFE_PASSWORD_FILE:-}}"
+: "${DATASAFE_SECRET_FILE:=}"
 : "${RUN_ROOT:=false}"
 : "${COMMON_USER_PREFIX:=C##}"
 : "${NO_PROMPT:=false}"
@@ -101,12 +101,12 @@ Options:
 
   Credentials:
     -U, --ds-user USER      Data Safe database user (default: DS_ADMIN)
-    -P, --ds-secret VALUE   Data Safe secret (plain or base64)
-    --secret-file FILE      Base64 secret file (optional)
+                -P, --ds-secret VALUE   Data Safe secret (plain or base64)
+                --secret-file FILE      Base64 secret file (optional)
     --root                  Root normalization hint (common user with ${COMMON_USER_PREFIX})
 
 Credential Sources (in order of precedence):
-    1. Command-line options (-P/--ds-secret, --secret-file)
+        1. Command-line options (-P/--ds-secret, --secret-file)
     2. Environment variables (DS_SECRET/DATASAFE_SECRET)
     3. Secret file (<user>_pwd.b64 in ORADBA_ETC or $ODB_DATASAFE_BASE/etc)
     4. Interactive prompt
@@ -137,7 +137,7 @@ Examples:
     ${SCRIPT_NAME} --wait -P 'my_secret'
 
   # Use environment variables
-    export DS_SECRET='my_secret'
+        export DS_SECRET='my_secret'
   ${SCRIPT_NAME}
 
 EOF
@@ -184,12 +184,9 @@ parse_args() {
                 DS_USER="$2"
                 shift 2
                 ;;
-            -P | --ds-secret | --ds-password)
+            -P | --ds-secret)
                 need_val "$1" "${2:-}"
                 DS_SECRET="$2"
-                if [[ "$1" == "--ds-password" ]]; then
-                    log_warn "Option --ds-password is deprecated, use --ds-secret"
-                fi
                 shift 2
                 ;;
             --secret-file)
