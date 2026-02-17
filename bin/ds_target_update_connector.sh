@@ -71,9 +71,9 @@ Description:
   Supports individual target updates or bulk connector management operations.
 
 Operation Modes:
-  set                     Set specific connector for target(s)
-  migrate                 Change targets from source connector to target connector
-  distribute              Distribute targets across all available connectors
+  set                       Set specific connector for target(s)
+  migrate                   Change targets from source connector to target connector
+  distribute                Distribute targets across all available connectors
 
 Options:
   Common:
@@ -89,18 +89,18 @@ Options:
     --oci-config FILE       OCI config file
 
   Selection:
-    -c, --compartment ID    Target compartment OCID or name (default: DS_ROOT_COMP)
-                            Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
-    -T, --targets LIST      Comma-separated target names or OCIDs
-    -L, --lifecycle STATE   Filter by lifecycle state (default: ${LIFECYCLE_STATE})
-                            Supports: ACTIVE, NEEDS_ATTENTION, CREATING, UPDATING, DELETING
-                            Use comma-separated for multiple: ACTIVE,NEEDS_ATTENTION
-    --include-needs-attention  Include targets needing attention (shortcut for -L ACTIVE,NEEDS_ATTENTION)
-    --exclude-auto          Exclude automatically created targets
+    -c, --compartment ID        Target compartment OCID or name (default: DS_ROOT_COMP)
+                                Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
+    -T, --targets LIST          Comma-separated target names or OCIDs
+    -L, --lifecycle STATE       Filter by lifecycle state (default: ${LIFECYCLE_STATE})
+                                Supports: ACTIVE, NEEDS_ATTENTION, CREATING, UPDATING, DELETING
+                                Use comma-separated for multiple: ACTIVE,NEEDS_ATTENTION
+    --include-needs-attention   Include targets needing attention (shortcut for -L ACTIVE,NEEDS_ATTENTION)
+    --exclude-auto              Exclude automatically created targets
 
   Connector:
-    --source-connector ID   Source connector OCID or name (for migrate mode)
-    --target-connector ID   Target connector OCID or name (for set/migrate modes)
+    --source-connector ID       Source connector OCID or name (for migrate mode)
+    --target-connector ID       Target connector OCID or name (for set/migrate modes)
     --connector-compartment ID  Compartment to query connectors from (default: same as -c)
     --exclude-connectors LIST   Comma-separated connector names to exclude from distribution
 

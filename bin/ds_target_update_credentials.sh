@@ -97,8 +97,8 @@ Options:
 
   Credentials:
     -U, --ds-user USER      Database username (default: ${DS_USER:-not set})
-        -P, --ds-secret VALUE   Database secret (plain or base64)
-        --secret-file FILE      Base64 secret file (optional)
+    -P, --ds-secret VALUE   Database secret (plain or base64)
+    --secret-file FILE      Base64 secret file (optional)
     --cred-file FILE        JSON file with {\"userName\": \"user\", \"password\": \"pass\"}
     --root                  Root normalization hint (common user with ${COMMON_USER_PREFIX})
     --no-prompt             Fail instead of prompting for missing secret
@@ -111,9 +111,9 @@ Options:
 
 Credential Sources (in order of precedence):
   1. --cred-file JSON file
-        2. -U/--ds-user and -P/--ds-secret options
-    3. Environment variables (DS_USER/DS_SECRET)
-        4. --secret-file or <user>_pwd.b64 lookup
+  2. -U/--ds-user and -P/--ds-secret options
+  3. Environment variables (DS_USER/DS_SECRET)
+  4. --secret-file or <user>_pwd.b64 lookup
   5. Interactive prompt (unless --no-prompt)
 
 Examples:

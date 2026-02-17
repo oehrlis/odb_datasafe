@@ -89,8 +89,8 @@ Options:
   Execution:
     --apply                 Apply changes (default: dry-run only)
     -n, --dry-run           Dry-run mode (show what would be done)
-        -L, --lifecycle STATE   Lifecycle state filter (default: ${LIFECYCLE_STATE})
-        --wait-for-state STATE  Wait for target update to reach state (e.g. ACCEPTED)
+    -L, --lifecycle STATE   Lifecycle state filter (default: ${LIFECYCLE_STATE})
+    --wait-for-state STATE  Wait for target update to reach state (e.g. ACCEPTED)
 
   Tag Configuration:
     --namespace NS          Tag namespace (default: ${TAG_NAMESPACE})

@@ -43,9 +43,9 @@ Description:
   Shows script name and purpose/description extracted from script headers.
 
 Options:
-  -h, --help              Show this help message
-  -f, --format FMT        Output format: table|markdown|csv (default: table)
-  -q, --quiet             Suppress header/footer messages
+  -h, --help                Show this help message
+  -f, --format FMT          Output format: table|markdown|csv (default: table)
+  -q, --quiet               Suppress header/footer messages
 
 Examples:
   # Show all tools in table format (default)

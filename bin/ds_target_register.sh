@@ -114,11 +114,11 @@ REQUIRED OPTIONS:
   --sid SID                 Database SID
   -c, --compartment COMP    Target compartment (name or OCID)
   --connector CONN          On-premises connector (name or OCID)
-    -P, --ds-secret VALUE     Data Safe secret (plain or base64)
-    --secret-file FILE        Base64 secret file (optional)
+  -P, --ds-secret VALUE     Data Safe secret (plain or base64)
+  --secret-file FILE        Base64 secret file (optional)
 
 SECRET FILE SUPPORT:
-    - Uses DATASAFE_SECRET_FILE if set
+  - Uses DATASAFE_SECRET_FILE if set
   - Otherwise looks for <ds-user>_pwd.b64 in ORADBA_ETC or $ODB_DATASAFE_BASE/etc
 
 CONNECTION:
@@ -140,15 +140,15 @@ MODES:
 EXAMPLES:
   # Register a PDB
   ds_target_register.sh -H db01 --sid cdb01 --pdb APP1PDB \\
-        -c prod-compartment --connector my-connector --ds-secret <secret>
+  -c prod-compartment --connector my-connector --ds-secret <secret>
   
   # Register CDB\$ROOT
   ds_target_register.sh -H db01 --sid cdb01 --root \\
-        -c prod-compartment --connector my-connector --ds-secret <secret>
+  -c prod-compartment --connector my-connector --ds-secret <secret>
   
   # Check if target exists
   ds_target_register.sh -H db01 --sid cdb01 --pdb APP1PDB \\
-    -c prod-compartment --connector my-connector --check
+  -c prod-compartment --connector my-connector --check
 
 EXIT CODES:
   0 = Success

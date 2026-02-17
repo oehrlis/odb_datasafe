@@ -85,7 +85,7 @@ Options:
 
   Service Update:
     --domain DOMAIN         Domain for new service names (default: ${DB_DOMAIN})
-        --wait-for-state STATE  Wait for target update to reach state (e.g. ACCEPTED)
+    --wait-for-state STATE  Wait for target update to reach state (e.g. ACCEPTED)
     --apply                 Apply changes (default: dry-run only)
     -n, --dry-run           Dry-run mode (show what would be done)
 

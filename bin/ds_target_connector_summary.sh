@@ -90,7 +90,7 @@ Options:
     -f, --format FMT        Output format: table|json|csv (default: table)
     -F, --fields FIELDS     Comma-separated fields for detailed mode
                             (default: ${FIELDS})
-        --show-ocid             Show connector OCIDs (table output)
+    --show-ocid             Show connector OCIDs (table output)
 
 Examples:
   # Show summary of targets by connector (default)

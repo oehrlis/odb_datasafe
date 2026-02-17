@@ -128,83 +128,83 @@ Oracle Data Safe Service Installer
 Version: $SCRIPT_VERSION
 
 Usage:
-    $SCRIPT_NAME [OPTIONS]
+  $SCRIPT_NAME [OPTIONS]
 
 Description:
-    Manage Oracle Data Safe On-Premises Connector as a systemd service.
-    Works in two phases:
-      1. Prepare: Generate config files in connector etc/ directory (as oracle/oradba user)
-      2. Install: Copy configs to system locations (requires root)
+  Manage Oracle Data Safe On-Premises Connector as a systemd service.
+  Works in two phases:
+    1. Prepare: Generate config files in connector etc/ directory (as oracle/oradba user)
+    2. Install: Copy configs to system locations (requires root)
 
 Workflow Options:
-    --prepare                 Generate service configs in connector etc/ (default, no root needed)
-    --install                 Install prepared configs to system (REQUIRES ROOT)
-    --uninstall               Remove service from system (REQUIRES ROOT)
+    --prepare               Generate service configs in connector etc/ (default, no root needed)
+    --install               Install prepared configs to system (REQUIRES ROOT)
+    --uninstall             Remove service from system (REQUIRES ROOT)
     
 Configuration Options:
-    -n, --connector <name>    Connector name (directory name under base path)
-    -b, --base <path>         Connector base directory (default: \$ORACLE_BASE/product)
-    -u, --user <user>         OS user for service (default: $DEFAULT_USER)
-    -g, --group <group>       OS group for service (default: $DEFAULT_GROUP)
-    -j, --java-home <path>    JAVA_HOME path (default: \$ORACLE_BASE/product/jdk)
+    -n, --connector <name>  Connector name (directory name under base path)
+    -b, --base <path>       Connector base directory (default: \$ORACLE_BASE/product)
+    -u, --user <user>       OS user for service (default: $DEFAULT_USER)
+    -g, --group <group>     OS group for service (default: $DEFAULT_GROUP)
+    -j, --java-home <path>  JAVA_HOME path (default: \$ORACLE_BASE/product/jdk)
     
 Query Options:
-    -l, --list                List all available connectors (no root needed)
-    -c, --check               Check if service is installed (no root needed)
+    -l, --list              List all available connectors (no root needed)
+    -c, --check             Check if service is installed (no root needed)
     
 Control Options:
-    -y, --yes                 Non-interactive mode (use defaults/provided values)
-    -d, --dry-run             Show what would be done without making changes
-    -t, --test                Test/demo mode (shows what would happen)
-    -v, --verbose             Verbose output
-    --skip-sudo               Skip sudo configuration generation
-    --no-color                Disable colored output
-    -h, --help                Show this help message
+    -y, --yes               Non-interactive mode (use defaults/provided values)
+    -d, --dry-run           Show what would be done without making changes
+    -t, --test              Test/demo mode (shows what would happen)
+    -v, --verbose           Verbose output
+    --skip-sudo             Skip sudo configuration generation
+    --no-color              Disable colored output
+    -h, --help              Show this help message
 
 Examples:
-    # List available connectors (as oracle user)
-    $SCRIPT_NAME --list
+  # List available connectors (as oracle user)
+  $SCRIPT_NAME --list
 
-    # Prepare service configuration (as oracle user)
-    $SCRIPT_NAME --prepare -n my-connector
-    $SCRIPT_NAME -n my-connector  # same as --prepare
+  # Prepare service configuration (as oracle user)
+  $SCRIPT_NAME --prepare -n my-connector
+  $SCRIPT_NAME -n my-connector  # same as --prepare
 
-    # Install to system (as root, after prepare)
-    sudo $SCRIPT_NAME --install -n my-connector
+  # Install to system (as root, after prepare)
+  sudo $SCRIPT_NAME --install -n my-connector
 
-    # Complete workflow (prepare + install)
-    $SCRIPT_NAME --prepare -n my-connector
-    sudo $SCRIPT_NAME --install -n my-connector
+  # Complete workflow (prepare + install)
+  $SCRIPT_NAME --prepare -n my-connector
+  sudo $SCRIPT_NAME --install -n my-connector
 
-    # Check if service is installed (as oracle user)
-    $SCRIPT_NAME --check -n my-connector
+  # Check if service is installed (as oracle user)
+  $SCRIPT_NAME --check -n my-connector
 
-    # Remove service (as root)
-    sudo $SCRIPT_NAME --uninstall -n my-connector
+  # Remove service (as root)
+  sudo $SCRIPT_NAME --uninstall -n my-connector
 
-    # Interactive preparation (as oracle user)
-    $SCRIPT_NAME
+  # Interactive preparation (as oracle user)
+  $SCRIPT_NAME
 
-    # Custom configuration
-    $SCRIPT_NAME -n my-connector -u oracle -g dba -j /opt/java/jdk
+  # Custom configuration
+  $SCRIPT_NAME -n my-connector -u oracle -g dba -j /opt/java/jdk
 
-    # Dry-run install (as root)
-    sudo $SCRIPT_NAME --install -n my-connector --dry-run
+  # Dry-run install (as root)
+  sudo $SCRIPT_NAME --install -n my-connector --dry-run
 
 Environment Variables:
-    ORACLE_BASE               Oracle base directory (default: /u01/app/oracle)
-    CONNECTOR_BASE            Override default connector base path
-    OS_USER                   Override default OS user
-    OS_GROUP                  Override default OS group
-    JAVA_HOME                 Override default Java home
+  ORACLE_BASE               Oracle base directory (default: /u01/app/oracle)
+  CONNECTOR_BASE            Override default connector base path
+  OS_USER                   Override default OS user
+  OS_GROUP                  Override default OS group
+  JAVA_HOME                 Override default Java home
 
 Notes:
-    - REQUIRES ROOT: --install, --uninstall
-    - NO ROOT NEEDED: --prepare, --list, --check, default behavior
-    - Default search path: \$ORACLE_BASE/product/<connector-name>/
-    - Config files stored in: \$CONNECTOR_HOME/etc/systemd/
-    - Each connector gets a unique service: oracle_datasafe_<connector-name>.service
-    - Auto-detects CMAN instance name from cman.ora
+  - REQUIRES ROOT: --install, --uninstall
+  - NO ROOT NEEDED: --prepare, --list, --check, default behavior
+  - Default search path: \$ORACLE_BASE/product/<connector-name>/
+  - Config files stored in: \$CONNECTOR_HOME/etc/systemd/
+  - Each connector gets a unique service: oracle_datasafe_<connector-name>.service
+  - Auto-detects CMAN instance name from cman.ora
 
 EOF
     exit 0

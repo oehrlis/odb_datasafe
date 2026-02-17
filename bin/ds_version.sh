@@ -50,9 +50,9 @@ Usage: ${SCRIPT_NAME} [OPTIONS]
 Show odb_datasafe extension version, metadata, and integrity details.
 
 Options:
-  -h, --help                Show this help
-  -V, --version             Show script version
-  -c, --changes-only        Show only checksum change summary
+    -h, --help              Show this help
+    -V, --version           Show script version
+    -c, --changes-only      Show only checksum change summary
 EOF
 }
 

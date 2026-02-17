@@ -101,12 +101,12 @@ Options:
 
   Credentials:
     -U, --ds-user USER      Data Safe database user (default: DS_ADMIN)
-                -P, --ds-secret VALUE   Data Safe secret (plain or base64)
-                --secret-file FILE      Base64 secret file (optional)
+    -P, --ds-secret VALUE   Data Safe secret (plain or base64)
+    --secret-file FILE      Base64 secret file (optional)
     --root                  Root normalization hint (common user with ${COMMON_USER_PREFIX})
 
 Credential Sources (in order of precedence):
-        1. Command-line options (-P/--ds-secret, --secret-file)
+    1. Command-line options (-P/--ds-secret, --secret-file)
     2. Environment variables (DS_SECRET/DATASAFE_SECRET)
     3. Secret file (<user>_pwd.b64 in ORADBA_ETC or $ODB_DATASAFE_BASE/etc)
     4. Interactive prompt

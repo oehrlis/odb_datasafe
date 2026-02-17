@@ -83,32 +83,32 @@ Move Data Safe targets and their referencing objects to another compartment.
 Either provide explicit targets (-T) or scan a compartment (-c).
 
 Target selection (choose one):
-    -T, --targets <LIST>            Comma-separated target names or OCIDs
-    (or) use lifecycle-state filtering:
+    -T, --targets <LIST>                Comma-separated target names or OCIDs
+                                        (or) use lifecycle-state filtering:
     -s, --lifecycle <LIST>              Comma-separated states (default: ${STATE_FILTERS})
 
 Scope:
-    -c, --compartment <OCID|NAME>   Source compartment OCID or name (env: COMPARTMENT/COMP_OCID)
-    -D, --dest-compartment <OCID|NAME> Destination compartment OCID or name (required)
+    -c, --compartment <OCID|NAME>       Source compartment OCID or name (env: COMPARTMENT/COMP_OCID)
+    -D, --dest-compartment <OCID|NAME>  Destination compartment OCID or name (required)
 
 Move options:
-            --move-dependencies         Move audit trails, assessments, policies (default: true)
-            --no-move-dependencies      Skip moving dependencies
-    -f, --force                     Skip confirmation prompts
-            --continue-on-error         Continue with other targets if one fails (default: true)
-            --stop-on-error             Stop processing on first failure
+    --move-dependencies                 Move audit trails, assessments, policies (default: true)
+    --no-move-dependencies              Skip moving dependencies
+    -f, --force                         Skip confirmation prompts
+    --continue-on-error                 Continue with other targets if one fails (default: true)
+    --stop-on-error                     Stop processing on first failure
 
 OCI CLI:
-            --oci-config <file>         OCI CLI config file (default: ${OCI_CLI_CONFIG_FILE})
-            --oci-profile <name>        OCI CLI profile     (default: ${OCI_CLI_PROFILE})
+    --oci-config <file>                 OCI CLI config file (default: ${OCI_CLI_CONFIG_FILE})
+    --oci-profile <name>                OCI CLI profile     (default: ${OCI_CLI_PROFILE})
 
 Logging / generic:
-    -n, --dry-run                   Show what would be moved without making changes
-    -l, --log-file <file>           Write logs to <file>
-    -v, --verbose                   Set log level to INFO
-    -d, --debug                     Set log level to DEBUG
-    -q, --quiet                     Suppress INFO/DEBUG/TRACE stdout
-    -h, --help                      Show this help and exit
+    -n, --dry-run                       Show what would be moved without making changes
+    -l, --log-file <file>               Write logs to <file>
+    -v, --verbose                       Set log level to INFO
+    -d, --debug                         Set log level to DEBUG
+    -q, --quiet                         Suppress INFO/DEBUG/TRACE stdout
+    -h, --help                          Show this help and exit
 
 Examples:
     ${SCRIPT_NAME} -T exa118r05c15_cdb09a15_HRPDB -D cmp-prod-datasafe --dry-run
