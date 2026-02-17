@@ -780,7 +780,7 @@ import getpass
 setup_path = sys.argv[1]
 bundle_key = os.environ.get("BUNDLE_KEY_INPUT", "")
 
-def _bundle_key_prompt(_prompt='Enter install bundle key:', stream=None):
+def _bundle_key_prompt(prompt='Enter install bundle key:', stream=None):
     return bundle_key
 
 getpass.getpass = _bundle_key_prompt
