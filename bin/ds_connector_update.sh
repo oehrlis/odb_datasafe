@@ -114,8 +114,8 @@ Options:
 
   Connector Options:
     --force-new-password    Generate new password (ignore existing)
-        --check-only            Run version check only and exit
-        --check-all             Check all datasafe connectors in oradba_homes.conf
+    --check-only            Run version check only and exit
+    --check-all             Check all datasafe connectors in oradba_homes.conf
 
   Bundle Options:
     --skip-download         Skip download (use existing bundle file)
@@ -137,11 +137,11 @@ Examples:
   # Dry-run to see what would be done
   ${SCRIPT_NAME} --datasafe-home dscon4 --dry-run
 
-    # Check versions only (no update actions)
-    ${SCRIPT_NAME} --datasafe-home dscon4 --check-only
+  # Check versions only (no update actions)
+  ${SCRIPT_NAME} --datasafe-home dscon4 --check-only
 
-    # Check all registered datasafe connectors from OraDBA config
-    ${SCRIPT_NAME} --check-all
+  # Check all registered datasafe connectors from OraDBA config
+  ${SCRIPT_NAME} --check-all
 
   # Use existing bundle file (skip download)
   ${SCRIPT_NAME} --connector my-connector --skip-download --bundle-file /tmp/bundle.zip
@@ -384,6 +384,29 @@ validate_inputs() {
         fi
 
         CHECK_ONLY=true
+
+        # Check-all mode has its own execution path and does not require
+        # single-connector parameters like CONNECTOR_NAME/CONNECTOR_HOME.
+        require_oci_cli
+        require_cmd python3
+
+        # Optional compartment resolution for name-based entries in
+        # oradba_homes.conf; if not set, those entries are warned/skipped.
+        if [[ -n "$COMPARTMENT" ]]; then
+            resolve_compartment_to_vars "$COMPARTMENT" "COMP" \
+                || die "Failed to resolve compartment: $COMPARTMENT"
+            log_info "Compartment: ${COMP_NAME} (${COMP_OCID})"
+        elif [[ -n "${DS_ROOT_COMP:-}" ]]; then
+            resolve_compartment_to_vars "$DS_ROOT_COMP" "COMP" \
+                || die "Failed to resolve DS_ROOT_COMP: $DS_ROOT_COMP"
+            log_info "Using DS_ROOT_COMP: ${COMP_NAME} (${COMP_OCID})"
+        elif [[ -n "${DS_CONNECTOR_COMP:-}" ]]; then
+            resolve_compartment_to_vars "$DS_CONNECTOR_COMP" "COMP" \
+                || die "Failed to resolve DS_CONNECTOR_COMP: $DS_CONNECTOR_COMP"
+            log_info "Using DS_CONNECTOR_COMP: ${COMP_NAME} (${COMP_OCID})"
+        fi
+
+        return 0
     fi
 
     # Parameter validation: check for conflicting parameters

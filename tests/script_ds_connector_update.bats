@@ -87,6 +87,12 @@ setup() {
     [[ "$output" == *"Cannot mix --check-all"* ]] || [[ "$output" == *"Conflicting"* ]]
 }
 
+@test "ds_connector_update.sh --check-all does not require CONNECTOR_NAME" {
+    run "${BIN_DIR}/ds_connector_update.sh" --check-all
+    [ "$status" -eq 1 ]
+    [[ "$output" != *"Missing required variables: CONNECTOR_NAME"* ]]
+}
+
 @test "ds_connector_register_oradba.sh exists and is executable" {
     [ -f "${BIN_DIR}/ds_connector_register_oradba.sh" ]
     [ -x "${BIN_DIR}/ds_connector_register_oradba.sh" ]
