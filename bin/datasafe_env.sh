@@ -85,6 +85,7 @@ _ds_env_hook_env="${_ds_env_base_dir}/etc/env.sh"
 _ds_env_hook_aliases="${_ds_env_base_dir}/etc/aliases.sh"
 
 if [ -f "${_ds_env_hook_env}" ]; then
+    # shellcheck disable=SC1090
     . "${_ds_env_hook_env}"
 else
     # Fallback: keep minimal PATH behavior if hook file is absent
@@ -110,6 +111,7 @@ else
 fi
 
 if [ -f "${_ds_env_hook_aliases}" ]; then
+    # shellcheck disable=SC1090
     . "${_ds_env_hook_aliases}"
 else
     # Fallback aliases when hook file is absent

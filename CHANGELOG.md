@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   when sourced, with fallback behavior if hook files are missing.
 - Hook loading and path resolution in `datasafe_env.sh` / `etc/env.sh` now work
   consistently in both `bash` and `ksh`.
+- Added targeted ShellCheck directives in `bin/datasafe_env.sh` to suppress
+  `SC1090` for intentional dynamic sourcing of optional hook files.
 
 ## [0.11.2] - 2026-02-16
 
