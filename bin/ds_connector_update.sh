@@ -38,16 +38,16 @@ source "${LIB_DIR}/ds_lib.sh"
 # =============================================================================
 
 # Default configuration (can be overridden by config files and CLI)
-: "${COMPARTMENT:=}"             # Compartment name or OCID for connector lookup
-: "${CONNECTOR_NAME:=}"          # Connector name or OCID
-: "${CONNECTOR_HOME:=}"          # Connector installation directory
-: "${DATASAFE_ENV:=}"            # OraDBA environment name (alternative to connector params)
-: "${DRY_RUN:=false}"            # Dry-run mode (set by --dry-run flag)
-: "${SKIP_DOWNLOAD:=false}"      # Skip download step (bundle already downloaded)
-: "${BUNDLE_FILE:=}"             # Path to existing bundle file (if skip-download)
+: "${COMPARTMENT:=}"               # Compartment name or OCID for connector lookup
+: "${CONNECTOR_NAME:=}"            # Connector name or OCID
+: "${CONNECTOR_HOME:=}"            # Connector installation directory
+: "${DATASAFE_ENV:=}"              # OraDBA environment name (alternative to connector params)
+: "${DRY_RUN:=false}"              # Dry-run mode (set by --dry-run flag)
+: "${SKIP_DOWNLOAD:=false}"        # Skip download step (bundle already downloaded)
+: "${BUNDLE_FILE:=}"               # Path to existing bundle file (if skip-download)
 : "${FORCE_NEW_BUNDLE_KEY:=false}" # Force generation of new bundle key
-: "${CHECK_ONLY:=false}"         # Run version check only and exit
-: "${CHECK_ALL:=false}"          # Check all connectors from oradba_homes.conf
+: "${CHECK_ONLY:=false}"           # Run version check only and exit
+: "${CHECK_ALL:=false}"            # Check all connectors from oradba_homes.conf
 
 # Runtime variables (populated during execution)
 COMP_NAME=""           # Resolved compartment name
@@ -771,7 +771,7 @@ run_setup_update() {
     # getpass.getpass(). This avoids tty prompts during automation.
     (
         cd "$CONNECTOR_HOME" || die "Failed to change directory to ${CONNECTOR_HOME}"
-        BUNDLE_KEY_INPUT="$BUNDLE_KEY" python3 - "$setup_py" <<'PY'
+        BUNDLE_KEY_INPUT="$BUNDLE_KEY" python3 - "$setup_py" << 'PY'
 import os
 import runpy
 import sys

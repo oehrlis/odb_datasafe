@@ -603,7 +603,7 @@ is_base64_string() {
     normalized=$(printf '%s' "$input" | tr -d '[:space:]')
     [[ -n "$normalized" ]] || return 1
     [[ "$normalized" =~ ^[A-Za-z0-9+/=]+$ ]] || return 1
-    [[ $(( ${#normalized} % 4 )) -eq 0 ]] || return 1
+    [[ $((${#normalized} % 4)) -eq 0 ]] || return 1
 
     decoded=$(decode_base64_string "$normalized") || return 1
     [[ -n "$decoded" ]] || return 1
