@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-02-17
+
+### Added
+
+- `.extension` now enables OraDBA optional etc hooks with:
+  - `load_env: true`
+  - `load_aliases: true`
+- Added `etc/env.sh` and `etc/aliases.sh` so OraDBA can load Data Safe
+  environment defaults and convenience aliases automatically.
+
 ## [0.11.2] - 2026-02-16
 
 ### Added
