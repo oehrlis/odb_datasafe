@@ -425,10 +425,6 @@ find_pass_file() {
 : "${COMMON_USER_PREFIX:=C##}"
 : "${USER_ACTION:=}"
 
-readonly DS_SECRET_OPT_SHORT="-P"
-readonly DS_SECRET_OPT_LONG="--ds-secret"
-readonly DS_SECRET_FILE_OPT="--secret-file"
-
 TEMP_FILES=()
 
 # =============================================================================
@@ -526,8 +522,8 @@ SQL:
 
 Data Safe:
     -U, --ds-user USER      Data Safe user (default: ${DATASAFE_USER})
-    ${DS_SECRET_OPT_SHORT}, ${DS_SECRET_OPT_LONG} VALUE   Data Safe secret (plain or base64)
-    ${DS_SECRET_FILE_OPT} FILE      Base64 secret file (optional)
+    -P, --ds-secret VALUE   Data Safe secret (plain or base64)
+    --secret-file FILE      Base64 secret file (optional)
     --ds-profile PROFILE    Database profile (default: ${DS_PROFILE})
     --update-secret         Update existing user secret (no drop)
     --force                 Force recreate user if exists
@@ -632,12 +628,12 @@ parse_args() {
                 DATASAFE_USER="$2"
                 shift 2
                 ;;
-            "$DS_SECRET_OPT_SHORT" | "$DS_SECRET_OPT_LONG")
+            -P | --ds-secret)
                 need_val "$1" "${2:-}"
                 DATASAFE_PASS="$2"
                 shift 2
                 ;;
-            "$DS_SECRET_FILE_OPT")
+            --secret-file)
                 need_val "$1" "${2:-}"
                 DATASAFE_PASS_FILE="$2"
                 shift 2
