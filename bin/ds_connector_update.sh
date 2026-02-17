@@ -315,34 +315,34 @@ extract_connector_from_description() {
 lookup_oradba_home() {
     local env_name="$1"
     local config_file="${ORADBA_BASE}/etc/oradba_homes.conf"
-    
+
     if [[ ! -f "$config_file" ]]; then
         log_error "OraDBA config not found: $config_file"
         log_error "Make sure ORADBA_BASE is set correctly"
         return 1
     fi
-    
+
     # Parse config file (format: env_name:path:product:position::description:version)
     local line
     line=$(grep "^${env_name}:" "$config_file" | head -1)
-    
+
     if [[ -z "$line" ]]; then
         log_error "DataSafe environment '${env_name}' not found in ${config_file}"
         return 1
     fi
-    
+
     # Extract fields
     local _env path product _position _reserved desc _version
     IFS=':' read -r _env path product _position _reserved desc _version <<< "$line"
-    
+
     if [[ "$product" != "datasafe" ]]; then
         log_error "Environment '${env_name}' is not a DataSafe connector (product: ${product})"
         return 1
     fi
-    
+
     CONNECTOR_HOME="$path"
     log_debug "Resolved CONNECTOR_HOME from OraDBA: ${CONNECTOR_HOME}"
-    
+
     # Extract connector info from description: (oci=xxx) or (oci=name,ocid)
     if CONNECTOR_NAME=$(extract_connector_from_description "$desc"); then
         log_debug "Extracted connector from description: ${CONNECTOR_NAME}"
@@ -351,7 +351,7 @@ lookup_oradba_home() {
         log_warn "You can add it using: ds_connector_register_oradba.sh --datasafe-home ${env_name} --connector <name>"
         return 1
     fi
-    
+
     return 0
 }
 
@@ -417,14 +417,14 @@ validate_inputs() {
             log_error "Use either --datasafe-home OR (--connector + optional --connector-home)"
             die "Conflicting parameters provided"
         fi
-        
+
         # Check ORADBA_BASE is set
         if [[ -z "${ORADBA_BASE:-}" ]]; then
             log_error "ORADBA_BASE environment variable not set"
             log_error "The --datasafe-home option requires OraDBA to be loaded"
             die "ORADBA_BASE not set"
         fi
-        
+
         # Lookup OraDBA home configuration
         lookup_oradba_home "$DATASAFE_ENV" || die "Failed to lookup OraDBA environment: $DATASAFE_ENV"
         log_info "Using OraDBA environment: ${DATASAFE_ENV}"
@@ -865,7 +865,7 @@ get_local_connector_version() {
     fi
 
     # Alternative: Run setup.py version command
-    version=$(cd "$CONNECTOR_HOME" && python3 setup.py version 2>/dev/null | grep -oP '(?<=version : )[0-9.]+' | head -1)
+    version=$(cd "$CONNECTOR_HOME" && python3 setup.py version 2> /dev/null | grep -oP '(?<=version : )[0-9.]+' | head -1)
 
     if [[ -n "$version" ]]; then
         echo "$version"

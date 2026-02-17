@@ -182,7 +182,7 @@ validate_inputs() {
     line=$(grep "^${DATASAFE_ENV}:" "$config_file" | head -1)
     local env path product
     IFS=':' read -r env path product _ <<< "$line"
-    
+
     if [[ "$product" != "datasafe" ]]; then
         log_error "Environment '${DATASAFE_ENV}' is not a DataSafe connector (product: ${product})"
         die "Invalid product type"
@@ -202,49 +202,49 @@ validate_inputs() {
 register_connector() {
     local config_file="${ORADBA_BASE}/etc/oradba_homes.conf"
     local backup_file="${config_file}.bak"
-    
+
     log_info "Updating oradba_homes.conf..."
-    
+
     # Get current line
     local current_line
     current_line=$(grep "^${DATASAFE_ENV}:" "$config_file" | head -1)
-    
+
     if [[ -z "$current_line" ]]; then
         log_error "Environment ${DATASAFE_ENV} not found (should have been caught in validation)"
         return 1
     fi
-    
+
     # Parse current line
     local env path product position reserved desc version
     IFS=':' read -r env path product position reserved desc version <<< "$current_line"
-    
+
     # Remove existing (oci=...) pattern if present
     desc=$(echo "$desc" | sed -E 's/\(oci=[^)]+\)//g' | sed 's/  */ /g' | sed 's/^ *//;s/ *$//')
-    
+
     # Add new connector metadata
     local new_desc="${desc} (oci=${CONNECTOR_INFO})"
     new_desc=$(echo "$new_desc" | sed 's/^ *//;s/ *$//')
-    
+
     # Build new line
     local new_line="${env}:${path}:${product}:${position}:${reserved}:${new_desc}:${version}"
-    
+
     log_debug "Current line: ${current_line}"
     log_debug "New line:     ${new_line}"
-    
+
     if [[ "$DRY_RUN" == "true" ]]; then
         log_info "[DRY-RUN] Would update line:"
         log_info "[DRY-RUN] FROM: ${current_line}"
         log_info "[DRY-RUN] TO:   ${new_line}"
         return 0
     fi
-    
+
     # Create backup
     if ! cp "$config_file" "$backup_file"; then
         log_error "Failed to create backup: ${backup_file}"
         return 1
     fi
     log_debug "Created backup: ${backup_file}"
-    
+
     # Update file
     if ! sed -i.tmp "s|^${DATASAFE_ENV}:.*|${new_line}|" "$config_file"; then
         log_error "Failed to update configuration file"
@@ -252,11 +252,11 @@ register_connector() {
         return 1
     fi
     rm -f "${config_file}.tmp"
-    
+
     log_info "Successfully updated ${config_file}"
     log_info "Backup created at: ${backup_file}"
     log_info "Registered connector metadata: (oci=${CONNECTOR_INFO})"
-    
+
     return 0
 }
 
@@ -268,13 +268,13 @@ main() {
     # Display banner
     log_info "OraDBA Data Safe Connector Registration (v${SCRIPT_VERSION})"
     log_info "================================================================"
-    
+
     # Parse arguments
     parse_args "$@"
-    
+
     # Validate inputs
     validate_inputs
-    
+
     # Register connector
     if register_connector; then
         log_info ""
