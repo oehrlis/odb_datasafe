@@ -4,8 +4,8 @@
 # ------------------------------------------------------------------------------
 # Script.....: ds_connector_update.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.02.11
-# Version....: v0.11.2
+# Date.......: 2026.02.17
+# Version....: v0.12.1
 # Purpose....: Automate Oracle Data Safe On-Premises Connector updates
 # Usage......: ds_connector_update.sh [OPTIONS]
 # License....: Apache License Version 2.0
@@ -593,14 +593,46 @@ check_all_connectors() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: is_valid_bundle_password
+# Purpose.: Validate bundle password against OCI requirements
+# Args....: $1 - Password candidate
+# Returns.: 0 if valid, 1 if invalid
+# Output..: None
+# Notes...: OCI requires 12-30 chars with at least one uppercase, lowercase,
+#           numeric, and special character.
+# ------------------------------------------------------------------------------
+is_valid_bundle_password() {
+    local password="$1"
+
+    [[ ${#password} -ge 12 ]] || return 1
+    [[ ${#password} -le 30 ]] || return 1
+    [[ "$password" =~ [[:upper:]] ]] || return 1
+    [[ "$password" =~ [[:lower:]] ]] || return 1
+    [[ "$password" =~ [[:digit:]] ]] || return 1
+    [[ "$password" =~ [^[:alnum:]] ]] || return 1
+
+    return 0
+}
+
+# ------------------------------------------------------------------------------
 # Function: generate_password
 # Purpose.: Generate a random password for the bundle
 # Returns.: Password on stdout
-# Output..: Random 20-character password
+# Output..: Random OCI-compliant password
 # ------------------------------------------------------------------------------
 generate_password() {
-    # Generate a secure random password (20 characters, alphanumeric)
-    openssl rand -base64 15 | tr -dc 'A-Za-z0-9' | head -c 20
+    # Generate a secure random password (20 chars) and ensure OCI complexity.
+    # Allowed special chars are intentionally shell-safe.
+    local candidate
+    local special_set='!@#%^*_+=:,.?-'
+
+    while true; do
+        candidate="$(openssl rand -base64 64 | tr -dc "A-Za-z0-9${special_set}" | head -c 20)"
+        if is_valid_bundle_password "$candidate"; then
+            echo "$candidate"
+            return 0
+        fi
+    done
 }
 
 # ------------------------------------------------------------------------------
@@ -619,15 +651,22 @@ get_or_create_password() {
     if [[ -f "$pwd_file" && "$FORCE_NEW_PASSWORD" != "true" ]]; then
         log_info "Found existing password file: ${pwd_file}"
 
+        local decoded_ok=false
+
         # Decode password from base64
         if BUNDLE_PASSWORD=$(base64 -d < "$pwd_file" 2> /dev/null); then
-            if [[ -n "$BUNDLE_PASSWORD" ]]; then
+            decoded_ok=true
+            if [[ -n "$BUNDLE_PASSWORD" ]] && is_valid_bundle_password "$BUNDLE_PASSWORD"; then
                 log_info "Reusing existing bundle password"
                 return 0
             fi
+
+            log_warn "Existing password does not meet OCI complexity requirements, generating new password"
         fi
 
-        log_warn "Failed to decode existing password file, generating new password"
+        if [[ "$decoded_ok" != "true" ]]; then
+            log_warn "Failed to decode existing password file, generating new password"
+        fi
     fi
 
     # Generate new password
@@ -636,6 +675,10 @@ get_or_create_password() {
 
     if [[ -z "$BUNDLE_PASSWORD" ]]; then
         die "Failed to generate password"
+    fi
+
+    if ! is_valid_bundle_password "$BUNDLE_PASSWORD"; then
+        die "Generated password does not meet OCI complexity requirements"
     fi
 
     # Save password as base64

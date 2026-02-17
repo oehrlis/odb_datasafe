@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-02-17
+
+### Fixed
+
+- `bin/ds_connector_update.sh --check-all` now uses dedicated batch validation
+  and no longer fails with `Missing required variables: CONNECTOR_NAME`.
+- `bin/ds_connector_update.sh` now generates OCI-compliant connector bundle
+  passwords (12-30 chars with upper/lower/digit/special) and regenerates
+  stored passwords that do not meet OCI complexity requirements.
+
 ## [0.12.0] - 2026-02-17
 
 ### Added
@@ -26,8 +36,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   consistently in both `bash` and `ksh`.
 - Added targeted ShellCheck directives in `bin/datasafe_env.sh` to suppress
   `SC1090` for intentional dynamic sourcing of optional hook files.
-- `bin/ds_connector_update.sh --check-all` now uses dedicated validation flow
-  and no longer fails with `Missing required variables: CONNECTOR_NAME`.
 
 ## [0.11.2] - 2026-02-16
 
