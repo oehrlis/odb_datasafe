@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   matching current OCI CLI behavior.
 - Simplified update flow by removing the redundant second download step and
   associated work-request polling in `download_bundle`.
+- `run_setup_update` now executes `setup.py update` non-interactively by
+  injecting the bundle key into Python `getpass.getpass`, so updates no longer
+  pause for a manual `Enter install bundle password` prompt.
 
 ## [0.12.1] - 2026-02-17
 

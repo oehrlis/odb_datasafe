@@ -767,10 +767,26 @@ run_setup_update() {
     log_info "Executing: python3 setup.py update"
     log_info "Working directory: ${CONNECTOR_HOME}"
 
-    # Run setup.py and provide bundle key when prompted
+    # Run setup.py in non-interactive mode by injecting bundle key into
+    # getpass.getpass(). This avoids tty prompts during automation.
     (
         cd "$CONNECTOR_HOME" || die "Failed to change directory to ${CONNECTOR_HOME}"
-        echo "$BUNDLE_KEY" | python3 "$setup_py" update
+        BUNDLE_KEY_INPUT="$BUNDLE_KEY" python3 - "$setup_py" <<'PY'
+import os
+import runpy
+import sys
+import getpass
+
+setup_path = sys.argv[1]
+bundle_key = os.environ.get("BUNDLE_KEY_INPUT", "")
+
+def _bundle_key_prompt(_prompt='Enter install bundle key:', stream=None):
+    return bundle_key
+
+getpass.getpass = _bundle_key_prompt
+sys.argv = [setup_path, 'update']
+runpy.run_path(setup_path, run_name='__main__')
+PY
     )
 
     local exit_code=$?
