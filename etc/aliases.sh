@@ -15,3 +15,5 @@
 alias dshelp='odb_datasafe_help.sh'
 alias dsversion='ds_version.sh'
 alias dsconcheck='ds_connector_update.sh --check-all'
+alias ds='cd "${DATASAFE_BASE}"'
+alias cdds='cd "${DATASAFE_BASE}"'

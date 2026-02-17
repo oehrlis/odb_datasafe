@@ -75,46 +75,54 @@ if [ "${_ds_env_is_sourced}" -ne 1 ]; then
     exit 1
 fi
 
-# Export base directory for standalone usage
+# Export base directory defaults for hooks (can be overridden in env.sh)
+export ODB_DATASAFE_BASE="${ODB_DATASAFE_BASE:-${_ds_env_base_dir}}"
 export DATASAFE_BASE="${DATASAFE_BASE:-${DATASAFE_BASE_DEFAULT}}"
 export DATASAFE_SCRIPT_BIN="${DATASAFE_SCRIPT_BIN:-${DATASAFE_SCRIPT_BIN_DEFAULT}}"
 
-# Ensure DATASAFE_SCRIPT_BIN points to a valid bin directory.
-if [ ! -d "${DATASAFE_SCRIPT_BIN}" ]; then
-    if [ -d "${DATASAFE_BASE}/bin" ]; then
-        DATASAFE_SCRIPT_BIN="${DATASAFE_BASE}/bin"
-    else
-        DATASAFE_SCRIPT_BIN="${DATASAFE_SCRIPT_BIN_DEFAULT}"
+# Load extension hook files when available.
+_ds_env_hook_env="${_ds_env_base_dir}/etc/env.sh"
+_ds_env_hook_aliases="${_ds_env_base_dir}/etc/aliases.sh"
+
+if [ -f "${_ds_env_hook_env}" ]; then
+    . "${_ds_env_hook_env}"
+else
+    # Fallback: keep minimal PATH behavior if hook file is absent
+    if [ ! -d "${DATASAFE_SCRIPT_BIN}" ]; then
+        if [ -d "${DATASAFE_BASE}/bin" ]; then
+            DATASAFE_SCRIPT_BIN="${DATASAFE_BASE}/bin"
+        else
+            DATASAFE_SCRIPT_BIN="${DATASAFE_SCRIPT_BIN_DEFAULT}"
+        fi
+        export DATASAFE_SCRIPT_BIN
     fi
-    export DATASAFE_SCRIPT_BIN
+
+    case ":${PATH}:" in
+        *":${DATASAFE_SCRIPT_BIN}:"*) ;;
+        *)
+            if [ -n "${PATH:-}" ]; then
+                export PATH="${PATH}:${DATASAFE_SCRIPT_BIN}"
+            else
+                export PATH="${DATASAFE_SCRIPT_BIN}"
+            fi
+            ;;
+    esac
 fi
 
-# Add bin directory to PATH once (append at end)
-case ":${PATH}:" in
-    *":${DATASAFE_SCRIPT_BIN}:"*) ;;
-    *)
-        if [ -n "${PATH:-}" ]; then
-            export PATH="${PATH}:${DATASAFE_SCRIPT_BIN}"
-        else
-            export PATH="${DATASAFE_SCRIPT_BIN}"
-        fi
-        ;;
-esac
-
-# ------------------------------------------------------------------------------
-# Aliases
-# ------------------------------------------------------------------------------
-# Customize aliases below to fit personal workflow.
-# ------------------------------------------------------------------------------
-# Convenience aliases
-alias ds='cd "${DATASAFE_BASE}"'
-alias cdds='cd "${DATASAFE_BASE}"'
-alias dshelp='odb_datasafe_help.sh'
-alias dsversion='ds_version.sh'
+if [ -f "${_ds_env_hook_aliases}" ]; then
+    . "${_ds_env_hook_aliases}"
+else
+    # Fallback aliases when hook file is absent
+    alias ds='cd "${DATASAFE_BASE}"'
+    alias cdds='cd "${DATASAFE_BASE}"'
+    alias dshelp='odb_datasafe_help.sh'
+    alias dsversion='ds_version.sh'
+fi
 
 # Cleanup internal variables
 unset _ds_env_script_path _ds_env_script_name _ds_env_script_dir _ds_env_base_dir
 unset _ds_env_script_version _ds_env_is_sourced
 unset _ds_env_resolved_path
+unset _ds_env_hook_env _ds_env_hook_aliases
 
 # EOF --------------------------------------------------------------------------

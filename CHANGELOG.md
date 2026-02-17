@@ -18,6 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `etc/env.sh` and `etc/aliases.sh` so OraDBA can load Data Safe
   environment defaults and convenience aliases automatically.
 
+### Fixed
+
+- `bin/datasafe_env.sh` now loads and applies `etc/env.sh` and `etc/aliases.sh`
+  when sourced, with fallback behavior if hook files are missing.
+- Hook loading and path resolution in `datasafe_env.sh` / `etc/env.sh` now work
+  consistently in both `bash` and `ksh`.
+
 ## [0.11.2] - 2026-02-16
 
 ### Added
