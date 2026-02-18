@@ -307,10 +307,8 @@ validate_inputs() {
         FIELDS="display-name,lifecycle-details"
     fi
 
-    if [[ -n "$TARGET_FILTER" ]]; then
-        if ! jq -n --arg re "$TARGET_FILTER" '"probe" | test($re)' > /dev/null 2>&1; then
-            die "Invalid filter regex: $TARGET_FILTER"
-        fi
+    if ! ds_validate_target_filter_regex "$TARGET_FILTER"; then
+        die "Invalid filter regex: $TARGET_FILTER"
     fi
 }
 
@@ -638,68 +636,19 @@ show_problems_grouped() {
 do_work() {
     local json_data
 
-    # Collect target data
     if [[ -n "$TARGETS" ]]; then
-        # Get details for specific targets
         log_info "Fetching details for specific targets..."
-
-        local -a target_list target_ocids
-        IFS=',' read -ra target_list <<< "$TARGETS"
-
-        # Resolve target names to OCIDs
-        for target in "${target_list[@]}"; do
-            target="${target// /}" # trim spaces
-
-            if is_ocid "$target"; then
-                target_ocids+=("$target")
-            else
-                log_debug "Resolving target name: $target"
-                local resolved
-                resolved=$(ds_resolve_target_ocid "$target" "$COMPARTMENT") || die "Failed to resolve target: $target"
-
-                if [[ -z "$resolved" ]]; then
-                    die "Target not found: $target"
-                fi
-
-                target_ocids+=("$resolved")
-            fi
-        done
-
-        # Fetch details for each target and combine into array
-        local -a target_details
-        for target_ocid in "${target_ocids[@]}"; do
-            local details
-            details=$(get_target_details "$target_ocid") || {
-                log_warn "Failed to get details for: $target_ocid"
-                continue
-            }
-            target_details+=("$details")
-        done
-
-        # Combine into JSON structure
-        json_data="{\"data\":["
-        local first=true
-        for detail in "${target_details[@]}"; do
-            [[ "$first" == "true" ]] && first=false || json_data+=","
-            json_data+="$detail"
-        done
-        json_data+="]}"
-
     else
-        # List targets from compartment hierarchy
-        local comp_name
-        comp_name=$(oci_get_compartment_name "$COMPARTMENT") || comp_name="$COMPARTMENT"
-        log_info "Listing targets in compartment: $comp_name (includes sub-compartments)"
-        json_data=$(list_targets_in_compartment "$COMPARTMENT") || die "Failed to list targets"
+        log_info "Listing targets in compartment hierarchy"
     fi
 
-    json_data=$(apply_target_filter "$json_data") || die "Failed to apply target filter"
+    json_data=$(ds_collect_targets "$COMPARTMENT" "$TARGETS" "$LIFECYCLE_STATE" "$TARGET_FILTER") || die "Failed to collect targets"
 
     if [[ -n "$TARGET_FILTER" ]]; then
         local filtered_count
         filtered_count=$(echo "$json_data" | jq '.data | length')
         if [[ "$filtered_count" -eq 0 ]]; then
-            die "No targets matched filter regex: $TARGET_FILTER" 1
+            log_info "No targets matched filter regex: $TARGET_FILTER"
         fi
     fi
 

@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `bin/ds_target_update_credentials.sh`
   - `bin/ds_target_update_connector.sh`
   - `bin/ds_target_update_tags.sh`
+- Added shared target collection/filter helpers in `lib/oci_helpers.sh`:
+  - `ds_validate_target_filter_regex`
+  - `ds_filter_targets_json`
+  - `ds_collect_targets`
 
 ### Changed
 
@@ -25,6 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Exits with code `1` when no targets match the provided filter.
 - `bin/ds_database_prereqs.sh` startup info now includes current `ORACLE_SID`
   (or `unset`) to make local execution context clearer.
+- Phase 1 target-flow consolidation:
+  - `bin/ds_target_refresh.sh` and `bin/ds_target_list.sh` now use
+    `ds_collect_targets` for unified target discovery/resolution/filtering.
+  - `bin/ds_target_list.sh` now logs an informational message (no hard error)
+    when `-r/--filter` matches no targets.
 
 ### Documentation
 

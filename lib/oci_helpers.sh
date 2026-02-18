@@ -500,6 +500,109 @@ ds_list_targets() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: ds_validate_target_filter_regex
+# Purpose.: Validate target-name regex syntax for jq test()
+# Args....: $1 - Regex string
+# Returns.: 0 if valid (or empty), 1 if invalid
+# Output..: None
+# ------------------------------------------------------------------------------
+ds_validate_target_filter_regex() {
+    local target_filter="${1:-}"
+
+    if [[ -z "$target_filter" ]]; then
+        return 0
+    fi
+
+    jq -n --arg re "$target_filter" '"probe" | test($re)' > /dev/null 2>&1
+}
+
+# ------------------------------------------------------------------------------
+# Function: ds_filter_targets_json
+# Purpose.: Filter target list JSON by display-name regex
+# Args....: $1 - Targets JSON object with .data array
+#           $2 - Regex string (optional)
+# Returns.: 0 on success, 1 on jq error
+# Output..: Filtered targets JSON object
+# ------------------------------------------------------------------------------
+ds_filter_targets_json() {
+    local targets_json="$1"
+    local target_filter="${2:-}"
+
+    if [[ -z "$target_filter" ]]; then
+        printf '%s' "$targets_json"
+        return 0
+    fi
+
+    printf '%s' "$targets_json" | jq --arg re "$target_filter" '.data = (.data | map(select((."display-name" // "") | test($re))))'
+}
+
+# ------------------------------------------------------------------------------
+# Function: ds_collect_targets
+# Purpose.: Collect targets via explicit list or compartment+lifecycle filters
+# Args....: $1 - Compartment OCID/name (optional)
+#           $2 - Comma-separated targets (names or OCIDs, optional)
+#           $3 - Lifecycle filter (optional)
+#           $4 - Target name regex filter (optional)
+# Returns.: 0 on success, 1 on error
+# Output..: JSON object with .data array of target objects
+# Notes...: Explicit target mode resolves names to OCIDs and fetches full target
+#           objects; compartment mode uses ds_list_targets.
+# ------------------------------------------------------------------------------
+ds_collect_targets() {
+    local compartment_input="${1:-}"
+    local targets_input="${2:-}"
+    local lifecycle_input="${3:-}"
+    local target_filter="${4:-}"
+    local targets_json=""
+
+    if ! ds_validate_target_filter_regex "$target_filter"; then
+        log_error "Invalid filter regex: $target_filter"
+        return 1
+    fi
+
+    if [[ -n "$targets_input" ]]; then
+        local -a target_list=()
+        local -a target_objects=()
+        local target=""
+        local target_ocid=""
+        local target_data=""
+        local lookup_compartment=""
+
+        IFS=',' read -ra target_list <<< "$targets_input"
+
+        for target in "${target_list[@]}"; do
+            target="${target#"${target%%[![:space:]]*}"}"
+            target="${target%"${target##*[![:space:]]}"}"
+            [[ -z "$target" ]] && continue
+
+            if is_ocid "$target"; then
+                target_ocid="$target"
+            else
+                if [[ -z "$lookup_compartment" ]]; then
+                    lookup_compartment=$(resolve_compartment_for_operation "$compartment_input") || return 1
+                fi
+                target_ocid=$(ds_resolve_target_ocid "$target" "$lookup_compartment") || return 1
+            fi
+
+            target_data=$(ds_get_target "$target_ocid" | jq -c '.data') || return 1
+            target_objects+=("$target_data")
+        done
+
+        if [[ ${#target_objects[@]} -eq 0 ]]; then
+            targets_json='{"data":[]}'
+        else
+            targets_json=$(printf '%s\n' "${target_objects[@]}" | jq -s '{data: .}') || return 1
+        fi
+    else
+        local resolved_compartment=""
+        resolved_compartment=$(resolve_compartment_for_operation "$compartment_input") || return 1
+        targets_json=$(ds_list_targets "$resolved_compartment" "$lifecycle_input") || return 1
+    fi
+
+    ds_filter_targets_json "$targets_json" "$target_filter"
+}
+
+# ------------------------------------------------------------------------------
 # Function: ds_get_target
 # Purpose.: Get details for a single Data Safe target
 # Args....: $1 - Target OCID

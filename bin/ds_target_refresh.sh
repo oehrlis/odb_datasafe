@@ -205,28 +205,9 @@ validate_inputs() {
         log_info "No compartment specified, using DS_ROOT_COMP: $COMPARTMENT"
     fi
 
-    if [[ -n "$TARGET_FILTER" ]]; then
-        if ! jq -n --arg re "$TARGET_FILTER" '"probe" | test($re)' > /dev/null 2>&1; then
-            die "Invalid filter regex: $TARGET_FILTER"
-        fi
+    if ! ds_validate_target_filter_regex "$TARGET_FILTER"; then
+        die "Invalid filter regex: $TARGET_FILTER"
     fi
-}
-
-# ------------------------------------------------------------------------------
-# Function: target_name_matches_filter
-# Purpose.: Check whether a target name matches configured regex filter
-# Args....: $1 - Target display name
-# Returns.: 0 if match or no filter, 1 otherwise
-# Output..: None
-# ------------------------------------------------------------------------------
-target_name_matches_filter() {
-    local target_name="$1"
-
-    if [[ -z "$TARGET_FILTER" ]]; then
-        return 0
-    fi
-
-    jq -n --arg n "$target_name" --arg re "$TARGET_FILTER" '$n | test($re)' > /dev/null 2>&1
 }
 
 # ------------------------------------------------------------------------------
@@ -279,77 +260,22 @@ refresh_single_target() {
 do_work() {
     local -a target_ocids=()
 
-    # Collect target OCIDs
-    if [[ -n "$TARGETS" ]]; then
-        # Process explicit targets
-        IFS=',' read -ra target_list <<< "$TARGETS"
-        for target in "${target_list[@]}"; do
-            target="${target// /}" # trim spaces
+    log_info "Discovering targets (lifecycle: $LIFECYCLE_STATE)"
+    local targets_json
+    targets_json=$(ds_collect_targets "$COMPARTMENT" "$TARGETS" "$LIFECYCLE_STATE" "$TARGET_FILTER") || die "Failed to collect targets"
 
-            if is_ocid "$target"; then
-                if [[ -n "$TARGET_FILTER" ]]; then
-                    local resolved_name=""
-                    resolved_name=$(ds_resolve_target_name "$target" 2> /dev/null || echo "")
-                    if [[ -z "$resolved_name" ]] || ! target_name_matches_filter "$resolved_name"; then
-                        log_debug "Skipping target (filter mismatch): $target"
-                        continue
-                    fi
-                fi
-                target_ocids+=("$target")
-            else
-                # Resolve name to OCID using resolved compartment
-                log_debug "Resolving target name: $target"
-                local resolved
-                resolved=$(ds_resolve_target_ocid "$target" "$COMPARTMENT") || die "Failed to resolve target: $target"
+    mapfile -t target_ocids < <(echo "$targets_json" | jq -r '.data[].id')
 
-                if [[ -z "$resolved" ]]; then
-                    die "Target not found: $target"
-                fi
-
-                if [[ -n "$TARGET_FILTER" ]]; then
-                    local resolved_name=""
-                    resolved_name=$(ds_resolve_target_name "$resolved" 2> /dev/null || echo "$target")
-                    if ! target_name_matches_filter "$resolved_name"; then
-                        log_debug "Skipping target '$resolved_name' (filter mismatch)"
-                        continue
-                    fi
-                fi
-
-                target_ocids+=("$resolved")
-            fi
-        done
-    elif [[ -n "$COMPARTMENT" ]]; then
-        # List targets from compartment
-        log_info "Discovering targets in compartment: $COMPARTMENT (lifecycle: $LIFECYCLE_STATE)"
-
-        local comp_ocid
-        comp_ocid=$(oci_resolve_compartment_ocid "$COMPARTMENT")
-
-        local targets_json
-        targets_json=$(ds_list_targets "$comp_ocid" "$LIFECYCLE_STATE")
-
+    local count=${#target_ocids[@]}
+    if [[ $count -eq 0 ]]; then
         if [[ -n "$TARGET_FILTER" ]]; then
-            targets_json=$(echo "$targets_json" | jq --arg re "$TARGET_FILTER" '.data = (.data | map(select((."display-name" // "") | test($re))))')
+            die "No targets matched filter regex: $TARGET_FILTER" 1
         fi
-
-        # Extract OCIDs
-        mapfile -t target_ocids < <(echo "$targets_json" | jq -r '.data[].id')
-
-        local count=${#target_ocids[@]}
-        if [[ $count -eq 0 ]]; then
-            if [[ -n "$TARGET_FILTER" ]]; then
-                die "No targets matched filter regex: $TARGET_FILTER" 1
-            fi
-            log_warn "No targets found matching criteria"
-            return 0
-        fi
-
-        log_info "Found $count targets to refresh"
+        log_warn "No targets found matching criteria"
+        return 0
     fi
 
-    if [[ ${#target_ocids[@]} -eq 0 && -n "$TARGET_FILTER" ]]; then
-        die "No targets matched filter regex: $TARGET_FILTER" 1
-    fi
+    log_info "Found $count targets to refresh"
 
     # Refresh each target
     local total=${#target_ocids[@]}
