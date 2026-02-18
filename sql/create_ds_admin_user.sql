@@ -72,6 +72,8 @@ DECLARE
 
     password_reuse EXCEPTION;
     PRAGMA EXCEPTION_INIT(password_reuse, -28007);
+    user_connected EXCEPTION;
+    PRAGMA EXCEPTION_INIT(user_connected, -1940);
 
     -- Local types and variables
     l_username   dba_users.username%TYPE    := '&ds_user';
@@ -95,16 +97,26 @@ BEGIN
         -- Drop user if exists and force=true
         IF l_force = 'TRUE' THEN
             sys.dbms_output.put_line('Recreate user ' || l_username || ' as force is TRUE....');
-            -- drop user
-            l_sql := 'DROP USER ' || l_username || ' CASCADE';
-            EXECUTE IMMEDIATE l_sql;
-            sys.dbms_output.put_line('User ' || l_username || ' dropped.');
-            -- create user
-            l_sql := 'CREATE USER ' || l_username ||
-                ' IDENTIFIED BY "' || l_passwd || '"' ||
-                ' PROFILE ' || l_profile;
-            EXECUTE IMMEDIATE l_sql;
-            sys.dbms_output.put_line('User ' || l_username || ' created with profile ' || l_profile);
+            BEGIN
+                -- drop user
+                l_sql := 'DROP USER ' || l_username || ' CASCADE';
+                EXECUTE IMMEDIATE l_sql;
+                sys.dbms_output.put_line('User ' || l_username || ' dropped.');
+                -- create user
+                l_sql := 'CREATE USER ' || l_username ||
+                    ' IDENTIFIED BY "' || l_passwd || '"' ||
+                    ' PROFILE ' || l_profile;
+                EXECUTE IMMEDIATE l_sql;
+                sys.dbms_output.put_line('User ' || l_username || ' created with profile ' || l_profile);
+            EXCEPTION
+                WHEN user_connected THEN
+                    sys.dbms_output.put_line('WARNING: FORCE drop failed because user is connected (ORA-01940). Falling back to ALTER USER.');
+                    l_sql := 'ALTER USER ' || l_username ||
+                        ' IDENTIFIED BY "' || l_passwd || '"' ||
+                        ' PROFILE ' || l_profile;
+                    EXECUTE IMMEDIATE l_sql;
+                    sys.dbms_output.put_line('User ' || l_username || ' altered with profile ' || l_profile);
+            END;
         ELSE
             IF l_update_secret = 'TRUE' THEN
                 sys.dbms_output.put_line('User ' || l_username || ' already exists. Updating secret and profile.');

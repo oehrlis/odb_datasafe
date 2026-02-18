@@ -16,6 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed legacy option-alias compatibility handling from the same target
   scripts.
 
+### Fixed
+
+- `sql/create_ds_admin_user.sql` now catches ORA-01940 when `--force`/`FORCE=TRUE`
+  attempts to drop a currently connected user and falls back to `ALTER USER`
+  (secret + profile update) instead of failing.
+
 ## [0.13.0] - 2026-02-17
 
 ### Changed
