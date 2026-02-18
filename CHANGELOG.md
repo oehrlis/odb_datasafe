@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.3] - 2026-02-18
+
+### Changed
+
+- `bin/ds_target_connect_details.sh` now prints ready-to-use `sqlplus`
+  connect strings immediately after `Cluster Nodes` when node hostnames are
+  available, showing one entry per node.
+
 ## [0.13.2] - 2026-02-18
 
 ### Changed

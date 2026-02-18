@@ -387,10 +387,25 @@ display_connection_details() {
 
         # Display cluster node names only
         local node_count node_names
+        local -a sqlplus_hosts=()
+        local sqlplus_connect
         node_count=$(echo "$cluster_nodes" | jq 'length')
         if [[ "$node_count" -gt 0 ]]; then
             node_names=$(echo "$cluster_nodes" | jq -r '[.[] | (.hostname // .id)] | join(", ")')
             printf '%-25s : %s\n' "Cluster Nodes" "$node_names"
+
+            mapfile -t sqlplus_hosts < <(echo "$cluster_nodes" | jq -r '.[] | (.hostname // .id) | select(. != null and . != "")')
+            if [[ ${#sqlplus_hosts[@]} -gt 0 ]]; then
+                sqlplus_connect="${target_username}@${sqlplus_hosts[0]}:${db_listener_port}/${db_service_name}"
+                printf '%-25s : %s\n' "sqlplus" "$sqlplus_connect"
+
+                local idx
+                for idx in "${!sqlplus_hosts[@]}"; do
+                    [[ "$idx" -eq 0 ]] && continue
+                    sqlplus_connect="${target_username}@${sqlplus_hosts[$idx]}:${db_listener_port}/${db_service_name}"
+                    printf '%-25s   %s\n' "" "$sqlplus_connect"
+                done
+            fi
         fi
 
         printf '%-25s : %s\n' "Freeform Tags" "$(echo "$freeform_tags" | jq -c '.')"
