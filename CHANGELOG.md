@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added `-r/--filter <regex>` target-name filtering to:
+  - `bin/ds_target_refresh.sh`
+  - `bin/ds_target_list.sh`
+  - `bin/ds_target_update_credentials.sh`
+  - `bin/ds_target_update_connector.sh`
+  - `bin/ds_target_update_tags.sh`
+
+### Changed
+
+- Regex filter behavior is consistent across the scripts above:
+  - Matches against target display names using regex substring semantics.
+  - Intersects with `-T/--targets` when both are specified.
+  - Exits with code `1` when no targets match the provided filter.
+
 ## [0.13.4] - 2026-02-18
 
 ### Added

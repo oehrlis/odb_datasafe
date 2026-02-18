@@ -31,6 +31,7 @@ readonly SCRIPT_VERSION
 # Defaults
 : "${COMPARTMENT:=}"
 : "${TARGETS:=}"
+: "${TARGET_FILTER:=}"
 : "${APPLY_CHANGES:=false}"
 : "${LIFECYCLE_STATE:=ACTIVE}"
 : "${WAIT_FOR_STATE:=}"
@@ -85,6 +86,7 @@ Options:
     -c, --compartment ID    Compartment OCID or name (default: DS_ROOT_COMP)
                             Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
     -T, --targets LIST      Comma-separated target names or OCIDs
+        -r, --filter REGEX      Filter target names by regex (substring match)
 
   Execution:
     --apply                 Apply changes (default: dry-run only)
@@ -142,6 +144,11 @@ parse_args() {
             -T | --targets)
                 need_val "$1" "${2:-}"
                 TARGETS="$2"
+                shift 2
+                ;;
+            -r | --filter)
+                need_val "$1" "${2:-}"
+                TARGET_FILTER="$2"
                 shift 2
                 ;;
             --apply)
@@ -243,6 +250,29 @@ validate_inputs() {
     COMPARTMENT_OCID=$(resolve_compartment_for_operation "$COMPARTMENT") || die "Failed to resolve compartment"
     COMPARTMENT_NAME=$(oci_get_compartment_name "$COMPARTMENT_OCID" 2> /dev/null) || COMPARTMENT_NAME="$COMPARTMENT_OCID"
     log_info "Using compartment: $COMPARTMENT_NAME ($COMPARTMENT_OCID)"
+
+    if [[ -n "$TARGET_FILTER" ]]; then
+        if ! jq -n --arg re "$TARGET_FILTER" '"probe" | test($re)' > /dev/null 2>&1; then
+            die "Invalid filter regex: $TARGET_FILTER"
+        fi
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# Function: target_name_matches_filter
+# Purpose.: Check whether a target name matches configured regex filter
+# Args....: $1 - Target display name
+# Returns.: 0 if match or no filter, 1 otherwise
+# Output..: None
+# ------------------------------------------------------------------------------
+target_name_matches_filter() {
+    local target_name="$1"
+
+    if [[ -z "$TARGET_FILTER" ]]; then
+        return 0
+    fi
+
+    jq -n --arg n "$target_name" --arg re "$TARGET_FILTER" '$n | test($re)' > /dev/null 2>&1
 }
 
 # ------------------------------------------------------------------------------
@@ -407,7 +437,7 @@ do_work() {
         log_info "Dry-run mode: Changes will be shown only (use --apply to apply)"
     fi
 
-    local json_data success_count=0 error_count=0
+    local json_data success_count=0 error_count=0 matched_count=0
 
     # Collect target data
     if [[ -n "$TARGETS" ]]; then
@@ -446,6 +476,13 @@ do_work() {
                 target_name=$(echo "$target_data" | jq -r '."display-name"')
                 target_comp=$(echo "$target_data" | jq -r '."compartment-id"')
 
+                if ! target_name_matches_filter "$target_name"; then
+                    log_debug "Skipping target '$target_name' (filter mismatch)"
+                    continue
+                fi
+
+                matched_count=$((matched_count + 1))
+
                 if update_target_tags "$target_ocid" "$target_name" "$target_comp"; then
                     success_count=$((success_count + 1))
                 else
@@ -461,11 +498,18 @@ do_work() {
         log_info "Processing targets from compartment..."
         json_data=$(list_targets_in_compartment "$COMPARTMENT") || die "Failed to list targets"
 
+        if [[ -n "$TARGET_FILTER" ]]; then
+            json_data=$(echo "$json_data" | jq --arg re "$TARGET_FILTER" '.data = (.data | map(select((."display-name" // "") | test($re))))')
+        fi
+
         local total_count
         total_count=$(echo "$json_data" | jq '.data | length')
         log_info "Found $total_count targets to process"
 
         if [[ $total_count -eq 0 ]]; then
+            if [[ -n "$TARGET_FILTER" ]]; then
+                die "No targets matched filter regex: $TARGET_FILTER" 1
+            fi
             log_warn "No targets found"
             return 0
         fi
@@ -474,6 +518,7 @@ do_work() {
         while read -r target_ocid target_name target_comp; do
             current=$((current + 1))
             log_info "[$current/$total_count] Processing: $target_name"
+            matched_count=$((matched_count + 1))
 
             if update_target_tags "$target_ocid" "$target_name" "$target_comp"; then
                 success_count=$((success_count + 1))
@@ -481,6 +526,10 @@ do_work() {
                 error_count=$((error_count + 1))
             fi
         done < <(echo "$json_data" | jq -r '.data[] | [.id, ."display-name", ."compartment-id"] | @tsv')
+    fi
+
+    if [[ -n "$TARGET_FILTER" && $matched_count -eq 0 ]]; then
+        die "No targets matched filter regex: $TARGET_FILTER" 1
     fi
 
     # Summary

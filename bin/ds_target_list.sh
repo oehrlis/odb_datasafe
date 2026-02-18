@@ -29,6 +29,7 @@ readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 # Defaults
 : "${COMPARTMENT:=}"
 : "${TARGETS:=}"
+: "${TARGET_FILTER:=}"
 : "${LIFECYCLE_STATE:=}"
 : "${OUTPUT_FORMAT:=table}" # table|json|csv
 : "${SHOW_COUNT:=false}"    # Default to list mode
@@ -84,6 +85,7 @@ Options:
     -c, --compartment ID    Compartment OCID or name (default: DS_ROOT_COMP)
                             Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
     -T, --targets LIST      Comma-separated target names or OCIDs (for details only)
+        -r, --filter REGEX      Filter target names by regex (substring match)
     -L, --lifecycle STATE   Filter by lifecycle state (ACTIVE, NEEDS_ATTENTION, etc.)
 
   Output:
@@ -163,6 +165,11 @@ parse_args() {
             -T | --targets)
                 need_val "$1" "${2:-}"
                 TARGETS="$2"
+                shift 2
+                ;;
+            -r | --filter)
+                need_val "$1" "${2:-}"
+                TARGET_FILTER="$2"
                 shift 2
                 ;;
             -L | --lifecycle)
@@ -299,6 +306,30 @@ validate_inputs() {
         LIFECYCLE_STATE="NEEDS_ATTENTION"
         FIELDS="display-name,lifecycle-details"
     fi
+
+    if [[ -n "$TARGET_FILTER" ]]; then
+        if ! jq -n --arg re "$TARGET_FILTER" '"probe" | test($re)' > /dev/null 2>&1; then
+            die "Invalid filter regex: $TARGET_FILTER"
+        fi
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# Function: apply_target_filter
+# Purpose.: Filter target JSON by display-name regex
+# Args....: $1 - JSON data object with .data array
+# Returns.: 0 on success
+# Output..: Filtered JSON data object
+# ------------------------------------------------------------------------------
+apply_target_filter() {
+    local json_data="$1"
+
+    if [[ -z "$TARGET_FILTER" ]]; then
+        echo "$json_data"
+        return 0
+    fi
+
+    echo "$json_data" | jq --arg re "$TARGET_FILTER" '.data = (.data | map(select((."display-name" // "") | test($re))))'
 }
 
 # ------------------------------------------------------------------------------
@@ -660,6 +691,16 @@ do_work() {
         comp_name=$(oci_get_compartment_name "$COMPARTMENT") || comp_name="$COMPARTMENT"
         log_info "Listing targets in compartment: $comp_name (includes sub-compartments)"
         json_data=$(list_targets_in_compartment "$COMPARTMENT") || die "Failed to list targets"
+    fi
+
+    json_data=$(apply_target_filter "$json_data") || die "Failed to apply target filter"
+
+    if [[ -n "$TARGET_FILTER" ]]; then
+        local filtered_count
+        filtered_count=$(echo "$json_data" | jq '.data | length')
+        if [[ "$filtered_count" -eq 0 ]]; then
+            die "No targets matched filter regex: $TARGET_FILTER" 1
+        fi
     fi
 
     # Display results based on mode

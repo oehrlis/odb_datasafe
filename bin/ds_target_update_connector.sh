@@ -32,6 +32,7 @@ readonly SCRIPT_VERSION
 : "${COMPARTMENT:=}"
 : "${CONNECTOR_COMPARTMENT:=}"
 : "${TARGETS:=}"
+: "${TARGET_FILTER:=}"
 : "${LIFECYCLE_STATE:=ACTIVE}"
 : "${SOURCE_CONNECTOR:=}"
 : "${TARGET_CONNECTOR:=}"
@@ -92,6 +93,7 @@ Options:
     -c, --compartment ID        Target compartment OCID or name (default: DS_ROOT_COMP)
                                 Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
     -T, --targets LIST          Comma-separated target names or OCIDs
+        -r, --filter REGEX          Filter target names by regex (substring match)
     -L, --lifecycle STATE       Filter by lifecycle state (default: ${LIFECYCLE_STATE})
                                 Supports: ACTIVE, NEEDS_ATTENTION, CREATING, UPDATING, DELETING
                                 Use comma-separated for multiple: ACTIVE,NEEDS_ATTENTION
@@ -186,6 +188,11 @@ parse_args() {
             -T | --targets)
                 need_val "$1" "${2:-}"
                 TARGETS="$2"
+                shift 2
+                ;;
+            -r | --filter)
+                need_val "$1" "${2:-}"
+                TARGET_FILTER="$2"
                 shift 2
                 ;;
             -L | --lifecycle)
@@ -339,7 +346,30 @@ validate_inputs() {
         die "Set mode requires either --targets or --compartment to be specified"
     fi
 
+    if [[ -n "$TARGET_FILTER" ]]; then
+        if ! jq -n --arg re "$TARGET_FILTER" '"probe" | test($re)' > /dev/null 2>&1; then
+            die "Invalid filter regex: $TARGET_FILTER"
+        fi
+    fi
+
     log_info "Operation mode: $OPERATION_MODE"
+}
+
+# ------------------------------------------------------------------------------
+# Function: target_name_matches_filter
+# Purpose.: Check whether a target name matches configured regex filter
+# Args....: $1 - Target display name
+# Returns.: 0 if match or no filter, 1 otherwise
+# Output..: None
+# ------------------------------------------------------------------------------
+target_name_matches_filter() {
+    local target_name="$1"
+
+    if [[ -z "$TARGET_FILTER" ]]; then
+        return 0
+    fi
+
+    jq -n --arg n "$target_name" --arg re "$TARGET_FILTER" '$n | test($re)' > /dev/null 2>&1
 }
 
 # ------------------------------------------------------------------------------
@@ -604,10 +634,14 @@ list_targets_in_compartment() {
 
     # Apply additional filtering if needed
     if [[ "$EXCLUDE_AUTO" == "true" ]]; then
-        echo "$json_data" | jq '.data = (.data | map(select(."display-name" | test("_auto$") | not)))'
-    else
-        echo "$json_data"
+        json_data=$(echo "$json_data" | jq '.data = (.data | map(select(."display-name" | test("_auto$") | not)))')
     fi
+
+    if [[ -n "$TARGET_FILTER" ]]; then
+        json_data=$(echo "$json_data" | jq --arg re "$TARGET_FILTER" '.data = (.data | map(select((."display-name" // "") | test($re))))')
+    fi
+
+    echo "$json_data"
 }
 
 # ------------------------------------------------------------------------------
@@ -626,7 +660,7 @@ do_set_mode() {
 
     log_info "Target connector: $target_connector_name ($target_connector_ocid)"
 
-    local success_count=0 error_count=0
+    local success_count=0 error_count=0 matched_count=0
 
     # Process targets
     if [[ -n "$TARGETS" ]]; then
@@ -682,7 +716,13 @@ do_set_mode() {
                 fi
             fi
 
+            if ! target_name_matches_filter "$target_name"; then
+                log_debug "Skipping target '$target_name' (filter mismatch)"
+                continue
+            fi
+
             log_info "[$current/$total_targets] Processing: $target_name"
+            matched_count=$((matched_count + 1))
 
             if update_target_connector "$target_ocid" "$target_name" "$target_connector_ocid" "$target_connector_name"; then
                 success_count=$((success_count + 1))
@@ -701,6 +741,9 @@ do_set_mode() {
         log_info "Found $total_count targets to process"
 
         if [[ $total_count -eq 0 ]]; then
+            if [[ -n "$TARGET_FILTER" ]]; then
+                die "No targets matched filter regex: $TARGET_FILTER" 1
+            fi
             log_warn "No targets found"
             return 0
         fi
@@ -709,6 +752,7 @@ do_set_mode() {
         while read -r target_ocid target_name; do
             current=$((current + 1))
             log_info "[$current/$total_count] Processing: $target_name"
+            matched_count=$((matched_count + 1))
 
             if update_target_connector "$target_ocid" "$target_name" "$target_connector_ocid" "$target_connector_name"; then
                 success_count=$((success_count + 1))
@@ -716,6 +760,10 @@ do_set_mode() {
                 error_count=$((error_count + 1))
             fi
         done < <(echo "$json_data" | jq -r '.data[] | [.id, ."display-name"] | @tsv')
+    fi
+
+    if [[ -n "$TARGET_FILTER" && $matched_count -eq 0 ]]; then
+        die "No targets matched filter regex: $TARGET_FILTER" 1
     fi
 
     # Summary
@@ -762,6 +810,9 @@ do_migrate_mode() {
     log_info "Found $total_count targets using source connector"
 
     if [[ $total_count -eq 0 ]]; then
+        if [[ -n "$TARGET_FILTER" ]]; then
+            die "No targets matched filter regex: $TARGET_FILTER" 1
+        fi
         log_warn "No targets found using source connector"
         return 0
     fi
@@ -829,6 +880,9 @@ do_distribute_mode() {
     log_info "Found $total_targets targets to distribute"
 
     if [[ $total_targets -eq 0 ]]; then
+        if [[ -n "$TARGET_FILTER" ]]; then
+            die "No targets matched filter regex: $TARGET_FILTER" 1
+        fi
         log_warn "No targets found for distribution"
         return 0
     fi

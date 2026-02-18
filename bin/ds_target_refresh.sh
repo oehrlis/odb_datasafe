@@ -31,6 +31,7 @@ readonly SCRIPT_VERSION
 # Defaults
 : "${COMPARTMENT:=}"
 : "${TARGETS:=}"
+: "${TARGET_FILTER:=}"
 : "${LIFECYCLE_STATE:=NEEDS_ATTENTION}" # Default to NEEDS_ATTENTION
 : "${DRY_RUN:=false}"
 : "${WAIT_FOR_COMPLETION:=false}" # Default to no-wait for speed
@@ -79,6 +80,7 @@ Options:
     -c, --compartment ID    Compartment OCID or name (default: DS_ROOT_COMP)
                             Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
     -T, --targets LIST      Comma-separated target names or OCIDs
+        -r, --filter REGEX      Filter target names by regex (substring match)
     -L, --lifecycle STATE   Filter by lifecycle state (default: NEEDS_ATTENTION)
                             Use ACTIVE, NEEDS_ATTENTION, etc.
     --wait                  Wait for each refresh to complete (slower but shows status)
@@ -130,6 +132,11 @@ parse_args() {
             -T | --targets)
                 need_val "$1" "${2:-}"
                 TARGETS="$2"
+                shift 2
+                ;;
+            -r | --filter)
+                need_val "$1" "${2:-}"
+                TARGET_FILTER="$2"
                 shift 2
                 ;;
             -L | --lifecycle)
@@ -197,6 +204,29 @@ validate_inputs() {
         COMPARTMENT=$(resolve_compartment_for_operation "$COMPARTMENT") || die "Failed to resolve compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
         log_info "No compartment specified, using DS_ROOT_COMP: $COMPARTMENT"
     fi
+
+    if [[ -n "$TARGET_FILTER" ]]; then
+        if ! jq -n --arg re "$TARGET_FILTER" '"probe" | test($re)' > /dev/null 2>&1; then
+            die "Invalid filter regex: $TARGET_FILTER"
+        fi
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# Function: target_name_matches_filter
+# Purpose.: Check whether a target name matches configured regex filter
+# Args....: $1 - Target display name
+# Returns.: 0 if match or no filter, 1 otherwise
+# Output..: None
+# ------------------------------------------------------------------------------
+target_name_matches_filter() {
+    local target_name="$1"
+
+    if [[ -z "$TARGET_FILTER" ]]; then
+        return 0
+    fi
+
+    jq -n --arg n "$target_name" --arg re "$TARGET_FILTER" '$n | test($re)' > /dev/null 2>&1
 }
 
 # ------------------------------------------------------------------------------
@@ -257,6 +287,14 @@ do_work() {
             target="${target// /}" # trim spaces
 
             if is_ocid "$target"; then
+                if [[ -n "$TARGET_FILTER" ]]; then
+                    local resolved_name=""
+                    resolved_name=$(ds_resolve_target_name "$target" 2> /dev/null || echo "")
+                    if [[ -z "$resolved_name" ]] || ! target_name_matches_filter "$resolved_name"; then
+                        log_debug "Skipping target (filter mismatch): $target"
+                        continue
+                    fi
+                fi
                 target_ocids+=("$target")
             else
                 # Resolve name to OCID using resolved compartment
@@ -266,6 +304,15 @@ do_work() {
 
                 if [[ -z "$resolved" ]]; then
                     die "Target not found: $target"
+                fi
+
+                if [[ -n "$TARGET_FILTER" ]]; then
+                    local resolved_name=""
+                    resolved_name=$(ds_resolve_target_name "$resolved" 2> /dev/null || echo "$target")
+                    if ! target_name_matches_filter "$resolved_name"; then
+                        log_debug "Skipping target '$resolved_name' (filter mismatch)"
+                        continue
+                    fi
                 fi
 
                 target_ocids+=("$resolved")
@@ -281,16 +328,27 @@ do_work() {
         local targets_json
         targets_json=$(ds_list_targets "$comp_ocid" "$LIFECYCLE_STATE")
 
+        if [[ -n "$TARGET_FILTER" ]]; then
+            targets_json=$(echo "$targets_json" | jq --arg re "$TARGET_FILTER" '.data = (.data | map(select((."display-name" // "") | test($re))))')
+        fi
+
         # Extract OCIDs
         mapfile -t target_ocids < <(echo "$targets_json" | jq -r '.data[].id')
 
         local count=${#target_ocids[@]}
         if [[ $count -eq 0 ]]; then
+            if [[ -n "$TARGET_FILTER" ]]; then
+                die "No targets matched filter regex: $TARGET_FILTER" 1
+            fi
             log_warn "No targets found matching criteria"
             return 0
         fi
 
         log_info "Found $count targets to refresh"
+    fi
+
+    if [[ ${#target_ocids[@]} -eq 0 && -n "$TARGET_FILTER" ]]; then
+        die "No targets matched filter regex: $TARGET_FILTER" 1
     fi
 
     # Refresh each target
