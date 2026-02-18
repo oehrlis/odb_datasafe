@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--secret-file` as canonical credential options.
 - Removed legacy option-alias compatibility handling from the same target
   scripts.
+- Rebuilt embedded SQL payload in `bin/ds_database_prereqs.sh` to include the
+  latest `sql/create_ds_admin_prerequisites.sql`,
+  `sql/create_ds_admin_user.sql`, and `sql/datasafe_privileges.sql` updates.
 
 ### Fixed
 
