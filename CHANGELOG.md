@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `bin/ds_version.sh` now shows runtime configuration sources (for example
+  `.env` and `datasafe.conf`) and reports the active OCI config file/profile,
+  including simple presence checks.
+
 ## [0.13.1] - 2026-02-18
 
 ### Changed

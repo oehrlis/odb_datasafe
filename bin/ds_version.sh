@@ -38,6 +38,7 @@ declare -a IGNORE_REGEXES=()
 declare -a CHANGED_MODIFIED=()
 declare -a CHANGED_MISSING=()
 declare -a CHANGED_ADDITIONAL=()
+declare -a CONFIG_FILES_USED=()
 
 INTEGRITY_STATUS="unknown"
 INTEGRITY_NOTE=""
@@ -277,6 +278,66 @@ check_integrity() {
     rm -f "${filtered}"
 }
 
+collect_runtime_configs() {
+    local base_dir="${ODB_DATASAFE_BASE:-${BASE_DIR}}"
+    local script_conf="${SCRIPT_NAME%.sh}.conf"
+
+    CONFIG_FILES_USED=()
+
+    if [[ -f "${base_dir}/.env" ]]; then
+        CONFIG_FILES_USED+=("${base_dir}/.env")
+    fi
+
+    if [[ -n "${ORADBA_ETC:-}" && -f "${ORADBA_ETC}/datasafe.conf" ]]; then
+        CONFIG_FILES_USED+=("${ORADBA_ETC}/datasafe.conf")
+    fi
+
+    if [[ -f "${base_dir}/etc/datasafe.conf" ]]; then
+        CONFIG_FILES_USED+=("${base_dir}/etc/datasafe.conf")
+    fi
+
+    if [[ -n "${ORADBA_ETC:-}" && -f "${ORADBA_ETC}/${script_conf}" ]]; then
+        CONFIG_FILES_USED+=("${ORADBA_ETC}/${script_conf}")
+    fi
+
+    if [[ -f "${base_dir}/etc/${script_conf}" ]]; then
+        CONFIG_FILES_USED+=("${base_dir}/etc/${script_conf}")
+    fi
+}
+
+print_runtime_config() {
+    local oci_config oci_profile
+    local config
+
+    oci_config="${OCI_CLI_CONFIG_FILE:-${HOME}/.oci/config}"
+    oci_profile="${OCI_CLI_PROFILE:-DEFAULT}"
+
+    echo ""
+    echo "Runtime Configuration:"
+    echo "  Config files in use:"
+    if [[ ${#CONFIG_FILES_USED[@]} -eq 0 ]]; then
+        echo "    (none found)"
+    else
+        for config in "${CONFIG_FILES_USED[@]}"; do
+            echo "    - ${config}"
+        done
+    fi
+
+    echo "  OCI config file:      ${oci_config}"
+    if [[ -f "${oci_config}" ]]; then
+        echo "  OCI config exists:    yes"
+        if grep -Fq "[${oci_profile}]" "${oci_config}"; then
+            echo "  OCI profile in file:  yes"
+        else
+            echo "  OCI profile in file:  no"
+        fi
+    else
+        echo "  OCI config exists:    no"
+        echo "  OCI profile in file:  n/a"
+    fi
+    echo "  OCI profile in use:   ${oci_profile}"
+}
+
 print_header() {
     echo "OraDBA Data Safe Extension Information"
     echo "======================================"
@@ -372,11 +433,14 @@ print_changes() {
 
 main() {
     parse_args "$@"
+    init_config "${SCRIPT_NAME%.sh}.conf"
+    collect_runtime_configs
     check_integrity
 
     if [[ "${CHANGES_ONLY}" != "true" ]]; then
         print_header
         print_metadata
+        print_runtime_config
     fi
     print_changes
 }
