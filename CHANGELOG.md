@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.4] - 2026-02-18
+
+### Added
+
+- Added `scripts/update_embedded_payload.sh` to rebuild the embedded SQL payload
+  in `bin/ds_database_prereqs.sh` with a single command.
+
+### Fixed
+
+- Hardened embedded payload extraction in `bin/ds_database_prereqs.sh` to handle
+  payload wrapper/blank lines and CRLF input safely, preventing
+  `Failed to decode embedded SQL payload` errors in `--embedded` mode.
+
+### Documentation
+
+- Updated `doc/database_prereqs.md` with the recommended helper-script workflow
+  for payload refresh and a safer manual marker-aware fallback snippet.
+
 ## [0.13.3] - 2026-02-18
 
 ### Changed

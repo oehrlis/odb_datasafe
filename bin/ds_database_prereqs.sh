@@ -475,10 +475,19 @@ extract_embedded_sql() {
     TEMP_FILES+=("$temp_dir" "$payload_file" "$zip_file")
 
     awk '
-/^__PAYLOAD_BEGINS__$/ {flag=1; skip=1; next}
+/^__PAYLOAD_BEGINS__$/ {flag=1; next}
 flag && /^__PAYLOAD_END__$/ {exit}
 flag {
-    if (skip) { skip=0; next }
+    gsub(/\r$/, "", $0)
+
+    if ($0 ~ /^:[[:space:]]*<<\x27__PAYLOAD_END__\x27$/) {
+        next
+    }
+
+    if ($0 ~ /^[[:space:]]*$/) {
+        next
+    }
+
     print
 }
 ' "$SCRIPT_PATH" > "$payload_file"
@@ -1378,7 +1387,7 @@ uFKb9G1ZpKPceWx/5+xn8Da3MlboCpnixpx0ltGabNUTawY0SWfP+Ub1sqNKJosgB93Dg6Mo
 il4dH72Ooq2j8dijky4x/xdYpcXbObR3crIVdW64WHgk1vJSre2VzDgNc4COC0+FLbBVdlop
 TYswx/mIy/SIjUF8llo3v+Be0s+119leOL+uR8+0+X7fiZMBKoubqcIVXaJ/whRYe/5T5j9l
 /m3KlPej31Emi0EmfUbvPnvFWPtPpM++AVBLAwQUAAAACAAHUVJceGkBt2oIAAA3HQAAGAAc
-AGNyZWF0ZV9kc19hZG1pbl91c2VyLnNxbFVUCQADfYGVaYGBlWl1eAsAAQT1AQAABBQAAADN
+AGNyZWF0ZV9kc19hZG1pbl91c2VyLnNxbFVUCQADfYGVac6BlWl1eAsAAQT1AQAABBQAAADN
 WW1P40gS/j7S/IcSuiPhBCYE2L2DZbQmcRjfJXbOdoad+xI1cYdY69hev8BktT/+qrr9GpOB
 gZ3TWQLs7qrqqqfeupujoz/3ef/u6AjAjNnwWoUjeln4HIYsZXcs4aAHy5glaZwt0izmwAIX
 bL7IYi/dHML5D6c9mODHIdiPXvo7j30kIInfQUeDrbkingtYxJylfO4mc+auvWCeJTxWkt98

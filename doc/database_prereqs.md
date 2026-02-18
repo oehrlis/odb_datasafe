@@ -174,6 +174,14 @@ ${DATASAFE_BASE}/ds_database_prereqs.sh --root -P "<secret>" --force
 
 If you update the SQL scripts, rebuild the embedded payload in the script.
 
+Simple helper script:
+
+```bash
+./scripts/update_embedded_payload.sh
+```
+
+Manual method:
+
 ```bash
 ZIP_FILE="$(mktemp -t ds_sql.XXXXXX).zip"
 PAYLOAD_B64="$(mktemp -t ds_sql.XXXXXX).b64"
@@ -195,10 +203,19 @@ awk -v payload="$PAYLOAD_B64" '
     in_payload=1
     next
   }
+
+  in_payload && /^__PAYLOAD_END__$/ {
+    in_payload=0
+    next
+  }
+
   in_payload { next }
   { print }
-' bin/ds_database_prereqs.sh > /tmp/ds_database_prereqs.sh
+' bin/ds_database_prereqs.sh > /tmp/ds_database_prereqs.sh || exit 1
 
 mv /tmp/ds_database_prereqs.sh bin/ds_database_prereqs.sh
 chmod 755 bin/ds_database_prereqs.sh
+
+# Optional sanity check
+bin/ds_database_prereqs.sh --help >/dev/null
 ```
