@@ -112,6 +112,10 @@ bin/ds_target_list.sh -d
 bin/ds_target_list.sh -L NEEDS_ATTENTION
 bin/ds_target_list_connector.sh -L ACTIVE
 
+# Filter target names by regex (display name substring match)
+bin/ds_target_list.sh -r "db02"
+bin/ds_target_refresh.sh -r "db02"
+
 # Output as JSON or CSV
 bin/ds_target_list.sh -f json
 bin/ds_target_list_connector.sh -f csv -F display-name,id,time-created
@@ -127,6 +131,9 @@ bin/ds_target_refresh.sh -T db1,db2,db3
 
 # Refresh all NEEDS_ATTENTION in compartment
 bin/ds_target_refresh.sh -c "MyCompartment" -L NEEDS_ATTENTION
+
+# Refresh intersection of explicit targets and regex filter
+bin/ds_target_refresh.sh -T db01,db02,db03 -r "db02"
 
 # Activate INACTIVE targets in a compartment (dry-run by default)
 bin/ds_target_activate.sh -c "MyCompartment" -L INACTIVE
@@ -154,6 +161,15 @@ bin/ds_target_list.sh --problems -f json
 
 # Show all fields for a target (JSON only)
 bin/ds_target_list.sh -T mydb01 -F all -f json
+
+# Update credentials for targets matching regex (dry-run default)
+bin/ds_target_update_credentials.sh -r "db02"
+
+# Apply credential update for regex-matched targets
+bin/ds_target_update_credentials.sh -r "db02" --apply
+
+# Update tags for targets matching regex
+bin/ds_target_update_tags.sh -r "db02" --apply
 ```
 
 ### 4. On-Prem Database Prereqs
@@ -435,6 +451,41 @@ All scripts should support these where applicable:
 # Execution Control
 -n, --dry-run                 Show what would be done (no changes)
 -y, --yes                     Skip confirmation prompts
+```
+
+### Target Name Regex Filter (`-r`, `--filter`)
+
+Supported in:
+
+- `ds_target_list.sh`
+- `ds_target_refresh.sh`
+- `ds_target_update_credentials.sh`
+- `ds_target_update_connector.sh`
+- `ds_target_update_tags.sh`
+
+Behavior:
+
+- Matches regex against target display name.
+- Combines with `-T/--target(s)` using intersection.
+- Exits with status `1` if no targets match.
+
+Examples:
+
+```bash
+# List only targets containing db02
+ds_target_list.sh -r "db02"
+
+# Refresh only targets containing db02
+ds_target_refresh.sh -r "db02"
+
+# Set connector for targets containing db02
+ds_target_update_connector.sh set --target-connector conn-prod-01 -r "db02" --apply
+
+# Update credentials for targets containing db02
+ds_target_update_credentials.sh -r "db02" --apply
+
+# Update tags for targets containing db02
+ds_target_update_tags.sh -r "db02" --apply
 ```
 
 ## 🧪 Testing

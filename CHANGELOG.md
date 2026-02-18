@@ -23,6 +23,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Matches against target display names using regex substring semantics.
   - Intersects with `-T/--targets` when both are specified.
   - Exits with code `1` when no targets match the provided filter.
+- `bin/ds_database_prereqs.sh` startup info now includes current `ORACLE_SID`
+  (or `unset`) to make local execution context clearer.
+
+### Documentation
+
+- Updated `doc/index.md` and `doc/quickref.md` with `-r/--filter` usage,
+  behavior notes, and practical examples for list/refresh/update workflows.
 
 ## [0.13.4] - 2026-02-18
 

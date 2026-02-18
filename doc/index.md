@@ -150,7 +150,25 @@ Many scripts also support:
 -T, --target       Target database name or OCID
 -L, --lifecycle    Filter by lifecycle state
 -f, --format       Output format (table, json, csv)
+-r, --filter       Filter target display names with regex
 ```
+
+### Target Name Regex Filter
+
+The following scripts support `-r/--filter` to process only targets where the
+target display name matches a regex:
+
+- `bin/ds_target_list.sh`
+- `bin/ds_target_refresh.sh`
+- `bin/ds_target_update_credentials.sh`
+- `bin/ds_target_update_connector.sh`
+- `bin/ds_target_update_tags.sh`
+
+Behavior:
+
+- Regex substring match is applied to the target display name.
+- When combined with `-T/--target(s)`, only matching targets from that set are used.
+- If no targets match, the script exits with code `1`.
 
 ## Examples
 
@@ -168,6 +186,12 @@ bin/ds_target_list.sh -C
 
 # Output as JSON
 bin/ds_target_list.sh -f json
+
+# List targets with names containing db02
+bin/ds_target_list.sh -r "db02"
+
+# List NEEDS_ATTENTION targets where name contains db02
+bin/ds_target_list.sh -L NEEDS_ATTENTION -r "db02"
 ```
 
 ### Target Management
@@ -179,8 +203,20 @@ bin/ds_target_refresh.sh -T mydb01
 # Refresh multiple targets
 bin/ds_target_refresh.sh -T db1,db2,db3
 
+# Refresh targets where display name matches regex
+bin/ds_target_refresh.sh -r "db02"
+
 # Update credentials
 bin/ds_target_update_credentials.sh -T mydb01
+
+# Update credentials for all db02 targets
+bin/ds_target_update_credentials.sh -r "db02" --apply
+
+# Set connector for all db02 targets
+bin/ds_target_update_connector.sh set --target-connector conn-prod-01 -r "db02" --apply
+
+# Update tags for all db02 targets
+bin/ds_target_update_tags.sh -r "db02" --apply
 
 # Move target to different compartment
 bin/ds_target_move.sh -T mydb01 -c new_compartment

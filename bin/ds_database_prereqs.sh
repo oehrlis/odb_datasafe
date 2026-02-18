@@ -1268,7 +1268,7 @@ main() {
     esac
 
     parse_args "$@"
-    log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
+    log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION} (ORACLE_SID=${ORACLE_SID:-unset})"
     validate_inputs
 
     if [[ "$DROP_USER" == "true" ]]; then
