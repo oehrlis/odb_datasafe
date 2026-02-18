@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.2] - 2026-02-18
+
 ### Changed
 
 - `bin/ds_version.sh` now shows runtime configuration sources (for example
