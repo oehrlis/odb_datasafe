@@ -209,10 +209,10 @@ dedupe_array() {
     local -A seen=()
     local -a deduped=()
     local item
-    
+
     # Read array elements using indirect expansion
     eval "local -a arr_copy=(\"\${${arr_name}[@]}\")"
-    
+
     # shellcheck disable=SC2154  # arr_copy is created dynamically via eval
     for item in "${arr_copy[@]}"; do
         [[ -z "$item" ]] && continue
@@ -221,7 +221,7 @@ dedupe_array() {
             deduped+=("$item")
         fi
     done
-    
+
     # Update original array using eval
     eval "${arr_name}=(\"\${deduped[@]}\")"
 }
