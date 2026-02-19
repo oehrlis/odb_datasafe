@@ -598,7 +598,8 @@ ds_collect_targets() {
 
         # Bash 4.2 compatibility: safe array length check with nounset
         # Array is initialized above, but double-check for safety
-        if [[ -n "${target_objects[@]+x}" ]] && [[ ${#target_objects[@]} -gt 0 ]]; then
+        # shellcheck disable=SC2128  # Intentional array concatenation for existence check
+        if [[ -n "${target_objects[*]+x}" ]] && [[ ${#target_objects[@]} -gt 0 ]]; then
             targets_json=$(printf '%s\n' "${target_objects[@]}" | jq -s '{data: .}') || return 1
         else
             targets_json='{"data":[]}'
@@ -684,8 +685,9 @@ _ds_get_target_list_cached() {
     )
 
     # Bash 4.2 compatibility: safe array length check with nounset
-    # Use ${array[@]+x} to test if array is set and non-empty
-    if [[ -n "${lifecycle_opts[@]+x}" ]] && [[ ${#lifecycle_opts[@]} -gt 0 ]]; then
+    # Use ${array[*]+x} to test if array is set and non-empty
+    # shellcheck disable=SC2128  # Intentional array concatenation for existence check
+    if [[ -n "${lifecycle_opts[*]+x}" ]] && [[ ${#lifecycle_opts[@]} -gt 0 ]]; then
         cmd+=("${lifecycle_opts[@]}")
     fi
 

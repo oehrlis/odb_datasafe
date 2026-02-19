@@ -106,9 +106,10 @@ setup() {
     run bash -c "
         cd '${REPO_ROOT}'
         # Check that lifecycle_opts expansion uses safe pattern
-        grep '_ds_get_target_list_cached' lib/oci_helpers.sh | grep -q '\${lifecycle_opts\[@\]+' && echo 'SAFE_EXPANSION'
-        # Check that array length check uses safe pattern  
-        grep -A 2 'if \[\[.*lifecycle_opts' lib/oci_helpers.sh | grep -q '\[@\]+' && echo 'SAFE_LENGTH'
+        grep '_ds_get_target_list_cached' lib/oci_helpers.sh | grep -q '\${lifecycle_opts\[@\]+' && echo 'SAFE_EXPANSION' || true
+        # Check that array length check uses safe pattern (either [*]+ or [@]+)
+        grep -A 2 'if \[\[.*lifecycle_opts' lib/oci_helpers.sh | grep -qE '\[\*\]\+|\[@\]\+' && echo 'SAFE_LENGTH' || true
+        echo 'DONE'
     "
     [ "$status" -eq 0 ]
     [[ "$output" == *"SAFE_EXPANSION"* ]]
