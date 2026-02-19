@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-02-19
+
+### Fixed
+
+- Hardened embedded payload marker/wrapper parsing in
+  `bin/ds_database_prereqs.sh` so extraction works even when formatters adjust
+  whitespace around payload markers and heredoc wrapper lines.
+- `scripts/update_embedded_payload.sh` now matches payload markers with
+  whitespace-tolerant patterns to keep payload rebuild stable after formatting.
+
 ## [0.14.0] - 2026-02-19
 
 ### Added

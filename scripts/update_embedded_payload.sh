@@ -104,7 +104,7 @@ rebuild_payload() {
     base64 "${zip_file}" > "${payload_b64}"
 
     awk -v payload="${payload_b64}" '
-      /^__PAYLOAD_BEGINS__$/ {
+            /^[[:space:]]*__PAYLOAD_BEGINS__[[:space:]]*$/ {
         print
         print ": <<'\''__PAYLOAD_END__'\''"
         while ((getline line < payload) > 0) print line
@@ -114,7 +114,7 @@ rebuild_payload() {
         next
       }
 
-      in_payload && /^__PAYLOAD_END__$/ {
+            in_payload && /^[[:space:]]*__PAYLOAD_END__[[:space:]]*$/ {
         in_payload=0
         next
       }
@@ -178,7 +178,7 @@ main() {
     require_file "${BASE_DIR}/${SQL_FILE_2}"
     require_file "${BASE_DIR}/${SQL_FILE_3}"
 
-    if ! grep -q '^__PAYLOAD_BEGINS__$' "${target_script}"; then
+    if ! grep -Eq '^[[:space:]]*__PAYLOAD_BEGINS__[[:space:]]*$' "${target_script}"; then
         echo "Error: Target script does not contain __PAYLOAD_BEGINS__ marker" >&2
         return 1
     fi

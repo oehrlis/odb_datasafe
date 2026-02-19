@@ -453,7 +453,7 @@ cleanup() {
 # Output..: None
 # ------------------------------------------------------------------------------
 has_embedded_sql() {
-    grep -q '^__PAYLOAD_BEGINS__$' "$SCRIPT_PATH"
+    grep -Eq '^[[:space:]]*__PAYLOAD_BEGINS__[[:space:]]*$' "$SCRIPT_PATH"
 }
 
 # ------------------------------------------------------------------------------
@@ -475,18 +475,21 @@ extract_embedded_sql() {
     TEMP_FILES+=("$temp_dir" "$payload_file" "$zip_file")
 
     awk '
-/^__PAYLOAD_BEGINS__$/ {flag=1; next}
-flag && /^__PAYLOAD_END__$/ {exit}
+/^[[:space:]]*__PAYLOAD_BEGINS__[[:space:]]*$/ {flag=1; next}
+flag && /^[[:space:]]*__PAYLOAD_END__[[:space:]]*$/ {exit}
 flag {
     gsub(/\r$/, "", $0)
 
-    if ($0 ~ /^:[[:space:]]*<<\x27__PAYLOAD_END__\x27$/) {
+    if ($0 ~ /^:[[:space:]]*<<[[:space:]]*["\047]?__PAYLOAD_END__["\047]?[[:space:]]*$/) {
         next
     }
 
     if ($0 ~ /^[[:space:]]*$/) {
         next
     }
+
+    sub(/^[[:space:]]+/, "", $0)
+    sub(/[[:space:]]+$/, "", $0)
 
     print
 }
