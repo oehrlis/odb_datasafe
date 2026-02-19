@@ -53,6 +53,12 @@ source "${LIB_DIR}/ds_lib.sh" || {
 # Initialize configuration
 init_config
 
+# Re-sync credential defaults after config loading.
+# init_config may populate DATASAFE_USER / DATASAFE_SECRET from datasafe.conf
+# after initial parameter expansion above.
+: "${DS_USER:=${DATASAFE_USER:-}}"
+: "${DS_SECRET:=${DATASAFE_SECRET:-}}"
+
 # Runtime variables
 TMP_CRED_JSON=""
 

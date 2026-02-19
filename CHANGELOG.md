@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `bin/ds_target_update_credentials.sh` now re-syncs `DS_USER`/`DS_SECRET`
+  defaults after `init_config`, so values loaded from `datasafe.conf`
+  (for example `DATASAFE_USER=DS_ADMIN`) are honored when
+  `-U/--ds-user` is not explicitly provided.
+
 ## [0.15.1] - 2026-02-19
 
 ### Fixed
