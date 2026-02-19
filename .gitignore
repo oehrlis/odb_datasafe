@@ -5,7 +5,7 @@
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
 # Date.......: 2025.12.18
-# Version....: v0.7.14
+# Version....: v0.15.04
 # Purpose....: Ignore transient build and local config artifacts.
 # Notes......: Tailor paths per stack; keep secrets and locals out of VCS.
 # Reference..: https://github.com/oehrlis/oci-labs-infra

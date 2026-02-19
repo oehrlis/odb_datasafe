@@ -5,7 +5,7 @@
 # Script.....: ds_tg_report.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.02.19
-# Version....: v0.7.0
+# Version....: v0.15.0
 # Purpose....: Generate reports for Oracle Data Safe targets and tags
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
