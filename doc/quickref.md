@@ -467,7 +467,8 @@ Behavior:
 
 - Matches regex against target display name.
 - Combines with `-T/--target(s)` using intersection.
-- Exits with status `1` if no targets match.
+- Mutating scripts exit with status `1` if no targets match.
+- `ds_target_list.sh` reports no matches as an informational empty result.
 
 Examples:
 

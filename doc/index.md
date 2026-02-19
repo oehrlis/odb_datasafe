@@ -168,7 +168,8 @@ Behavior:
 
 - Regex substring match is applied to the target display name.
 - When combined with `-T/--target(s)`, only matching targets from that set are used.
-- If no targets match, the script exits with code `1`.
+- Mutating scripts exit with code `1` when no targets match.
+- `bin/ds_target_list.sh` returns an informational empty result when no targets match.
 
 ## Examples
 

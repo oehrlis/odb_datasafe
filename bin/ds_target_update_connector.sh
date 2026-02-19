@@ -346,30 +346,11 @@ validate_inputs() {
         die "Set mode requires either --targets or --compartment to be specified"
     fi
 
-    if [[ -n "$TARGET_FILTER" ]]; then
-        if ! jq -n --arg re "$TARGET_FILTER" '"probe" | test($re)' > /dev/null 2>&1; then
-            die "Invalid filter regex: $TARGET_FILTER"
-        fi
+    if ! ds_validate_target_filter_regex "$TARGET_FILTER"; then
+        die "Invalid filter regex: $TARGET_FILTER"
     fi
 
     log_info "Operation mode: $OPERATION_MODE"
-}
-
-# ------------------------------------------------------------------------------
-# Function: target_name_matches_filter
-# Purpose.: Check whether a target name matches configured regex filter
-# Args....: $1 - Target display name
-# Returns.: 0 if match or no filter, 1 otherwise
-# Output..: None
-# ------------------------------------------------------------------------------
-target_name_matches_filter() {
-    local target_name="$1"
-
-    if [[ -z "$TARGET_FILTER" ]]; then
-        return 0
-    fi
-
-    jq -n --arg n "$target_name" --arg re "$TARGET_FILTER" '$n | test($re)' > /dev/null 2>&1
 }
 
 # ------------------------------------------------------------------------------
@@ -594,51 +575,13 @@ update_target_connector() {
 # ------------------------------------------------------------------------------
 list_targets_in_compartment() {
     local compartment="$1"
-    local comp_ocid
-
-    comp_ocid=$(oci_resolve_compartment_ocid "$compartment") || return 1
-
-    log_debug "Listing targets in compartment: $comp_ocid"
-
     local json_data
-    # Handle multiple lifecycle states
-    if [[ "$LIFECYCLE_STATE" == *","* ]]; then
-        log_debug "Using multiple lifecycle states: $LIFECYCLE_STATE"
-        # For multiple states, we'll get all targets and filter afterward
-        json_data=$(ds_list_targets "$comp_ocid" "ALL") || {
-            # Fallback: try getting active targets if ALL is not supported
-            log_debug "Fallback to ACTIVE state and post-filter"
-            json_data=$(ds_list_targets "$comp_ocid" "ACTIVE") || return 1
-        }
 
-        # Filter by the specified lifecycle states
-        local -a states
-        IFS=',' read -ra states <<< "$LIFECYCLE_STATE"
-        local jq_filter='.data | map(select('
-        local first=true
-        for state in "${states[@]}"; do
-            state="${state// /}" # Remove spaces
-            if [[ "$first" == "true" ]]; then
-                jq_filter+=".\"lifecycle-state\" == \"$state\""
-                first=false
-            else
-                jq_filter+=" or .\"lifecycle-state\" == \"$state\""
-            fi
-        done
-        jq_filter+='))'
-
-        json_data=$(echo "$json_data" | jq "{data: ($jq_filter)}")
-    else
-        json_data=$(ds_list_targets "$comp_ocid" "$LIFECYCLE_STATE") || return 1
-    fi
+    json_data=$(ds_collect_targets "$compartment" "" "$LIFECYCLE_STATE" "$TARGET_FILTER") || return 1
 
     # Apply additional filtering if needed
     if [[ "$EXCLUDE_AUTO" == "true" ]]; then
         json_data=$(echo "$json_data" | jq '.data = (.data | map(select(."display-name" | test("_auto$") | not)))')
-    fi
-
-    if [[ -n "$TARGET_FILTER" ]]; then
-        json_data=$(echo "$json_data" | jq --arg re "$TARGET_FILTER" '.data = (.data | map(select((."display-name" // "") | test($re))))')
     fi
 
     echo "$json_data"
@@ -662,105 +605,39 @@ do_set_mode() {
 
     local success_count=0 error_count=0 matched_count=0
 
-    # Process targets
+    local json_data
     if [[ -n "$TARGETS" ]]; then
-        # Process specific targets
         log_info "Processing specific targets..."
-
-        local -a target_list
-        IFS=',' read -ra target_list <<< "$TARGETS"
-
-        local total_targets=${#target_list[@]}
-        local current=0
-
-        for target in "${target_list[@]}"; do
-            # Trim leading/trailing spaces
-            target="${target#"${target%%[![:space:]]*}"}"
-            target="${target%"${target##*[![:space:]]}"}"
-
-            # Skip empty entries
-            [[ -z "$target" ]] && continue
-
-            current=$((current + 1))
-
-            local target_ocid target_name
-
-            if is_ocid "$target"; then
-                target_ocid="$target"
-                target_name=$(oci_exec data-safe target-database get \
-                    --target-database-id "$target_ocid" \
-                    --query 'data."display-name"' \
-                    --raw-output 2> /dev/null || echo "unknown")
-            else
-                # In dry-run mode, use target name as-is without resolution
-                if [[ "${DRY_RUN:-false}" == "true" ]]; then
-                    log_debug "Dry-run mode: Using target name as-is: $target"
-                    target_ocid="$target"
-                    target_name="$target"
-                else
-                    # Resolve target name to OCID using cached compartment OCID
-                    log_debug "Resolving target name: $target"
-                    local resolved compartment_for_lookup
-
-                    # Use already-resolved COMPARTMENT_OCID if available
-                    if [[ -n "${COMPARTMENT_OCID:-}" ]]; then
-                        compartment_for_lookup="$COMPARTMENT_OCID"
-                    else
-                        compartment_for_lookup=$(resolve_compartment_for_operation "") || die "Failed to get root compartment"
-                    fi
-
-                    resolved=$(ds_resolve_target_ocid "$target" "$compartment_for_lookup") || die "Failed to resolve target: $target"
-                    [[ -n "$resolved" ]] || die "Target not found: $target"
-                    target_ocid="$resolved"
-                    target_name="$target"
-                fi
-            fi
-
-            if ! target_name_matches_filter "$target_name"; then
-                log_debug "Skipping target '$target_name' (filter mismatch)"
-                continue
-            fi
-
-            log_info "[$current/$total_targets] Processing: $target_name"
-            matched_count=$((matched_count + 1))
-
-            if update_target_connector "$target_ocid" "$target_name" "$target_connector_ocid" "$target_connector_name"; then
-                success_count=$((success_count + 1))
-            else
-                error_count=$((error_count + 1))
-            fi
-        done
+        json_data=$(ds_collect_targets "$COMPARTMENT" "$TARGETS" "$LIFECYCLE_STATE" "$TARGET_FILTER") || die "Failed to collect targets"
     else
-        # Process all targets in compartment
         log_info "Processing targets from compartment..."
-        local json_data
         json_data=$(list_targets_in_compartment "$COMPARTMENT") || die "Failed to list targets"
-
-        local total_count
-        total_count=$(echo "$json_data" | jq '.data | length')
-        log_info "Found $total_count targets to process"
-
-        if [[ $total_count -eq 0 ]]; then
-            if [[ -n "$TARGET_FILTER" ]]; then
-                die "No targets matched filter regex: $TARGET_FILTER" 1
-            fi
-            log_warn "No targets found"
-            return 0
-        fi
-
-        local current=0
-        while read -r target_ocid target_name; do
-            current=$((current + 1))
-            log_info "[$current/$total_count] Processing: $target_name"
-            matched_count=$((matched_count + 1))
-
-            if update_target_connector "$target_ocid" "$target_name" "$target_connector_ocid" "$target_connector_name"; then
-                success_count=$((success_count + 1))
-            else
-                error_count=$((error_count + 1))
-            fi
-        done < <(echo "$json_data" | jq -r '.data[] | [.id, ."display-name"] | @tsv')
     fi
+
+    local total_count
+    total_count=$(echo "$json_data" | jq '.data | length')
+    log_info "Found $total_count targets to process"
+
+    if [[ $total_count -eq 0 ]]; then
+        if [[ -n "$TARGET_FILTER" ]]; then
+            die "No targets matched filter regex: $TARGET_FILTER" 1
+        fi
+        log_warn "No targets found"
+        return 0
+    fi
+
+    local current=0
+    while read -r target_ocid target_name; do
+        current=$((current + 1))
+        log_info "[$current/$total_count] Processing: $target_name"
+        matched_count=$((matched_count + 1))
+
+        if update_target_connector "$target_ocid" "$target_name" "$target_connector_ocid" "$target_connector_name"; then
+            success_count=$((success_count + 1))
+        else
+            error_count=$((error_count + 1))
+        fi
+    done < <(echo "$json_data" | jq -r '.data[] | [.id, ."display-name"] | @tsv')
 
     if [[ -n "$TARGET_FILTER" && $matched_count -eq 0 ]]; then
         die "No targets matched filter regex: $TARGET_FILTER" 1

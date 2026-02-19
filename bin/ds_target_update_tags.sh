@@ -246,33 +246,130 @@ validate_inputs() {
         log_info "No scope specified, using resolved compartment: $COMPARTMENT"
     fi
 
-    # Resolve compartment using standard pattern: explicit > DS_ROOT_COMP > error
-    COMPARTMENT_OCID=$(resolve_compartment_for_operation "$COMPARTMENT") || die "Failed to resolve compartment"
-    COMPARTMENT_NAME=$(oci_get_compartment_name "$COMPARTMENT_OCID" 2> /dev/null) || COMPARTMENT_NAME="$COMPARTMENT_OCID"
-    log_info "Using compartment: $COMPARTMENT_NAME ($COMPARTMENT_OCID)"
+    if [[ -n "$COMPARTMENT" ]]; then
+        COMPARTMENT_OCID=$(resolve_compartment_for_operation "$COMPARTMENT") || die "Failed to resolve compartment"
+        COMPARTMENT_NAME=$(oci_get_compartment_name "$COMPARTMENT_OCID" 2> /dev/null) || COMPARTMENT_NAME="$COMPARTMENT_OCID"
+        log_info "Using compartment: $COMPARTMENT_NAME ($COMPARTMENT_OCID)"
+    fi
 
-    if [[ -n "$TARGET_FILTER" ]]; then
-        if ! jq -n --arg re "$TARGET_FILTER" '"probe" | test($re)' > /dev/null 2>&1; then
-            die "Invalid filter regex: $TARGET_FILTER"
-        fi
+    if ! ds_validate_target_filter_regex "$TARGET_FILTER"; then
+        die "Invalid filter regex: $TARGET_FILTER"
     fi
 }
 
 # ------------------------------------------------------------------------------
-# Function: target_name_matches_filter
-# Purpose.: Check whether a target name matches configured regex filter
-# Args....: $1 - Target display name
-# Returns.: 0 if match or no filter, 1 otherwise
-# Output..: None
+# Function: resolve_target_compartment_name
+# Purpose.: Resolve effective compartment name for environment derivation
+# Args....: $1 - target compartment OCID
+# Returns.: 0 on success
+# Output..: Compartment name to stdout
 # ------------------------------------------------------------------------------
-target_name_matches_filter() {
-    local target_name="$1"
+resolve_target_compartment_name() {
+    local target_comp_ocid="$1"
 
-    if [[ -z "$TARGET_FILTER" ]]; then
+    if [[ -n "$target_comp_ocid" && "$target_comp_ocid" != "null" ]]; then
+        get_compartment_name "$target_comp_ocid"
+    elif [[ -n "$COMPARTMENT_NAME" ]]; then
+        echo "$COMPARTMENT_NAME"
+    elif [[ -n "$COMPARTMENT_OCID" ]]; then
+        get_compartment_name "$COMPARTMENT_OCID"
+    else
+        echo "unknown"
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# Function: resolve_target_compartment_ocid
+# Purpose.: Resolve effective compartment OCID for target
+# Args....: $1 - target compartment OCID from payload
+# Returns.: 0 on success
+# Output..: Compartment OCID to stdout
+# ------------------------------------------------------------------------------
+resolve_target_compartment_ocid() {
+    local target_comp_ocid="$1"
+
+    if [[ -n "$target_comp_ocid" && "$target_comp_ocid" != "null" ]]; then
+        echo "$target_comp_ocid"
+    elif [[ -n "$COMPARTMENT_OCID" ]]; then
+        echo "$COMPARTMENT_OCID"
+    else
+        echo ""
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# Function: normalize_target_payload
+# Purpose.: Normalize target payload into id/name/compartment TSV tuple
+# Args....: None (reads JSON object from stdin)
+# Returns.: 0 on success
+# Output..: TSV line: id, display-name, compartment-id
+# ------------------------------------------------------------------------------
+normalize_target_payload() {
+    jq -r '[.id, ."display-name", (."compartment-id" // "")] | @tsv'
+}
+
+# ------------------------------------------------------------------------------
+# Function: collect_targets_for_tagging
+# Purpose.: Collect target payload for tag updates
+# Args....: None
+# Returns.: 0 on success, 1 on error
+# Output..: JSON object with .data array
+# ------------------------------------------------------------------------------
+collect_targets_for_tagging() {
+    ds_collect_targets "$COMPARTMENT" "$TARGETS" "$LIFECYCLE_STATE" "$TARGET_FILTER"
+}
+
+# ------------------------------------------------------------------------------
+# Function: process_collected_targets
+# Purpose.: Process normalized target payload for tag updates
+# Args....: $1 - JSON payload with .data array
+# Returns.: 0 on success, 1 if any update failed
+# Output..: Log messages and summary
+# ------------------------------------------------------------------------------
+process_collected_targets() {
+    local json_data="$1"
+    local success_count=0
+    local error_count=0
+    local matched_count=0
+    local total_count=0
+    local current=0
+
+    total_count=$(echo "$json_data" | jq '.data | length')
+    log_info "Found $total_count targets to process"
+
+    if [[ $total_count -eq 0 ]]; then
+        if [[ -n "$TARGET_FILTER" ]]; then
+            die "No targets matched filter regex: $TARGET_FILTER" 1
+        fi
+        log_warn "No targets found"
         return 0
     fi
 
-    jq -n --arg n "$target_name" --arg re "$TARGET_FILTER" '$n | test($re)' > /dev/null 2>&1
+    while read -r target_ocid target_name target_comp; do
+        current=$((current + 1))
+        log_info "[$current/$total_count] Processing: $target_name"
+
+        local effective_comp
+        effective_comp=$(resolve_target_compartment_ocid "$target_comp")
+
+        if update_target_tags "$target_ocid" "$target_name" "$effective_comp"; then
+            success_count=$((success_count + 1))
+        else
+            error_count=$((error_count + 1))
+        fi
+
+        matched_count=$((matched_count + 1))
+    done < <(echo "$json_data" | jq -c '.data[]' | normalize_target_payload)
+
+    if [[ -n "$TARGET_FILTER" && $matched_count -eq 0 ]]; then
+        die "No targets matched filter regex: $TARGET_FILTER" 1
+    fi
+
+    log_info "Tag update completed:"
+    log_info "  Successful: $success_count"
+    log_info "  Errors: $error_count"
+
+    [[ $error_count -gt 0 ]] && return 1 || return 0
 }
 
 # ------------------------------------------------------------------------------
@@ -361,7 +458,7 @@ update_target_tags() {
 
     # Get compartment name and derive environment
     local comp_name
-    comp_name=$(get_compartment_name "$target_comp")
+    comp_name=$(resolve_target_compartment_name "$target_comp")
 
     local env
     env=$(get_env_from_compartment_name "$comp_name")
@@ -410,19 +507,6 @@ update_target_tags() {
 }
 
 # ------------------------------------------------------------------------------
-# Function: list_targets_in_compartment
-# Purpose.: List all targets in compartment
-# Args....: $1 - Compartment OCID or name
-# Returns.: 0 on success, 1 on error
-# Output..: JSON array of targets to stdout
-# ------------------------------------------------------------------------------
-list_targets_in_compartment() {
-    local compartment="$1"
-
-    ds_list_targets "$compartment" "$LIFECYCLE_STATE"
-}
-
-# ------------------------------------------------------------------------------
 # Function: do_work
 # Purpose.: Main work function - processes targets and updates tags
 # Args....: None
@@ -437,107 +521,16 @@ do_work() {
         log_info "Dry-run mode: Changes will be shown only (use --apply to apply)"
     fi
 
-    local json_data success_count=0 error_count=0 matched_count=0
+    local json_data
 
-    # Collect target data
     if [[ -n "$TARGETS" ]]; then
-        # Process specific targets
         log_info "Processing specific targets..."
-
-        local -a target_list
-        IFS=',' read -ra target_list <<< "$TARGETS"
-
-        local total_targets=${#target_list[@]}
-        local current_target=0
-
-        for target in "${target_list[@]}"; do
-            target="${target// /}" # trim spaces
-            [[ -z "$target" ]] && continue
-
-            current_target=$((current_target + 1))
-            log_info "[$current_target/$total_targets] Processing target: $target"
-            local target_ocid target_data target_name target_comp
-
-            if is_ocid "$target"; then
-                target_ocid="$target"
-            else
-                # Resolve target name to OCID using resolved compartment
-                target_ocid=$(ds_resolve_target_ocid "$target" "$COMPARTMENT_OCID") || {
-                    log_error "Failed to resolve target: $target"
-                    error_count=$((error_count + 1))
-                    continue
-                }
-            fi
-
-            if target_data=$(oci_exec_ro data-safe target-database get \
-                --target-database-id "$target_ocid" \
-                --query 'data'); then
-
-                target_name=$(echo "$target_data" | jq -r '."display-name"')
-                target_comp=$(echo "$target_data" | jq -r '."compartment-id"')
-
-                if ! target_name_matches_filter "$target_name"; then
-                    log_debug "Skipping target '$target_name' (filter mismatch)"
-                    continue
-                fi
-
-                matched_count=$((matched_count + 1))
-
-                if update_target_tags "$target_ocid" "$target_name" "$target_comp"; then
-                    success_count=$((success_count + 1))
-                else
-                    error_count=$((error_count + 1))
-                fi
-            else
-                log_error "Failed to get details for target: $target_ocid"
-                error_count=$((error_count + 1))
-            fi
-        done
     else
-        # Process targets from compartment
-        log_info "Processing targets from compartment..."
-        json_data=$(list_targets_in_compartment "$COMPARTMENT") || die "Failed to list targets"
-
-        if [[ -n "$TARGET_FILTER" ]]; then
-            json_data=$(echo "$json_data" | jq --arg re "$TARGET_FILTER" '.data = (.data | map(select((."display-name" // "") | test($re))))')
-        fi
-
-        local total_count
-        total_count=$(echo "$json_data" | jq '.data | length')
-        log_info "Found $total_count targets to process"
-
-        if [[ $total_count -eq 0 ]]; then
-            if [[ -n "$TARGET_FILTER" ]]; then
-                die "No targets matched filter regex: $TARGET_FILTER" 1
-            fi
-            log_warn "No targets found"
-            return 0
-        fi
-
-        local current=0
-        while read -r target_ocid target_name target_comp; do
-            current=$((current + 1))
-            log_info "[$current/$total_count] Processing: $target_name"
-            matched_count=$((matched_count + 1))
-
-            if update_target_tags "$target_ocid" "$target_name" "$target_comp"; then
-                success_count=$((success_count + 1))
-            else
-                error_count=$((error_count + 1))
-            fi
-        done < <(echo "$json_data" | jq -r '.data[] | [.id, ."display-name", ."compartment-id"] | @tsv')
+        log_info "Processing targets from compartment scope..."
     fi
 
-    if [[ -n "$TARGET_FILTER" && $matched_count -eq 0 ]]; then
-        die "No targets matched filter regex: $TARGET_FILTER" 1
-    fi
-
-    # Summary
-    log_info "Tag update completed:"
-    log_info "  Successful: $success_count"
-    log_info "  Errors: $error_count"
-
-    [[ $error_count -gt 0 ]] && return 1 || return 0
+    json_data=$(collect_targets_for_tagging) || die "Failed to collect targets"
+    process_collected_targets "$json_data"
 }
 
 # =============================================================================

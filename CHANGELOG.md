@@ -26,7 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Regex filter behavior is consistent across the scripts above:
   - Matches against target display names using regex substring semantics.
   - Intersects with `-T/--targets` when both are specified.
-  - Exits with code `1` when no targets match the provided filter.
+  - Mutating scripts exit with code `1` when no targets match the provided filter.
+  - `bin/ds_target_list.sh` logs an informational no-match result.
 - `bin/ds_database_prereqs.sh` startup info now includes current `ORACLE_SID`
   (or `unset`) to make local execution context clearer.
 - Phase 1 target-flow consolidation:
@@ -34,6 +35,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `ds_collect_targets` for unified target discovery/resolution/filtering.
   - `bin/ds_target_list.sh` now logs an informational message (no hard error)
     when `-r/--filter` matches no targets.
+- Phase 2 target-flow consolidation:
+  - `bin/ds_target_update_credentials.sh`,
+    `bin/ds_target_update_connector.sh`, and
+    `bin/ds_target_update_tags.sh` now use shared helper flow for
+    target collection, regex validation, and no-match handling.
 
 ### Documentation
 

@@ -319,28 +319,9 @@ validate_inputs() {
 
     DS_USER="$(resolve_ds_user)"
 
-    if [[ -n "$TARGET_FILTER" ]]; then
-        if ! jq -n --arg re "$TARGET_FILTER" '"probe" | test($re)' > /dev/null 2>&1; then
-            die "Invalid filter regex: $TARGET_FILTER"
-        fi
+    if ! ds_validate_target_filter_regex "$TARGET_FILTER"; then
+        die "Invalid filter regex: $TARGET_FILTER"
     fi
-}
-
-# ------------------------------------------------------------------------------
-# Function: target_name_matches_filter
-# Purpose.: Check whether a target name matches configured regex filter
-# Args....: $1 - Target display name
-# Returns.: 0 if match or no filter, 1 otherwise
-# Output..: None
-# ------------------------------------------------------------------------------
-target_name_matches_filter() {
-    local target_name="$1"
-
-    if [[ -z "$TARGET_FILTER" ]]; then
-        return 0
-    fi
-
-    jq -n --arg n "$target_name" --arg re "$TARGET_FILTER" '$n | test($re)' > /dev/null 2>&1
 }
 
 # ------------------------------------------------------------------------------
@@ -495,19 +476,6 @@ update_target_credentials() {
 }
 
 # ------------------------------------------------------------------------------
-# Function: list_targets_in_compartment
-# Purpose.: List targets in compartment
-# Args....: $1 - compartment OCID or name
-# Returns.: 0 on success, 1 on error
-# Output..: JSON array of targets to stdout
-# ------------------------------------------------------------------------------
-list_targets_in_compartment() {
-    local compartment="$1"
-
-    ds_list_targets "$compartment" "$LIFECYCLE_STATE"
-}
-
-# ------------------------------------------------------------------------------
 # Function: do_work
 # Purpose.: Main work function - orchestrates credential updates
 # Returns.: 0 on success, 1 if any errors occurred
@@ -516,6 +484,7 @@ list_targets_in_compartment() {
 # ------------------------------------------------------------------------------
 do_work() {
     local success_count=0 error_count=0 matched_count=0
+    local json_data
 
     # Show mode
     if [[ "$APPLY_CHANGES" == "true" ]]; then
@@ -531,120 +500,38 @@ do_work() {
     # Ensure cleanup on exit
     trap cleanup_temp_files EXIT
 
-    # Collect target data
     if [[ -n "$TARGETS" ]]; then
-        # Process specific targets
         log_info "Processing specific targets..."
-
-        local -a target_list
-        IFS=',' read -ra target_list <<< "$TARGETS"
-
-        local total_targets=${#target_list[@]}
-        local current_target=0
-
-        for target in "${target_list[@]}"; do
-            target="${target// /}" # trim spaces
-            current_target=$((current_target + 1))
-
-            local target_ocid target_name
-
-            if is_ocid "$target"; then
-                target_ocid="$target"
-                # Get target name
-                target_name=$(oci_exec data-safe target-database get \
-                    --target-database-id "$target_ocid" \
-                    --query 'data."display-name"' \
-                    --raw-output 2> /dev/null || echo "unknown")
-            else
-                # Resolve target name to OCID - need compartment for search
-                local search_comp_ocid="$COMPARTMENT_OCID"
-
-                # If compartment not provided via -c, try DS_ROOT_COMP
-                if [[ -z "$search_comp_ocid" ]]; then
-                    log_debug "No compartment specified, trying DS_ROOT_COMP"
-
-                    if [[ -z "${DS_ROOT_COMP:-}" ]]; then
-                        die "Target name '$target' requires compartment for resolution.\n\nOptions:\n  1. Use target OCID: -T ocid1.datasafetargetdatabase...\n  2. Specify compartment: -c <compartment-ocid-or-name>\n  3. Configure DS_ROOT_COMP in ${ODB_DATASAFE_BASE}/.env\n\nDS_ROOT_COMP is not set."
-                    fi
-
-                    # Try to resolve DS_ROOT_COMP using new pattern
-                    if ! search_comp_ocid=$(resolve_compartment_for_operation "${DS_ROOT_COMP}"); then
-                        die "Cannot resolve DS_ROOT_COMP='${DS_ROOT_COMP}' for target name resolution.\n\nOptions:\n  1. Use target OCID: -T ocid1.datasafetargetdatabase...\n  2. Specify compartment: -c <compartment-ocid-or-name>\n  3. Fix DS_ROOT_COMP in ${ODB_DATASAFE_BASE}/.env to valid compartment OCID or name\n  4. Verify compartment exists: oci iam compartment list --all | jq '.data[] | {name, id}'"
-                    fi
-
-                    log_debug "Using DS_ROOT_COMP for target search: $search_comp_ocid"
-                fi
-
-                log_debug "Resolving target name: $target in compartment: $search_comp_ocid (with subtree search)"
-
-                # Resolve target name to OCID
-                local resolved
-                if resolved=$(ds_resolve_target_ocid "$target" "$search_comp_ocid"); then
-                    log_debug "Successfully resolved target: $target -> $resolved"
-                    target_ocid="$resolved"
-                    target_name="$target"
-                else
-                    log_error "Target not found: $target"
-                    die "Could not resolve target name. Try:\n  1. Use OCID instead: -T ocid1.datasafetargetdatabase...\n  2. Verify target name is exact (case-sensitive)\n  3. Ensure target is in compartment or sub-compartments\n  4. List targets: oci data-safe target-database list --compartment-id $search_comp_ocid --compartment-id-in-subtree true --all | jq '.data[] | {name: .\"display-name\", id: .id}'"
-                fi
-            fi
-
-            if ! target_name_matches_filter "$target_name"; then
-                log_debug "Skipping target '$target_name' (filter mismatch)"
-                continue
-            fi
-
-            log_info "[$current_target/$total_targets] Updating target: $target_name"
-            matched_count=$((matched_count + 1))
-            if update_target_credentials "$target_ocid" "$target_name"; then
-                success_count=$((success_count + 1))
-            else
-                error_count=$((error_count + 1))
-            fi
-        done
     else
-        # Process targets from compartment
-        # Ensure we have a compartment OCID
-        if [[ -z "$COMPARTMENT_OCID" ]]; then
-            log_debug "No compartment specified, trying DS_ROOT_COMP"
-            COMPARTMENT_OCID=$(resolve_compartment_for_operation "$COMPARTMENT_OCID") || die "Failed to get compartment. Set DS_ROOT_COMP or use -c/--compartment"
-            COMPARTMENT_NAME=$(oci_get_compartment_name "$COMPARTMENT_OCID" 2> /dev/null) || COMPARTMENT_NAME="$COMPARTMENT_OCID"
-            log_info "Using DS_ROOT_COMP: $COMPARTMENT_NAME"
-        fi
-
-        log_info "Processing targets from compartment: $COMPARTMENT_NAME..."
-        local json_data
-        json_data=$(list_targets_in_compartment "$COMPARTMENT_OCID") || die "Failed to list targets"
-
-        if [[ -n "$TARGET_FILTER" ]]; then
-            json_data=$(echo "$json_data" | jq --arg re "$TARGET_FILTER" '.data = (.data | map(select((."display-name" // "") | test($re))))')
-        fi
-
-        local total_count
-        total_count=$(echo "$json_data" | jq '.data | length')
-        log_info "Found $total_count targets to process"
-
-        if [[ $total_count -eq 0 ]]; then
-            if [[ -n "$TARGET_FILTER" ]]; then
-                die "No targets matched filter regex: $TARGET_FILTER" 1
-            fi
-            log_warn "No targets found"
-            return 0
-        fi
-
-        local current=0
-        while read -r target_ocid target_name; do
-            current=$((current + 1))
-            log_info "[$current/$total_count] Processing: $target_name"
-            matched_count=$((matched_count + 1))
-
-            if update_target_credentials "$target_ocid" "$target_name"; then
-                success_count=$((success_count + 1))
-            else
-                error_count=$((error_count + 1))
-            fi
-        done < <(echo "$json_data" | jq -r '.data[] | [.id, ."display-name"] | @tsv')
+        log_info "Processing targets from compartment scope..."
     fi
+
+    json_data=$(ds_collect_targets "$COMPARTMENT" "$TARGETS" "$LIFECYCLE_STATE" "$TARGET_FILTER") || die "Failed to collect targets"
+
+    local total_count
+    total_count=$(echo "$json_data" | jq '.data | length')
+    log_info "Found $total_count targets to process"
+
+    if [[ $total_count -eq 0 ]]; then
+        if [[ -n "$TARGET_FILTER" ]]; then
+            die "No targets matched filter regex: $TARGET_FILTER" 1
+        fi
+        log_warn "No targets found"
+        return 0
+    fi
+
+    local current=0
+    while read -r target_ocid target_name; do
+        current=$((current + 1))
+        log_info "[$current/$total_count] Processing: $target_name"
+        matched_count=$((matched_count + 1))
+
+        if update_target_credentials "$target_ocid" "$target_name"; then
+            success_count=$((success_count + 1))
+        else
+            error_count=$((error_count + 1))
+        fi
+    done < <(echo "$json_data" | jq -r '.data[] | [.id, ."display-name"] | @tsv')
 
     if [[ -n "$TARGET_FILTER" && $matched_count -eq 0 ]]; then
         die "No targets matched filter regex: $TARGET_FILTER" 1
