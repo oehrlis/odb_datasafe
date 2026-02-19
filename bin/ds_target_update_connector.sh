@@ -93,7 +93,7 @@ Options:
     -c, --compartment ID        Target compartment OCID or name (default: DS_ROOT_COMP)
                                 Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
     -T, --targets LIST          Comma-separated target names or OCIDs
-        -r, --filter REGEX          Filter target names by regex (substring match)
+    -r, --filter REGEX          Filter target names by regex (substring match)
     -L, --lifecycle STATE       Filter by lifecycle state (default: ${LIFECYCLE_STATE})
                                 Supports: ACTIVE, NEEDS_ATTENTION, CREATING, UPDATING, DELETING
                                 Use comma-separated for multiple: ACTIVE,NEEDS_ATTENTION

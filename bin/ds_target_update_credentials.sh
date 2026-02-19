@@ -94,7 +94,7 @@ Options:
     -c, --compartment ID    Compartment OCID or name (default: DS_ROOT_COMP)
                             Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
     -T, --targets LIST      Comma-separated target names or OCIDs
-        -r, --filter REGEX      Filter target names by regex (substring match)
+    -r, --filter REGEX      Filter target names by regex (substring match)
     -L, --lifecycle STATE   Filter by lifecycle state (default: ${LIFECYCLE_STATE})
 
   Credentials:
