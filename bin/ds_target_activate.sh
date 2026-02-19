@@ -31,6 +31,7 @@ readonly SCRIPT_VERSION
 # Defaults
 : "${COMPARTMENT:=}"
 : "${TARGETS:=}"
+: "${TARGET_FILTER:=}"
 : "${LIFECYCLE_STATE:=INACTIVE}"
 : "${DRY_RUN:=false}"
 : "${APPLY_CHANGES:=false}"
@@ -91,6 +92,7 @@ Options:
   Target Selection:
     -c, --compartment ID    Compartment OCID or name
     -T, --targets LIST      Comma-separated target names or OCIDs
+    -r, --filter REGEX      Filter target names by regex (substring match)
     -L, --lifecycle STATE   Filter by lifecycle state (default: INACTIVE)
 
   Execution:
@@ -130,6 +132,9 @@ Examples:
   # Activate specific targets (dry-run)
     ${SCRIPT_NAME} -T target1,target2 -P 'my_secret' --dry-run
 
+    # Activate only targets matching regex (display-name)
+        ${SCRIPT_NAME} -c MyCompartment -r "cdb10b" -P 'my_secret' --apply
+
     # Use root normalization hint for common user naming
     ${SCRIPT_NAME} --root -U DS_ADMIN -P 'my_secret' -T mydb_CDBROOT
 
@@ -167,6 +172,11 @@ parse_args() {
             -T | --targets)
                 need_val "$1" "${2:-}"
                 TARGETS="$2"
+                shift 2
+                ;;
+            -r | --filter)
+                need_val "$1" "${2:-}"
+                TARGET_FILTER="$2"
                 shift 2
                 ;;
             -L | --lifecycle)
@@ -276,6 +286,10 @@ validate_inputs() {
 
     if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
         usage
+    fi
+
+    if ! ds_validate_target_filter_regex "$TARGET_FILTER"; then
+        die "Invalid filter regex: $TARGET_FILTER"
     fi
 
     DS_USER_PDB="$(resolve_ds_user "PDB")"
@@ -516,52 +530,23 @@ do_work() {
     # Setup cleanup trap
     trap cleanup_temp_files EXIT
 
-    # Collect target OCIDs
-    if [[ -n "$TARGETS" ]]; then
-        # Process explicit targets
-        IFS=',' read -ra target_list <<< "$TARGETS"
-        for target in "${target_list[@]}"; do
-            target="${target// /}" # trim spaces
+    log_info "Discovering targets (lifecycle: $LIFECYCLE_STATE)"
 
-            if is_ocid "$target"; then
-                target_ocids+=("$target")
-            else
-                if [[ -z "$COMPARTMENT" ]]; then
-                    die "Target name '$target' requires --compartment for resolution"
-                fi
-                # Resolve name to OCID using resolved compartment
-                log_debug "Resolving target name: $target"
-                local resolved
-                resolved=$(ds_resolve_target_ocid "$target" "$COMPARTMENT") || die "Failed to resolve target: $target"
+    local targets_json
+    targets_json=$(ds_collect_targets "$COMPARTMENT" "$TARGETS" "$LIFECYCLE_STATE" "$TARGET_FILTER") || die "Failed to collect targets"
 
-                if [[ -z "$resolved" ]]; then
-                    die "Target not found: $target"
-                fi
+    mapfile -t target_ocids < <(echo "$targets_json" | jq -r '.data[].id')
 
-                target_ocids+=("$resolved")
-            fi
-        done
-    elif [[ -n "$COMPARTMENT" ]]; then
-        # List targets from compartment
-        log_info "Discovering targets in compartment: $COMPARTMENT (lifecycle: $LIFECYCLE_STATE)"
-
-        local comp_ocid
-        comp_ocid=$(oci_resolve_compartment_ocid "$COMPARTMENT")
-
-        local targets_json
-        targets_json=$(ds_list_targets "$comp_ocid" "$LIFECYCLE_STATE")
-
-        # Extract OCIDs
-        mapfile -t target_ocids < <(echo "$targets_json" | jq -r '.data[].id')
-
-        local count=${#target_ocids[@]}
-        if [[ $count -eq 0 ]]; then
-            log_warn "No targets found matching criteria"
-            return 0
+    local count=${#target_ocids[@]}
+    if [[ $count -eq 0 ]]; then
+        if [[ -n "$TARGET_FILTER" ]]; then
+            die "No targets matched filter regex: $TARGET_FILTER" 1
         fi
-
-        log_info "Found $count targets to activate"
+        log_warn "No targets found matching criteria"
+        return 0
     fi
+
+    log_info "Found $count targets to activate"
 
     # Activate each target
     local total=${#target_ocids[@]}
