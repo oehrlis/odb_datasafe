@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `bin/ds_target_update_credentials.sh` now enables force mode by default in
+  apply mode, so OCI credential updates run non-interactively without requiring
+  explicit `--force`.
+- Added `--no-force` to allow opting out of force mode when interactive
+  confirmation behavior is desired.
+
 ## [0.15.2] - 2026-02-19
 
 ### Fixed

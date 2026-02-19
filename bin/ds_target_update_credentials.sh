@@ -42,7 +42,7 @@ readonly SCRIPT_VERSION
 : "${RUN_ROOT:=false}"
 : "${COMMON_USER_PREFIX:=C##}"
 : "${APPLY_CHANGES:=false}"
-: "${FORCE_UPDATE:=false}"
+: "${FORCE_UPDATE:=true}"
 : "${WAIT_FOR_STATE:=}" # Empty = async (no wait); "ACCEPTED" or other for sync wait
 
 # shellcheck disable=SC1091
@@ -116,7 +116,8 @@ Options:
 
   Execution:
     --apply                 Apply changes (default: dry-run only)
-        --force                 Pass --force to OCI update (non-interactive confirmation)
+        --force                 Pass --force to OCI update (enabled by default with --apply)
+        --no-force              Disable --force (allows OCI interactive confirmation prompts)
     -n, --dry-run           Dry-run mode (show what would be done)
     --wait-for-state STATE  Wait for operation completion with state (e.g., ACCEPTED)
                             Default: async (no wait)
@@ -225,6 +226,10 @@ parse_args() {
                 ;;
             --force)
                 FORCE_UPDATE=true
+                shift
+                ;;
+            --no-force)
+                FORCE_UPDATE=false
                 shift
                 ;;
             --wait-for-state)
@@ -506,9 +511,8 @@ do_work() {
     # Show mode
     if [[ "$APPLY_CHANGES" == "true" ]]; then
         log_info "Apply mode: Changes will be applied"
-        if [[ "$FORCE_UPDATE" != "true" ]]; then
-            log_warn "Apply mode without --force may trigger OCI confirmation prompts"
-        fi
+        [[ "$FORCE_UPDATE" == "true" ]] && log_info "Force mode enabled for OCI update"
+        [[ "$FORCE_UPDATE" != "true" ]] && log_warn "Force mode disabled; OCI may prompt for confirmation"
     else
         log_info "Dry-run mode: Changes will be shown only (use --apply to apply)"
     fi
