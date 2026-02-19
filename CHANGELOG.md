@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.3] - 2026-02-19
+
 ### Changed
 
 - `bin/ds_target_update_credentials.sh` now enables force mode by default in

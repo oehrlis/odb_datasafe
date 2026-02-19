@@ -448,25 +448,67 @@ cleanup_temp_files() {
 }
 
 # ------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
+# Function: is_updatable_lifecycle_state
+# Purpose.: Check whether lifecycle state supports credential updates
+# Args....: $1 - Lifecycle state
+# Returns.: 0 if updatable, 1 otherwise
+# Output..: None
+# ----------------------------------------------------------------------------
+is_updatable_lifecycle_state() {
+    local lifecycle_state="$1"
+
+    case "$lifecycle_state" in
+        ACTIVE | NEEDS_ATTENTION)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+# ----------------------------------------------------------------------------
 # Function: update_target_credentials
 # Purpose.: Update credentials for a single target
 # Args....: $1 - target OCID
 #           $2 - target name
+#           $3 - lifecycle state
 # Returns.: 0 on success, 1 on error
 # Output..: Progress and status messages
 # ------------------------------------------------------------------------------
 update_target_credentials() {
     local target_ocid="$1"
     local target_name="$2"
+    local lifecycle_state="${3:-UNKNOWN}"
 
     log_debug "Processing target: $target_name ($target_ocid)"
 
     log_info "Target: $target_name"
     log_info "  User: $DS_USER"
     log_info "  Secret: [hidden]"
+    log_debug "  Lifecycle state: $lifecycle_state"
+
+    if ! is_updatable_lifecycle_state "$lifecycle_state"; then
+        log_warn "  [SKIP] Target lifecycle-state '$lifecycle_state' is not updatable (must be ACTIVE or NEEDS_ATTENTION)"
+        return 2
+    fi
 
     if [[ "$APPLY_CHANGES" == "true" ]]; then
         log_info "  Updating credentials..."
+
+        # Re-check current state to avoid transient failures when target state
+        # changed after list collection.
+        local current_state
+        current_state=$(oci_exec_ro data-safe target-database get \
+            --target-database-id "$target_ocid" \
+            --query 'data."lifecycle-state"' \
+            --raw-output 2> /dev/null || echo "$lifecycle_state")
+
+        if ! is_updatable_lifecycle_state "$current_state"; then
+            log_warn "  [SKIP] Current lifecycle-state '$current_state' is not updatable (must be ACTIVE or NEEDS_ATTENTION)"
+            return 2
+        fi
 
         # Build OCI command
         local -a cmd=(
@@ -505,7 +547,7 @@ update_target_credentials() {
 # Notes...: Resolves credentials and processes targets
 # ------------------------------------------------------------------------------
 do_work() {
-    local success_count=0 error_count=0 matched_count=0
+    local success_count=0 error_count=0 skipped_count=0 matched_count=0
     local json_data
 
     # Show mode
@@ -545,17 +587,19 @@ do_work() {
     fi
 
     local current=0
-    while read -r target_ocid target_name; do
+    while read -r target_ocid target_name lifecycle_state; do
         current=$((current + 1))
         log_info "[$current/$total_count] Processing: $target_name"
         matched_count=$((matched_count + 1))
 
-        if update_target_credentials "$target_ocid" "$target_name"; then
+        if update_target_credentials "$target_ocid" "$target_name" "$lifecycle_state"; then
             success_count=$((success_count + 1))
+        elif [[ $? -eq 2 ]]; then
+            skipped_count=$((skipped_count + 1))
         else
             error_count=$((error_count + 1))
         fi
-    done < <(echo "$json_data" | jq -r '.data[] | [.id, ."display-name"] | @tsv')
+    done < <(echo "$json_data" | jq -r '.data[] | [.id, ."display-name", (."lifecycle-state" // "UNKNOWN")] | @tsv')
 
     if [[ -n "$TARGET_FILTER" && $matched_count -eq 0 ]]; then
         die "No targets matched filter regex: $TARGET_FILTER" 1
@@ -564,6 +608,7 @@ do_work() {
     # Summary
     log_info "Credential update completed:"
     log_info "  Successful: $success_count"
+    log_info "  Skipped: $skipped_count"
     log_info "  Errors: $error_count"
 
     [[ $error_count -gt 0 ]] && return 1 || return 0
