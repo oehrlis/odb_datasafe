@@ -17,3 +17,9 @@ setup() {
     [[ "$output" == *"--ds-user"* ]]
     [[ "$output" == *"--ds-secret"* ]]
 }
+
+@test "ds_target_update_credentials.sh accepts all-target option" {
+    run "${BIN_DIR}/ds_target_update_credentials.sh" --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"-A"* ]] || [[ "$output" == *"--all"* ]]
+}

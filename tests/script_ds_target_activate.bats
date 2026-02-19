@@ -73,3 +73,8 @@ teardown() {
     run "${BIN_DIR}/ds_target_activate.sh" --help
     [[ "$output" == *"-T"* ]] || [[ "$output" == *"--targets"* ]]
 }
+
+@test "ds_target_activate.sh accepts all-target option" {
+    run "${BIN_DIR}/ds_target_activate.sh" --help
+    [[ "$output" == *"-A"* ]] || [[ "$output" == *"--all"* ]]
+}

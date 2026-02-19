@@ -16,3 +16,9 @@ setup() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"Usage:"* ]] || [[ "$output" == *"usage:"* ]]
 }
+
+@test "ds_target_list.sh accepts all-target option" {
+    run "${BIN_DIR}/ds_target_list.sh" --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"-A"* ]] || [[ "$output" == *"--all"* ]]
+}
