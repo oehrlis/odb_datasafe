@@ -42,6 +42,7 @@ readonly SCRIPT_VERSION
 : "${RUN_ROOT:=false}"
 : "${COMMON_USER_PREFIX:=C##}"
 : "${APPLY_CHANGES:=false}"
+: "${FORCE_UPDATE:=false}"
 : "${WAIT_FOR_STATE:=}" # Empty = async (no wait); "ACCEPTED" or other for sync wait
 
 # shellcheck disable=SC1091
@@ -115,6 +116,7 @@ Options:
 
   Execution:
     --apply                 Apply changes (default: dry-run only)
+        --force                 Pass --force to OCI update (non-interactive confirmation)
     -n, --dry-run           Dry-run mode (show what would be done)
     --wait-for-state STATE  Wait for operation completion with state (e.g., ACCEPTED)
                             Default: async (no wait)
@@ -131,13 +133,13 @@ Examples:
   ${SCRIPT_NAME} -U myuser
 
   # Apply changes using credentials file (async)
-  ${SCRIPT_NAME} --cred-file creds.json --apply
+    ${SCRIPT_NAME} --cred-file creds.json --apply --force
 
   # Apply changes and wait for completion
-  ${SCRIPT_NAME} --cred-file creds.json --apply --wait-for-state ACCEPTED
+    ${SCRIPT_NAME} --cred-file creds.json --apply --force --wait-for-state ACCEPTED
 
   # Update specific targets with username/secret
-  ${SCRIPT_NAME} -T target1,target2 -U myuser -P mysecret --apply
+    ${SCRIPT_NAME} -T target1,target2 -U myuser -P mysecret --apply --force
 
   # Bulk update for compartment (interactive secret, wait for state)
   ${SCRIPT_NAME} -c my-compartment -U dbuser --apply --wait-for-state ACCEPTED
@@ -219,6 +221,10 @@ parse_args() {
                 ;;
             --apply)
                 APPLY_CHANGES=true
+                shift
+                ;;
+            --force)
+                FORCE_UPDATE=true
                 shift
                 ;;
             --wait-for-state)
@@ -457,19 +463,16 @@ update_target_credentials() {
     if [[ "$APPLY_CHANGES" == "true" ]]; then
         log_info "  Updating credentials..."
 
-        # Prepare credentials JSON for API call
-        local cred_json
-        cred_json=$(jq -n \
-            --arg user "$DS_USER" \
-            --arg pass "$DS_SECRET" \
-            '{userName: $user, password: $pass}')
-
         # Build OCI command
         local -a cmd=(
             data-safe target-database update
             --target-database-id "$target_ocid"
-            --credentials "$cred_json"
+            --credentials "file://${TMP_CRED_JSON}"
         )
+
+        if [[ "$FORCE_UPDATE" == "true" ]]; then
+            cmd+=(--force)
+        fi
 
         # Add wait-for-state if specified
         if [[ -n "$WAIT_FOR_STATE" ]]; then
@@ -503,6 +506,9 @@ do_work() {
     # Show mode
     if [[ "$APPLY_CHANGES" == "true" ]]; then
         log_info "Apply mode: Changes will be applied"
+        if [[ "$FORCE_UPDATE" != "true" ]]; then
+            log_warn "Apply mode without --force may trigger OCI confirmation prompts"
+        fi
     else
         log_info "Dry-run mode: Changes will be shown only (use --apply to apply)"
     fi

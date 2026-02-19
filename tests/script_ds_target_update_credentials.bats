@@ -23,3 +23,9 @@ setup() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"-A"* ]] || [[ "$output" == *"--all"* ]]
 }
+
+@test "ds_target_update_credentials.sh accepts force option" {
+    run "${BIN_DIR}/ds_target_update_credentials.sh" --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--force"* ]]
+}

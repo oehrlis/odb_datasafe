@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   defaults after `init_config`, so values loaded from `datasafe.conf`
   (for example `DATASAFE_USER=DS_ADMIN`) are honored when
   `-U/--ds-user` is not explicitly provided.
+- `bin/ds_target_update_credentials.sh` now supports `--force` to pass OCI
+  update confirmation non-interactively for bulk credential updates.
+- `bin/ds_target_update_credentials.sh` no longer sends inline credentials JSON
+  in the CLI command; it uses `--credentials file://...`, preventing plaintext
+  secret exposure in debug/error command logging.
 
 ## [0.15.1] - 2026-02-19
 
