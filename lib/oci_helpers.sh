@@ -563,6 +563,7 @@ ds_collect_targets() {
     if [[ -n "$targets_input" ]]; then
         local -a target_list=()
         local -a target_objects=()
+        local valid_target_count=0
         local target=""
         local target_ocid=""
         local target_data=""
@@ -574,6 +575,7 @@ ds_collect_targets() {
             target="${target#"${target%%[![:space:]]*}"}"
             target="${target%"${target##*[![:space:]]}"}"
             [[ -z "$target" ]] && continue
+            valid_target_count=$((valid_target_count + 1))
 
             if is_ocid "$target"; then
                 target_ocid="$target"
@@ -587,6 +589,11 @@ ds_collect_targets() {
             target_data=$(ds_get_target "$target_ocid" | jq -c '.data') || return 1
             target_objects+=("$target_data")
         done
+
+        if [[ $valid_target_count -eq 0 ]]; then
+            log_error "No valid targets specified in explicit target list"
+            return 1
+        fi
 
         if [[ ${#target_objects[@]} -eq 0 ]]; then
             targets_json='{"data":[]}'

@@ -88,7 +88,7 @@ setup() {
 }
 
 @test "ds_connector_update.sh --check-all does not require CONNECTOR_NAME" {
-    run "${BIN_DIR}/ds_connector_update.sh" --check-all
+    run env -u ORADBA_BASE "${BIN_DIR}/ds_connector_update.sh" --check-all
     [ "$status" -eq 1 ]
     [[ "$output" != *"Missing required variables: CONNECTOR_NAME"* ]]
 }
