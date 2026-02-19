@@ -4,7 +4,7 @@
 # ------------------------------------------------------------------------------
 # Script.....: ds_connector_register_oradba.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.02.16
+# Date.......: 2026.02.19
 # Version....: v0.11.1
 # Purpose....: Register Data Safe connector metadata in oradba_homes.conf
 # Usage......: ds_connector_register_oradba.sh [OPTIONS]

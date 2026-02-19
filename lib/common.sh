@@ -4,7 +4,7 @@
 # ------------------------------------------------------------------------------
 # Module.....: common.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.02.11
+# Date.......: 2026.02.19
 # Version....: v0.7.0
 # Purpose....: Generic utilities for bash scripts - logging, error handling,
 #              argument parsing helpers. Designed to be reusable across projects.

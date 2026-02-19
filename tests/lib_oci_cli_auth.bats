@@ -4,7 +4,7 @@
 # ------------------------------------------------------------------------------
 # Test Suite.: lib_oci_cli_auth.bats
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.02.11
+# Date.......: 2026.02.19
 # Purpose....: Test suite for OCI CLI authentication checks
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------

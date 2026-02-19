@@ -4,7 +4,7 @@
 # ------------------------------------------------------------------------------
 # Test Suite.: integration_param_combinations.bats
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.02.11
+# Date.......: 2026.02.19
 # Purpose....: Integration tests for parameter combinations and error handling
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------

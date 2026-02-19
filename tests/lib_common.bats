@@ -4,7 +4,7 @@
 # ------------------------------------------------------------------------------
 # Test Suite.: lib_common_fixed.bats
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.02.11
+# Date.......: 2026.02.19
 # Purpose....: Fixed test suite for lib/common.sh library functions
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------

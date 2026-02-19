@@ -4,7 +4,7 @@
 # ------------------------------------------------------------------------------
 # Test Suite.: script_ds_target_activate.bats
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.02.11
+# Date.......: 2026.02.19
 # Purpose....: Simple test suite for bin/ds_target_activate.sh script
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------

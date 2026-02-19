@@ -4,7 +4,7 @@
 # ------------------------------------------------------------------------------
 # Test Suite.: lib_oci_helpers.bats
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.02.11
+# Date.......: 2026.02.19
 # Purpose....: Test suite for lib/oci_helpers.sh library functions
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------

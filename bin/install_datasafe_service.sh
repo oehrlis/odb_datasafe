@@ -5,7 +5,7 @@
 # Name.......: install_datasafe_service.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
-# Date.......: 2026.02.11
+# Date.......: 2026.02.19
 # Version....: v0.7.0
 # Purpose....: Install and manage Oracle Data Safe On-Premises Connector as systemd service
 #              Generic solution for any connector with automatic discovery and configuration

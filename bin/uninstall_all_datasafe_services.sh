@@ -5,7 +5,7 @@
 # Name.......: uninstall_all_datasafe_services.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
-# Date.......: 2026.02.11
+# Date.......: 2026.02.19
 # Version....: v0.7.0
 # Purpose....: Uninstall all Oracle Data Safe On-Premises Connector systemd services
 # Notes......: Works as regular user for listing. Root only for uninstall operations.
