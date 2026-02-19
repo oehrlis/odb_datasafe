@@ -26,7 +26,7 @@ readonly SQL_FILE_3="sql/datasafe_privileges.sql"
 # Output..: Usage text to stdout
 # ------------------------------------------------------------------------------
 show_usage() {
-    cat <<EOF
+    cat << EOF
 Usage: ${SCRIPT_NAME} [OPTIONS]
 
 Rebuild embedded SQL payload in ds_database_prereqs.sh.
@@ -48,7 +48,7 @@ EOF
 require_cmd() {
     local command_name="$1"
 
-    if ! command -v "${command_name}" >/dev/null 2>&1; then
+    if ! command -v "${command_name}" > /dev/null 2>&1; then
         echo "Error: Required command not found: ${command_name}" >&2
         return 1
     fi
@@ -98,7 +98,7 @@ rebuild_payload() {
         zip -j "${zip_file}" \
             "${SQL_FILE_1}" \
             "${SQL_FILE_2}" \
-            "${SQL_FILE_3}" >/dev/null
+            "${SQL_FILE_3}" > /dev/null
     )
 
     base64 "${zip_file}" > "${payload_b64}"
@@ -128,7 +128,7 @@ rebuild_payload() {
 
     echo "Updated embedded payload in ${target_script}"
 
-    "${target_script}" --help >/dev/null
+    "${target_script}" --help > /dev/null
     echo "Sanity check passed: ${target_script} --help"
 
     return 0
@@ -146,7 +146,7 @@ main() {
 
     while [[ $# -gt 0 ]]; do
         case "${1}" in
-            -t|--target)
+            -t | --target)
                 [[ -z "${2:-}" ]] && {
                     echo "Error: --target requires a value" >&2
                     return 1
@@ -154,11 +154,11 @@ main() {
                 target_script="${2}"
                 shift 2
                 ;;
-            -n|--dry-run)
+            -n | --dry-run)
                 dry_run="true"
                 shift
                 ;;
-            -h|--help)
+            -h | --help)
                 show_usage
                 return 0
                 ;;
