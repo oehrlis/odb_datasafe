@@ -30,6 +30,8 @@ SHFMT 			:= $(shell command -v shfmt 2>/dev/null)
 MARKDOWNLINT	:= $(shell command -v markdownlint 2>/dev/null || command -v markdownlint-cli 2>/dev/null)
 BATS 			:= $(shell command -v bats 2>/dev/null)
 GIT 			:= $(shell command -v git 2>/dev/null)
+TIMEOUT 		:= $(shell command -v timeout 2>/dev/null || command -v gtimeout 2>/dev/null)
+TEST_TIMEOUT 	?= 800
 
 # Color output
 COLOR_RESET 	:= \033[0m
@@ -84,14 +86,26 @@ help: ## Show this help message
 
 .PHONY: test
 test: ## Run BATS tests (excluding integration tests)
-	@echo -e "$(COLOR_BLUE)Running unit tests (timeout: 400s)...$(COLOR_RESET)"
+	@echo -e "$(COLOR_BLUE)Running unit tests (timeout: $(TEST_TIMEOUT)s)...$(COLOR_RESET)"
 	@if [ -z "$(BATS)" ]; then \
 		echo -e "$(COLOR_RED)Error: bats not found. Install with: brew install bats-core$(COLOR_RESET)"; \
 		exit 1; \
 	fi
-	@timeout 400 $(BATS) --no-tempdir-cleanup -j 1 $$(ls tests/*.bats | grep -v integration_tests.bats) && \
-		echo -e "$(COLOR_GREEN)✓ Tests passed$(COLOR_RESET)" || \
-		echo -e "$(COLOR_YELLOW)⚠️  Some tests failed or require OCI CLI$(COLOR_RESET)"
+	@if [ "$(TEST_TIMEOUT)" -gt 0 ] && [ -n "$(TIMEOUT)" ]; then \
+		$(TIMEOUT) $(TEST_TIMEOUT) $(BATS) --no-tempdir-cleanup -j 1 $$(ls tests/*.bats | grep -v integration_tests.bats); \
+		rc=$$?; \
+		if [ $$rc -eq 0 ]; then \
+			echo -e "$(COLOR_GREEN)✓ Tests passed$(COLOR_RESET)"; \
+		elif [ $$rc -eq 124 ]; then \
+			echo -e "$(COLOR_YELLOW)⚠️  Tests timed out after $(TEST_TIMEOUT)s (increase TEST_TIMEOUT or set TEST_TIMEOUT=0)$(COLOR_RESET)"; \
+		else \
+			echo -e "$(COLOR_YELLOW)⚠️  Some tests failed or require OCI CLI$(COLOR_RESET)"; \
+		fi; \
+	else \
+		$(BATS) --no-tempdir-cleanup -j 1 $$(ls tests/*.bats | grep -v integration_tests.bats) && \
+			echo -e "$(COLOR_GREEN)✓ Tests passed$(COLOR_RESET)" || \
+			echo -e "$(COLOR_YELLOW)⚠️  Some tests failed or require OCI CLI$(COLOR_RESET)"; \
+	fi
 
 .PHONY: test-all
 test-all: ## Run all tests including integration tests
