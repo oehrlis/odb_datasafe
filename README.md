@@ -170,8 +170,14 @@ ds_target_list.sh
 # Get target details
 ds_target_details.sh -T my-database
 
-# Update target credentials
-ds_target_update_credentials.sh -T my-database --new-password
+# Update target credentials (dry-run)
+ds_target_update_credentials.sh -T my-database -U C##DATASAFE_ADMIN
+
+# Apply credential update (uses OCI --force by default)
+ds_target_update_credentials.sh -T my-database -U C##DATASAFE_ADMIN -P '<secret>' --apply
+
+# Opt out of force mode (interactive OCI confirmation)
+ds_target_update_credentials.sh -T my-database -U C##DATASAFE_ADMIN -P '<secret>' --apply --no-force
 
 # Start audit trails
 ds_target_audit_trail.sh -T my-database

@@ -175,6 +175,9 @@ bin/ds_target_update_credentials.sh -r "db02"
 # Apply credential update for regex-matched targets
 bin/ds_target_update_credentials.sh -r "db02" --apply
 
+# Apply with interactive OCI confirmation (disable default force mode)
+bin/ds_target_update_credentials.sh -r "db02" --apply --no-force
+
 # Update tags for targets matching regex
 bin/ds_target_update_tags.sh -r "db02" --apply
 
@@ -503,6 +506,9 @@ ds_target_update_service.sh -c MyCompartment -r "db02" --apply
 # Update credentials for targets containing db02
 ds_target_update_credentials.sh -r "db02" --apply
 
+# Update credentials with interactive OCI confirmation
+ds_target_update_credentials.sh -r "db02" --apply --no-force
+
 # Update tags for targets containing db02
 ds_target_update_tags.sh -r "db02" --apply
 ```
@@ -538,6 +544,9 @@ ds_target_activate.sh --all --apply
 
 # Update credentials for all ACTIVE targets from DS_ROOT_COMP
 ds_target_update_credentials.sh --all --apply
+
+# Update credentials for all ACTIVE targets from DS_ROOT_COMP with confirmation prompts
+ds_target_update_credentials.sh --all --apply --no-force
 
 # Set connector for all ACTIVE targets from DS_ROOT_COMP
 ds_target_update_connector.sh set --all --target-connector conn-prod-01 --apply

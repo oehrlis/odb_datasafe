@@ -243,6 +243,9 @@ bin/ds_target_update_credentials.sh -T mydb01
 # Update credentials for all db02 targets
 bin/ds_target_update_credentials.sh -r "db02" --apply
 
+# Apply with interactive OCI confirmation (disable default force mode)
+bin/ds_target_update_credentials.sh -r "db02" --apply --no-force
+
 # Set connector for all db02 targets
 bin/ds_target_update_connector.sh set --target-connector conn-prod-01 -r "db02" --apply
 
@@ -278,6 +281,12 @@ bin/uninstall_all_datasafe_services.sh
 - 📚 **[Complete Documentation](../README.md)** - Main README with overview
 
 ### Detailed Documentation
+
+Notes:
+
+- `ds_target_update_credentials.sh` runs in dry-run mode by default.
+- With `--apply`, OCI updates use `--force` by default for non-interactive execution.
+- Use `--no-force` if you explicitly want OCI confirmation prompts.
 
 - 🔧 **[Installation Guide](install_datasafe_service.md)** - Connector installation and setup
 - 🔐 **[IAM Policies Guide](oci-iam-policies.md)** - Required OCI permissions
