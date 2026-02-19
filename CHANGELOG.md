@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.2] - 2026-02-19
+
 ### Fixed
 
 - `bin/ds_target_update_credentials.sh` now re-syncs `DS_USER`/`DS_SECRET`
