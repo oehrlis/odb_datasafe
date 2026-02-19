@@ -8,6 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-02-19
+
+### Fixed
+
+- `bin/ds_version.sh` no longer relies on bash nameref (`local -n`) in
+  `dedupe_array`, preventing failures on older bash variants and mixed shell
+  invocation paths.
+- `lib/oci_helpers.sh` array checks/expansions were hardened for strict
+  `set -u` handling using bash 4.2-compatible patterns.
+- Addressed shellcheck findings from the compatibility work:
+  - array existence checks updated to avoid false-positive/unsafe patterns,
+  - `SC2154` handling in `bin/ds_version.sh` aligned with function-local usage.
+
+### Added
+
+- Added compatibility regression tests in `tests/bash42_compatibility.bats`
+  covering:
+  - absence of `local -n` in scripts,
+  - `dedupe_array` behavior and ordering,
+  - strict-mode-safe array handling in `lib/oci_helpers.sh`.
+
 ## [0.15.0] - 2026-02-19
 
 ### Added
