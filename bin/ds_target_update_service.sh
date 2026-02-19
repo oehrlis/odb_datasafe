@@ -31,6 +31,8 @@ readonly SCRIPT_VERSION
 # Defaults
 : "${COMPARTMENT:=}"
 : "${TARGETS:=}"
+: "${SELECT_ALL:=false}"
+: "${TARGET_FILTER:=}"
 : "${LIFECYCLE_STATE:=ACTIVE}"
 : "${DB_DOMAIN:=oradba.ch}"
 : "${APPLY_CHANGES:=false}"
@@ -80,7 +82,9 @@ Options:
   Selection:
     -c, --compartment ID    Compartment OCID or name (default: DS_ROOT_COMP)
                             Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
+    -A, --all               Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
     -T, --targets LIST      Comma-separated target names or OCIDs
+    -r, --filter REGEX      Filter target names by regex (substring match)
     -L, --lifecycle STATE   Filter by lifecycle state (default: ${LIFECYCLE_STATE})
 
   Service Update:
@@ -107,6 +111,9 @@ Examples:
 
   # Process specific compartment
   ${SCRIPT_NAME} -c my-compartment --apply
+
+    # Update only targets matching regex
+    ${SCRIPT_NAME} -c my-compartment -r "cdb10b" --apply
 
 EOF
     exit 0
@@ -136,6 +143,15 @@ parse_args() {
             -T | --targets)
                 need_val "$1" "${2:-}"
                 TARGETS="$2"
+                shift 2
+                ;;
+            -A | --all)
+                SELECT_ALL=true
+                shift
+                ;;
+            -r | --filter)
+                need_val "$1" "${2:-}"
+                TARGET_FILTER="$2"
                 shift 2
                 ;;
             -L | --lifecycle)
@@ -206,6 +222,12 @@ validate_inputs() {
 
     require_oci_cli
 
+    COMPARTMENT=$(ds_resolve_all_targets_scope "$SELECT_ALL" "$COMPARTMENT" "$TARGETS") || die "Invalid --all usage. --all requires DS_ROOT_COMP and cannot be combined with -c/--compartment or -T/--targets"
+
+    if [[ "$SELECT_ALL" == "true" ]]; then
+        log_info "Using DS_ROOT_COMP scope via --all"
+    fi
+
     # If no scope specified, use DS_ROOT_COMP as default when available
     if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
         if [[ -n "${DS_ROOT_COMP:-}" ]]; then
@@ -236,6 +258,10 @@ validate_inputs() {
 
     # Validate domain
     [[ -n "$DB_DOMAIN" ]] || die "Domain cannot be empty"
+
+    if ! ds_validate_target_filter_regex "$TARGET_FILTER"; then
+        die "Invalid filter regex: $TARGET_FILTER"
+    fi
 }
 
 # ------------------------------------------------------------------------------
@@ -382,95 +408,51 @@ do_work() {
     fi
 
     local success_count=0 error_count=0
+    local -a target_ocids=()
 
-    # Collect target data
-    if [[ -n "$TARGETS" ]]; then
-        # Process specific targets
-        log_info "Processing specific targets..."
+    log_info "Discovering targets (lifecycle: $LIFECYCLE_STATE)"
 
-        local -a target_list
-        IFS=',' read -ra target_list <<< "$TARGETS"
+    local json_data
+    json_data=$(ds_collect_targets "$COMPARTMENT" "$TARGETS" "$LIFECYCLE_STATE" "$TARGET_FILTER") || die "Failed to collect targets"
 
-        local total_targets=${#target_list[@]}
-        local current_target=0
+    mapfile -t target_ocids < <(echo "$json_data" | jq -r '.data[].id')
 
-        for target in "${target_list[@]}"; do
-            target="${target// /}" # trim spaces
-            current_target=$((current_target + 1))
-            log_info "[$current_target/$total_targets] Processing target: $target"
+    local total_count=${#target_ocids[@]}
+    log_info "Found $total_count targets to process"
 
-            local target_ocid target_data target_name current_service
+    if [[ $total_count -eq 0 ]]; then
+        if [[ -n "$TARGET_FILTER" ]]; then
+            die "No targets matched filter regex: $TARGET_FILTER" 1
+        fi
+        log_warn "No targets found"
+        return 0
+    fi
 
-            if is_ocid "$target"; then
-                target_ocid="$target"
-            else
-                # Resolve target name to OCID
-                log_debug "Resolving target name: $target"
-                local resolved search_compartment
+    local current=0
+    local target_ocid=""
+    local target_data=""
+    local target_name=""
+    local current_service=""
 
-                if [[ -n "$COMPARTMENT" ]]; then
-                    search_compartment="$COMPARTMENT"
-                else
-                    search_compartment=$(resolve_compartment_for_operation "") || die "Failed to get root compartment"
-                fi
+    for target_ocid in "${target_ocids[@]}"; do
+        current=$((current + 1))
 
-                if ! resolved=$(ds_resolve_target_ocid "$target" "$search_compartment"); then
-                    log_error "Failed to resolve target: $target (compartment: $search_compartment)"
-                    error_count=$((error_count + 1))
-                    continue
-                fi
-
-                if [[ -z "$resolved" ]] || ! is_ocid "$resolved"; then
-                    log_error "Target not found: $target (compartment: $search_compartment)"
-                    error_count=$((error_count + 1))
-                    continue
-                fi
-
-                target_ocid="$resolved"
-            fi
-
-            # Get target details
-            if target_data=$(get_target_details "$target_ocid"); then
-                target_name=$(echo "$target_data" | jq -r '."display-name"')
-                current_service=$(echo "$target_data" | jq -r '.databaseDetails.serviceName // ""')
-
-                if update_target_service "$target_ocid" "$target_name" "$current_service"; then
-                    success_count=$((success_count + 1))
-                else
-                    error_count=$((error_count + 1))
-                fi
-            else
-                log_error "Failed to get details for target: $target_ocid"
-                error_count=$((error_count + 1))
-            fi
-        done
-    else
-        # Process targets from compartment
-        log_info "Processing targets from compartment..."
-        local json_data
-        json_data=$(list_targets_in_compartment "$COMPARTMENT") || die "Failed to list targets"
-
-        local total_count
-        total_count=$(echo "$json_data" | jq '.data | length')
-        log_info "Found $total_count targets to process"
-
-        if [[ $total_count -eq 0 ]]; then
-            log_warn "No targets found"
-            return 0
+        if ! target_data=$(get_target_details "$target_ocid"); then
+            log_error "[$current/$total_count] Failed to get details for target: $target_ocid"
+            error_count=$((error_count + 1))
+            continue
         fi
 
-        local current=0
-        while read -r target_ocid target_name current_service; do
-            current=$((current + 1))
-            log_info "[$current/$total_count] Processing: $target_name"
+        target_name=$(echo "$target_data" | jq -r '."display-name"')
+        current_service=$(echo "$target_data" | jq -r '.databaseDetails.serviceName // ""')
 
-            if update_target_service "$target_ocid" "$target_name" "$current_service"; then
-                success_count=$((success_count + 1))
-            else
-                error_count=$((error_count + 1))
-            fi
-        done < <(echo "$json_data" | jq -r '.data[] | [.id, ."display-name", .databaseDetails.serviceName // ""] | @tsv')
-    fi
+        log_info "[$current/$total_count] Processing: $target_name"
+        if update_target_service "$target_ocid" "$target_name" "$current_service"; then
+            success_count=$((success_count + 1))
+        else
+            error_count=$((error_count + 1))
+        fi
+    done
 
     # Summary
     log_info "Service update completed:"

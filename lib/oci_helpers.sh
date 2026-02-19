@@ -1146,6 +1146,44 @@ resolve_compartment_for_operation() {
     fi
 }
 
+# ------------------------------------------------------------------------------
+# Function: ds_resolve_all_targets_scope
+# Purpose.: Resolve all-target selection scope from DS_ROOT_COMP
+# Args....: $1 - select_all flag (true/false)
+#           $2 - compartment input (optional)
+#           $3 - targets input (optional)
+# Returns.: 0 on success, 1 on invalid option combination or missing DS_ROOT_COMP
+# Output..: Effective compartment value to stdout
+# Notes...: --all is mutually exclusive with explicit --compartment and --targets
+# ------------------------------------------------------------------------------
+ds_resolve_all_targets_scope() {
+    local select_all="${1:-false}"
+    local compartment_input="${2:-}"
+    local targets_input="${3:-}"
+
+    if [[ "$select_all" != "true" ]]; then
+        printf '%s' "$compartment_input"
+        return 0
+    fi
+
+    if [[ -n "$targets_input" ]]; then
+        log_error "--all cannot be combined with -T/--targets"
+        return 1
+    fi
+
+    if [[ -n "$compartment_input" ]]; then
+        log_error "--all cannot be combined with -c/--compartment"
+        return 1
+    fi
+
+    if [[ -z "${DS_ROOT_COMP:-}" ]]; then
+        log_error "DS_ROOT_COMP must be set when using --all"
+        return 1
+    fi
+
+    printf '%s' "$DS_ROOT_COMP"
+}
+
 # =============================================================================
 # ON-PREMISES CONNECTOR OPERATIONS
 # =============================================================================

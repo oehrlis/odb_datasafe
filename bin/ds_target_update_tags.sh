@@ -31,6 +31,7 @@ readonly SCRIPT_VERSION
 # Defaults
 : "${COMPARTMENT:=}"
 : "${TARGETS:=}"
+: "${SELECT_ALL:=false}"
 : "${TARGET_FILTER:=}"
 : "${APPLY_CHANGES:=false}"
 : "${LIFECYCLE_STATE:=ACTIVE}"
@@ -85,6 +86,7 @@ Options:
   Selection:
     -c, --compartment ID    Compartment OCID or name (default: DS_ROOT_COMP)
                             Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
+    -A, --all               Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
     -T, --targets LIST      Comma-separated target names or OCIDs
     -r, --filter REGEX      Filter target names by regex (substring match)
 
@@ -145,6 +147,10 @@ parse_args() {
                 need_val "$1" "${2:-}"
                 TARGETS="$2"
                 shift 2
+                ;;
+            -A | --all)
+                SELECT_ALL=true
+                shift
                 ;;
             -r | --filter)
                 need_val "$1" "${2:-}"
@@ -238,6 +244,8 @@ validate_inputs() {
     log_debug "Validating inputs..."
 
     require_oci_cli
+
+    COMPARTMENT=$(ds_resolve_all_targets_scope "$SELECT_ALL" "$COMPARTMENT" "$TARGETS") || die "Invalid --all usage. --all requires DS_ROOT_COMP and cannot be combined with -c/--compartment or -T/--targets"
 
     # Require either targets or compartment (or DS_ROOT_COMP)
     if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
