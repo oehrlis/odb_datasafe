@@ -106,7 +106,7 @@ rebuild_payload() {
     awk -v payload="${payload_b64}" '
             /^[[:space:]]*__PAYLOAD_BEGINS__[[:space:]]*$/ {
         print
-        print ": <<'\''__PAYLOAD_END__'\''"
+        print ": << '__PAYLOAD_END__'"
         while ((getline line < payload) > 0) print line
         close(payload)
         print "__PAYLOAD_END__"

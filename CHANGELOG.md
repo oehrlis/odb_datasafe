@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   whitespace around payload markers and heredoc wrapper lines.
 - `scripts/update_embedded_payload.sh` now matches payload markers with
   whitespace-tolerant patterns to keep payload rebuild stable after formatting.
+- `scripts/update_embedded_payload.sh` now emits the `shfmt`-normalized payload
+  wrapper form (`: << '__PAYLOAD_END__'`) to avoid recurring diffs after
+  `make pre-commit`.
 
 ## [0.14.0] - 2026-02-19
 
