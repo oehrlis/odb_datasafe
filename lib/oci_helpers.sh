@@ -496,7 +496,8 @@ ds_list_targets() {
 
     log_debug "Listing Data Safe targets in compartment: $comp_ocid (lifecycle: ${lifecycle_norm:-none})"
 
-    _ds_get_target_list_cached "$comp_ocid" "$lifecycle_norm" "${lifecycle_opts[@]}"
+    # Bash 4.2 compatibility: safe array expansion with nounset
+    _ds_get_target_list_cached "$comp_ocid" "$lifecycle_norm" ${lifecycle_opts[@]+"${lifecycle_opts[@]}"}
 }
 
 # ------------------------------------------------------------------------------
@@ -595,10 +596,12 @@ ds_collect_targets() {
             return 1
         fi
 
-        if [[ ${#target_objects[@]} -eq 0 ]]; then
-            targets_json='{"data":[]}'
-        else
+        # Bash 4.2 compatibility: safe array length check with nounset
+        # Array is initialized above, but double-check for safety
+        if [[ -n "${target_objects[@]+x}" ]] && [[ ${#target_objects[@]} -gt 0 ]]; then
             targets_json=$(printf '%s\n' "${target_objects[@]}" | jq -s '{data: .}') || return 1
+        else
+            targets_json='{"data":[]}'
         fi
     else
         local resolved_compartment=""
@@ -680,7 +683,9 @@ _ds_get_target_list_cached() {
         --all
     )
 
-    if [[ ${#lifecycle_opts[@]} -gt 0 ]]; then
+    # Bash 4.2 compatibility: safe array length check with nounset
+    # Use ${array[@]+x} to test if array is set and non-empty
+    if [[ -n "${lifecycle_opts[@]+x}" ]] && [[ ${#lifecycle_opts[@]} -gt 0 ]]; then
         cmd+=("${lifecycle_opts[@]}")
     fi
 

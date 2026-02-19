@@ -196,19 +196,34 @@ collect_additional_files() {
     done < <(cd "${BASE_DIR}" && find . -type f | sed 's#^\./##' | sort)
 }
 
+# ------------------------------------------------------------------------------
+# Function: dedupe_array
+# Purpose.: Remove duplicate entries from an array (bash 4.2 compatible)
+# Args....: $1 - Name of array variable (not the array itself)
+# Returns.: 0
+# Output..: None (modifies the array in place)
+# Notes...: Uses eval for variable indirection instead of nameref (bash 4.3+)
+# ------------------------------------------------------------------------------
 dedupe_array() {
-    local -n arr_ref=$1
+    local arr_name="$1"
     local -A seen=()
     local -a deduped=()
     local item
-    for item in "${arr_ref[@]}"; do
+    
+    # Read array elements using indirect expansion
+    # shellcheck disable=SC2154  # arr_copy is created dynamically via eval
+    eval "local -a arr_copy=(\"\${${arr_name}[@]}\")"
+    
+    for item in "${arr_copy[@]}"; do
         [[ -z "$item" ]] && continue
         if [[ -z "${seen[$item]:-}" ]]; then
             seen["$item"]=1
             deduped+=("$item")
         fi
     done
-    arr_ref=("${deduped[@]}")
+    
+    # Update original array using eval
+    eval "${arr_name}=(\"\${deduped[@]}\")"
 }
 
 check_integrity() {
