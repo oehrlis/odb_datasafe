@@ -4,7 +4,7 @@ Oracle Data Safe management extension for OraDBA - comprehensive tools for manag
 OCI Data Safe targets, connectors, and operations.
 
 Current version: see [`../VERSION`](../VERSION) | [Release Notes](release_notes/)
-Latest release: [v0.13.0](release_notes/v0.13.0.md)
+Latest release: [v0.14.2](release_notes/v0.14.2.md)
 
 ## Overview
 
@@ -25,7 +25,7 @@ The `odb_datasafe` extension provides a complete framework for working with Orac
 - **[Database Prereqs](database_prereqs.md)** - On-prem DB preparation
 - **[IAM Policies Guide](oci-iam-policies.md)** - Required OCI permissions
 - **[Release Notes](release_notes/)** - Version history and changes
-- **[v0.13.0 Release Note](release_notes/v0.13.0.md)** - Secret model consolidation and trailing newline normalization
+- **[v0.14.2 Release Note](release_notes/v0.14.2.md)** - Target selection consolidation for activate and update_service
 - **[CHANGELOG](../CHANGELOG.md)** - Complete version history
 
 ## Quick Start
@@ -146,12 +146,31 @@ All scripts support:
 Many scripts also support:
 
 ```bash
+-A, --all          Select all targets from DS_ROOT_COMP
 -c, --compartment  Compartment name or OCID
 -T, --target       Target database name or OCID
 -L, --lifecycle    Filter by lifecycle state
 -f, --format       Output format (table, json, csv)
 -r, --filter       Filter target display names with regex
 ```
+
+### All Targets from DS_ROOT_COMP
+
+The following scripts support `-A/--all` to explicitly scope operations to all
+targets under `DS_ROOT_COMP`:
+
+- `bin/ds_target_list.sh`
+- `bin/ds_target_refresh.sh`
+- `bin/ds_target_activate.sh`
+- `bin/ds_target_update_credentials.sh`
+- `bin/ds_target_update_connector.sh`
+- `bin/ds_target_update_service.sh`
+- `bin/ds_target_update_tags.sh`
+
+Behavior:
+
+- `--all` requires `DS_ROOT_COMP` to be configured.
+- `--all` cannot be combined with `-c/--compartment` or `-T/--target(s)`.
 
 ### Target Name Regex Filter
 
@@ -160,8 +179,10 @@ target display name matches a regex:
 
 - `bin/ds_target_list.sh`
 - `bin/ds_target_refresh.sh`
+- `bin/ds_target_activate.sh`
 - `bin/ds_target_update_credentials.sh`
 - `bin/ds_target_update_connector.sh`
+- `bin/ds_target_update_service.sh`
 - `bin/ds_target_update_tags.sh`
 
 Behavior:
@@ -207,6 +228,15 @@ bin/ds_target_refresh.sh -T db1,db2,db3
 # Refresh targets where display name matches regex
 bin/ds_target_refresh.sh -r "db02"
 
+# Refresh all targets from DS_ROOT_COMP explicitly
+bin/ds_target_refresh.sh --all
+
+# Activate targets matching regex in compartment
+bin/ds_target_activate.sh -c my-compartment -r "db02" --apply
+
+# Activate all targets from DS_ROOT_COMP explicitly
+bin/ds_target_activate.sh --all --apply
+
 # Update credentials
 bin/ds_target_update_credentials.sh -T mydb01
 
@@ -216,8 +246,14 @@ bin/ds_target_update_credentials.sh -r "db02" --apply
 # Set connector for all db02 targets
 bin/ds_target_update_connector.sh set --target-connector conn-prod-01 -r "db02" --apply
 
+# Update service for all db02 targets
+bin/ds_target_update_service.sh -c my-compartment -r "db02" --apply
+
 # Update tags for all db02 targets
 bin/ds_target_update_tags.sh -r "db02" --apply
+
+# Update tags for all targets from DS_ROOT_COMP explicitly
+bin/ds_target_update_tags.sh --all --apply
 
 # Move target to different compartment
 bin/ds_target_move.sh -T mydb01 -c new_compartment

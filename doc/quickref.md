@@ -116,6 +116,10 @@ bin/ds_target_list_connector.sh -L ACTIVE
 bin/ds_target_list.sh -r "db02"
 bin/ds_target_refresh.sh -r "db02"
 
+# Explicitly select all targets from DS_ROOT_COMP
+bin/ds_target_list.sh --all
+bin/ds_target_refresh.sh --all
+
 # Output as JSON or CSV
 bin/ds_target_list.sh -f json
 bin/ds_target_list_connector.sh -f csv -F display-name,id,time-created
@@ -141,8 +145,11 @@ bin/ds_target_activate.sh -c "MyCompartment" -L INACTIVE
 # Apply activation changes and wait for completion
 bin/ds_target_activate.sh -c "MyCompartment" -L INACTIVE --apply --wait-for-state ACCEPTED
 
-# Activate specific targets by name (requires compartment for resolution)
+# Activate specific targets by name (uses --compartment or DS_ROOT_COMP for resolution)
 bin/ds_target_activate.sh -c "MyCompartment" -T db1,db2 --apply
+
+# Activate only targets matching regex
+bin/ds_target_activate.sh -c "MyCompartment" -r "db02" --apply
 
 # Show targets with problems (NEEDS_ATTENTION state)
 bin/ds_target_list.sh --problems
@@ -170,6 +177,9 @@ bin/ds_target_update_credentials.sh -r "db02" --apply
 
 # Update tags for targets matching regex
 bin/ds_target_update_tags.sh -r "db02" --apply
+
+# Update service names for targets matching regex
+bin/ds_target_update_service.sh -c "MyCompartment" -r "db02" --apply
 ```
 
 ### 4. On-Prem Database Prereqs
@@ -459,8 +469,10 @@ Supported in:
 
 - `ds_target_list.sh`
 - `ds_target_refresh.sh`
+- `ds_target_activate.sh`
 - `ds_target_update_credentials.sh`
 - `ds_target_update_connector.sh`
+- `ds_target_update_service.sh`
 - `ds_target_update_tags.sh`
 
 Behavior:
@@ -479,14 +491,62 @@ ds_target_list.sh -r "db02"
 # Refresh only targets containing db02
 ds_target_refresh.sh -r "db02"
 
+# Activate only targets containing db02
+ds_target_activate.sh -c MyCompartment -r "db02" --apply
+
 # Set connector for targets containing db02
 ds_target_update_connector.sh set --target-connector conn-prod-01 -r "db02" --apply
+
+# Update service names for targets containing db02
+ds_target_update_service.sh -c MyCompartment -r "db02" --apply
 
 # Update credentials for targets containing db02
 ds_target_update_credentials.sh -r "db02" --apply
 
 # Update tags for targets containing db02
 ds_target_update_tags.sh -r "db02" --apply
+```
+
+### All Targets from DS_ROOT_COMP (`-A`, `--all`)
+
+Supported in:
+
+- `ds_target_list.sh`
+- `ds_target_refresh.sh`
+- `ds_target_activate.sh`
+- `ds_target_update_credentials.sh`
+- `ds_target_update_connector.sh`
+- `ds_target_update_service.sh`
+- `ds_target_update_tags.sh`
+
+Behavior:
+
+- `--all` requires `DS_ROOT_COMP` to be configured.
+- `--all` cannot be combined with `-c/--compartment` or `-T/--target(s)`.
+
+Examples:
+
+```bash
+# List all targets from DS_ROOT_COMP
+ds_target_list.sh --all
+
+# Refresh all targets from DS_ROOT_COMP
+ds_target_refresh.sh --all
+
+# Activate all INACTIVE targets from DS_ROOT_COMP
+ds_target_activate.sh --all --apply
+
+# Update credentials for all ACTIVE targets from DS_ROOT_COMP
+ds_target_update_credentials.sh --all --apply
+
+# Set connector for all ACTIVE targets from DS_ROOT_COMP
+ds_target_update_connector.sh set --all --target-connector conn-prod-01 --apply
+
+# Update service names for all ACTIVE targets from DS_ROOT_COMP
+ds_target_update_service.sh --all --apply
+
+# Update tags for all ACTIVE targets from DS_ROOT_COMP
+ds_target_update_tags.sh --all --apply
 ```
 
 ## 🧪 Testing

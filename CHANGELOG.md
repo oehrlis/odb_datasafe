@@ -8,6 +8,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.2] - 2026-02-19
+
+### Added
+
+- Added `-r/--filter <regex>` target-name filtering to:
+  - `bin/ds_target_activate.sh`
+  - `bin/ds_target_update_service.sh`
+- Added `-A/--all` all-target selection (from `DS_ROOT_COMP`) to:
+  - `bin/ds_target_list.sh`
+  - `bin/ds_target_refresh.sh`
+  - `bin/ds_target_activate.sh`
+  - `bin/ds_target_update_credentials.sh`
+  - `bin/ds_target_update_connector.sh`
+  - `bin/ds_target_update_service.sh`
+  - `bin/ds_target_update_tags.sh`
+- Added shared helper `ds_resolve_all_targets_scope` in `lib/oci_helpers.sh`
+  for reusable all-target scope validation and resolution.
+
+### Changed
+
+- `bin/ds_target_activate.sh` now uses shared target discovery via
+  `ds_collect_targets`, aligning explicit targets, compartment+lifecycle, and
+  regex-filter behavior with the other consolidated target scripts.
+- `bin/ds_target_update_service.sh` now uses the same shared target discovery
+  flow (`ds_collect_targets`) instead of script-local target resolution logic.
+- Mutating no-match behavior is now consistent for these scripts when
+  `-r/--filter` is used (exit code `1` if no targets match).
+
+### Documentation
+
+- Updated `doc/index.md` and `doc/quickref.md` with `activate` and
+  `update_service` regex-filter coverage and examples.
+- Updated `doc/index.md` and `doc/quickref.md` with `-A/--all` behavior,
+  supported scripts, and examples.
+- Added release note `doc/release_notes/v0.14.2.md`.
+
 ## [0.14.1] - 2026-02-19
 
 ### Fixed
