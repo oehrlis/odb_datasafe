@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.14.2] - 2026-02-19
+## [0.15.0] - 2026-02-19
 
 ### Added
 
@@ -42,7 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `update_service` regex-filter coverage and examples.
 - Updated `doc/index.md` and `doc/quickref.md` with `-A/--all` behavior,
   supported scripts, and examples.
-- Added release note `doc/release_notes/v0.14.2.md`.
+- Added release note `doc/release_notes/v0.15.0.md`.
 
 ## [0.14.1] - 2026-02-19
 
