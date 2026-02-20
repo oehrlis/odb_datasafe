@@ -58,49 +58,49 @@ usage() {
 Usage: ${SCRIPT_NAME} [OPTIONS]
 
 Description:
-  Generate reports for Oracle Data Safe targets and their tags.
-  Shows tag status, environment distribution, and missing tags.
+    Generate reports for Oracle Data Safe targets and their tags.
+    Shows tag status, environment distribution, and missing tags.
 
 Options:
   Common:
-    -h, --help              Show this help message
-    -V, --version           Show version
-    -v, --verbose           Enable verbose output
-    -d, --debug             Enable debug output
-    --log-file FILE         Log to file
+    -h, --help                  Show this help message
+    -V, --version               Show version
+    -v, --verbose               Enable verbose output
+    -d, --debug                 Enable debug output
+        --log-file FILE         Log to file
 
   OCI:
-    --oci-profile PROFILE   OCI CLI profile (default: ${OCI_CLI_PROFILE:-DEFAULT})
-    --oci-region REGION     OCI region
-    --oci-config FILE       OCI config file
+        --oci-profile PROFILE   OCI CLI profile (default: ${OCI_CLI_PROFILE:-DEFAULT})
+        --oci-region REGION     OCI region
+        --oci-config FILE       OCI config file
 
   Selection:
-    -c, --compartment ID    Compartment OCID or name (default: DS_ROOT_COMP from \$ODB_DATASAFE_BASE/.env)
+    -c, --compartment ID        Compartment OCID or name (default: DS_ROOT_COMP from \$ODB_DATASAFE_BASE/.env)
 
   Report Options:
-    -r, --report TYPE       Report type: all|tags|env|missing|undef (default: ${REPORT_TYPE})
-    -f, --format FMT        Output format: table|json|csv (default: ${OUTPUT_FORMAT})
-    --namespace NS          Tag namespace (default: ${TAG_NAMESPACE})
+    -r, --report TYPE           Report type: all|tags|env|missing|undef (default: ${REPORT_TYPE})
+    -f, --format FMT            Output format: table|json|csv (default: ${OUTPUT_FORMAT})
+        --namespace NS          Tag namespace (default: ${TAG_NAMESPACE})
 
 Report Types:
-  all       - All reports
-  tags      - All targets with tags
-  env       - Environment distribution
-  missing   - Targets missing tags
-  undef     - Targets with undefined tag values
+    all       - All reports
+    tags      - All targets with tags
+    env       - Environment distribution
+    missing   - Targets missing tags
+    undef     - Targets with undefined tag values
 
 Examples:
-  # Show all reports for DS_ROOT_COMP
-  ${SCRIPT_NAME}
+    # Show all reports for DS_ROOT_COMP
+    ${SCRIPT_NAME}
 
-  # Show environment distribution
-  ${SCRIPT_NAME} -r env
+    # Show environment distribution
+    ${SCRIPT_NAME} -r env
 
-  # Show targets with undefined tags
-  ${SCRIPT_NAME} -r undef
+    # Show targets with undefined tags
+    ${SCRIPT_NAME} -r undef
 
-  # Export all target tags as CSV
-  ${SCRIPT_NAME} -r tags -f csv > targets_tags.csv
+    # Export all target tags as CSV
+    ${SCRIPT_NAME} -r tags -f csv > targets_tags.csv
 
 EOF
     exit 0

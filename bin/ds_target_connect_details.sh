@@ -61,33 +61,33 @@ Description:
 
 Options:
   Common:
-    -h, --help              Show this help message
-    -V, --version           Show version
-    -v, --verbose           Enable verbose output
-    -d, --debug             Enable debug output
-    --log-file FILE         Log to file
+    -h, --help                  Show this help message
+    -V, --version               Show version
+    -v, --verbose               Enable verbose output
+    -d, --debug                 Enable debug output
+        --log-file FILE         Log to file
 
   OCI:
-    --oci-profile PROFILE   OCI CLI profile (default: ${OCI_CLI_PROFILE:-DEFAULT})
-    --oci-region REGION     OCI region
-    --oci-config FILE       OCI config file
+        --oci-profile PROFILE   OCI CLI profile (default: ${OCI_CLI_PROFILE:-DEFAULT})
+        --oci-region REGION     OCI region
+        --oci-config FILE       OCI config file
 
   Selection:
-    -T, --target ID         Target name or OCID (mandatory)
-    -c, --compartment ID    Compartment OCID or name (for name resolution)
+    -T, --target ID             Target name or OCID (mandatory)
+    -c, --compartment ID        Compartment OCID or name (for name resolution)
 
   Output:
-    -f, --format FORMAT     Output format: table|json (default: ${FORMAT})
+    -f, --format FORMAT         Output format: table|json (default: ${FORMAT})
 
 Examples:
-  # Display target connection details (table format)
-  ${SCRIPT_NAME} -T exa118r05c15_cdb09a15_MYPDB
+    # Display target connection details (table format)
+    ${SCRIPT_NAME} -T exa118r05c15_cdb09a15_MYPDB
 
-  # Display as JSON
-  ${SCRIPT_NAME} -T my-target -f json
+    # Display as JSON
+    ${SCRIPT_NAME} -T my-target -f json
 
-  # Use compartment for target name resolution
-  ${SCRIPT_NAME} -T my-target -c my-compartment
+    # Use compartment for target name resolution
+    ${SCRIPT_NAME} -T my-target -c my-compartment
 
 EOF
     exit 0

@@ -73,51 +73,51 @@ Description:
 
 Options:
   Common:
-    -h, --help              Show this help message
-    -V, --version           Show version
-    -v, --verbose           Enable verbose output
-    -d, --debug             Enable debug output
-    --log-file FILE         Log to file
+    -h, --help                  Show this help message
+    -V, --version               Show version
+    -v, --verbose               Enable verbose output
+    -d, --debug                 Enable debug output
+        --log-file FILE         Log to file
 
   OCI:
-    --oci-profile PROFILE   OCI CLI profile (default: ${OCI_CLI_PROFILE:-DEFAULT})
-    --oci-region REGION     OCI region
-    --oci-config FILE       OCI config file
+        --oci-profile PROFILE   OCI CLI profile (default: ${OCI_CLI_PROFILE:-DEFAULT})
+        --oci-region REGION     OCI region
+        --oci-config FILE       OCI config file
 
   Selection:
-    -c, --compartment ID    Compartment OCID or name (default: DS_ROOT_COMP)
-                            Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
-    -A, --all               Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
-    -T, --targets LIST      Comma-separated target names or OCIDs
-    -r, --filter REGEX      Filter target names by regex (substring match)
+    -c, --compartment ID        Compartment OCID or name (default: DS_ROOT_COMP)
+                                Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
+    -A, --all                   Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
+    -T, --targets LIST          Comma-separated target names or OCIDs
+    -r, --filter REGEX          Filter target names by regex (substring match)
 
   Execution:
-    --apply                 Apply changes (default: dry-run only)
-    -n, --dry-run           Dry-run mode (show what would be done)
-    -L, --lifecycle STATE   Lifecycle state filter (default: ${LIFECYCLE_STATE})
-    --wait-for-state STATE  Wait for target update to reach state (e.g. ACCEPTED)
+        --apply                 Apply changes (default: dry-run only)
+    -n, --dry-run               Dry-run mode (show what would be done)
+    -L, --lifecycle STATE       Lifecycle state filter (default: ${LIFECYCLE_STATE})
+        --wait-for-state STATE  Wait for target update to reach state (e.g. ACCEPTED)
 
   Tag Configuration:
-    --namespace NS          Tag namespace (default: ${TAG_NAMESPACE})
-    --env-tag TAG           Environment tag key (default: ${ENVIRONMENT_TAG})
-    --stage-tag TAG         Container stage tag key (default: ${CONTAINER_STAGE_TAG})
-    --type-tag TAG          Container type tag key (default: ${CONTAINER_TYPE_TAG})
-    --class-tag TAG         Classification tag key (default: ${CLASSIFICATION_TAG})
+        --namespace NS          Tag namespace (default: ${TAG_NAMESPACE})
+        --env-tag TAG           Environment tag key (default: ${ENVIRONMENT_TAG})
+        --stage-tag TAG         Container stage tag key (default: ${CONTAINER_STAGE_TAG})
+        --type-tag TAG          Container type tag key (default: ${CONTAINER_TYPE_TAG})
+        --class-tag TAG         Classification tag key (default: ${CLASSIFICATION_TAG})
 
 Tag Rules:
-  - Environment derived from compartment pattern: cmp-{org}-{env}-projects
-  - Supported environments: test, qs, prod
-  - Default values: Environment=undef, ContainerStage=undef, etc.
+    - Environment derived from compartment pattern: cmp-{org}-{env}-projects
+    - Supported environments: test, qs, prod
+    - Default values: Environment=undef, ContainerStage=undef, etc.
 
 Examples:
-  # Dry-run for all targets in DS_ROOT_COMP
-  ${SCRIPT_NAME}
+    # Dry-run for all targets in DS_ROOT_COMP
+    ${SCRIPT_NAME}
 
-  # Apply changes to specific compartment
-  ${SCRIPT_NAME} -c cmp-lzp-dbso-prod-projects --apply
+    # Apply changes to specific compartment
+    ${SCRIPT_NAME} -c cmp-lzp-dbso-prod-projects --apply
 
-  # Update specific targets
-  ${SCRIPT_NAME} -T target1,target2 --apply
+    # Update specific targets
+    ${SCRIPT_NAME} -T target1,target2 --apply
 
 EOF
     exit 0

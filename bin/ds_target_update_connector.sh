@@ -70,50 +70,50 @@ usage() {
 Usage: ${SCRIPT_NAME} [OPTIONS] MODE
 
 Description:
-  Manage Oracle Data Safe on-premises connector assignments for targets.
-  Supports individual target updates or bulk connector management operations.
+    Manage Oracle Data Safe on-premises connector assignments for targets.
+    Supports individual target updates or bulk connector management operations.
 
 Operation Modes:
-  set                       Set specific connector for target(s)
-  migrate                   Change targets from source connector to target connector
-  distribute                Distribute targets across all available connectors
+    set                       Set specific connector for target(s)
+    migrate                   Change targets from source connector to target connector
+    distribute                Distribute targets across all available connectors
 
 Options:
   Common:
-    -h, --help              Show this help message
-    -V, --version           Show version
-    -v, --verbose           Enable verbose output
-    -d, --debug             Enable debug output
-    --log-file FILE         Log to file
+    -h, --help                      Show this help message
+    -V, --version                   Show version
+    -v, --verbose                   Enable verbose output
+    -d, --debug                     Enable debug output
+        --log-file FILE             Log to file
 
   OCI:
-    --oci-profile PROFILE   OCI CLI profile (default: ${OCI_CLI_PROFILE:-DEFAULT})
-    --oci-region REGION     OCI region
-    --oci-config FILE       OCI config file
+        --oci-profile PROFILE       OCI CLI profile (default: ${OCI_CLI_PROFILE:-DEFAULT})
+        --oci-region REGION         OCI region
+        --oci-config FILE           OCI config file
 
   Selection:
-    -c, --compartment ID        Target compartment OCID or name (default: DS_ROOT_COMP)
-                                Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
-    -A, --all                   Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
-    -T, --targets LIST          Comma-separated target names or OCIDs
-    -r, --filter REGEX          Filter target names by regex (substring match)
-    -L, --lifecycle STATE       Filter by lifecycle state (default: ${LIFECYCLE_STATE})
-                                Supports: ACTIVE, NEEDS_ATTENTION, CREATING, UPDATING, DELETING
-                                Use comma-separated for multiple: ACTIVE,NEEDS_ATTENTION
-    --include-needs-attention   Include targets needing attention (shortcut for -L ACTIVE,NEEDS_ATTENTION)
-    --exclude-auto              Exclude automatically created targets
+    -c, --compartment ID            Target compartment OCID or name (default: DS_ROOT_COMP)
+                                    Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
+    -A, --all                       Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
+    -T, --targets LIST              Comma-separated target names or OCIDs
+    -r, --filter REGEX              Filter target names by regex (substring match)
+    -L, --lifecycle STATE           Filter by lifecycle state (default: ${LIFECYCLE_STATE})
+                                    Supports: ACTIVE, NEEDS_ATTENTION, CREATING, UPDATING, DELETING
+                                    Use comma-separated for multiple: ACTIVE,NEEDS_ATTENTION
+        --include-needs-attention   Include targets needing attention (shortcut for -L ACTIVE,NEEDS_ATTENTION)
+        --exclude-auto              Exclude automatically created targets
 
   Connector:
-    --source-connector ID       Source connector OCID or name (for migrate mode)
-    --target-connector ID       Target connector OCID or name (for set/migrate modes)
-    --connector-compartment ID  Compartment to query connectors from (default: same as -c)
-    --exclude-connectors LIST   Comma-separated connector names to exclude from distribution
+        --source-connector ID       Source connector OCID or name (for migrate mode)
+        --target-connector ID       Target connector OCID or name (for set/migrate modes)
+        --connector-compartment ID  Compartment to query connectors from (default: same as -c)
+        --exclude-connectors LIST   Comma-separated connector names to exclude from distribution
 
   Execution:
-    --apply                 Apply changes (default: dry-run only)
-    -n, --dry-run           Dry-run mode (show what would be done)
-    --wait                  Wait for each update to complete (slower but shows status)
-    --no-wait               Don't wait for completion (faster, default)
+        --apply                     Apply changes (default: dry-run only)
+    -n, --dry-run                   Dry-run mode (show what would be done)
+        --wait                      Wait for each update to complete (slower but shows status)
+        --no-wait                   Don't wait for completion (faster, default)
 
 Mode Details:
 
@@ -136,32 +136,32 @@ Mode Details:
 
 Examples:
 
-  # Set specific connector for target (dry-run)
-  ${SCRIPT_NAME} set -T my-target --target-connector conn-prod-01
+    # Set specific connector for target (dry-run)
+    ${SCRIPT_NAME} set -T my-target --target-connector conn-prod-01
 
-  # Apply connector to specific targets
-  ${SCRIPT_NAME} set -T target1,target2 --target-connector conn-prod-02 --apply
+    # Apply connector to specific targets
+    ${SCRIPT_NAME} set -T target1,target2 --target-connector conn-prod-02 --apply
 
-  # Include targets needing attention
-  ${SCRIPT_NAME} set --target-connector conn-prod-01 --include-needs-attention --apply
+    # Include targets needing attention
+    ${SCRIPT_NAME} set --target-connector conn-prod-01 --include-needs-attention --apply
 
-  # Work with specific lifecycle states
-  ${SCRIPT_NAME} set --target-connector conn-prod-01 -L NEEDS_ATTENTION --apply
+    # Work with specific lifecycle states
+    ${SCRIPT_NAME} set --target-connector conn-prod-01 -L NEEDS_ATTENTION --apply
 
-  # Migrate all targets from old to new connector in compartment
-  ${SCRIPT_NAME} migrate -c my-compartment \
-    --source-connector conn-old --target-connector conn-new --apply
+    # Migrate all targets from old to new connector in compartment
+    ${SCRIPT_NAME} migrate -c my-compartment \
+        --source-connector conn-old --target-connector conn-new --apply
 
-  # Distribute targets, exclude specific connectors (dry-run)
-  ${SCRIPT_NAME} distribute -c cmp-targets \
-    --exclude-connectors "conn-old,conn-test"
+    # Distribute targets, exclude specific connectors (dry-run)
+    ${SCRIPT_NAME} distribute -c cmp-targets \
+        --exclude-connectors "conn-old,conn-test"
 
-  # Distribute using different compartments for targets and connectors
-  ${SCRIPT_NAME} distribute -c cmp-targets \
-    --connector-compartment cmp-connectors --apply
+    # Distribute using different compartments for targets and connectors
+    ${SCRIPT_NAME} distribute -c cmp-targets \
+        --connector-compartment cmp-connectors --apply
 
-  # Apply distribution for entire root compartment
-  ${SCRIPT_NAME} distribute --apply
+    # Apply distribution for entire root compartment
+    ${SCRIPT_NAME} distribute --apply
 
 EOF
     exit "$exit_code"

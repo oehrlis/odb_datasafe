@@ -82,44 +82,44 @@ Description:
 
 REQUIRED (choose one):
   Option 1: Use OraDBA environment (simplest)
-    --datasafe-home ENV     OraDBA environment name (e.g., dscon4)
-                            Automatically resolves connector home and metadata
-                            from ${ORADBA_BASE}/etc/oradba_homes.conf
+        --datasafe-home ENV     OraDBA environment name (e.g., dscon4)
+                                Automatically resolves connector home and metadata
+                                from ${ORADBA_BASE}/etc/oradba_homes.conf
 
   Option 2: Specify connector manually
-    --connector NAME        Connector name or OCID
-    --connector-home PATH   Connector installation directory (optional, auto-detected)
+        --connector NAME        Connector name or OCID
+        --connector-home PATH   Connector installation directory (optional, auto-detected)
 
     Compartment (required when connector is specified by name):
-    -c, --compartment ID    Compartment OCID or name (for connector lookup)
-                            Can be used with both --datasafe-home and --connector
-                            OR set DS_CONNECTOR_COMP environment variable
-                            OR set DS_ROOT_COMP environment variable in .env or datasafe.conf
+    -c, --compartment ID        Compartment OCID or name (for connector lookup)
+                                Can be used with both --datasafe-home and --connector
+                                OR set DS_CONNECTOR_COMP environment variable
+                                OR set DS_ROOT_COMP environment variable in .env or datasafe.conf
 
 Options:
   Common Options:
-    -h, --help              Show this help message
-    -V, --version           Show version
-    -v, --verbose           Enable verbose output (DEBUG level)
-    -d, --debug             Enable debug output (TRACE level)
-    -q, --quiet             Quiet mode (WARN level only)
-    -n, --dry-run           Dry-run mode (show what would be done)
-    --log-file FILE         Log to file
-    --no-color              Disable colored output
+    -h, --help                  Show this help message
+    -V, --version               Show version
+    -v, --verbose               Enable verbose output (DEBUG level)
+    -d, --debug                 Enable debug output (TRACE level)
+    -q, --quiet                 Quiet mode (WARN level only)
+    -n, --dry-run               Dry-run mode (show what would be done)
+        --log-file FILE         Log to file
+        --no-color              Disable colored output
 
   OCI Options:
-    --oci-profile PROFILE   OCI CLI profile (default: ${OCI_CLI_PROFILE:-DEFAULT})
-    --oci-region REGION     OCI region
-    --oci-config FILE       OCI config file (default: ${OCI_CLI_CONFIG_FILE:-~/.oci/config})
+        --oci-profile PROFILE   OCI CLI profile (default: ${OCI_CLI_PROFILE:-DEFAULT})
+        --oci-region REGION     OCI region
+        --oci-config FILE       OCI config file (default: ${OCI_CLI_CONFIG_FILE:-~/.oci/config})
 
   Connector Options:
-    --force-new-bundle-key  Generate new bundle key (ignore existing)
-    --check-only            Run version check only and exit
-    --check-all             Check all datasafe connectors in oradba_homes.conf
+        --force-new-bundle-key  Generate new bundle key (ignore existing)
+        --check-only            Run version check only and exit
+        --check-all             Check all datasafe connectors in oradba_homes.conf
 
   Bundle Options:
-    --skip-download         Skip download (use existing bundle file)
-    --bundle-file PATH      Path to existing bundle zip file
+        --skip-download         Skip download (use existing bundle file)
+        --bundle-file PATH      Path to existing bundle zip file
 
 Examples:
   # Update connector using OraDBA environment (recommended)

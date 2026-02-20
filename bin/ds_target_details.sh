@@ -91,16 +91,16 @@ Options:
                                 (for table/json; csv always writes to file)
 
   OCI:
-    --oci-profile PROFILE       OCI CLI profile (default: ${OCI_CLI_PROFILE:-DEFAULT})
-    --oci-region REGION         OCI region
-    --oci-config FILE           OCI config file
+        --oci-profile PROFILE   OCI CLI profile (default: ${OCI_CLI_PROFILE:-DEFAULT})
+        --oci-region REGION     OCI region
+        --oci-config FILE       OCI config file
 
   General:
     -h, --help                  Show this help
     -V, --version               Show version
     -v, --verbose               Verbose output
     -D, --debug                 Debug output
-    --log-file FILE             Log to file
+        --log-file FILE         Log to file
 
 CSV Columns:
   datasafe_ocid, display_name, lifecycle, created_at, infra_type, target_type,

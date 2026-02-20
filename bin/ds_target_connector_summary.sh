@@ -66,53 +66,53 @@ Description:
 
 Options:
   Common:
-    -h, --help              Show this help message
-    -V, --version           Show version
-    -v, --verbose           Enable verbose output
-    -d, --debug             Enable debug output
-    -q, --quiet             Suppress INFO messages (warnings/errors only)
-    -n, --dry-run           Dry-run mode (show what would be done)
-    --log-file FILE         Log to file
+    -h, --help                  Show this help message
+    -V, --version               Show version
+    -v, --verbose               Enable verbose output
+    -d, --debug                 Enable debug output
+    -q, --quiet                 Suppress INFO messages (warnings/errors only)
+    -n, --dry-run               Dry-run mode (show what would be done)
+        --log-file FILE         Log to file
 
   OCI:
-    --oci-profile PROFILE   OCI CLI profile (default: ${OCI_CLI_PROFILE:-DEFAULT})
-    --oci-region REGION     OCI region
-    --oci-config FILE       OCI config file (default: ${OCI_CLI_CONFIG_FILE:-~/.oci/config})
+        --oci-profile PROFILE   OCI CLI profile (default: ${OCI_CLI_PROFILE:-DEFAULT})
+        --oci-region REGION     OCI region
+        --oci-config FILE       OCI config file (default: ${OCI_CLI_CONFIG_FILE:-~/.oci/config})
 
   Selection:
-    -c, --compartment ID    Compartment OCID or name (default: DS_ROOT_COMP)
-                            Configure in: .env or datasafe.conf
-    -L, --lifecycle STATE   Filter by lifecycle state (ACTIVE, NEEDS_ATTENTION, etc.)
+    -c, --compartment ID        Compartment OCID or name (default: DS_ROOT_COMP)
+                                Configure in: .env or datasafe.conf
+    -L, --lifecycle STATE       Filter by lifecycle state (ACTIVE, NEEDS_ATTENTION, etc.)
 
   Output:
-    -S, --summary           Show summary counts (default)
-    -D, --detailed          Show detailed target information per connector
-    -f, --format FMT        Output format: table|json|csv (default: table)
-    -F, --fields FIELDS     Comma-separated fields for detailed mode
-                            (default: ${FIELDS})
-    --show-ocid             Show connector OCIDs (table output)
+    -S, --summary               Show summary counts (default)
+    -D, --detailed              Show detailed target information per connector
+    -f, --format FMT            Output format: table|json|csv (default: table)
+    -F, --fields FIELDS         Comma-separated fields for detailed mode
+                                (default: ${FIELDS})
+        --show-ocid             Show connector OCIDs (table output)
 
 Examples:
-  # Show summary of targets by connector (default)
-  ${SCRIPT_NAME}
+    # Show summary of targets by connector (default)
+    ${SCRIPT_NAME}
 
-  # Show summary for specific compartment
-  ${SCRIPT_NAME} -c MyCompartment
+    # Show summary for specific compartment
+    ${SCRIPT_NAME} -c MyCompartment
 
-  # Show detailed list of all targets under each connector
-  ${SCRIPT_NAME} -D
+    # Show detailed list of all targets under each connector
+    ${SCRIPT_NAME} -D
 
-  # Show summary with only ACTIVE targets
-  ${SCRIPT_NAME} -L ACTIVE
+    # Show summary with only ACTIVE targets
+    ${SCRIPT_NAME} -L ACTIVE
 
-  # Show detailed list as JSON
-  ${SCRIPT_NAME} -D -f json
+    # Show detailed list as JSON
+    ${SCRIPT_NAME} -D -f json
 
-  # Show summary as CSV
-  ${SCRIPT_NAME} -f csv
+    # Show summary as CSV
+    ${SCRIPT_NAME} -f csv
 
-  # Quiet mode - minimal output
-  ${SCRIPT_NAME} -q
+    # Quiet mode - minimal output
+    ${SCRIPT_NAME} -q
 
 EOF
     exit 0

@@ -89,64 +89,64 @@ Description:
 
 Options:
   Common:
-    -h, --help              Show this help message
-    -V, --version           Show version
-    -v, --verbose           Enable verbose output
-    -d, --debug             Enable debug output
-    --log-file FILE         Log to file
+    -h, --help                  Show this help message
+    -V, --version               Show version
+    -v, --verbose               Enable verbose output
+    -d, --debug                 Enable debug output
+        --log-file FILE         Log to file
 
   OCI:
-    --oci-profile PROFILE   OCI CLI profile (default: ${OCI_CLI_PROFILE:-DEFAULT})
-    --oci-region REGION     OCI region
-    --oci-config FILE       OCI config file
+        --oci-profile PROFILE   OCI CLI profile (default: ${OCI_CLI_PROFILE:-DEFAULT})
+        --oci-region REGION     OCI region
+        --oci-config FILE       OCI config file
 
   Selection:
-    -c, --compartment ID    Compartment OCID or name (default: DS_ROOT_COMP)
-                            Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
-    -A, --all               Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
-    -T, --targets LIST      Comma-separated target names or OCIDs
-    -r, --filter REGEX      Filter target names by regex (substring match)
-    -L, --lifecycle STATE   Filter by lifecycle state (default: all selected targets)
+    -c, --compartment ID        Compartment OCID or name (default: DS_ROOT_COMP)
+                                Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
+    -A, --all                   Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
+    -T, --targets LIST          Comma-separated target names or OCIDs
+    -r, --filter REGEX          Filter target names by regex (substring match)
+    -L, --lifecycle STATE       Filter by lifecycle state (default: all selected targets)
 
   Credentials:
-    -U, --ds-user USER      Database username (default: ${DS_USER:-not set})
-    -P, --ds-secret VALUE   Database secret (plain or base64)
-    --secret-file FILE      Base64 secret file (optional)
-    --cred-file FILE        JSON file with {\"userName\": \"user\", \"password\": \"pass\"}
-    --root                  Force common-user prefix for all targets (${COMMON_USER_PREFIX})
-                            (root targets are auto-prefixed even without --root)
-    --no-prompt             Fail instead of prompting for missing secret
+    -U, --ds-user USER          Database username (default: ${DS_USER:-not set})
+    -P, --ds-secret VALUE       Database secret (plain or base64)
+        --secret-file FILE      Base64 secret file (optional)
+        --cred-file FILE        JSON file with {\"userName\": \"user\", \"password\": \"pass\"}
+        --root                  Force common-user prefix for all targets (${COMMON_USER_PREFIX})
+                                (root targets are auto-prefixed even without --root)
+        --no-prompt             Fail instead of prompting for missing secret
 
   Execution:
-    --apply                 Apply changes (default: dry-run only)
+        --apply                 Apply changes (default: dry-run only)
         --force                 Pass --force to OCI update (enabled by default with --apply)
         --no-force              Disable --force (allows OCI interactive confirmation prompts)
-    -n, --dry-run           Dry-run mode (show what would be done)
-    --wait-for-state STATE  Wait for operation completion with state (e.g., ACCEPTED)
-                            Default: async (no wait)
+    -n, --dry-run               Dry-run mode (show what would be done)
+        --wait-for-state STATE  Wait for operation completion with state (e.g., ACCEPTED)
+                                Default: async (no wait)
 
 Credential Sources (in order of precedence):
-  1. --cred-file JSON file
-  2. -U/--ds-user and -P/--ds-secret options
-  3. Environment variables (DS_USER/DS_SECRET)
-  4. --secret-file or <user>_pwd.b64 lookup
+    1. --cred-file JSON file
+    2. -U/--ds-user and -P/--ds-secret options
+    3. Environment variables (DS_USER/DS_SECRET)
+    4. --secret-file or <user>_pwd.b64 lookup
   5. Interactive prompt (unless --no-prompt)
 
 Examples:
-  # Dry-run with specific username (will prompt for secret)
-  ${SCRIPT_NAME} -U myuser
+    # Dry-run with specific username (will prompt for secret)
+    ${SCRIPT_NAME} -U myuser
 
-  # Apply changes using credentials file (async)
-    ${SCRIPT_NAME} --cred-file creds.json --apply --force
+    # Apply changes using credentials file (async)
+        ${SCRIPT_NAME} --cred-file creds.json --apply --force
 
-  # Apply changes and wait for completion
-    ${SCRIPT_NAME} --cred-file creds.json --apply --force --wait-for-state ACCEPTED
+    # Apply changes and wait for completion
+        ${SCRIPT_NAME} --cred-file creds.json --apply --force --wait-for-state ACCEPTED
 
-  # Update specific targets with username/secret
-    ${SCRIPT_NAME} -T target1,target2 -U myuser -P mysecret --apply --force
+    # Update specific targets with username/secret
+        ${SCRIPT_NAME} -T target1,target2 -U myuser -P mysecret --apply --force
 
-  # Bulk update for compartment (interactive secret, wait for state)
-  ${SCRIPT_NAME} -c my-compartment -U dbuser --apply --wait-for-state ACCEPTED
+    # Bulk update for compartment (interactive secret, wait for state)
+    ${SCRIPT_NAME} -c my-compartment -U dbuser --apply --wait-for-state ACCEPTED
 
 EOF
     exit 0

@@ -84,35 +84,35 @@ DESCRIPTION:
   metadata including cluster/CDB/PDB information, connector mapping, and service details.
 
 OPTIONS:
-  -c, --compartment COMP      Compartment name or OCID (required)
-  -L, --lifecycle STATE       Filter by lifecycle state (ACTIVE,NEEDS_ATTENTION, etc.)
-  -D, --since-date DATE       Only export targets created >= date
-                              Accepts: 2025-01-01, -2d, -1w, -3m, RFC3339
-  -F, --format FORMAT         Export format: csv, json (default: csv)
-  -o, --output FILE           Output file (default: ./datasafe_targets.<format>)
-  --oci-config FILE           OCI CLI config file
-  --oci-profile PROFILE       OCI CLI profile
-  -h, --help                  Show this help
+  -c, --compartment COMP    Compartment name or OCID (required)
+  -L, --lifecycle STATE     Filter by lifecycle state (ACTIVE,NEEDS_ATTENTION, etc.)
+  -D, --since-date DATE     Only export targets created >= date
+                            Accepts: 2025-01-01, -2d, -1w, -3m, RFC3339
+  -F, --format FORMAT       Export format: csv, json (default: csv)
+  -o, --output FILE         Output file (default: ./datasafe_targets.<format>)
+    --oci-config FILE       OCI CLI config file
+    --oci-profile PROFILE   OCI CLI profile
+  -h, --help                Show this help
 
 CSV COLUMNS:
-  datasafe_ocid, display_name, cluster_name, node_name, node_list,
-  cdb_name, pdb_name, onprem_connector, service_name, listener_port,
-  created_at, registration_status
+    datasafe_ocid, display_name, cluster_name, node_name, node_list,
+    cdb_name, pdb_name, onprem_connector, service_name, listener_port,
+    created_at, registration_status
 
 EXAMPLES:
-  # Export all targets in compartment to CSV
-  ds_target_export.sh -c prod-compartment
-  
-  # Export ACTIVE targets to JSON
-  ds_target_export.sh -c prod-compartment -L ACTIVE -F json -o targets.json
-  
-  # Export targets created since date
-  ds_target_export.sh -c prod-compartment -D 2025-01-01
+    # Export all targets in compartment to CSV
+    ds_target_export.sh -c prod-compartment
+    
+    # Export ACTIVE targets to JSON
+    ds_target_export.sh -c prod-compartment -L ACTIVE -F json -o targets.json
+    
+    # Export targets created since date
+    ds_target_export.sh -c prod-compartment -D 2025-01-01
 
 EXIT CODES:
-  0 = Success
-  1 = Input validation error
-  2 = Export error
+    0 = Success
+    1 = Input validation error
+    2 = Export error
 
 EOF
     exit "$exit_code"

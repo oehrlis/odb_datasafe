@@ -66,40 +66,40 @@ usage() {
 Usage: ${SCRIPT_NAME} [OPTIONS]
 
 Description:
-  Start Data Safe audit trails for target database(s). Supports single/multiple
-  targets by name/OCID, or scan entire compartment by lifecycle state.
+    Start Data Safe audit trails for target database(s). Supports single/multiple
+    targets by name/OCID, or scan entire compartment by lifecycle state.
 
 Options:
   Common:
-    -h, --help              Show this help message
-    -V, --version           Show version
-    -v, --verbose           Enable verbose output
-    -d, --debug             Enable debug output
-    --log-file FILE         Log to file
+    -h, --help                      Show this help message
+    -V, --version                   Show version
+    -v, --verbose                   Enable verbose output
+    -d, --debug                     Enable debug output
+        --log-file FILE             Log to file
 
   OCI:
-    --oci-profile PROFILE   OCI CLI profile (default: ${OCI_CLI_PROFILE:-DEFAULT})
-    --oci-region REGION     OCI region
-    --oci-config FILE       OCI config file
+        --oci-profile PROFILE       OCI CLI profile (default: ${OCI_CLI_PROFILE:-DEFAULT})
+        --oci-region REGION         OCI region
+        --oci-config FILE           OCI config file
 
   Target Selection (choose one):
-    -T, --targets LIST      Comma-separated target names/OCIDs
-    -c, --compartment COMP  Compartment OCID or name (scan all targets)
+    -T, --targets LIST              Comma-separated target names/OCIDs
+    -c, --compartment COMP          Compartment OCID or name (scan all targets)
 
   Filtering:
-    -L, --lifecycle STATES  Lifecycle state filter (default: ACTIVE)
-                            Use comma-separated values: ACTIVE,NEEDS_ATTENTION
+    -L, --lifecycle STATES          Lifecycle state filter (default: ACTIVE)
+                                    Use comma-separated values: ACTIVE,NEEDS_ATTENTION
 
   Audit Configuration:
-    --audit-type TYPE       UNIFIED_AUDIT|DATABASE_VAULT|OS_AUDIT (default: UNIFIED_AUDIT)
-    --start-time TIME       Start time (RFC3339 or 'now', default: now)
-    --auto-purge true|false Enable auto-purge (default: true)
-    --retention-days N      Retention days (default: 90)
-    --update-archive true|false Update last archive time (default: true)
-    --collection-freq FREQ  DAILY|WEEKLY|MONTHLY (default: DAILY)
+        --audit-type TYPE           UNIFIED_AUDIT|DATABASE_VAULT|OS_AUDIT (default: UNIFIED_AUDIT)
+        --start-time TIME           Start time (RFC3339 or 'now', default: now)
+        --auto-purge true|false     Enable auto-purge (default: true)
+        --retention-days N          Retention days (default: 90)
+        --update-archive true|false Update last archive time (default: true)
+        --collection-freq FREQ      DAILY|WEEKLY|MONTHLY (default: DAILY)
 
   Execution:
-    -n, --dry-run           Show plan without starting trails
+    -n, --dry-run               Show plan without starting trails
 
 Examples:
   # Start audit trail for specific target

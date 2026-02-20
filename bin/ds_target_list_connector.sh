@@ -63,51 +63,51 @@ Description:
 
 Options:
   Common:
-    -h, --help              Show this help message
-    -V, --version           Show version
-    -v, --verbose           Enable verbose output
-    -d, --debug             Enable debug output
-    -q, --quiet             Suppress INFO messages (warnings/errors only)
-    -n, --dry-run           Dry-run mode (show what would be done)
-    --log-file FILE         Log to file
+    -h, --help                  Show this help message
+    -V, --version               Show version
+    -v, --verbose               Enable verbose output
+    -d, --debug                 Enable debug output
+    -q, --quiet                 Suppress INFO messages (warnings/errors only)
+    -n, --dry-run               Dry-run mode (show what would be done)
+        --log-file FILE         Log to file
 
   OCI:
-    --oci-profile PROFILE   OCI CLI profile (default: ${OCI_CLI_PROFILE:-DEFAULT})
-    --oci-region REGION     OCI region
-    --oci-config FILE       OCI config file (default: ${OCI_CLI_CONFIG_FILE:-~/.oci/config})
+        --oci-profile PROFILE   OCI CLI profile (default: ${OCI_CLI_PROFILE:-DEFAULT})
+        --oci-region REGION     OCI region
+        --oci-config FILE       OCI config file (default: ${OCI_CLI_CONFIG_FILE:-~/.oci/config})
 
   Selection:
-    -c, --compartment ID    Compartment OCID or name (default: DS_ROOT_COMP)
-                            Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
-    -C, --connectors LIST   Comma-separated connector names or OCIDs
-    -L, --lifecycle STATE   Filter by lifecycle state (ACTIVE, INACTIVE, etc.)
+    -c, --compartment ID        Compartment OCID or name (default: DS_ROOT_COMP)
+                                Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
+    -C, --connectors LIST       Comma-separated connector names or OCIDs
+    -L, --lifecycle STATE       Filter by lifecycle state (ACTIVE, INACTIVE, etc.)
 
   Output:
-    -f, --format FMT        Output format: table|json|csv (default: table)
-    -F, --fields FIELDS     Comma-separated fields (default: ${FIELDS})
+    -f, --format FMT            Output format: table|json|csv (default: table)
+    -F, --fields FIELDS         Comma-separated fields (default: ${FIELDS})
 
 Available Fields:
-  display-name, id, lifecycle-state, time-created, available-version,
-  time-last-used, freeform-tags, defined-tags
+    display-name, id, lifecycle-state, time-created, available-version,
+    time-last-used, freeform-tags, defined-tags
 
 Examples:
-  # Show all connectors in DS_ROOT_COMP (default)
-  ${SCRIPT_NAME}
+    # Show all connectors in DS_ROOT_COMP (default)
+    ${SCRIPT_NAME}
 
-  # Show connectors in specific compartment
-  ${SCRIPT_NAME} -c MyCompartment
+    # Show connectors in specific compartment
+    ${SCRIPT_NAME} -c MyCompartment
 
-  # Show only ACTIVE connectors
-  ${SCRIPT_NAME} -L ACTIVE
+    # Show only ACTIVE connectors
+    ${SCRIPT_NAME} -L ACTIVE
 
-  # Show as JSON
-  ${SCRIPT_NAME} -f json
+    # Show as JSON
+    ${SCRIPT_NAME} -f json
 
-  # Show specific fields as CSV
-  ${SCRIPT_NAME} -f csv -F display-name,id,lifecycle-state,time-created
+    # Show specific fields as CSV
+    ${SCRIPT_NAME} -f csv -F display-name,id,lifecycle-state,time-created
 
-  # Show details for specific connectors
-  ${SCRIPT_NAME} -C connector1,connector2
+    # Show details for specific connectors
+    ${SCRIPT_NAME} -C connector1,connector2
 
 EOF
     exit 0

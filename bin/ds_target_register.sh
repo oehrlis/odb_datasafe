@@ -103,8 +103,8 @@ usage() {
 Usage: ${SCRIPT_NAME} [options]
 
 DESCRIPTION:
-  Register a database (PDB or CDB\$ROOT) as an Oracle Data Safe target.
-  Requires on-premises connector for cloud-at-customer deployments.
+    Register a database (PDB or CDB\$ROOT) as an Oracle Data Safe target.
+    Requires on-premises connector for cloud-at-customer deployments.
 
 SCOPE (choose one):
     --pdb PDB                           Register a specific PDB
@@ -124,8 +124,8 @@ REQUIRED OPTIONS:
         --secret-file FILE              Base64 secret file (optional)
 
 SECRET FILE SUPPORT:
-  - Uses DATASAFE_SECRET_FILE if set
-  - Otherwise looks for <ds-user>_pwd.b64 in ORADBA_ETC or $ODB_DATASAFE_BASE/etc
+    - Uses DATASAFE_SECRET_FILE if set
+    - Otherwise looks for <ds-user>_pwd.b64 in ORADBA_ETC or $ODB_DATASAFE_BASE/etc
 
 CONNECTION:
         --port PORT                     Listener port (default: 1521)
@@ -143,22 +143,22 @@ MODES:
     -h, --help                          Show this help
 
 EXAMPLES:
-  # Register a PDB
-  ds_target_register.sh -H db01 --sid cdb01 --pdb APP1PDB \\
-  -c prod-compartment --connector my-connector --ds-secret <secret>
-  
-  # Register CDB\$ROOT
-  ds_target_register.sh -H db01 --sid cdb01 --root \\
-  -c prod-compartment --connector my-connector --ds-secret <secret>
-  
-  # Check if target exists
-  ds_target_register.sh -H db01 --sid cdb01 --pdb APP1PDB \\
-  -c prod-compartment --connector my-connector --check
+    # Register a PDB
+    ds_target_register.sh -H db01 --sid cdb01 --pdb APP1PDB \\
+    -c prod-compartment --connector my-connector --ds-secret <secret>
+    
+    # Register CDB\$ROOT
+    ds_target_register.sh -H db01 --sid cdb01 --root \\
+    -c prod-compartment --connector my-connector --ds-secret <secret>
+    
+    # Check if target exists
+    ds_target_register.sh -H db01 --sid cdb01 --pdb APP1PDB \\
+    -c prod-compartment --connector my-connector --check
 
 EXIT CODES:
-  0 = Success
-  1 = Input validation error
-  2 = Registration error
+    0 = Success
+    1 = Input validation error
+    2 = Registration error
 
 EOF
     exit "$exit_code"

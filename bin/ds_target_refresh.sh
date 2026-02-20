@@ -65,50 +65,50 @@ Description:
 
 Options:
   Common:
-    -h, --help              Show this help message
-    -V, --version           Show version
-    -v, --verbose           Enable verbose output
-    -d, --debug             Enable debug output
-    -n, --dry-run           Dry-run mode (show what would be done)
-    --log-file FILE         Log to file
+    -h, --help                  Show this help message
+    -V, --version               Show version
+    -v, --verbose               Enable verbose output
+    -d, --debug                 Enable debug output
+    -n, --dry-run               Dry-run mode (show what would be done)
+        --log-file FILE         Log to file
 
   OCI:
-    --oci-profile PROFILE   OCI CLI profile (default: ${OCI_CLI_PROFILE})
-    --oci-region REGION     OCI region
-    --oci-config FILE       OCI config file (default: ${OCI_CLI_CONFIG_FILE})
+        --oci-profile PROFILE   OCI CLI profile (default: ${OCI_CLI_PROFILE})
+        --oci-region REGION     OCI region
+        --oci-config FILE       OCI config file (default: ${OCI_CLI_CONFIG_FILE})
 
   Target Selection:
-    -c, --compartment ID    Compartment OCID or name (default: DS_ROOT_COMP)
-                            Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
-    -A, --all               Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
-    -T, --targets LIST      Comma-separated target names or OCIDs
-    -r, --filter REGEX      Filter target names by regex (substring match)
-    -L, --lifecycle STATE   Filter by lifecycle state (default: NEEDS_ATTENTION)
-                            Use ACTIVE, NEEDS_ATTENTION, etc.
-    --wait                  Wait for each refresh to complete (slower but shows status)
-    --no-wait               Don't wait for completion (default, faster for bulk)
+    -c, --compartment ID        Compartment OCID or name (default: DS_ROOT_COMP)
+                                Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
+    -A, --all                   Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
+    -T, --targets LIST          Comma-separated target names or OCIDs
+    -r, --filter REGEX          Filter target names by regex (substring match)
+    -L, --lifecycle STATE       Filter by lifecycle state (default: NEEDS_ATTENTION)
+                                Use ACTIVE, NEEDS_ATTENTION, etc.
+        --wait                  Wait for each refresh to complete (slower but shows status)
+        --no-wait               Don't wait for completion (default, faster for bulk)
 
 Examples:
-  # Refresh all NEEDS_ATTENTION targets in DS_ROOT_COMP (fast, async)
-  ${SCRIPT_NAME}
+    # Refresh all NEEDS_ATTENTION targets in DS_ROOT_COMP (fast, async)
+    ${SCRIPT_NAME}
 
     # Explicitly select all targets from DS_ROOT_COMP
     ${SCRIPT_NAME} --all
 
-  # Refresh with progress monitoring (slower)
-  ${SCRIPT_NAME} --wait
+    # Refresh with progress monitoring (slower)
+    ${SCRIPT_NAME} --wait
 
-  # Refresh specific compartment
-  ${SCRIPT_NAME} -c MyCompartment
+    # Refresh specific compartment
+    ${SCRIPT_NAME} -c MyCompartment
 
-  # Refresh specific targets (dry-run)
-  ${SCRIPT_NAME} -T target1,target2 --dry-run
+    # Refresh specific targets (dry-run)
+    ${SCRIPT_NAME} -T target1,target2 --dry-run
 
-  # Refresh all ACTIVE targets
-  ${SCRIPT_NAME} -c MyCompartment -L ACTIVE
+    # Refresh all ACTIVE targets
+    ${SCRIPT_NAME} -c MyCompartment -L ACTIVE
 
-  # Refresh by positional args
-  ${SCRIPT_NAME} target1 target2 target3
+    # Refresh by positional args
+    ${SCRIPT_NAME} target1 target2 target3
 
 EOF
     exit 0

@@ -116,29 +116,29 @@ Options:
 
     Output:
         Mode selection (single entry point):
-        -M, --mode MODE                     details|count|overview|issues|problems
-                                                                                details: default target list
-                                                                                count: lifecycle summary counts
-                                                                                overview: grouped cluster/SID landscape
-                                                                                issues: full troubleshooting issue model
-                                                                                problems: NEEDS_ATTENTION-only issue model
+        -M, --mode MODE                 details|count|overview|issues|problems
+                                            details: default target list
+                                            count: lifecycle summary counts
+                                            overview: grouped cluster/SID landscape
+                                            issues: full troubleshooting issue model
+                                            problems: NEEDS_ATTENTION-only issue model
 
-        Troubleshooting drill-down (for --mode issues|problems):
-                --issue-view VIEW               summary|details (default: summary)
-                --issue ISSUE                   Filter to one issue (code or label text)
-                --health-actions                Include suggested actions in health output (default)
-                --health-no-actions             Hide suggested actions in health output
+    Troubleshooting drill-down (for --mode issues|problems):
+            --issue-view VIEW               summary|details (default: summary)
+            --issue ISSUE                   Filter to one issue (code or label text)
+            --health-actions                Include suggested actions in health output (default)
+            --health-no-actions             Hide suggested actions in health output
 
-        Overview options (only with --mode overview):
-        --overview-status               Include lifecycle counts per SID row (default)
-        --overview-no-status            Hide lifecycle counts in overview output
-        --overview-no-members           Hide member/PDB names in overview output
-        --overview-truncate-members     Truncate member/PDB list in table output (default)
-        --overview-no-truncate-members  Show full member/PDB list in table output
+    Overview options (only with --mode overview):
+        --overview-status                   Include lifecycle counts per SID row (default)
+        --overview-no-status                Hide lifecycle counts in overview output
+        --overview-no-members               Hide member/PDB names in overview output
+        --overview-truncate-members         Truncate member/PDB list in table output (default)
+        --overview-no-truncate-members      Show full member/PDB list in table output
 
     Format and fields:
-    -f, --format FMT                    Output format: table|json|csv (default: table)
-    -F, --fields FIELDS                 Comma-separated fields for details (default: ${FIELDS})
+    -f, --format FMT                        Output format: table|json|csv (default: table)
+    -F, --fields FIELDS                     Comma-separated fields for details (default: ${FIELDS})
 
     Overview Parsing:
         Target names are parsed as: <cluster>_<oracle_sid>_<cdb/pdb>

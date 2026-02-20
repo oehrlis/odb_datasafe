@@ -79,35 +79,35 @@ Description:
 
 Options:
   Common:
-    -h, --help              Show this help message
-    -V, --version           Show version
-    -v, --verbose           Enable verbose output
-    -d, --debug             Enable debug output
-    --log-file FILE         Log to file
+    -h, --help                  Show this help message
+    -V, --version               Show version
+    -v, --verbose               Enable verbose output
+    -d, --debug                 Enable debug output
+        --log-file FILE         Log to file
 
   OCI:
-    --oci-profile PROFILE   OCI CLI profile (default: ${OCI_CLI_PROFILE})
-    --oci-region REGION     OCI region
-    --oci-config FILE       OCI config file (default: ${OCI_CLI_CONFIG_FILE})
+        --oci-profile PROFILE   OCI CLI profile (default: ${OCI_CLI_PROFILE})
+        --oci-region REGION     OCI region
+        --oci-config FILE       OCI config file (default: ${OCI_CLI_CONFIG_FILE})
 
   Target Selection:
-    -c, --compartment ID    Compartment OCID or name
-    -A, --all               Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
-    -T, --targets LIST      Comma-separated target names or OCIDs
-    -r, --filter REGEX      Filter target names by regex (substring match)
-    -L, --lifecycle STATE   Filter by lifecycle state (default: INACTIVE)
+    -c, --compartment ID        Compartment OCID or name
+    -A, --all                   Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
+    -T, --targets LIST          Comma-separated target names or OCIDs
+    -r, --filter REGEX          Filter target names by regex (substring match)
+    -L, --lifecycle STATE       Filter by lifecycle state (default: INACTIVE)
 
   Execution:
-    --apply                 Apply changes (default: dry-run only)
-    -n, --dry-run           Dry-run mode (show what would be done)
-    --wait-for-state STATE  Wait for operation completion with state (e.g., ACCEPTED)
-                            Default: async (no wait)
+        --apply                 Apply changes (default: dry-run only)
+    -n, --dry-run               Dry-run mode (show what would be done)
+        --wait-for-state STATE  Wait for operation completion with state (e.g., ACCEPTED)
+                                Default: async (no wait)
 
   Credentials:
-    -U, --ds-user USER      Data Safe database user (default: DS_ADMIN)
-    -P, --ds-secret VALUE   Data Safe secret (plain or base64)
-    --secret-file FILE      Base64 secret file (optional)
-    --root                  Root normalization hint (common user with ${COMMON_USER_PREFIX})
+    -U, --ds-user USER          Data Safe database user (default: DS_ADMIN)
+    -P, --ds-secret VALUE       Data Safe secret (plain or base64)
+        --secret-file FILE      Base64 secret file (optional)
+        --root                  Root normalization hint (common user with ${COMMON_USER_PREFIX})
 
 Credential Sources (in order of precedence):
     1. Command-line options (-P/--ds-secret, --secret-file)
@@ -116,36 +116,36 @@ Credential Sources (in order of precedence):
     4. Interactive prompt
 
 CDB\$ROOT Detection:
-  Targets are identified as CDB\$ROOT using (in order):
-  1. Target name ending with "_CDBROOT" (e.g., exa101r04c01_cdb10b01_CDBROOT)
-  2. Tag "DBSec.Container: CDBROOT"
-  3. Tag "DBSec.ContainerType: cdbroot"
+    Targets are identified as CDB\$ROOT using (in order):
+    1. Target name ending with "_CDBROOT" (e.g., exa101r04c01_cdb10b01_CDBROOT)
+    2. Tag "DBSec.Container: CDBROOT"
+    3. Tag "DBSec.ContainerType: cdbroot"
 
 Examples:
     # Activate all INACTIVE targets (will prompt for secret)
-  ${SCRIPT_NAME}
+    ${SCRIPT_NAME}
 
     # Activate with secret from command line
     ${SCRIPT_NAME} -P 'my_secret'
 
-  # Activate specific compartment
+    # Activate specific compartment
     ${SCRIPT_NAME} -c MyCompartment -P 'my_secret'
 
-  # Activate specific targets (dry-run)
+    # Activate specific targets (dry-run)
     ${SCRIPT_NAME} -T target1,target2 -P 'my_secret' --dry-run
 
     # Activate only targets matching regex (display-name)
-        ${SCRIPT_NAME} -c MyCompartment -r "cdb10b" -P 'my_secret' --apply
+    ${SCRIPT_NAME} -c MyCompartment -r "cdb10b" -P 'my_secret' --apply
 
     # Use root normalization hint for common user naming
     ${SCRIPT_NAME} --root -U DS_ADMIN -P 'my_secret' -T mydb_CDBROOT
 
-  # Activate with progress monitoring
+    # Activate with progress monitoring
     ${SCRIPT_NAME} --wait -P 'my_secret'
 
-  # Use environment variables
-        export DS_SECRET='my_secret'
-  ${SCRIPT_NAME}
+    # Use environment variables
+    export DS_SECRET='my_secret'
+    ${SCRIPT_NAME}
 
 EOF
     exit 0

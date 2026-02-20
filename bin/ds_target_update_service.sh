@@ -69,49 +69,49 @@ Description:
 
 Options:
   Common:
-    -h, --help              Show this help message
-    -V, --version           Show version
-    -v, --verbose           Enable verbose output
-    -d, --debug             Enable debug output
-    --log-file FILE         Log to file
+    -h, --help                  Show this help message
+    -V, --version               Show version
+    -v, --verbose               Enable verbose output
+    -d, --debug                 Enable debug output
+        --log-file FILE         Log to file
 
   OCI:
-    --oci-profile PROFILE   OCI CLI profile (default: ${OCI_CLI_PROFILE:-DEFAULT})
-    --oci-region REGION     OCI region
-    --oci-config FILE       OCI config file
+        --oci-profile PROFILE   OCI CLI profile (default: ${OCI_CLI_PROFILE:-DEFAULT})
+        --oci-region REGION     OCI region
+        --oci-config FILE       OCI config file
 
   Selection:
-    -c, --compartment ID    Compartment OCID or name (default: DS_ROOT_COMP)
-                            Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
-    -A, --all               Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
-    -T, --targets LIST      Comma-separated target names or OCIDs
-    -r, --filter REGEX      Filter target names by regex (substring match)
-    -L, --lifecycle STATE   Filter by lifecycle state (default: ${LIFECYCLE_STATE})
+    -c, --compartment ID        Compartment OCID or name (default: DS_ROOT_COMP)
+                                Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
+    -A, --all                   Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
+    -T, --targets LIST          Comma-separated target names or OCIDs
+    -r, --filter REGEX          Filter target names by regex (substring match)
+    -L, --lifecycle STATE       Filter by lifecycle state (default: ${LIFECYCLE_STATE})
 
   Service Update:
-    --domain DOMAIN         Domain for new service names (default: ${DB_DOMAIN})
-    --wait-for-state STATE  Wait for target update to reach state (e.g. ACCEPTED)
-    --apply                 Apply changes (default: dry-run only)
-    -n, --dry-run           Dry-run mode (show what would be done)
+        --domain DOMAIN         Domain for new service names (default: ${DB_DOMAIN})
+        --wait-for-state STATE  Wait for target update to reach state (e.g. ACCEPTED)
+        --apply                 Apply changes (default: dry-run only)
+    -n, --dry-run               Dry-run mode (show what would be done)
 
 Service Name Rules:
-  - Target format: "<base>_exa.<domain>"
-  - If service already ends with domain: no change
-  - Extract base name from current service (remove domain if present)
-  - Apply standard naming: "{base}_exa.{domain}"
+    - Target format: "<base>_exa.<domain>"
+    - If service already ends with domain: no change
+    - Extract base name from current service (remove domain if present)
+    - Apply standard naming: "{base}_exa.{domain}"
 
 Examples:
-  # Dry-run for all ACTIVE targets
-  ${SCRIPT_NAME}
+    # Dry-run for all ACTIVE targets
+    ${SCRIPT_NAME}
 
-  # Apply changes to specific targets
-  ${SCRIPT_NAME} -T target1,target2 --apply
+    # Apply changes to specific targets
+    ${SCRIPT_NAME} -T target1,target2 --apply
 
-  # Update with custom domain
-  ${SCRIPT_NAME} --domain custom.example --apply
+    # Update with custom domain
+    ${SCRIPT_NAME} --domain custom.example --apply
 
-  # Process specific compartment
-  ${SCRIPT_NAME} -c my-compartment --apply
+    # Process specific compartment
+    ${SCRIPT_NAME} -c my-compartment --apply
 
     # Update only targets matching regex
     ${SCRIPT_NAME} -c my-compartment -r "cdb10b" --apply
