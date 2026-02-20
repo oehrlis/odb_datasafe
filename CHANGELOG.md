@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `pdb_count`, `total_count`, and member lists.
 - Added per-SID lifecycle status counts in overview output (enabled by default)
   with `--overview-no-status` to disable.
+- Added overview footer grand totals for clusters, Oracle SIDs, CDB roots,
+  PDBs, and overall targets.
 - Added configurable parsing keys in `datasafe.conf`:
   `DS_TARGET_NAME_REGEX`, `DS_TARGET_NAME_SEPARATOR`,
   `DS_TARGET_NAME_CDBROOT_REGEX`, and `DS_TARGET_NAME_ROOT_LABEL`.

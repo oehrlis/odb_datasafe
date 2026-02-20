@@ -564,6 +564,12 @@ show_overview_table() {
     local row_count
     row_count=$(printf '%s\n' "$overview_rows" | sed '/^$/d' | wc -l | tr -d '[:space:]')
 
+    local total_sids=0
+    local total_cdbroots=0
+    local total_pdbs=0
+    local total_targets=0
+    local -A seen_clusters=()
+
     if [[ "$row_count" == "0" ]]; then
         log_info "No overview rows to display"
         return 0
@@ -580,6 +586,12 @@ show_overview_table() {
     while IFS=$'\t' read -r cluster sid cdb_count pdb_count total_count members status_counts; do
         [[ -z "$cluster" && -z "$sid" ]] && continue
 
+        total_sids=$((total_sids + 1))
+        total_cdbroots=$((total_cdbroots + cdb_count))
+        total_pdbs=$((total_pdbs + pdb_count))
+        total_targets=$((total_targets + total_count))
+        seen_clusters["$cluster"]=1
+
         local members_display="$members"
         if [[ ${#members_display} -gt 58 ]]; then
             members_display="${members_display:0:55}..."
@@ -592,7 +604,14 @@ show_overview_table() {
         fi
     done <<< "$overview_rows"
 
-    printf "\nTotal SID groups: %d\n\n" "$row_count"
+    local total_clusters=${#seen_clusters[@]}
+
+    printf "\n"
+    printf "%-36s %10d\n" "Grand total of clusters" "$total_clusters"
+    printf "%-36s %10d\n" "Grand total of Oracle SID" "$total_sids"
+    printf "%-36s %10d\n" "Grand total of CDB root" "$total_cdbroots"
+    printf "%-36s %10d\n" "Grand total of PDBs" "$total_pdbs"
+    printf "%-36s %10d\n\n" "Grand total of targets" "$total_targets"
 }
 
 # ------------------------------------------------------------------------------
