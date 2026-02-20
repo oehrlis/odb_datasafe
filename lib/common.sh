@@ -33,6 +33,10 @@ readonly COMMON_SH_LOADED=1
 : "${SCRIPT_VERSION:=}"
 : "${SCRIPT_DIR:=$(cd "$(dirname "${BASH_SOURCE[-1]}")" && pwd)}"
 
+# Shared argument array used by parse_common_opts and script-specific parsers.
+# Keep initialized for nounset-safe use in callers (set -- "${ARGS[@]-}").
+ARGS=()
+
 # =============================================================================
 # COLOR SETUP
 # =============================================================================

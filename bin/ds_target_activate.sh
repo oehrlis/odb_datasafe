@@ -162,7 +162,7 @@ parse_args() {
     parse_common_opts "$@"
 
     local -a remaining=()
-    set -- "${ARGS[@]}"
+    set -- "${ARGS[@]-}"
 
     while [[ $# -gt 0 ]]; do
         case "$1" in

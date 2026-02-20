@@ -194,7 +194,7 @@ parse_args() {
 
     # Now parse script-specific options from ARGS
     local -a remaining=()
-    set -- "${ARGS[@]}"
+    set -- "${ARGS[@]-}"
 
     while [[ $# -gt 0 ]]; do
         case "$1" in

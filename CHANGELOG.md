@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Hardened shared CLI argument parsing for strict `set -u` handling by
+  initializing the common `ARGS` array in `lib/common.sh` and using
+  nounset-safe expansion in script parsers (`"${ARGS[@]-}"`).
+- Fixed `ARGS[@]: unbound variable` startup failures seen in environments with
+  `ksh` login shells when running bash-based scripts.
+
 ## [0.16.1] - 2026-02-20
 
 ### Added
