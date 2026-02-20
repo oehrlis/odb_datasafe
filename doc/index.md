@@ -4,7 +4,7 @@ Oracle Data Safe management extension for OraDBA - comprehensive tools for manag
 OCI Data Safe targets, connectors, and operations.
 
 Current version: see [`../VERSION`](../VERSION) | [Release Notes](release_notes/)
-Latest release: [v0.16.0](release_notes/v0.16.0.md)
+Latest release: [v0.16.1](release_notes/v0.16.1.md)
 
 ## Overview
 
