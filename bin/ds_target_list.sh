@@ -4,8 +4,8 @@
 # ------------------------------------------------------------------------------
 # Script.....: ds_target_list.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.02.19
-# Version....: v0.15.0
+# Date.......: 2026.02.20
+# Version....: v0.16.1
 # Purpose....: List Oracle Data Safe target databases with summary or details
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
