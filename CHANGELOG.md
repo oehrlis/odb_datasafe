@@ -35,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced health overview with v2 `NEEDS_ATTENTION` reason classification
   (account locked, credentials, connectivity, fetch-details, other) including
   category-specific remediation guidance.
+- Improved health overview table formatting with wider issue column and safe
+  issue-label truncation to keep severity/count/SID columns aligned.
 
 ### Documentation
 

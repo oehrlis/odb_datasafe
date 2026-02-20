@@ -1190,18 +1190,28 @@ show_health_overview_table() {
     ')
 
     if [[ "$SHOW_HEALTH_ACTIONS" == "true" ]]; then
-        printf "\n%-33s %-8s %8s %8s %s\n" "Issue" "Severity" "Count" "SIDs" "Suggested Action"
-        printf "%-33s %-8s %8s %8s %s\n" "---------------------------------" "--------" "--------" "--------" "------------------------------"
+        printf "\n%-44s %-8s %8s %8s %s\n" "Issue" "Severity" "Count" "SIDs" "Suggested Action"
+        printf "%-44s %-8s %8s %8s %s\n" "--------------------------------------------" "--------" "--------" "--------" "------------------------------"
         echo "$grouped" | jq -r '.[] | [.type, .severity, (.count|tostring), (.sid_count|tostring), .action] | @tsv' \
             | while IFS=$'\t' read -r issue_type severity count sid_count action; do
-                printf "%-33s %-8s %8d %8d %s\n" "$(health_issue_label "$issue_type")" "$severity" "$count" "$sid_count" "$action"
+                local issue_display
+                issue_display="$(health_issue_label "$issue_type")"
+                if [[ ${#issue_display} -gt 44 ]]; then
+                    issue_display="${issue_display:0:41}..."
+                fi
+                printf "%-44s %-8s %8d %8d %s\n" "$issue_display" "$severity" "$count" "$sid_count" "$action"
             done
     else
-        printf "\n%-33s %-8s %8s %8s\n" "Issue" "Severity" "Count" "SIDs"
-        printf "%-33s %-8s %8s %8s\n" "---------------------------------" "--------" "--------" "--------"
+        printf "\n%-44s %-8s %8s %8s\n" "Issue" "Severity" "Count" "SIDs"
+        printf "%-44s %-8s %8s %8s\n" "--------------------------------------------" "--------" "--------" "--------"
         echo "$grouped" | jq -r '.[] | [.type, .severity, (.count|tostring), (.sid_count|tostring)] | @tsv' \
             | while IFS=$'\t' read -r issue_type severity count sid_count; do
-                printf "%-33s %-8s %8d %8d\n" "$(health_issue_label "$issue_type")" "$severity" "$count" "$sid_count"
+                local issue_display
+                issue_display="$(health_issue_label "$issue_type")"
+                if [[ ${#issue_display} -gt 44 ]]; then
+                    issue_display="${issue_display:0:41}..."
+                fi
+                printf "%-44s %-8s %8d %8d\n" "$issue_display" "$severity" "$count" "$sid_count"
             done
     fi
     printf "\n"

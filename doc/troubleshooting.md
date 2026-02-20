@@ -23,6 +23,13 @@ bin/ds_target_list.sh --health-overview -f json
 bin/ds_target_list.sh --health-overview -f csv
 ```
 
+Formatting notes (table output):
+
+- Health overview is sorted by severity, then count, then SID count.
+- Long issue labels are truncated to keep `Severity`, `Count`, and `SIDs`
+  columns aligned.
+- Full issue identifiers remain available in `-f json` and `-f csv` output.
+
 ## Implemented v1 Checks
 
 - SID has PDB targets but no CDB root (`SID_MISSING_ROOT`)
