@@ -61,6 +61,8 @@
 #DS_TARGET_NAME_SEPARATOR="_"
 #DS_TARGET_NAME_CDBROOT_REGEX="^(CDB\\$ROOT|CDBROOT)$"
 #DS_TARGET_NAME_ROOT_LABEL="CDB$ROOT"
+# Optional SID token matcher for default split parser (helps when db names contain underscores)
+#DS_TARGET_NAME_SID_REGEX="^cdb[0-9]+[[:alnum:]]*$"
 # Optional regex override with 3 capture groups: cluster, sid, cdb/pdb
 #DS_TARGET_NAME_REGEX="^(.+)_([^_]+)_(.+)$"
 

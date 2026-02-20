@@ -40,10 +40,12 @@ readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 : "${SHOW_DETAILS:=true}"
 : "${SHOW_OVERVIEW:=false}"
 : "${OVERVIEW_INCLUDE_STATUS:=true}"
+: "${OVERVIEW_INCLUDE_MEMBERS:=true}"
 : "${DS_TARGET_NAME_REGEX:=}"
 : "${DS_TARGET_NAME_SEPARATOR:=_}"
 : "${DS_TARGET_NAME_ROOT_LABEL:=CDB\$ROOT}"
 : "${DS_TARGET_NAME_CDBROOT_REGEX:=^(CDB\\\$ROOT|CDBROOT)$}"
+: "${DS_TARGET_NAME_SID_REGEX:=^cdb[0-9]+[[:alnum:]]*$}"
 
 # Runtime counters
 : "${OVERVIEW_PARSE_SKIPPED:=0}"
@@ -105,6 +107,7 @@ Options:
         --overview          Show overview grouped by cluster and SID (from target name)
         --overview-status   Include lifecycle counts per SID row in overview (default)
         --overview-no-status    Hide lifecycle counts in overview output
+        --overview-no-members   Hide member/PDB names in overview output
     -f, --format FMT        Output format: table|json|csv (default: table)
     -F, --fields FIELDS     Comma-separated fields for details (default: ${FIELDS})
         --problems          Show NEEDS_ATTENTION targets with lifecycle details
@@ -116,6 +119,8 @@ Options:
         Default parsing splits from right using separator "${DS_TARGET_NAME_SEPARATOR}".
         Optional regex override via config: DS_TARGET_NAME_REGEX with 3 capture groups
         for cluster, sid, and cdb/pdb respectively.
+        SID token detection for default parser can be tuned with
+        DS_TARGET_NAME_SID_REGEX (used to preserve db names with underscores).
 
 Examples:
   # Show detailed list for DS_ROOT_COMP (default)
@@ -159,6 +164,9 @@ Examples:
 
     # Overview without lifecycle status counts
     ${SCRIPT_NAME} --overview --overview-no-status
+
+    # Overview without member/PDB names
+    ${SCRIPT_NAME} --overview --overview-no-members
 
 EOF
     exit 0
@@ -232,6 +240,10 @@ parse_args() {
                 ;;
             --overview-no-status)
                 OVERVIEW_INCLUDE_STATUS=false
+                shift
+                ;;
+            --overview-no-members)
+                OVERVIEW_INCLUDE_MEMBERS=false
                 shift
                 ;;
             -f | --format)
@@ -405,6 +417,41 @@ join_by() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: short_status_code
+# Purpose.: Map lifecycle-state value to short code
+# Args....: $1 - lifecycle state
+# Returns.: 0
+# Output..: short code to stdout
+# ------------------------------------------------------------------------------
+short_status_code() {
+    local lifecycle_state="$1"
+
+    case "$lifecycle_state" in
+        ACTIVE)
+            echo "A"
+            ;;
+        NEEDS_ATTENTION)
+            echo "N"
+            ;;
+        INACTIVE)
+            echo "I"
+            ;;
+        UPDATING)
+            echo "U"
+            ;;
+        REGISTERING)
+            echo "R"
+            ;;
+        DELETING)
+            echo "D"
+            ;;
+        *)
+            echo "${lifecycle_state:0:1}"
+            ;;
+    esac
+}
+
+# ------------------------------------------------------------------------------
 # Function: is_cdbroot_name
 # Purpose.: Check if database token represents CDB root
 # Args....: $1 - cdb/pdb token
@@ -448,13 +495,42 @@ parse_target_name_components() {
         return 1
     fi
 
-    local db_token="${parts[$((part_count - 1))]}"
-    local sid="${parts[$((part_count - 2))]}"
-    local -a cluster_parts=()
+    local sid_idx=-1
     local idx
-    for ((idx = 0; idx < part_count - 2; idx++)); do
-        cluster_parts+=("${parts[$idx]}")
+    for ((idx = part_count - 2; idx >= 1; idx--)); do
+        if [[ "${parts[$idx]}" =~ $DS_TARGET_NAME_SID_REGEX ]]; then
+            sid_idx=$idx
+            break
+        fi
     done
+
+    local sid db_token
+    local -a cluster_parts=() db_parts=()
+
+    if ((sid_idx >= 1)); then
+        sid="${parts[$sid_idx]}"
+
+        for ((idx = 0; idx < sid_idx; idx++)); do
+            cluster_parts+=("${parts[$idx]}")
+        done
+
+        for ((idx = sid_idx + 1; idx < part_count; idx++)); do
+            db_parts+=("${parts[$idx]}")
+        done
+
+        if [[ ${#cluster_parts[@]} -eq 0 || ${#db_parts[@]} -eq 0 ]]; then
+            return 1
+        fi
+
+        db_token=$(join_by "$separator" "${db_parts[@]}")
+    else
+        db_token="${parts[$((part_count - 1))]}"
+        sid="${parts[$((part_count - 2))]}"
+        for ((idx = 0; idx < part_count - 2; idx++)); do
+            cluster_parts+=("${parts[$idx]}")
+        done
+    fi
+
     local cluster
     cluster=$(join_by "$separator" "${cluster_parts[@]}")
 
@@ -531,7 +607,7 @@ build_overview_rows() {
                 if [[ "$state_key" == "${key}|"* ]]; then
                     state="${state_key#${key}|}"
                     count="${state_counts["$state_key"]}"
-                    status_parts+=("${state}=${count}")
+                    status_parts+=("$(short_status_code "$state")=${count}")
                 fi
             done
 
@@ -574,12 +650,18 @@ show_overview_table() {
         return 0
     fi
 
-    if [[ "$OVERVIEW_INCLUDE_STATUS" == "true" ]]; then
-        printf "\n%-24s %-20s %8s %8s %8s %-50s %s\n" "Cluster" "SID" "CDBROOT" "PDBS" "TOTAL" "Members" "Status Counts"
-        printf "%-24s %-20s %8s %8s %8s %-50s %s\n" "------------------------" "--------------------" "--------" "--------" "--------" "--------------------------------------------------" "------------------------------"
+    if [[ "$OVERVIEW_INCLUDE_STATUS" == "true" && "$OVERVIEW_INCLUDE_MEMBERS" == "true" ]]; then
+        printf "\n%-20s %-15s %8s %8s %8s %-18s %s\n" "Cluster" "SID" "CDBROOT" "PDBS" "TOTAL" "Status" "Members"
+        printf "%-20s %-15s %8s %8s %8s %-18s %s\n" "--------------------" "---------------" "--------" "--------" "--------" "------------------" "------------------------------"
+    elif [[ "$OVERVIEW_INCLUDE_STATUS" == "true" ]]; then
+        printf "\n%-20s %-15s %8s %8s %8s %s\n" "Cluster" "SID" "CDBROOT" "PDBS" "TOTAL" "Status"
+        printf "%-20s %-15s %8s %8s %8s %s\n" "--------------------" "---------------" "--------" "--------" "--------" "------------------"
+    elif [[ "$OVERVIEW_INCLUDE_MEMBERS" == "true" ]]; then
+        printf "\n%-20s %-15s %8s %8s %8s %s\n" "Cluster" "SID" "CDBROOT" "PDBS" "TOTAL" "Members"
+        printf "%-20s %-15s %8s %8s %8s %s\n" "--------------------" "---------------" "--------" "--------" "--------" "------------------------------"
     else
-        printf "\n%-24s %-20s %8s %8s %8s %-60s\n" "Cluster" "SID" "CDBROOT" "PDBS" "TOTAL" "Members"
-        printf "%-24s %-20s %8s %8s %8s %-60s\n" "------------------------" "--------------------" "--------" "--------" "--------" "------------------------------------------------------------"
+        printf "\n%-20s %-15s %8s %8s %8s\n" "Cluster" "SID" "CDBROOT" "PDBS" "TOTAL"
+        printf "%-20s %-15s %8s %8s %8s\n" "--------------------" "---------------" "--------" "--------" "--------"
     fi
 
     while IFS=$'\t' read -r cluster sid cdb_count pdb_count total_count members status_counts; do
@@ -591,15 +673,23 @@ show_overview_table() {
         total_targets=$((total_targets + total_count))
         seen_clusters["$cluster"]=1
 
-        local members_display="$members"
-        if [[ ${#members_display} -gt 58 ]]; then
-            members_display="${members_display:0:55}..."
+        local cluster_display="$cluster"
+        local sid_display="$sid"
+        if [[ ${#cluster_display} -gt 20 ]]; then
+            cluster_display="${cluster_display:0:17}..."
+        fi
+        if [[ ${#sid_display} -gt 15 ]]; then
+            sid_display="${sid_display:0:12}..."
         fi
 
-        if [[ "$OVERVIEW_INCLUDE_STATUS" == "true" ]]; then
-            printf "%-24s %-20s %8d %8d %8d %-50s %s\n" "$cluster" "$sid" "$cdb_count" "$pdb_count" "$total_count" "$members_display" "${status_counts:--}"
+        if [[ "$OVERVIEW_INCLUDE_STATUS" == "true" && "$OVERVIEW_INCLUDE_MEMBERS" == "true" ]]; then
+            printf "%-20s %-15s %8d %8d %8d %-18s %s\n" "$cluster_display" "$sid_display" "$cdb_count" "$pdb_count" "$total_count" "${status_counts:--}" "$members"
+        elif [[ "$OVERVIEW_INCLUDE_STATUS" == "true" ]]; then
+            printf "%-20s %-15s %8d %8d %8d %s\n" "$cluster_display" "$sid_display" "$cdb_count" "$pdb_count" "$total_count" "${status_counts:--}"
+        elif [[ "$OVERVIEW_INCLUDE_MEMBERS" == "true" ]]; then
+            printf "%-20s %-15s %8d %8d %8d %s\n" "$cluster_display" "$sid_display" "$cdb_count" "$pdb_count" "$total_count" "$members"
         else
-            printf "%-24s %-20s %8d %8d %8d %-60s\n" "$cluster" "$sid" "$cdb_count" "$pdb_count" "$total_count" "$members_display"
+            printf "%-20s %-15s %8d %8d %8d\n" "$cluster_display" "$sid_display" "$cdb_count" "$pdb_count" "$total_count"
         fi
     done <<< "$overview_rows"
 
@@ -610,7 +700,13 @@ show_overview_table() {
     printf "%-36s %10d\n" "Grand total of Oracle SID" "$total_sids"
     printf "%-36s %10d\n" "Grand total of CDB root" "$total_cdbroots"
     printf "%-36s %10d\n" "Grand total of PDBs" "$total_pdbs"
-    printf "%-36s %10d\n\n" "Grand total of targets" "$total_targets"
+    printf "%-36s %10d\n" "Grand total of targets" "$total_targets"
+
+    if [[ "$OVERVIEW_INCLUDE_STATUS" == "true" ]]; then
+        printf "Legend: A=ACTIVE, N=NEEDS_ATTENTION, I=INACTIVE, U=UPDATING, R=REGISTERING, D=DELETING\n"
+    fi
+
+    printf "\n"
 }
 
 # ------------------------------------------------------------------------------
@@ -623,16 +719,28 @@ show_overview_table() {
 show_overview_csv() {
     local overview_rows="$1"
 
-    if [[ "$OVERVIEW_INCLUDE_STATUS" == "true" ]]; then
+    if [[ "$OVERVIEW_INCLUDE_STATUS" == "true" && "$OVERVIEW_INCLUDE_MEMBERS" == "true" ]]; then
         echo "$overview_rows" | jq -R -s '
             (split("\n") | map(select(length > 0) | split("\t"))) as $rows
             | (["cluster","sid","cdbroot_count","pdb_count","total_count","members","status_counts"] | @csv),
               ($rows[] | @csv)
         '
-    else
+    elif [[ "$OVERVIEW_INCLUDE_STATUS" == "true" ]]; then
+        echo "$overview_rows" | jq -R -s '
+            (split("\n") | map(select(length > 0) | split("\t") | [.[0], .[1], .[2], .[3], .[4], .[6]])) as $rows
+            | (["cluster","sid","cdbroot_count","pdb_count","total_count","status_counts"] | @csv),
+              ($rows[] | @csv)
+        '
+    elif [[ "$OVERVIEW_INCLUDE_MEMBERS" == "true" ]]; then
         echo "$overview_rows" | jq -R -s '
             (split("\n") | map(select(length > 0) | split("\t") | .[0:6])) as $rows
             | (["cluster","sid","cdbroot_count","pdb_count","total_count","members"] | @csv),
+              ($rows[] | @csv)
+        '
+    else
+        echo "$overview_rows" | jq -R -s '
+            (split("\n") | map(select(length > 0) | split("\t") | .[0:5])) as $rows
+            | (["cluster","sid","cdbroot_count","pdb_count","total_count"] | @csv),
               ($rows[] | @csv)
         '
     fi
@@ -648,7 +756,7 @@ show_overview_csv() {
 show_overview_json() {
     local overview_rows="$1"
 
-    if [[ "$OVERVIEW_INCLUDE_STATUS" == "true" ]]; then
+    if [[ "$OVERVIEW_INCLUDE_STATUS" == "true" && "$OVERVIEW_INCLUDE_MEMBERS" == "true" ]]; then
         echo "$overview_rows" | jq -R -s '
             split("\n")
             | map(select(length > 0) | split("\t"))
@@ -662,7 +770,20 @@ show_overview_json() {
                 status_counts: (.[6] | if length == 0 then {} else (split(",") | map(split("=")) | map({key: .[0], value: (.[1] | tonumber)}) | from_entries) end)
             })
         '
-    else
+    elif [[ "$OVERVIEW_INCLUDE_STATUS" == "true" ]]; then
+        echo "$overview_rows" | jq -R -s '
+            split("\n")
+            | map(select(length > 0) | split("\t"))
+            | map({
+                cluster: .[0],
+                sid: .[1],
+                cdbroot_count: (.[2] | tonumber),
+                pdb_count: (.[3] | tonumber),
+                total_count: (.[4] | tonumber),
+                status_counts: (.[6] | if length == 0 then {} else (split(",") | map(split("=")) | map({key: .[0], value: (.[1] | tonumber)}) | from_entries) end)
+            })
+        '
+    elif [[ "$OVERVIEW_INCLUDE_MEMBERS" == "true" ]]; then
         echo "$overview_rows" | jq -R -s '
             split("\n")
             | map(select(length > 0) | split("\t"))
@@ -673,6 +794,18 @@ show_overview_json() {
                 pdb_count: (.[3] | tonumber),
                 total_count: (.[4] | tonumber),
                 members: (.[5] | if length == 0 then [] else split(",") end)
+            })
+        '
+    else
+        echo "$overview_rows" | jq -R -s '
+            split("\n")
+            | map(select(length > 0) | split("\t"))
+            | map({
+                cluster: .[0],
+                sid: .[1],
+                cdbroot_count: (.[2] | tonumber),
+                pdb_count: (.[3] | tonumber),
+                total_count: (.[4] | tonumber)
             })
         '
     fi
