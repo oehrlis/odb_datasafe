@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- Updated credential update usage examples in `README.md`, `doc/index.md`, and
+  `doc/quickref.md` to document that `--apply` uses OCI `--force` by default
+  and that `--no-force` enables interactive confirmation behavior.
+
 ## [0.15.3] - 2026-02-19
 
 ### Changed
