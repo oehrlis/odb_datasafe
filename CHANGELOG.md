@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added `--overview` mode to `bin/ds_target_list.sh` to build a local grouped
+  landscape report from selected targets (scope honors `--all`, `-c`, `-T`,
+  and `-r`) using the default target-name pattern
+  `<cluster>_<oracle_sid>_<cdb/pdb>`.
+- Overview output now groups by cluster/SID and reports `cdbroot_count`,
+  `pdb_count`, `total_count`, and member lists.
+- Added per-SID lifecycle status counts in overview output (enabled by default)
+  with `--overview-no-status` to disable.
+- Added configurable parsing keys in `datasafe.conf`:
+  `DS_TARGET_NAME_REGEX`, `DS_TARGET_NAME_SEPARATOR`,
+  `DS_TARGET_NAME_CDBROOT_REGEX`, and `DS_TARGET_NAME_ROOT_LABEL`.
+
 ### Documentation
 
 - Updated credential update usage examples in `README.md`, `doc/index.md`, and

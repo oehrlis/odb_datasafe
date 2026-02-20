@@ -214,6 +214,15 @@ bin/ds_target_list.sh -r "db02"
 
 # List NEEDS_ATTENTION targets where name contains db02
 bin/ds_target_list.sh -L NEEDS_ATTENTION -r "db02"
+
+# Overview grouped by cluster and SID (from target-name pattern)
+bin/ds_target_list.sh --overview
+
+# Overview for filtered scope
+bin/ds_target_list.sh --overview -r "cluster1"
+
+# Overview with status counts hidden
+bin/ds_target_list.sh --overview --overview-no-status
 ```
 
 ### Target Management

@@ -38,6 +38,15 @@ readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 : "${SHOW_PROBLEMS:=false}"
 : "${GROUP_PROBLEMS:=false}"
 : "${SHOW_DETAILS:=true}"
+: "${SHOW_OVERVIEW:=false}"
+: "${OVERVIEW_INCLUDE_STATUS:=true}"
+: "${DS_TARGET_NAME_REGEX:=}"
+: "${DS_TARGET_NAME_SEPARATOR:=_}"
+: "${DS_TARGET_NAME_ROOT_LABEL:=CDB\$ROOT}"
+: "${DS_TARGET_NAME_CDBROOT_REGEX:=^(CDB\\\$ROOT|CDBROOT)$}"
+
+# Runtime counters
+: "${OVERVIEW_PARSE_SKIPPED:=0}"
 
 # shellcheck disable=SC1091
 source "${LIB_DIR}/ds_lib.sh" || {
@@ -93,11 +102,21 @@ Options:
   Output:
     -C, --count             Show summary count by lifecycle state
     -D, --details           Show detailed target information (default)
+                --overview          Show overview grouped by cluster and SID (from target name)
+                --overview-status   Include lifecycle counts per SID row in overview (default)
+                --overview-no-status
+                                                        Hide lifecycle counts in overview output
     -f, --format FMT        Output format: table|json|csv (default: table)
     -F, --fields FIELDS     Comma-separated fields for details (default: ${FIELDS})
         --problems          Show NEEDS_ATTENTION targets with lifecycle details
         --group-problems    Group NEEDS_ATTENTION targets by problem type with counts
         --summary           Show only summary counts without detailed target lists (for --group-problems)
+
+    Overview Parsing:
+        Target names are parsed as: <cluster>_<oracle_sid>_<cdb/pdb>
+        Default parsing splits from right using separator "${DS_TARGET_NAME_SEPARATOR}".
+        Optional regex override via config: DS_TARGET_NAME_REGEX with 3 capture groups
+        for cluster, sid, and cdb/pdb respectively.
 
 Examples:
   # Show detailed list for DS_ROOT_COMP (default)
@@ -135,6 +154,12 @@ Examples:
 
   # Group problems summary only (no target lists)
   ${SCRIPT_NAME} --group-problems --summary
+
+    # Overview by cluster/SID for selected scope
+    ${SCRIPT_NAME} --overview
+
+    # Overview without lifecycle status counts
+    ${SCRIPT_NAME} --overview --overview-no-status
 
 EOF
     exit 0
@@ -194,6 +219,20 @@ parse_args() {
             -D | --details)
                 SHOW_COUNT=false
                 SHOW_COUNT_OVERRIDE=true
+                shift
+                ;;
+            --overview)
+                SHOW_OVERVIEW=true
+                SHOW_COUNT=false
+                SHOW_COUNT_OVERRIDE=true
+                shift
+                ;;
+            --overview-status)
+                OVERVIEW_INCLUDE_STATUS=true
+                shift
+                ;;
+            --overview-no-status)
+                OVERVIEW_INCLUDE_STATUS=false
                 shift
                 ;;
             -f | --format)
@@ -322,9 +361,336 @@ validate_inputs() {
         FIELDS="display-name,lifecycle-details"
     fi
 
+    if [[ "$SHOW_OVERVIEW" == "true" ]]; then
+        if [[ "$SHOW_PROBLEMS" == "true" || "$GROUP_PROBLEMS" == "true" ]]; then
+            die "Overview mode (--overview) cannot be combined with --problems/--group-problems"
+        fi
+
+        if [[ "$SHOW_COUNT" == "true" ]]; then
+            die "Overview mode (--overview) cannot be combined with --count"
+        fi
+
+        if [[ -n "${FIELDS_OVERRIDE:-}" ]]; then
+            log_warn "Ignoring --fields in overview mode"
+        fi
+    fi
+
     if ! ds_validate_target_filter_regex "$TARGET_FILTER"; then
         die "Invalid filter regex: $TARGET_FILTER"
     fi
+}
+
+# ------------------------------------------------------------------------------
+# Function: join_by
+# Purpose.: Join an array of values with separator
+# Args....: $1 - separator
+#           $@ - values
+# Returns.: 0
+# Output..: Joined values to stdout
+# ------------------------------------------------------------------------------
+join_by() {
+    local separator="$1"
+    shift
+
+    if [[ $# -eq 0 ]]; then
+        echo ""
+        return 0
+    fi
+
+    local result="$1"
+    shift
+    for value in "$@"; do
+        result+="${separator}${value}"
+    done
+    echo "$result"
+}
+
+# ------------------------------------------------------------------------------
+# Function: is_cdbroot_name
+# Purpose.: Check if database token represents CDB root
+# Args....: $1 - cdb/pdb token
+# Returns.: 0 if CDB root, 1 otherwise
+# ------------------------------------------------------------------------------
+is_cdbroot_name() {
+    local db_name="$1"
+    [[ "$db_name" =~ $DS_TARGET_NAME_CDBROOT_REGEX ]]
+}
+
+# ------------------------------------------------------------------------------
+# Function: parse_target_name_components
+# Purpose.: Parse target display name into cluster, SID, and cdb/pdb token
+# Args....: $1 - target display name
+# Returns.: 0 on success, 1 on parse failure
+# Output..: tab-separated cluster, sid, db token
+# ------------------------------------------------------------------------------
+parse_target_name_components() {
+    local display_name="$1"
+
+    if [[ -n "$DS_TARGET_NAME_REGEX" ]]; then
+        if [[ "$display_name" =~ $DS_TARGET_NAME_REGEX ]]; then
+            printf '%s\t%s\t%s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}"
+            return 0
+        fi
+        return 1
+    fi
+
+    local separator="$DS_TARGET_NAME_SEPARATOR"
+    local remainder="$display_name"
+    local -a parts=()
+
+    while [[ "$remainder" == *"$separator"* ]]; do
+        parts+=("${remainder%%"$separator"*}")
+        remainder="${remainder#*"$separator"}"
+    done
+    parts+=("$remainder")
+
+    local part_count=${#parts[@]}
+    if ((part_count < 3)); then
+        return 1
+    fi
+
+    local db_token="${parts[$((part_count - 1))]}"
+    local sid="${parts[$((part_count - 2))]}"
+    local -a cluster_parts=()
+    local idx
+    for ((idx = 0; idx < part_count - 2; idx++)); do
+        cluster_parts+=("${parts[$idx]}")
+    done
+    local cluster
+    cluster=$(join_by "$separator" "${cluster_parts[@]}")
+
+    printf '%s\t%s\t%s\n' "$cluster" "$sid" "$db_token"
+}
+
+# ------------------------------------------------------------------------------
+# Function: build_overview_rows
+# Purpose.: Aggregate selected targets by cluster and SID
+# Args....: $1 - JSON data object with .data array
+# Returns.: 0 on success
+# Output..: tab-separated rows with overview columns
+# ------------------------------------------------------------------------------
+build_overview_rows() {
+    local json_data="$1"
+    OVERVIEW_PARSE_SKIPPED=0
+
+    local -A grouped_keys=()
+    local -A total_counts=()
+    local -A cdb_counts=()
+    local -A pdb_counts=()
+    local -A member_lists=()
+    local -A member_seen=()
+    local -A state_counts=()
+
+    while IFS=$'\t' read -r display_name lifecycle_state; do
+        [[ -z "$display_name" ]] && continue
+
+        local parsed
+        if ! parsed=$(parse_target_name_components "$display_name"); then
+            OVERVIEW_PARSE_SKIPPED=$((OVERVIEW_PARSE_SKIPPED + 1))
+            continue
+        fi
+
+        local cluster sid db_token
+        IFS=$'\t' read -r cluster sid db_token <<< "$parsed"
+        local key="${cluster}|${sid}"
+        grouped_keys["$key"]=1
+
+        total_counts["$key"]=$(( ${total_counts["$key"]:-0} + 1 ))
+
+        local member_name="$db_token"
+        if is_cdbroot_name "$db_token"; then
+            cdb_counts["$key"]=$(( ${cdb_counts["$key"]:-0} + 1 ))
+            member_name="$DS_TARGET_NAME_ROOT_LABEL"
+        else
+            pdb_counts["$key"]=$(( ${pdb_counts["$key"]:-0} + 1 ))
+        fi
+
+        local member_key="${key}|${member_name}"
+        if [[ -z "${member_seen["$member_key"]:-}" ]]; then
+            if [[ -n "${member_lists["$key"]:-}" ]]; then
+                member_lists["$key"]+=","
+            fi
+            member_lists["$key"]+="$member_name"
+            member_seen["$member_key"]=1
+        fi
+
+        local state="${lifecycle_state:-UNKNOWN}"
+        local state_key="${key}|${state}"
+        state_counts["$state_key"]=$(( ${state_counts["$state_key"]:-0} + 1 ))
+    done < <(echo "$json_data" | jq -r '.data[] | [."display-name" // "", ."lifecycle-state" // "UNKNOWN"] | @tsv')
+
+    local key
+    for key in "${!grouped_keys[@]}"; do
+        local cluster sid
+        IFS='|' read -r cluster sid <<< "$key"
+
+        local status_summary=""
+        if [[ "$OVERVIEW_INCLUDE_STATUS" == "true" ]]; then
+            local -a status_parts=()
+            local state_key state count
+            for state_key in "${!state_counts[@]}"; do
+                if [[ "$state_key" == "${key}|"* ]]; then
+                    state="${state_key#${key}|}"
+                    count="${state_counts["$state_key"]}"
+                    status_parts+=("${state}=${count}")
+                fi
+            done
+
+            if [[ ${#status_parts[@]} -gt 0 ]]; then
+                status_summary=$(printf '%s\n' "${status_parts[@]}" | sort | paste -sd',' -)
+            fi
+        fi
+
+        printf '%s\t%s\t%d\t%d\t%d\t%s\t%s\n' \
+            "$cluster" \
+            "$sid" \
+            "${cdb_counts["$key"]:-0}" \
+            "${pdb_counts["$key"]:-0}" \
+            "${total_counts["$key"]:-0}" \
+            "${member_lists["$key"]:-}" \
+            "$status_summary"
+    done | sort -t $'\t' -k1,1 -k2,2
+}
+
+# ------------------------------------------------------------------------------
+# Function: show_overview_table
+# Purpose.: Display grouped overview as table
+# Args....: $1 - tab-separated overview rows
+# Returns.: 0
+# Output..: overview table to stdout
+# ------------------------------------------------------------------------------
+show_overview_table() {
+    local overview_rows="$1"
+    local row_count
+    row_count=$(printf '%s\n' "$overview_rows" | sed '/^$/d' | wc -l | tr -d '[:space:]')
+
+    if [[ "$row_count" == "0" ]]; then
+        log_info "No overview rows to display"
+        return 0
+    fi
+
+    if [[ "$OVERVIEW_INCLUDE_STATUS" == "true" ]]; then
+        printf "\n%-24s %-20s %8s %8s %8s %-50s %s\n" "Cluster" "SID" "CDBROOT" "PDBS" "TOTAL" "Members" "Status Counts"
+        printf "%-24s %-20s %8s %8s %8s %-50s %s\n" "------------------------" "--------------------" "--------" "--------" "--------" "--------------------------------------------------" "------------------------------"
+    else
+        printf "\n%-24s %-20s %8s %8s %8s %-60s\n" "Cluster" "SID" "CDBROOT" "PDBS" "TOTAL" "Members"
+        printf "%-24s %-20s %8s %8s %8s %-60s\n" "------------------------" "--------------------" "--------" "--------" "--------" "------------------------------------------------------------"
+    fi
+
+    while IFS=$'\t' read -r cluster sid cdb_count pdb_count total_count members status_counts; do
+        [[ -z "$cluster" && -z "$sid" ]] && continue
+
+        local members_display="$members"
+        if [[ ${#members_display} -gt 58 ]]; then
+            members_display="${members_display:0:55}..."
+        fi
+
+        if [[ "$OVERVIEW_INCLUDE_STATUS" == "true" ]]; then
+            printf "%-24s %-20s %8d %8d %8d %-50s %s\n" "$cluster" "$sid" "$cdb_count" "$pdb_count" "$total_count" "$members_display" "${status_counts:--}"
+        else
+            printf "%-24s %-20s %8d %8d %8d %-60s\n" "$cluster" "$sid" "$cdb_count" "$pdb_count" "$total_count" "$members_display"
+        fi
+    done <<< "$overview_rows"
+
+    printf "\nTotal SID groups: %d\n\n" "$row_count"
+}
+
+# ------------------------------------------------------------------------------
+# Function: show_overview_csv
+# Purpose.: Display grouped overview as CSV
+# Args....: $1 - tab-separated overview rows
+# Returns.: 0
+# Output..: CSV data to stdout
+# ------------------------------------------------------------------------------
+show_overview_csv() {
+    local overview_rows="$1"
+
+    if [[ "$OVERVIEW_INCLUDE_STATUS" == "true" ]]; then
+        echo "$overview_rows" | jq -R -s '
+            (split("\n") | map(select(length > 0) | split("\t"))) as $rows
+            | (["cluster","sid","cdbroot_count","pdb_count","total_count","members","status_counts"] | @csv),
+              ($rows[] | @csv)
+        '
+    else
+        echo "$overview_rows" | jq -R -s '
+            (split("\n") | map(select(length > 0) | split("\t") | .[0:6])) as $rows
+            | (["cluster","sid","cdbroot_count","pdb_count","total_count","members"] | @csv),
+              ($rows[] | @csv)
+        '
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# Function: show_overview_json
+# Purpose.: Display grouped overview as JSON
+# Args....: $1 - tab-separated overview rows
+# Returns.: 0
+# Output..: JSON array to stdout
+# ------------------------------------------------------------------------------
+show_overview_json() {
+    local overview_rows="$1"
+
+    if [[ "$OVERVIEW_INCLUDE_STATUS" == "true" ]]; then
+        echo "$overview_rows" | jq -R -s '
+            split("\n")
+            | map(select(length > 0) | split("\t"))
+            | map({
+                cluster: .[0],
+                sid: .[1],
+                cdbroot_count: (.[2] | tonumber),
+                pdb_count: (.[3] | tonumber),
+                total_count: (.[4] | tonumber),
+                members: (.[5] | if length == 0 then [] else split(",") end),
+                status_counts: (.[6] | if length == 0 then {} else (split(",") | map(split("=")) | map({key: .[0], value: (.[1] | tonumber)}) | from_entries) end)
+            })
+        '
+    else
+        echo "$overview_rows" | jq -R -s '
+            split("\n")
+            | map(select(length > 0) | split("\t"))
+            | map({
+                cluster: .[0],
+                sid: .[1],
+                cdbroot_count: (.[2] | tonumber),
+                pdb_count: (.[3] | tonumber),
+                total_count: (.[4] | tonumber),
+                members: (.[5] | if length == 0 then [] else split(",") end)
+            })
+        '
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# Function: show_overview
+# Purpose.: Generate and display overview based on selected scope
+# Args....: $1 - JSON data object with selected targets
+# Returns.: 0
+# Output..: Overview in requested format
+# ------------------------------------------------------------------------------
+show_overview() {
+    local json_data="$1"
+    local overview_rows
+
+    overview_rows=$(build_overview_rows "$json_data")
+
+    local selected_count
+    selected_count=$(echo "$json_data" | jq '.data | length')
+
+    if [[ "$selected_count" -gt 0 && "$OVERVIEW_PARSE_SKIPPED" -gt 0 ]]; then
+        log_warn "Skipped $OVERVIEW_PARSE_SKIPPED target(s) due to name parsing mismatch. Configure DS_TARGET_NAME_REGEX if needed."
+    fi
+
+    case "$OUTPUT_FORMAT" in
+        table)
+            show_overview_table "$overview_rows"
+            ;;
+        json)
+            show_overview_json "$overview_rows"
+            ;;
+        csv)
+            show_overview_csv "$overview_rows"
+            ;;
+    esac
 }
 
 # ------------------------------------------------------------------------------
@@ -670,6 +1036,8 @@ do_work() {
     # Display results based on mode
     if [[ "$SHOW_COUNT" == "true" ]]; then
         show_count_summary "$json_data"
+    elif [[ "$SHOW_OVERVIEW" == "true" ]]; then
+        show_overview "$json_data"
     elif [[ "$GROUP_PROBLEMS" == "true" ]]; then
         show_problems_grouped "$json_data" "$OUTPUT_FORMAT"
     else

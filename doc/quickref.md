@@ -90,6 +90,12 @@ bin/ds_version.sh
 # List Data Safe targets (default: table view)
 bin/ds_target_list.sh
 
+# Overview grouped by cluster/SID from target name
+bin/ds_target_list.sh --overview
+
+# Overview with status counts disabled
+bin/ds_target_list.sh --overview --overview-no-status
+
 # List Data Safe on-premises connectors
 bin/ds_target_list_connector.sh
 
@@ -115,6 +121,9 @@ bin/ds_target_list_connector.sh -L ACTIVE
 # Filter target names by regex (display name substring match)
 bin/ds_target_list.sh -r "db02"
 bin/ds_target_refresh.sh -r "db02"
+
+# Overview for filtered scope only
+bin/ds_target_list.sh --overview -r "db02"
 
 # Explicitly select all targets from DS_ROOT_COMP
 bin/ds_target_list.sh --all
