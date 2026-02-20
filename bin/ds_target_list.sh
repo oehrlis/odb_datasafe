@@ -41,6 +41,8 @@ readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 : "${SHOW_OVERVIEW:=false}"
 : "${OVERVIEW_INCLUDE_STATUS:=true}"
 : "${OVERVIEW_INCLUDE_MEMBERS:=true}"
+: "${OVERVIEW_TRUNCATE_MEMBERS:=false}"
+: "${OVERVIEW_MEMBERS_MAX_WIDTH:=80}"
 : "${DS_TARGET_NAME_REGEX:=}"
 : "${DS_TARGET_NAME_SEPARATOR:=_}"
 : "${DS_TARGET_NAME_ROOT_LABEL:=CDB\$ROOT}"
@@ -105,9 +107,11 @@ Options:
     -C, --count             Show summary count by lifecycle state
     -D, --details           Show detailed target information (default)
         --overview          Show overview grouped by cluster and SID (from target name)
-        --overview-status   Include lifecycle counts per SID row in overview (default)
-        --overview-no-status    Hide lifecycle counts in overview output
-        --overview-no-members   Hide member/PDB names in overview output
+        --overview-status               Include lifecycle counts per SID row in overview (default)
+        --overview-no-status            Hide lifecycle counts in overview output
+        --overview-no-members           Hide member/PDB names in overview output
+        --overview-truncate-members     Truncate member/PDB list in table output
+        --overview-no-truncate-members  Show full member/PDB list in table output (default)
     -f, --format FMT        Output format: table|json|csv (default: table)
     -F, --fields FIELDS     Comma-separated fields for details (default: ${FIELDS})
         --problems          Show NEEDS_ATTENTION targets with lifecycle details
@@ -167,6 +171,9 @@ Examples:
 
     # Overview without member/PDB names
     ${SCRIPT_NAME} --overview --overview-no-members
+
+    # Overview with truncated member/PDB list in table output
+    ${SCRIPT_NAME} --overview --overview-truncate-members
 
 EOF
     exit 0
@@ -244,6 +251,14 @@ parse_args() {
                 ;;
             --overview-no-members)
                 OVERVIEW_INCLUDE_MEMBERS=false
+                shift
+                ;;
+            --overview-truncate-members)
+                OVERVIEW_TRUNCATE_MEMBERS=true
+                shift
+                ;;
+            --overview-no-truncate-members)
+                OVERVIEW_TRUNCATE_MEMBERS=false
                 shift
                 ;;
             -f | --format)
@@ -682,12 +697,17 @@ show_overview_table() {
             sid_display="${sid_display:0:12}..."
         fi
 
+        local members_display="$members"
+        if [[ "$OVERVIEW_TRUNCATE_MEMBERS" == "true" && ${#members_display} -gt $OVERVIEW_MEMBERS_MAX_WIDTH ]]; then
+            members_display="${members_display:0:$((OVERVIEW_MEMBERS_MAX_WIDTH - 3))}..."
+        fi
+
         if [[ "$OVERVIEW_INCLUDE_STATUS" == "true" && "$OVERVIEW_INCLUDE_MEMBERS" == "true" ]]; then
-            printf "%-20s %-15s %8d %8d %8d %-18s %s\n" "$cluster_display" "$sid_display" "$cdb_count" "$pdb_count" "$total_count" "${status_counts:--}" "$members"
+            printf "%-20s %-15s %8d %8d %8d %-18s %s\n" "$cluster_display" "$sid_display" "$cdb_count" "$pdb_count" "$total_count" "${status_counts:--}" "$members_display"
         elif [[ "$OVERVIEW_INCLUDE_STATUS" == "true" ]]; then
             printf "%-20s %-15s %8d %8d %8d %s\n" "$cluster_display" "$sid_display" "$cdb_count" "$pdb_count" "$total_count" "${status_counts:--}"
         elif [[ "$OVERVIEW_INCLUDE_MEMBERS" == "true" ]]; then
-            printf "%-20s %-15s %8d %8d %8d %s\n" "$cluster_display" "$sid_display" "$cdb_count" "$pdb_count" "$total_count" "$members"
+            printf "%-20s %-15s %8d %8d %8d %s\n" "$cluster_display" "$sid_display" "$cdb_count" "$pdb_count" "$total_count" "$members_display"
         else
             printf "%-20s %-15s %8d %8d %8d\n" "$cluster_display" "$sid_display" "$cdb_count" "$pdb_count" "$total_count"
         fi
@@ -703,6 +723,7 @@ show_overview_table() {
     printf "%-36s %10d\n" "Grand total of targets" "$total_targets"
 
     if [[ "$OVERVIEW_INCLUDE_STATUS" == "true" ]]; then
+        printf "\n"
         printf "Legend: A=ACTIVE, N=NEEDS_ATTENTION, I=INACTIVE, U=UPDATING, R=REGISTERING, D=DELETING\n"
     fi
 

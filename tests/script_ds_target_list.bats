@@ -34,3 +34,9 @@ setup() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"--overview-no-members"* ]]
 }
+
+@test "ds_target_list.sh accepts overview-truncate-members option" {
+    run "${BIN_DIR}/ds_target_list.sh" --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--overview-truncate-members"* ]]
+}

@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with `--overview-no-status` to disable.
 - Added `--overview-no-members` to hide member/PDB name lists from overview
   output while keeping grouped counts and totals.
+- Added `--overview-truncate-members` / `--overview-no-truncate-members` to
+  choose whether member/PDB lists are truncated in table overview output.
 - Added overview footer grand totals for clusters, Oracle SIDs, CDB roots,
   PDBs, and overall targets.
 - Added configurable parsing keys in `datasafe.conf`:
