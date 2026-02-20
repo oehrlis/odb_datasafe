@@ -107,40 +107,40 @@ DESCRIPTION:
   Requires on-premises connector for cloud-at-customer deployments.
 
 SCOPE (choose one):
-  --pdb PDB                 Register a specific PDB
-  --root                    Register CDB\$ROOT (named CDBROOT)
+    --pdb PDB                           Register a specific PDB
+    --root                              Register CDB\$ROOT (named CDBROOT)
 
 REQUIRED OPTIONS:
-    -H, --host HOST           Database host name (required with --cluster as alternative)
-    --cluster CLUSTER         VM Cluster name or OCID (required with --host as alternative)
-  --sid SID                 Database SID
-    -c, --compartment COMP    Target compartment (name or OCID)
-                                                        Default: resource compartment from --host/--cluster,
-                                                        then DS_REGISTER_COMPARTMENT or DS_ROOT_COMP
-    --connector CONN          On-premises connector (name or OCID)
-                                                        Default: ONPREM_CONNECTOR(_OCID) or random from
-                                                        ONPREM_CONNECTOR_LIST / DS_ONPREM_CONNECTOR_LIST
-  -P, --ds-secret VALUE     Data Safe secret (plain or base64)
-  --secret-file FILE        Base64 secret file (optional)
+    -H, --host HOST                     Database host name (required with --cluster as alternative)
+        --cluster CLUSTER               VM Cluster name or OCID (required with --host as alternative)
+        --sid SID                       Database SID
+    -c, --compartment COMP              Target compartment (name or OCID)
+                                        Default: resource compartment from --host/--cluster,
+                                        then DS_REGISTER_COMPARTMENT or DS_ROOT_COMP
+        --connector CONN                On-premises connector (name or OCID)
+                                        Default: ONPREM_CONNECTOR(_OCID) or random from
+                                        ONPREM_CONNECTOR_LIST / DS_ONPREM_CONNECTOR_LIST
+    -P, --ds-secret VALUE               Data Safe secret (plain or base64)
+        --secret-file FILE              Base64 secret file (optional)
 
 SECRET FILE SUPPORT:
   - Uses DATASAFE_SECRET_FILE if set
   - Otherwise looks for <ds-user>_pwd.b64 in ORADBA_ETC or $ODB_DATASAFE_BASE/etc
 
 CONNECTION:
-  --port PORT               Listener port (default: 1521)
-  --service SERVICE         Service name (default: auto-derived from PDB/SID)
-  --ds-user USER            Data Safe user (default: DS_ADMIN)
-  --connector-compartment COMP Compartment to search for connector (default: same as -c)
+        --port PORT                     Listener port (default: 1521)
+        --service SERVICE               Service name (default: auto-derived from PDB/SID)
+        --ds-user USER                  Data Safe user (default: DS_ADMIN)
+        --connector-compartment COMP    Compartment to search for connector (default: same as -c)
 
 METADATA:
-  -N, --display-name NAME   Display name (default: <cluster>_<sid>_<pdb|CDBROOT>)
-  --description DESC        Free text description
+    -N, --display-name NAME             Display name (default: <cluster>_<sid>_<pdb|CDBROOT>)
+        --description DESC              Free text description
 
 MODES:
-  --check                   Only check if target already exists
-  -n, --dry-run             Show registration plan without executing
-  -h, --help                Show this help
+        --check                         Only check if target already exists
+    -n, --dry-run                       Show registration plan without executing
+    -h, --help                          Show this help
 
 EXAMPLES:
   # Register a PDB
