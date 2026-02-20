@@ -151,10 +151,10 @@ Options:
 
 Examples:
     # Default detailed list for DS_ROOT_COMP
-  ${SCRIPT_NAME}
+    ${SCRIPT_NAME}
 
-  # Show count summary
-  ${SCRIPT_NAME} -C
+    # Show count summary
+    ${SCRIPT_NAME} -C
 
     # Grouped mode selector: overview
     ${SCRIPT_NAME} -G overview
