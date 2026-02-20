@@ -33,6 +33,26 @@ bin/ds_target_list.sh --health-overview -f csv
 - Target in state outside normal states (`TARGET_UNEXPECTED_STATE`)
 - Target name does not match configured naming standard (`TARGET_NAMING_NONSTANDARD`)
 
+## Needs-Attention Classification (v2)
+
+`--health-overview` now classifies `NEEDS_ATTENTION` reasons into actionable
+categories to make remediation planning easier:
+
+- `TARGET_NEEDS_ATTENTION_ACCOUNT_LOCKED`
+  - Example: `ORA-28000`, `account is locked`
+  - Action: unlock/reset DB account, then update Data Safe credentials and refresh.
+- `TARGET_NEEDS_ATTENTION_CREDENTIALS`
+  - Example: `ORA-01017`, `invalid username/password`, `account has expired`
+  - Action: reset DB password if needed, update credentials in Data Safe, refresh.
+- `TARGET_NEEDS_ATTENTION_CONNECTIVITY`
+  - Example: login timeout / connect failures
+  - Action: check connector, CMAN/network/listener/service, then refresh.
+- `TARGET_NEEDS_ATTENTION_FETCH_DETAILS`
+  - Example: `Failed to fetch connection details for the target database`
+  - Action: verify connect details + connector/network, then refresh.
+- `TARGET_NEEDS_ATTENTION_OTHER`
+  - Fallback for unmatched reasons.
+
 Default normal states: `ACTIVE,UPDATING` (configurable via
 `HEALTH_NORMAL_STATES`).
 

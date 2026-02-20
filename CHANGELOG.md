@@ -32,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added naming-standard anomaly detection (`TARGET_NAMING_NONSTANDARD`) and
   v1 health checks for missing/duplicate roots, needs-attention, inactive, and
   unexpected lifecycle states.
+- Enhanced health overview with v2 `NEEDS_ATTENTION` reason classification
+  (account locked, credentials, connectivity, fetch-details, other) including
+  category-specific remediation guidance.
 
 ### Documentation
 

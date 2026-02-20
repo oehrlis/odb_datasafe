@@ -935,6 +935,21 @@ health_issue_label() {
     local issue_code="$1"
 
     case "$issue_code" in
+        TARGET_NEEDS_ATTENTION_ACCOUNT_LOCKED)
+            echo "Needs attention: account locked"
+            ;;
+        TARGET_NEEDS_ATTENTION_CREDENTIALS)
+            echo "Needs attention: credential issue"
+            ;;
+        TARGET_NEEDS_ATTENTION_CONNECTIVITY)
+            echo "Needs attention: connectivity/timeout"
+            ;;
+        TARGET_NEEDS_ATTENTION_FETCH_DETAILS)
+            echo "Needs attention: fetch connection details"
+            ;;
+        TARGET_NEEDS_ATTENTION_OTHER)
+            echo "Needs attention: other"
+            ;;
         SID_MISSING_ROOT)
             echo "SID missing CDB root"
             ;;
@@ -960,6 +975,41 @@ health_issue_label() {
             echo "$issue_code"
             ;;
     esac
+}
+
+# ------------------------------------------------------------------------------
+# Function: classify_needs_attention_issue
+# Purpose.: Classify NEEDS_ATTENTION lifecycle-details into actionable issue type
+# Args....: $1 - lifecycle-details reason
+# Returns.: 0
+# Output..: issue_code|severity|action
+# ------------------------------------------------------------------------------
+classify_needs_attention_issue() {
+    local reason="$1"
+    local reason_lc
+    reason_lc=$(printf '%s' "$reason" | tr '[:upper:]' '[:lower:]')
+
+    if [[ "$reason_lc" == *"ora-28000"* ]] || [[ "$reason_lc" == *"account is locked"* ]]; then
+        echo "TARGET_NEEDS_ATTENTION_ACCOUNT_LOCKED|HIGH|Unlock/reset the DB account, then run ds_target_update_credentials.sh and ds_target_refresh.sh"
+        return 0
+    fi
+
+    if [[ "$reason_lc" == *"ora-01017"* ]] || [[ "$reason_lc" == *"invalid username/password"* ]] || [[ "$reason_lc" == *"account has expired"* ]] || [[ "$reason_lc" == *"password must be changed"* ]]; then
+        echo "TARGET_NEEDS_ATTENTION_CREDENTIALS|HIGH|Reset DB password if needed, update Data Safe credentials, then refresh target"
+        return 0
+    fi
+
+    if [[ "$reason_lc" == *"failed to fetch connection details"* ]]; then
+        echo "TARGET_NEEDS_ATTENTION_FETCH_DETAILS|MEDIUM|Verify connector/network and target connect details, then refresh target"
+        return 0
+    fi
+
+    if [[ "$reason_lc" == *"login timeout"* ]] || [[ "$reason_lc" == *"failed to connect"* ]] || [[ "$reason_lc" == *"cannot connect"* ]]; then
+        echo "TARGET_NEEDS_ATTENTION_CONNECTIVITY|MEDIUM|Check connector status, CMAN/network path, listener/service reachability, then refresh"
+        return 0
+    fi
+
+    echo "TARGET_NEEDS_ATTENTION_OTHER|MEDIUM|Review lifecycle-details and run targeted refresh/credential/connector checks"
 }
 
 # ------------------------------------------------------------------------------
@@ -1020,15 +1070,20 @@ evaluate_health_issues() {
 
         case "$lifecycle_state" in
             NEEDS_ATTENTION)
+                local na_reason na_meta na_issue na_severity na_action
+                na_reason="${lifecycle_reason:-No lifecycle details provided}"
+                na_meta=$(classify_needs_attention_issue "$na_reason")
+                IFS='|' read -r na_issue na_severity na_action <<< "$na_meta"
+
                 printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-                    "TARGET_NEEDS_ATTENTION" \
-                    "HIGH" \
+                    "$na_issue" \
+                    "$na_severity" \
                     "$(sanitize_tsv_field "$cluster")" \
                     "$(sanitize_tsv_field "$sid")" \
                     "$(sanitize_tsv_field "$target_name")" \
                     "$(sanitize_tsv_field "$lifecycle_state")" \
-                    "$(sanitize_tsv_field "${lifecycle_reason:-No lifecycle details provided}")" \
-                    "Review lifecycle-details and run targeted refresh/credential/connector checks"
+                    "$(sanitize_tsv_field "$na_reason")" \
+                    "$na_action"
                 ;;
             INACTIVE)
                 printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
@@ -1131,7 +1186,7 @@ show_health_overview_table() {
             sid_count: (map(.sid) | map(select(. != "-" and . != "")) | unique | length),
             action: .[0].action
           })
-        | sort_by(-.count, .type)
+                | sort_by(-(.severity|sev_rank), -.count, -.sid_count, .type)
     ')
 
     if [[ "$SHOW_HEALTH_ACTIONS" == "true" ]]; then
@@ -1224,6 +1279,7 @@ show_health_overview_json() {
                 sid_count: (map(.sid) | map(select(. != "-" and . != "")) | unique | length),
                 action: .[0].action
               })
+            | sort_by(-(.severity|sev_rank), -.count, -.sid_count, .issue)
         '
     else
         echo "$issue_rows" | jq -R -s '
@@ -1238,6 +1294,7 @@ show_health_overview_json() {
                 count: length,
                 sid_count: (map(.sid) | map(select(. != "-" and . != "")) | unique | length)
               })
+            | sort_by(-(.severity|sev_rank), -.count, -.sid_count, .issue)
         '
     fi
 }
@@ -1266,6 +1323,7 @@ show_health_overview_csv() {
                 ((map(.sid) | map(select(. != "-" and . != "")) | unique | length)|tostring),
                 .[0].action
               ])
+            | sort_by(-(.[1]|sev_rank), -(.[2]|tonumber), -(.[3]|tonumber), .[0])
             | (["issue","severity","count","sid_count","action"] | @csv), (.[] | @csv)
         '
     else
@@ -1281,6 +1339,7 @@ show_health_overview_csv() {
                 (length|tostring),
                 ((map(.sid) | map(select(. != "-" and . != "")) | unique | length)|tostring)
               ])
+                        | sort_by(-(.[1]|sev_rank), -(.[2]|tonumber), -(.[3]|tonumber), .[0])
             | (["issue","severity","count","sid_count"] | @csv), (.[] | @csv)
         '
     fi
