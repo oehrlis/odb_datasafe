@@ -111,10 +111,15 @@ SCOPE (choose one):
   --root                    Register CDB\$ROOT (named CDBROOT)
 
 REQUIRED OPTIONS:
-  -H, --host HOST           Database host name
+    -H, --host HOST           Database host name (required with --cluster as alternative)
+    --cluster CLUSTER         VM Cluster name or OCID (required with --host as alternative)
   --sid SID                 Database SID
-  -c, --compartment COMP    Target compartment (name or OCID)
-  --connector CONN          On-premises connector (name or OCID)
+    -c, --compartment COMP    Target compartment (name or OCID)
+                                                        Default: resource compartment from --host/--cluster,
+                                                        then DS_REGISTER_COMPARTMENT or DS_ROOT_COMP
+    --connector CONN          On-premises connector (name or OCID)
+                                                        Default: ONPREM_CONNECTOR(_OCID) or random from
+                                                        ONPREM_CONNECTOR_LIST / DS_ONPREM_CONNECTOR_LIST
   -P, --ds-secret VALUE     Data Safe secret (plain or base64)
   --secret-file FILE        Base64 secret file (optional)
 
@@ -131,7 +136,6 @@ CONNECTION:
 METADATA:
   -N, --display-name NAME   Display name (default: <cluster>_<sid>_<pdb|CDBROOT>)
   --description DESC        Free text description
-  --cluster CLUSTER         VM Cluster name or OCID (optional)
 
 MODES:
   --check                   Only check if target already exists
@@ -259,6 +263,127 @@ parse_args() {
     done
 }
 
+# ------------------------------------------------------------------------------
+# Function: trim_whitespace
+# Purpose.: Trim leading/trailing whitespace from a string
+# Args....: $1 - input string
+# Returns.: 0
+# Output..: trimmed string
+# ------------------------------------------------------------------------------
+trim_whitespace() {
+    local value="$1"
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+    printf '%s' "$value"
+}
+
+# ------------------------------------------------------------------------------
+# Function: resolve_default_connector
+# Purpose.: Resolve default connector when --connector is not provided
+# Args....: None
+# Returns.: 0 on success, 1 on failure
+# Output..: connector name/OCID on stdout
+# Notes...: Precedence: ONPREM_CONNECTOR_OCID -> ONPREM_CONNECTOR ->
+#           ONPREM_CONNECTOR_LIST/DS_ONPREM_CONNECTOR_LIST (random pick)
+# ------------------------------------------------------------------------------
+resolve_default_connector() {
+    if [[ -n "${ONPREM_CONNECTOR_OCID:-}" ]]; then
+        printf '%s' "${ONPREM_CONNECTOR_OCID}"
+        return 0
+    fi
+
+    if [[ -n "${ONPREM_CONNECTOR:-}" ]]; then
+        printf '%s' "${ONPREM_CONNECTOR}"
+        return 0
+    fi
+
+    local connector_list="${ONPREM_CONNECTOR_LIST:-${DS_ONPREM_CONNECTOR_LIST:-}}"
+    if [[ -z "$connector_list" ]]; then
+        return 1
+    fi
+
+    local -a raw_connectors=()
+    local -a connectors=()
+    local raw_connector
+
+    IFS=',' read -r -a raw_connectors <<< "$connector_list"
+    for raw_connector in "${raw_connectors[@]}"; do
+        local connector_value
+        connector_value="$(trim_whitespace "$raw_connector")"
+        [[ -n "$connector_value" ]] && connectors+=("$connector_value")
+    done
+
+    if [[ ${#connectors[@]} -eq 0 ]]; then
+        return 1
+    fi
+
+    local selected_index=$((RANDOM % ${#connectors[@]}))
+    log_debug "Selecting connector randomly from configured list (${#connectors[@]} entries)"
+    printf '%s' "${connectors[$selected_index]}"
+}
+
+# ------------------------------------------------------------------------------
+# Function: resolve_compartment_from_cluster
+# Purpose.: Resolve compartment OCID from VM cluster reference
+# Args....: $1 - cluster name or OCID
+# Returns.: 0 on success, 1 on failure
+# Output..: compartment OCID to stdout
+# ------------------------------------------------------------------------------
+resolve_compartment_from_cluster() {
+    local cluster_ref="$1"
+
+    if is_ocid "$cluster_ref"; then
+        oci_exec_ro db cloud-vm-cluster get \
+            --cloud-vm-cluster-id "$cluster_ref" \
+            --query 'data."compartment-id"' \
+            --raw-output
+        return $?
+    fi
+
+    local root_comp_ocid
+    root_comp_ocid=$(get_root_compartment_ocid) || return 1
+
+    local clusters_json
+    clusters_json=$(oci_exec_ro db cloud-vm-cluster list \
+        --compartment-id "$root_comp_ocid" \
+        --compartment-id-in-subtree true \
+        --all) || return 1
+
+    echo "$clusters_json" | jq -r --arg cluster "$cluster_ref" '
+        .data[]
+        | select((."display-name" // "") == $cluster)
+        | ."compartment-id"
+    ' | head -n1
+}
+
+# ------------------------------------------------------------------------------
+# Function: resolve_compartment_from_host
+# Purpose.: Resolve compartment OCID from DB host name
+# Args....: $1 - host name
+# Returns.: 0 on success, 1 on failure
+# Output..: compartment OCID to stdout
+# ------------------------------------------------------------------------------
+resolve_compartment_from_host() {
+    local host_name="$1"
+    local host_lc
+    host_lc=$(printf '%s' "$host_name" | tr '[:upper:]' '[:lower:]')
+
+    local root_comp_ocid
+    root_comp_ocid=$(get_root_compartment_ocid) || return 1
+
+    local nodes_json
+    nodes_json=$(oci_exec_ro db node list \
+        --compartment-id "$root_comp_ocid" \
+        --compartment-id-in-subtree true \
+        --all) || return 1
+
+    echo "$nodes_json" | jq -r --arg host "$host_lc" '
+        .data[]
+        | select((."hostname" // "" | ascii_downcase) == $host)
+        | ."compartment-id"
+    ' | head -n1
+}
+
 # Function: resolve_ds_user
 # Purpose.: Resolve Data Safe username for scope
 # Args....: $1 - Scope label (PDB or ROOT)
@@ -297,10 +422,39 @@ validate_inputs() {
     require_oci_cli
 
     # Required fields
-    [[ -z "$HOST" ]] && die "Missing required option: --host"
+    [[ -z "$HOST" && -z "$CLUSTER" ]] && die "Missing resource identifier. Specify --host or --cluster"
     [[ -z "$SID" ]] && die "Missing required option: --sid"
-    [[ -z "$COMPARTMENT" ]] && die "Missing required option: --compartment"
-    [[ -z "$CONNECTOR" ]] && die "Missing required option: --connector"
+
+    if [[ -z "$COMPARTMENT" ]]; then
+        local derived_compartment=""
+
+        if [[ -n "$HOST" ]]; then
+            derived_compartment=$(resolve_compartment_from_host "$HOST" 2> /dev/null || true)
+            if [[ -n "$derived_compartment" ]]; then
+                COMPARTMENT="$derived_compartment"
+                log_info "Using compartment derived from host '$HOST': $COMPARTMENT"
+            fi
+        fi
+
+        if [[ -z "$COMPARTMENT" && -n "$CLUSTER" ]]; then
+            derived_compartment=$(resolve_compartment_from_cluster "$CLUSTER" 2> /dev/null || true)
+            if [[ -n "$derived_compartment" ]]; then
+                COMPARTMENT="$derived_compartment"
+                log_info "Using compartment derived from cluster '$CLUSTER': $COMPARTMENT"
+            fi
+        fi
+
+        if [[ -z "$COMPARTMENT" ]]; then
+            COMPARTMENT="${DS_REGISTER_COMPARTMENT:-${DS_ROOT_COMP:-}}"
+            [[ -n "$COMPARTMENT" ]] || die "Missing target compartment. Use --compartment or provide resolvable --host/--cluster"
+            log_warn "Could not derive compartment from resource; using configured default: $COMPARTMENT"
+        fi
+    fi
+
+    if [[ -z "$CONNECTOR" ]]; then
+        CONNECTOR="$(resolve_default_connector)" || die "Missing connector. Use --connector or configure ONPREM_CONNECTOR(_OCID) / ONPREM_CONNECTOR_LIST"
+        log_info "Using default connector: $CONNECTOR"
+    fi
 
     # Scope validation
     if [[ -z "$PDB" && "$RUN_ROOT" != "true" ]]; then
@@ -471,8 +625,14 @@ show_registration_plan() {
     log_info "  Connector:     $CONNECTOR_OCID"
     log_info "  DS User:       $DS_USER"
     log_info "  DS Secret:     [hidden]"
-    [[ -n "$CLUSTER" ]] && log_info "  Cluster:       $CLUSTER"
-    [[ -n "$DESCRIPTION" ]] && log_info "  Description:   $DESCRIPTION"
+
+    if [[ -n "$CLUSTER" ]]; then
+        log_info "  Cluster:       $CLUSTER"
+    fi
+
+    if [[ -n "$DESCRIPTION" ]]; then
+        log_info "  Description:   $DESCRIPTION"
+    fi
 }
 
 # ------------------------------------------------------------------------------

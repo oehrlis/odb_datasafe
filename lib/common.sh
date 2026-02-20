@@ -246,10 +246,10 @@ stacktrace() {
 # Notes...: Disables ERR trap to prevent recursion
 # ------------------------------------------------------------------------------
 error_handler() {
+    local exit_code=$?
+
     # CRITICAL: Disable ERR trap immediately to prevent infinite recursion
     trap - ERR
-
-    local exit_code=$?
     local line_num="${BASH_LINENO[0]}"
     local script="${BASH_SOURCE[1]}"
 

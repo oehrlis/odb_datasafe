@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.2] - 2026-02-20
+
 ### Changed
 
 - Added opt-in no-argument usage behavior in `lib/common.sh` via
@@ -18,6 +20,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ds_target_update_service.sh`, `ds_target_update_tags.sh`,
   `ds_target_move.sh`, `ds_target_register.sh`, `ds_target_delete.sh`,
   `ds_target_audit_trail.sh`, and `ds_connector_register_oradba.sh`.
+- Simplified `ds_target_register.sh` by adding meaningful defaults:
+  target compartment now falls back to `DS_REGISTER_COMPARTMENT` or
+  `DS_ROOT_COMP`, and connector now falls back to
+  `ONPREM_CONNECTOR_OCID`/`ONPREM_CONNECTOR` or random selection from
+  `ONPREM_CONNECTOR_LIST` (`DS_ONPREM_CONNECTOR_LIST` also supported).
+- Updated `ds_target_register.sh` resource handling so users provide either
+  `--host` or `--cluster`, and when `--compartment` is omitted the script
+  first tries to derive the target compartment from that resource.
+- Simplified troubleshooting CLI in `ds_target_list.sh` with
+  consolidated `--mode details|count|overview|issues|problems` and
+  `--issue-view summary|details`, plus `--issue` drill-down filtering
+  (accepting issue code or issue label text).
 
 ### Documentation
 
@@ -32,6 +46,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nounset-safe expansion in script parsers (`"${ARGS[@]-}"`).
 - Fixed `ARGS[@]: unbound variable` startup failures seen in environments with
   `ksh` login shells when running bash-based scripts.
+- Fixed `ds_target_register.sh` false error-trap during registration plan output
+  by replacing short-circuit optional log statements with explicit `if` blocks.
+- Fixed `lib/common.sh` `error_handler` to preserve the original failing exit
+  code before disabling the ERR trap.
 
 ## [0.16.1] - 2026-02-20
 

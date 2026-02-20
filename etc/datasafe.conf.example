@@ -74,6 +74,15 @@
 #ONPREM_CONNECTOR="my-connector"
 #ONPREM_CONNECTOR_OCID="ocid1.datasafeonpremconnector.oc1..aaaa..."
 
+# Registration defaults for ds_target_register.sh
+# Default target compartment when --compartment is not provided
+#DS_REGISTER_COMPARTMENT="ocid1.compartment.oc1..aaaa..."
+# Optional comma-separated connector pool for auto-selection when
+# --connector and ONPREM_CONNECTOR* are not provided
+#ONPREM_CONNECTOR_LIST="ds-conn-a,ds-conn-b,ocid1.datasafeonpremconnector.oc1..aaaa..."
+# Alternative legacy-compatible variable name (same behavior)
+#DS_ONPREM_CONNECTOR_LIST="ds-conn-a,ds-conn-b"
+
 # -----------------------------------------------------------------------------
 # Logging Configuration
 # -----------------------------------------------------------------------------

@@ -17,3 +17,22 @@ setup() {
     [[ "$output" == *"--ds-secret"* ]]
     [[ "$output" == *"--secret-file"* ]]
 }
+
+@test "ds_target_register.sh defaults to help without arguments" {
+    run "${BIN_DIR}/ds_target_register.sh"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Usage:"* ]] || [[ "$output" == *"USAGE:"* ]]
+}
+
+@test "ds_target_register.sh help includes default connector and compartment hints" {
+    run "${BIN_DIR}/ds_target_register.sh" --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"DS_REGISTER_COMPARTMENT"* ]]
+    [[ "$output" == *"ONPREM_CONNECTOR_LIST"* ]]
+}
+
+@test "ds_target_register.sh help documents host or cluster requirement" {
+    run "${BIN_DIR}/ds_target_register.sh" --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Specify --host or --cluster"* ]] || [[ "$output" == *"required with --host as alternative"* ]]
+}

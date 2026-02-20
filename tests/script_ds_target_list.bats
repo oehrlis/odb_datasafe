@@ -44,17 +44,29 @@ setup() {
 @test "ds_target_list.sh accepts health overview option" {
     run "${BIN_DIR}/ds_target_list.sh" --help
     [ "$status" -eq 0 ]
-    [[ "$output" == *"--health-overview"* ]]
+    [[ "$output" == *"--mode MODE"* ]]
 }
 
 @test "ds_target_list.sh accepts health details option" {
     run "${BIN_DIR}/ds_target_list.sh" --help
     [ "$status" -eq 0 ]
-    [[ "$output" == *"--health-details"* ]]
+    [[ "$output" == *"--issue-view VIEW"* ]]
 }
 
 @test "ds_target_list.sh accepts output-group option" {
     run "${BIN_DIR}/ds_target_list.sh" --help
     [ "$status" -eq 0 ]
-    [[ "$output" == *"--output-group"* ]]
+    [[ "$output" == *"--mode MODE"* ]]
+}
+
+@test "ds_target_list.sh accepts simplified health option" {
+    run "${BIN_DIR}/ds_target_list.sh" --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--mode MODE"* ]] && [[ "$output" == *"issues|problems"* ]]
+}
+
+@test "ds_target_list.sh accepts health issue drill-down option" {
+    run "${BIN_DIR}/ds_target_list.sh" --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--issue ISSUE"* ]]
 }

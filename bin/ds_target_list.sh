@@ -34,6 +34,9 @@ readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 : "${LIFECYCLE_STATE:=}"
 : "${OUTPUT_FORMAT:=table}" # table|json|csv
 : "${OUTPUT_GROUP:=default}" # default|overview|troubleshooting
+: "${MODE:=details}" # details|count|overview|issues|problems
+: "${ISSUE_VIEW:=summary}" # summary|details
+: "${HEALTH_SCOPE:=all}" # all|needs_attention
 : "${SHOW_COUNT:=false}"    # Default to list mode
 : "${FIELDS:=display-name,lifecycle-state,infrastructure-type}"
 : "${SHOW_PROBLEMS:=false}"
@@ -47,6 +50,9 @@ readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 : "${SHOW_HEALTH_OVERVIEW:=false}"
 : "${SHOW_HEALTH_DETAILS:=false}"
 : "${SHOW_HEALTH_ACTIONS:=true}"
+: "${HEALTH_MODE:=summary}" # summary|details
+: "${HEALTH_MODE_EXPLICIT:=false}"
+: "${HEALTH_ISSUE_FILTER:=}"
 : "${HEALTH_NORMAL_STATES:=ACTIVE,UPDATING}"
 : "${DS_TARGET_NAME_REGEX:=}"
 : "${DS_TARGET_NAME_SEPARATOR:=_}"
@@ -108,34 +114,27 @@ Options:
     -r, --filter REGEX                  Filter target names by regex (substring match)
     -L, --lifecycle STATE               Filter by lifecycle state (ACTIVE, NEEDS_ATTENTION, etc.)
 
-  Output:
-    Mode selection (choose one primary mode):
-    -D, --details                       Show detailed target information (default)
-    -C, --count                         Show summary count by lifecycle state
-        --overview                      Show overview grouped by cluster and SID
-        --health-overview               Show troubleshooting health overview
-        --problems                      Show NEEDS_ATTENTION targets with lifecycle details
-        --group-problems                Group NEEDS_ATTENTION targets by problem type
+    Output:
+        Mode selection (single entry point):
+        -M, --mode MODE                     details|count|overview|issues|problems
+                                                                                details: default target list
+                                                                                count: lifecycle summary counts
+                                                                                overview: grouped cluster/SID landscape
+                                                                                issues: full troubleshooting issue model
+                                                                                problems: NEEDS_ATTENTION-only issue model
 
-    Group selector (alternative to direct mode flags):
-    -G, --output-group GROUP            default|overview|troubleshooting
-                                        default: standard details/count behavior
-                                        overview: same as --overview
-                                        troubleshooting: health/problem group
-                                        (defaults to --health-overview)
+        Troubleshooting drill-down (for --mode issues|problems):
+                --issue-view VIEW               summary|details (default: summary)
+                --issue ISSUE                   Filter to one issue (code or label text)
+                --health-actions                Include suggested actions in health output (default)
+                --health-no-actions             Hide suggested actions in health output
 
-    Overview options (only with --overview or -G overview):
+        Overview options (only with --mode overview):
         --overview-status               Include lifecycle counts per SID row (default)
         --overview-no-status            Hide lifecycle counts in overview output
         --overview-no-members           Hide member/PDB names in overview output
         --overview-truncate-members     Truncate member/PDB list in table output (default)
         --overview-no-truncate-members  Show full member/PDB list in table output
-
-    Troubleshooting options:
-        --health-details                Include issue drill-down details (with --health-overview)
-        --health-actions                Include suggested actions in health output (default)
-        --health-no-actions             Hide suggested actions in health output
-        --summary                       Summary only for --group-problems (no target list)
 
     Format and fields:
     -f, --format FMT                    Output format: table|json|csv (default: table)
@@ -154,22 +153,19 @@ Examples:
     ${SCRIPT_NAME}
 
     # Show count summary
-    ${SCRIPT_NAME} -C
+    ${SCRIPT_NAME} --mode count
 
-    # Grouped mode selector: overview
-    ${SCRIPT_NAME} -G overview
+    # Grouped landscape overview
+    ${SCRIPT_NAME} --mode overview
 
-    # Grouped mode selector: troubleshooting (defaults to health overview)
-    ${SCRIPT_NAME} -G troubleshooting
+    # Full issue summary across all issue types
+    ${SCRIPT_NAME} --mode issues
 
-    # Direct overview mode with concise output
-    ${SCRIPT_NAME} --overview --overview-no-members
+    # NEEDS_ATTENTION-focused problem summary
+    ${SCRIPT_NAME} --mode problems
 
-    # Health troubleshooting with drill-down details
-    ${SCRIPT_NAME} --health-overview --health-details
-
-    # Problems grouped summary
-    ${SCRIPT_NAME} --group-problems --summary
+    # Drill down to one issue topic
+    ${SCRIPT_NAME} --mode issues --issue-view details --issue "SID missing CDB root"
 
     # JSON output for automation
     ${SCRIPT_NAME} -f json
@@ -230,7 +226,13 @@ parse_args() {
             -C | --count)
                 SHOW_COUNT=true
                 SHOW_COUNT_OVERRIDE=true
+                MODE="count"
                 shift
+                ;;
+            -M | --mode)
+                need_val "$1" "${2:-}"
+                MODE="$2"
+                shift 2
                 ;;
             -G | --output-group)
                 need_val "$1" "${2:-}"
@@ -240,12 +242,14 @@ parse_args() {
             -D | --details)
                 SHOW_COUNT=false
                 SHOW_COUNT_OVERRIDE=true
+                MODE="details"
                 shift
                 ;;
             --overview)
                 SHOW_OVERVIEW=true
                 SHOW_COUNT=false
                 SHOW_COUNT_OVERRIDE=true
+                MODE="overview"
                 shift
                 ;;
             --overview-status)
@@ -272,14 +276,45 @@ parse_args() {
                 SHOW_HEALTH_OVERVIEW=true
                 SHOW_COUNT=false
                 SHOW_COUNT_OVERRIDE=true
+                MODE="issues"
                 shift
+                ;;
+            --health)
+                SHOW_HEALTH_OVERVIEW=true
+                SHOW_COUNT=false
+                SHOW_COUNT_OVERRIDE=true
+                HEALTH_MODE_EXPLICIT=true
+                if [[ $# -gt 1 && "${2:-}" != -* ]]; then
+                    ISSUE_VIEW="$2"
+                    shift 2
+                else
+                    ISSUE_VIEW="summary"
+                    shift
+                fi
+                MODE="issues"
                 ;;
             --health-details)
                 SHOW_HEALTH_DETAILS=true
                 SHOW_HEALTH_OVERVIEW=true
                 SHOW_COUNT=false
                 SHOW_COUNT_OVERRIDE=true
+                ISSUE_VIEW="details"
+                MODE="issues"
                 shift
+                ;;
+            --issue)
+                need_val "$1" "${2:-}"
+                HEALTH_ISSUE_FILTER="$2"
+                SHOW_HEALTH_OVERVIEW=true
+                SHOW_COUNT=false
+                SHOW_COUNT_OVERRIDE=true
+                MODE="issues"
+                shift 2
+                ;;
+            --issue-view)
+                need_val "$1" "${2:-}"
+                ISSUE_VIEW="$2"
+                shift 2
                 ;;
             --health-actions)
                 SHOW_HEALTH_ACTIONS=true
@@ -305,6 +340,7 @@ parse_args() {
                 SHOW_PROBLEMS=true
                 SHOW_COUNT=false
                 SHOW_COUNT_OVERRIDE=true
+                MODE="problems"
                 shift
                 ;;
             --group-problems)
@@ -312,10 +348,12 @@ parse_args() {
                 SHOW_PROBLEMS=true
                 SHOW_COUNT=false
                 SHOW_COUNT_OVERRIDE=true
+                MODE="problems"
                 shift
                 ;;
             --summary)
                 SHOW_DETAILS=false
+                ISSUE_VIEW="summary"
                 shift
                 ;;
             --oci-profile)
@@ -364,6 +402,18 @@ parse_args() {
         default | overview | troubleshooting) : ;;
         *) die "Invalid output group: '${OUTPUT_GROUP}'. Use default, overview, or troubleshooting" ;;
     esac
+
+    # Validate consolidated mode
+    case "${MODE}" in
+        details | count | overview | issues | problems) : ;;
+        *) die "Invalid mode: '${MODE}'. Use details, count, overview, issues, or problems" ;;
+    esac
+
+    # Validate issue view mode
+    case "${ISSUE_VIEW}" in
+        summary | details) : ;;
+        *) die "Invalid issue view: '${ISSUE_VIEW}'. Use summary or details" ;;
+    esac
 }
 
 # ------------------------------------------------------------------------------
@@ -396,33 +446,43 @@ validate_inputs() {
         log_info "Using root compartment: $comp_name (includes sub-compartments)"
     fi
 
+    # Normalize mode selection to execution flags
+    SHOW_COUNT=false
+    SHOW_OVERVIEW=false
+    SHOW_HEALTH_OVERVIEW=false
+    SHOW_PROBLEMS=false
+    GROUP_PROBLEMS=false
+    HEALTH_SCOPE="all"
+
+    case "${MODE}" in
+        count)
+            SHOW_COUNT=true
+            ;;
+        overview)
+            SHOW_OVERVIEW=true
+            ;;
+        issues)
+            SHOW_HEALTH_OVERVIEW=true
+            ;;
+        problems)
+            SHOW_HEALTH_OVERVIEW=true
+            HEALTH_SCOPE="needs_attention"
+            ;;
+        details)
+            :
+            ;;
+    esac
+
+    if [[ "$ISSUE_VIEW" == "details" ]]; then
+        SHOW_HEALTH_DETAILS=true
+    else
+        SHOW_HEALTH_DETAILS=false
+    fi
+
     # Count mode doesn't work with specific targets
     if [[ "$SHOW_COUNT" == "true" && -n "$TARGETS" ]]; then
         die "Count mode (-C) cannot be used with specific targets (-T). Use --details instead."
     fi
-
-    # Apply grouped output behavior
-    case "${OUTPUT_GROUP}" in
-        overview)
-            if [[ "$SHOW_HEALTH_OVERVIEW" == "true" || "$SHOW_PROBLEMS" == "true" || "$GROUP_PROBLEMS" == "true" || "$SHOW_COUNT" == "true" ]]; then
-                die "--output-group overview cannot be combined with health/problem/count modes"
-            fi
-            SHOW_OVERVIEW=true
-            SHOW_COUNT=false
-            ;;
-        troubleshooting)
-            if [[ "$SHOW_OVERVIEW" == "true" || "$SHOW_COUNT" == "true" ]]; then
-                die "--output-group troubleshooting cannot be combined with --overview or --count"
-            fi
-            if [[ "$SHOW_HEALTH_OVERVIEW" != "true" && "$SHOW_PROBLEMS" != "true" && "$GROUP_PROBLEMS" != "true" ]]; then
-                SHOW_HEALTH_OVERVIEW=true
-            fi
-            SHOW_COUNT=false
-            ;;
-        default)
-            :
-            ;;
-    esac
 
     # Problems mode does not support explicit targets
     if [[ "$SHOW_PROBLEMS" == "true" && -n "$TARGETS" ]]; then
@@ -459,6 +519,10 @@ validate_inputs() {
     fi
 
     if [[ "$SHOW_HEALTH_OVERVIEW" == "true" ]]; then
+        if [[ -n "$HEALTH_ISSUE_FILTER" ]]; then
+            SHOW_HEALTH_DETAILS=true
+        fi
+
         if [[ "$SHOW_OVERVIEW" == "true" || "$SHOW_PROBLEMS" == "true" || "$GROUP_PROBLEMS" == "true" || "$SHOW_COUNT" == "true" ]]; then
             die "Health overview mode cannot be combined with --overview, --problems, --group-problems, or --count"
         fi
@@ -1000,6 +1064,69 @@ health_issue_label() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: filter_health_issue_rows
+# Purpose.: Filter health issue rows by issue code or label text
+# Args....: $1 - TSV issue rows
+#           $2 - issue selector (code or label text)
+# Returns.: 0
+# Output..: filtered TSV issue rows
+# ------------------------------------------------------------------------------
+filter_health_issue_rows() {
+    local issue_rows="$1"
+    local selector="$2"
+
+    if [[ -z "$selector" ]]; then
+        printf '%s' "$issue_rows"
+        return 0
+    fi
+
+    local selector_lc
+    selector_lc=$(printf '%s' "$selector" | tr '[:upper:]' '[:lower:]')
+
+    local filtered_rows=""
+    while IFS=$'\t' read -r issue_type severity cluster sid target state reason action; do
+        [[ -z "$issue_type" ]] && continue
+
+        local issue_lc issue_label issue_label_lc
+        issue_lc=$(printf '%s' "$issue_type" | tr '[:upper:]' '[:lower:]')
+        issue_label=$(health_issue_label "$issue_type")
+        issue_label_lc=$(printf '%s' "$issue_label" | tr '[:upper:]' '[:lower:]')
+
+        if [[ "$issue_lc" == "$selector_lc" || "$issue_label_lc" == "$selector_lc" || "$issue_label_lc" == *"$selector_lc"* ]]; then
+            filtered_rows+="${issue_type}"$'\t'"${severity}"$'\t'"${cluster}"$'\t'"${sid}"$'\t'"${target}"$'\t'"${state}"$'\t'"${reason}"$'\t'"${action}"$'\n'
+        fi
+    done <<< "$issue_rows"
+
+    filtered_rows="${filtered_rows%$'\n'}"
+    printf '%s' "$filtered_rows"
+}
+
+# ------------------------------------------------------------------------------
+# Function: filter_health_scope_rows
+# Purpose.: Filter health issue rows by scope model
+# Args....: $1 - TSV issue rows
+#           $2 - scope (all|needs_attention)
+# Returns.: 0
+# Output..: filtered TSV issue rows
+# ------------------------------------------------------------------------------
+filter_health_scope_rows() {
+    local issue_rows="$1"
+    local scope="$2"
+
+    if [[ "$scope" == "all" ]]; then
+        printf '%s' "$issue_rows"
+        return 0
+    fi
+
+    if [[ "$scope" == "needs_attention" ]]; then
+        echo "$issue_rows" | awk -F '\t' '$1 ~ /^TARGET_NEEDS_ATTENTION/'
+        return 0
+    fi
+
+    printf '%s' "$issue_rows"
+}
+
+# ------------------------------------------------------------------------------
 # Function: classify_needs_attention_issue
 # Purpose.: Classify NEEDS_ATTENTION lifecycle-details into actionable issue type
 # Args....: $1 - lifecycle-details reason
@@ -1448,8 +1575,43 @@ show_health_details_csv() {
 show_health() {
     local json_data="$1"
     local issue_rows
+    local all_issue_rows
 
     issue_rows=$(evaluate_health_issues "$json_data")
+    all_issue_rows="$issue_rows"
+
+    issue_rows=$(filter_health_scope_rows "$issue_rows" "$HEALTH_SCOPE")
+
+    if [[ -n "$HEALTH_ISSUE_FILTER" ]]; then
+        issue_rows=$(filter_health_issue_rows "$all_issue_rows" "$HEALTH_ISSUE_FILTER")
+        if [[ -z "$issue_rows" ]]; then
+            log_warn "No health issues matched selector: ${HEALTH_ISSUE_FILTER}"
+            case "$OUTPUT_FORMAT" in
+                table)
+                    printf "\nNo health issues matched selector: %s\n\n" "$HEALTH_ISSUE_FILTER"
+                    ;;
+                json)
+                    echo '[]'
+                    ;;
+                csv)
+                    if [[ "$SHOW_HEALTH_DETAILS" == "true" ]]; then
+                        if [[ "$SHOW_HEALTH_ACTIONS" == "true" ]]; then
+                            echo "issue,severity,cluster,sid,target,state,reason,action"
+                        else
+                            echo "issue,severity,cluster,sid,target,state,reason"
+                        fi
+                    else
+                        if [[ "$SHOW_HEALTH_ACTIONS" == "true" ]]; then
+                            echo "issue,severity,count,sid_count,action"
+                        else
+                            echo "issue,severity,count,sid_count"
+                        fi
+                    fi
+                    ;;
+            esac
+            return 0
+        fi
+    fi
 
     case "$OUTPUT_FORMAT" in
         table)

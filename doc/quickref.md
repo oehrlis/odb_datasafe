@@ -160,38 +160,23 @@ bin/ds_target_activate.sh -c "MyCompartment" -T db1,db2 --apply
 # Activate only targets matching regex
 bin/ds_target_activate.sh -c "MyCompartment" -r "db02" --apply
 
-# Show targets with problems (NEEDS_ATTENTION state)
-bin/ds_target_list.sh --problems
+# Consolidated issue summary (all issue categories)
+bin/ds_target_list.sh --mode issues
 
-# Group problems by type with target counts
-bin/ds_target_list.sh --group-problems
+# Problems-only summary (NEEDS_ATTENTION categories)
+bin/ds_target_list.sh --mode problems
 
-# Group problems summary only (no target lists)
-bin/ds_target_list.sh --group-problems --summary
+# Drill down into one issue topic (code or label)
+bin/ds_target_list.sh --mode issues --issue-view details --issue "SID missing CDB root"
 
-# Group problems in JSON format for automation  
-bin/ds_target_list.sh --group-problems -f json
-
-# Show problems in JSON format for automation
-bin/ds_target_list.sh --problems -f json
-
-# Use grouped output mode for overview
-bin/ds_target_list.sh --output-group overview
-
-# Use grouped output mode for troubleshooting (defaults to health overview)
-bin/ds_target_list.sh --output-group troubleshooting
+# Overview mode
+bin/ds_target_list.sh --mode overview
 
 # Show all fields for a target (JSON only)
 bin/ds_target_list.sh -T mydb01 -F all -f json
 
-# Health troubleshooting overview for selected scope
-bin/ds_target_list.sh --health-overview
-
-# Health troubleshooting details (drill-down)
-bin/ds_target_list.sh --health-overview --health-details
-
-# Health overview in JSON for automation
-bin/ds_target_list.sh --health-overview -f json
+# Issue summary in JSON for automation
+bin/ds_target_list.sh --mode issues -f json
 
 # Update credentials for targets matching regex (dry-run default)
 bin/ds_target_update_credentials.sh -r "db02"
