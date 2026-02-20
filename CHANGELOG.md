@@ -27,12 +27,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added configurable parsing keys in `datasafe.conf`:
   `DS_TARGET_NAME_REGEX`, `DS_TARGET_NAME_SEPARATOR`,
   `DS_TARGET_NAME_CDBROOT_REGEX`, and `DS_TARGET_NAME_ROOT_LABEL`.
+- Added `--health-overview` and `--health-details` in
+  `bin/ds_target_list.sh` for scope-based troubleshooting and drill-down.
+- Added naming-standard anomaly detection (`TARGET_NAMING_NONSTANDARD`) and
+  v1 health checks for missing/duplicate roots, needs-attention, inactive, and
+  unexpected lifecycle states.
 
 ### Documentation
 
 - Updated credential update usage examples in `README.md`, `doc/index.md`, and
   `doc/quickref.md` to document that `--apply` uses OCI `--force` by default
   and that `--no-force` enables interactive confirmation behavior.
+- Added `doc/troubleshooting.md` with health overview usage, issue meanings,
+  and suggested remediation actions.
 
 ### Fixed
 

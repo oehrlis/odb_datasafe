@@ -40,3 +40,15 @@ setup() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"--overview-truncate-members"* ]]
 }
+
+@test "ds_target_list.sh accepts health overview option" {
+    run "${BIN_DIR}/ds_target_list.sh" --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--health-overview"* ]]
+}
+
+@test "ds_target_list.sh accepts health details option" {
+    run "${BIN_DIR}/ds_target_list.sh" --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--health-details"* ]]
+}

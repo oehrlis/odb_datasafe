@@ -41,8 +41,12 @@ readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 : "${SHOW_OVERVIEW:=false}"
 : "${OVERVIEW_INCLUDE_STATUS:=true}"
 : "${OVERVIEW_INCLUDE_MEMBERS:=true}"
-: "${OVERVIEW_TRUNCATE_MEMBERS:=false}"
+: "${OVERVIEW_TRUNCATE_MEMBERS:=true}"
 : "${OVERVIEW_MEMBERS_MAX_WIDTH:=80}"
+: "${SHOW_HEALTH_OVERVIEW:=false}"
+: "${SHOW_HEALTH_DETAILS:=false}"
+: "${SHOW_HEALTH_ACTIONS:=true}"
+: "${HEALTH_NORMAL_STATES:=ACTIVE,UPDATING}"
 : "${DS_TARGET_NAME_REGEX:=}"
 : "${DS_TARGET_NAME_SEPARATOR:=_}"
 : "${DS_TARGET_NAME_ROOT_LABEL:=CDB\$ROOT}"
@@ -110,8 +114,12 @@ Options:
         --overview-status               Include lifecycle counts per SID row in overview (default)
         --overview-no-status            Hide lifecycle counts in overview output
         --overview-no-members           Hide member/PDB names in overview output
-        --overview-truncate-members     Truncate member/PDB list in table output
-        --overview-no-truncate-members  Show full member/PDB list in table output (default)
+        --overview-truncate-members     Truncate member/PDB list in table output (default)
+        --overview-no-truncate-members  Show full member/PDB list in table output 
+        --health-overview               Show troubleshooting health overview for selected scope
+        --health-details                Include issue drill-down details (with --health-overview)
+        --health-actions                Include suggested actions in health output (default)
+        --health-no-actions             Hide suggested actions in health output
     -f, --format FMT        Output format: table|json|csv (default: table)
     -F, --fields FIELDS     Comma-separated fields for details (default: ${FIELDS})
         --problems          Show NEEDS_ATTENTION targets with lifecycle details
@@ -174,6 +182,12 @@ Examples:
 
     # Overview with truncated member/PDB list in table output
     ${SCRIPT_NAME} --overview --overview-truncate-members
+
+    # Health troubleshooting overview for selected scope
+    ${SCRIPT_NAME} --health-overview
+
+    # Health troubleshooting with issue drill-down
+    ${SCRIPT_NAME} --health-overview --health-details
 
 EOF
     exit 0
@@ -259,6 +273,27 @@ parse_args() {
                 ;;
             --overview-no-truncate-members)
                 OVERVIEW_TRUNCATE_MEMBERS=false
+                shift
+                ;;
+            --health-overview)
+                SHOW_HEALTH_OVERVIEW=true
+                SHOW_COUNT=false
+                SHOW_COUNT_OVERRIDE=true
+                shift
+                ;;
+            --health-details)
+                SHOW_HEALTH_DETAILS=true
+                SHOW_HEALTH_OVERVIEW=true
+                SHOW_COUNT=false
+                SHOW_COUNT_OVERRIDE=true
+                shift
+                ;;
+            --health-actions)
+                SHOW_HEALTH_ACTIONS=true
+                shift
+                ;;
+            --health-no-actions)
+                SHOW_HEALTH_ACTIONS=false
                 shift
                 ;;
             -f | --format)
@@ -398,6 +433,16 @@ validate_inputs() {
 
         if [[ -n "${FIELDS_OVERRIDE:-}" ]]; then
             log_warn "Ignoring --fields in overview mode"
+        fi
+    fi
+
+    if [[ "$SHOW_HEALTH_OVERVIEW" == "true" ]]; then
+        if [[ "$SHOW_OVERVIEW" == "true" || "$SHOW_PROBLEMS" == "true" || "$GROUP_PROBLEMS" == "true" || "$SHOW_COUNT" == "true" ]]; then
+            die "Health overview mode cannot be combined with --overview, --problems, --group-problems, or --count"
+        fi
+
+        if [[ -n "${FIELDS_OVERRIDE:-}" ]]; then
+            log_warn "Ignoring --fields in health overview mode"
         fi
     fi
 
@@ -866,6 +911,480 @@ show_overview() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: sanitize_tsv_field
+# Purpose.: Sanitize string for TSV output
+# Args....: $1 - raw value
+# Returns.: 0
+# Output..: sanitized value to stdout
+# ------------------------------------------------------------------------------
+sanitize_tsv_field() {
+    local value="$1"
+    value="${value//$'\t'/ }"
+    value="${value//$'\n'/ }"
+    printf '%s' "$value"
+}
+
+# ------------------------------------------------------------------------------
+# Function: health_issue_label
+# Purpose.: Convert health issue code to human-readable label
+# Args....: $1 - issue code
+# Returns.: 0
+# Output..: issue label to stdout
+# ------------------------------------------------------------------------------
+health_issue_label() {
+    local issue_code="$1"
+
+    case "$issue_code" in
+        SID_MISSING_ROOT)
+            echo "SID missing CDB root"
+            ;;
+        SID_DUPLICATE_ROOT)
+            echo "SID has duplicate CDB roots"
+            ;;
+        SID_ROOT_WITHOUT_PDB)
+            echo "SID root without PDB"
+            ;;
+        TARGET_NEEDS_ATTENTION)
+            echo "Target needs attention"
+            ;;
+        TARGET_INACTIVE)
+            echo "Target inactive"
+            ;;
+        TARGET_UNEXPECTED_STATE)
+            echo "Target unexpected state"
+            ;;
+        TARGET_NAMING_NONSTANDARD)
+            echo "Target naming non-standard"
+            ;;
+        *)
+            echo "$issue_code"
+            ;;
+    esac
+}
+
+# ------------------------------------------------------------------------------
+# Function: is_health_normal_state
+# Purpose.: Check if lifecycle-state is considered normal
+# Args....: $1 - lifecycle state
+# Returns.: 0 if normal, 1 otherwise
+# ------------------------------------------------------------------------------
+is_health_normal_state() {
+    local lifecycle_state="$1"
+    local normal_states=",${HEALTH_NORMAL_STATES},"
+    [[ "$normal_states" == *",${lifecycle_state},"* ]]
+}
+
+# ------------------------------------------------------------------------------
+# Function: evaluate_health_issues
+# Purpose.: Evaluate selected targets for troubleshooting anomalies
+# Args....: $1 - JSON data object with selected targets
+# Returns.: 0
+# Output..: TSV issue rows: type,severity,cluster,sid,target,state,reason,action
+# ------------------------------------------------------------------------------
+evaluate_health_issues() {
+    local json_data="$1"
+
+    local -A sid_cluster=()
+    local -A sid_root_count=()
+    local -A sid_pdb_count=()
+
+    while IFS=$'\t' read -r target_name lifecycle_state lifecycle_reason; do
+        [[ -z "$target_name" ]] && continue
+
+        local parsed
+        local cluster="-"
+        local sid="-"
+
+        if parsed=$(parse_target_name_components "$target_name"); then
+            local db_token
+            IFS=$'\t' read -r cluster sid db_token <<< "$parsed"
+            local sid_key="${cluster}|${sid}"
+            sid_cluster["$sid_key"]="$cluster"
+
+            if is_cdbroot_name "$db_token"; then
+                sid_root_count["$sid_key"]=$(( ${sid_root_count["$sid_key"]:-0} + 1 ))
+            else
+                sid_pdb_count["$sid_key"]=$(( ${sid_pdb_count["$sid_key"]:-0} + 1 ))
+            fi
+        else
+            printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+                "TARGET_NAMING_NONSTANDARD" \
+                "MEDIUM" \
+                "-" \
+                "-" \
+                "$(sanitize_tsv_field "$target_name")" \
+                "$(sanitize_tsv_field "$lifecycle_state")" \
+                "Target name does not match configured naming standard" \
+                "Set DS_TARGET_NAME_REGEX or DS_TARGET_NAME_SID_REGEX and validate target naming"
+        fi
+
+        case "$lifecycle_state" in
+            NEEDS_ATTENTION)
+                printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+                    "TARGET_NEEDS_ATTENTION" \
+                    "HIGH" \
+                    "$(sanitize_tsv_field "$cluster")" \
+                    "$(sanitize_tsv_field "$sid")" \
+                    "$(sanitize_tsv_field "$target_name")" \
+                    "$(sanitize_tsv_field "$lifecycle_state")" \
+                    "$(sanitize_tsv_field "${lifecycle_reason:-No lifecycle details provided}")" \
+                    "Review lifecycle-details and run targeted refresh/credential/connector checks"
+                ;;
+            INACTIVE)
+                printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+                    "TARGET_INACTIVE" \
+                    "MEDIUM" \
+                    "$(sanitize_tsv_field "$cluster")" \
+                    "$(sanitize_tsv_field "$sid")" \
+                    "$(sanitize_tsv_field "$target_name")" \
+                    "$(sanitize_tsv_field "$lifecycle_state")" \
+                    "Target is inactive" \
+                    "Use ds_target_activate.sh for this scope/target"
+                ;;
+            *)
+                if ! is_health_normal_state "$lifecycle_state"; then
+                    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+                        "TARGET_UNEXPECTED_STATE" \
+                        "MEDIUM" \
+                        "$(sanitize_tsv_field "$cluster")" \
+                        "$(sanitize_tsv_field "$sid")" \
+                        "$(sanitize_tsv_field "$target_name")" \
+                        "$(sanitize_tsv_field "$lifecycle_state")" \
+                        "State is outside normal states (${HEALTH_NORMAL_STATES})" \
+                        "Wait/poll state, then refresh or retry operation for this target"
+                fi
+                ;;
+        esac
+    done < <(echo "$json_data" | jq -r '.data[] | [."display-name" // "", ."lifecycle-state" // "UNKNOWN", ."lifecycle-details" // ""] | @tsv')
+
+    local sid_key
+    for sid_key in "${!sid_cluster[@]}"; do
+        local cluster sid root_count pdb_count
+        IFS='|' read -r cluster sid <<< "$sid_key"
+        root_count=${sid_root_count["$sid_key"]:-0}
+        pdb_count=${sid_pdb_count["$sid_key"]:-0}
+
+        if ((pdb_count > 0 && root_count == 0)); then
+            printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+                "SID_MISSING_ROOT" \
+                "HIGH" \
+                "$(sanitize_tsv_field "$cluster")" \
+                "$(sanitize_tsv_field "$sid")" \
+                "-" \
+                "-" \
+                "SID has ${pdb_count} PDB target(s) but no CDB root target" \
+                "Register or refresh the CDB root target for this SID"
+        fi
+
+        if ((root_count > 1)); then
+            printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+                "SID_DUPLICATE_ROOT" \
+                "HIGH" \
+                "$(sanitize_tsv_field "$cluster")" \
+                "$(sanitize_tsv_field "$sid")" \
+                "-" \
+                "-" \
+                "SID has ${root_count} CDB root targets" \
+                "Review duplicate root registrations and keep only one valid root"
+        fi
+
+        if ((root_count > 0 && pdb_count == 0)); then
+            printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+                "SID_ROOT_WITHOUT_PDB" \
+                "LOW" \
+                "$(sanitize_tsv_field "$cluster")" \
+                "$(sanitize_tsv_field "$sid")" \
+                "-" \
+                "-" \
+                "SID has root target but no PDB targets" \
+                "Verify whether PDB targets should exist and register missing PDBs if needed"
+        fi
+    done
+}
+
+# ------------------------------------------------------------------------------
+# Function: show_health_overview_table
+# Purpose.: Display summarized health issue overview
+# Args....: $1 - TSV issue rows
+# Returns.: 0
+# Output..: Health summary table
+# ------------------------------------------------------------------------------
+show_health_overview_table() {
+    local issue_rows="$1"
+
+    if [[ -z "$issue_rows" ]]; then
+        printf "\nNo health issues detected for selected scope.\n\n"
+        return 0
+    fi
+
+    local grouped
+    grouped=$(echo "$issue_rows" | jq -R -s '
+        def sev_rank: if . == "HIGH" then 3 elif . == "MEDIUM" then 2 elif . == "LOW" then 1 else 0 end;
+        split("\n")
+        | map(select(length > 0) | split("\t"))
+        | map({type: .[0], severity: .[1], sid: .[3], action: .[7]})
+        | group_by(.type)
+        | map({
+            type: .[0].type,
+            severity: (map(.severity) | max_by(sev_rank)),
+            count: length,
+            sid_count: (map(.sid) | map(select(. != "-" and . != "")) | unique | length),
+            action: .[0].action
+          })
+        | sort_by(-.count, .type)
+    ')
+
+    if [[ "$SHOW_HEALTH_ACTIONS" == "true" ]]; then
+        printf "\n%-33s %-8s %8s %8s %s\n" "Issue" "Severity" "Count" "SIDs" "Suggested Action"
+        printf "%-33s %-8s %8s %8s %s\n" "---------------------------------" "--------" "--------" "--------" "------------------------------"
+        echo "$grouped" | jq -r '.[] | [.type, .severity, (.count|tostring), (.sid_count|tostring), .action] | @tsv' \
+            | while IFS=$'\t' read -r issue_type severity count sid_count action; do
+                printf "%-33s %-8s %8d %8d %s\n" "$(health_issue_label "$issue_type")" "$severity" "$count" "$sid_count" "$action"
+            done
+    else
+        printf "\n%-33s %-8s %8s %8s\n" "Issue" "Severity" "Count" "SIDs"
+        printf "%-33s %-8s %8s %8s\n" "---------------------------------" "--------" "--------" "--------"
+        echo "$grouped" | jq -r '.[] | [.type, .severity, (.count|tostring), (.sid_count|tostring)] | @tsv' \
+            | while IFS=$'\t' read -r issue_type severity count sid_count; do
+                printf "%-33s %-8s %8d %8d\n" "$(health_issue_label "$issue_type")" "$severity" "$count" "$sid_count"
+            done
+    fi
+    printf "\n"
+}
+
+# ------------------------------------------------------------------------------
+# Function: show_health_details_table
+# Purpose.: Display health issue drill-down details
+# Args....: $1 - TSV issue rows
+# Returns.: 0
+# Output..: Detailed health issue table
+# ------------------------------------------------------------------------------
+show_health_details_table() {
+    local issue_rows="$1"
+
+    if [[ -z "$issue_rows" ]]; then
+        return 0
+    fi
+
+    if [[ "$SHOW_HEALTH_ACTIONS" == "true" ]]; then
+        printf "%-33s %-8s %-20s %-15s %-42s %-16s %-44s %s\n" "Issue" "Severity" "Cluster" "SID" "Target" "State" "Reason" "Suggested Action"
+        printf "%-33s %-8s %-20s %-15s %-42s %-16s %-44s %s\n" "---------------------------------" "--------" "--------------------" "---------------" "------------------------------------------" "----------------" "--------------------------------------------" "------------------------------"
+        echo "$issue_rows" | while IFS=$'\t' read -r issue_type severity cluster sid target state reason action; do
+            [[ -z "$issue_type" ]] && continue
+            printf "%-33s %-8s %-20s %-15s %-42s %-16s %-44s %s\n" \
+                "$(health_issue_label "$issue_type")" \
+                "$severity" \
+                "${cluster:0:20}" \
+                "${sid:0:15}" \
+                "${target:0:42}" \
+                "${state:0:16}" \
+                "${reason:0:44}" \
+                "$action"
+        done
+    else
+        printf "%-33s %-8s %-20s %-15s %-42s %-16s %s\n" "Issue" "Severity" "Cluster" "SID" "Target" "State" "Reason"
+        printf "%-33s %-8s %-20s %-15s %-42s %-16s %s\n" "---------------------------------" "--------" "--------------------" "---------------" "------------------------------------------" "----------------" "--------------------------------------------"
+        echo "$issue_rows" | while IFS=$'\t' read -r issue_type severity cluster sid target state reason _action; do
+            [[ -z "$issue_type" ]] && continue
+            printf "%-33s %-8s %-20s %-15s %-42s %-16s %s\n" \
+                "$(health_issue_label "$issue_type")" \
+                "$severity" \
+                "${cluster:0:20}" \
+                "${sid:0:15}" \
+                "${target:0:42}" \
+                "${state:0:16}" \
+                "${reason:0:44}"
+        done
+    fi
+
+    printf "\n"
+}
+
+# ------------------------------------------------------------------------------
+# Function: show_health_overview_json
+# Purpose.: Output summarized health issues as JSON
+# Args....: $1 - TSV issue rows
+# Returns.: 0
+# Output..: JSON array
+# ------------------------------------------------------------------------------
+show_health_overview_json() {
+    local issue_rows="$1"
+
+    if [[ "$SHOW_HEALTH_ACTIONS" == "true" ]]; then
+        echo "$issue_rows" | jq -R -s '
+            def sev_rank: if . == "HIGH" then 3 elif . == "MEDIUM" then 2 elif . == "LOW" then 1 else 0 end;
+            split("\n")
+            | map(select(length > 0) | split("\t"))
+            | map({type: .[0], severity: .[1], sid: .[3], action: .[7]})
+            | group_by(.type)
+            | map({
+                issue: .[0].type,
+                severity: (map(.severity) | max_by(sev_rank)),
+                count: length,
+                sid_count: (map(.sid) | map(select(. != "-" and . != "")) | unique | length),
+                action: .[0].action
+              })
+        '
+    else
+        echo "$issue_rows" | jq -R -s '
+            def sev_rank: if . == "HIGH" then 3 elif . == "MEDIUM" then 2 elif . == "LOW" then 1 else 0 end;
+            split("\n")
+            | map(select(length > 0) | split("\t"))
+            | map({type: .[0], severity: .[1], sid: .[3]})
+            | group_by(.type)
+            | map({
+                issue: .[0].type,
+                severity: (map(.severity) | max_by(sev_rank)),
+                count: length,
+                sid_count: (map(.sid) | map(select(. != "-" and . != "")) | unique | length)
+              })
+        '
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# Function: show_health_overview_csv
+# Purpose.: Output summarized health issues as CSV
+# Args....: $1 - TSV issue rows
+# Returns.: 0
+# Output..: CSV
+# ------------------------------------------------------------------------------
+show_health_overview_csv() {
+    local issue_rows="$1"
+
+    if [[ "$SHOW_HEALTH_ACTIONS" == "true" ]]; then
+        echo "$issue_rows" | jq -R -s '
+            def sev_rank: if . == "HIGH" then 3 elif . == "MEDIUM" then 2 elif . == "LOW" then 1 else 0 end;
+            split("\n")
+            | map(select(length > 0) | split("\t"))
+            | map({type: .[0], severity: .[1], sid: .[3], action: .[7]})
+            | group_by(.type)
+            | map([
+                .[0].type,
+                (map(.severity) | max_by(sev_rank)),
+                (length|tostring),
+                ((map(.sid) | map(select(. != "-" and . != "")) | unique | length)|tostring),
+                .[0].action
+              ])
+            | (["issue","severity","count","sid_count","action"] | @csv), (.[] | @csv)
+        '
+    else
+        echo "$issue_rows" | jq -R -s '
+            def sev_rank: if . == "HIGH" then 3 elif . == "MEDIUM" then 2 elif . == "LOW" then 1 else 0 end;
+            split("\n")
+            | map(select(length > 0) | split("\t"))
+            | map({type: .[0], severity: .[1], sid: .[3]})
+            | group_by(.type)
+            | map([
+                .[0].type,
+                (map(.severity) | max_by(sev_rank)),
+                (length|tostring),
+                ((map(.sid) | map(select(. != "-" and . != "")) | unique | length)|tostring)
+              ])
+            | (["issue","severity","count","sid_count"] | @csv), (.[] | @csv)
+        '
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# Function: show_health_details_json
+# Purpose.: Output detailed health issues as JSON
+# Args....: $1 - TSV issue rows
+# Returns.: 0
+# Output..: JSON array
+# ------------------------------------------------------------------------------
+show_health_details_json() {
+    local issue_rows="$1"
+
+    if [[ "$SHOW_HEALTH_ACTIONS" == "true" ]]; then
+        echo "$issue_rows" | jq -R -s '
+            split("\n")
+            | map(select(length > 0) | split("\t"))
+            | map({
+                issue: .[0],
+                severity: .[1],
+                cluster: .[2],
+                sid: .[3],
+                target: .[4],
+                state: .[5],
+                reason: .[6],
+                action: .[7]
+              })
+        '
+    else
+        echo "$issue_rows" | jq -R -s '
+            split("\n")
+            | map(select(length > 0) | split("\t"))
+            | map({
+                issue: .[0],
+                severity: .[1],
+                cluster: .[2],
+                sid: .[3],
+                target: .[4],
+                state: .[5],
+                reason: .[6]
+              })
+        '
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# Function: show_health_details_csv
+# Purpose.: Output detailed health issues as CSV
+# Args....: $1 - TSV issue rows
+# Returns.: 0
+# Output..: CSV
+# ------------------------------------------------------------------------------
+show_health_details_csv() {
+    local issue_rows="$1"
+
+    if [[ "$SHOW_HEALTH_ACTIONS" == "true" ]]; then
+        echo "issue,severity,cluster,sid,target,state,reason,action"
+        echo "$issue_rows" | jq -R -s 'split("\n") | map(select(length > 0) | split("\t")) | .[] | @csv'
+    else
+        echo "issue,severity,cluster,sid,target,state,reason"
+        echo "$issue_rows" | jq -R -s 'split("\n") | map(select(length > 0) | split("\t") | .[0:7]) | .[] | @csv'
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# Function: show_health
+# Purpose.: Display health/troubleshooting analysis for selected scope
+# Args....: $1 - JSON data object with selected targets
+# Returns.: 0
+# Output..: Health overview and optional details
+# ------------------------------------------------------------------------------
+show_health() {
+    local json_data="$1"
+    local issue_rows
+
+    issue_rows=$(evaluate_health_issues "$json_data")
+
+    case "$OUTPUT_FORMAT" in
+        table)
+            show_health_overview_table "$issue_rows"
+            if [[ "$SHOW_HEALTH_DETAILS" == "true" ]]; then
+                show_health_details_table "$issue_rows"
+            fi
+            ;;
+        json)
+            if [[ "$SHOW_HEALTH_DETAILS" == "true" ]]; then
+                show_health_details_json "$issue_rows"
+            else
+                show_health_overview_json "$issue_rows"
+            fi
+            ;;
+        csv)
+            if [[ "$SHOW_HEALTH_DETAILS" == "true" ]]; then
+                show_health_details_csv "$issue_rows"
+            else
+                show_health_overview_csv "$issue_rows"
+            fi
+            ;;
+    esac
+}
+
+# ------------------------------------------------------------------------------
 # Function: apply_target_filter
 # Purpose.: Filter target JSON by display-name regex
 # Args....: $1 - JSON data object with .data array
@@ -1206,7 +1725,9 @@ do_work() {
     fi
 
     # Display results based on mode
-    if [[ "$SHOW_COUNT" == "true" ]]; then
+    if [[ "$SHOW_HEALTH_OVERVIEW" == "true" ]]; then
+        show_health "$json_data"
+    elif [[ "$SHOW_COUNT" == "true" ]]; then
         show_count_summary "$json_data"
     elif [[ "$SHOW_OVERVIEW" == "true" ]]; then
         show_overview "$json_data"

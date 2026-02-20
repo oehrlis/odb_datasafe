@@ -94,6 +94,9 @@
 # Dry-run mode (override with --dry-run)
 #DRY_RUN=false
 
+# Normal lifecycle states for ds_target_list.sh --health-overview
+#HEALTH_NORMAL_STATES="ACTIVE,UPDATING"
+
 # Show stack traces on errors
 #SHOW_STACKTRACE=true
 

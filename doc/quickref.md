@@ -178,6 +178,15 @@ bin/ds_target_list.sh --problems -f json
 # Show all fields for a target (JSON only)
 bin/ds_target_list.sh -T mydb01 -F all -f json
 
+# Health troubleshooting overview for selected scope
+bin/ds_target_list.sh --health-overview
+
+# Health troubleshooting details (drill-down)
+bin/ds_target_list.sh --health-overview --health-details
+
+# Health overview in JSON for automation
+bin/ds_target_list.sh --health-overview -f json
+
 # Update credentials for targets matching regex (dry-run default)
 bin/ds_target_update_credentials.sh -r "db02"
 

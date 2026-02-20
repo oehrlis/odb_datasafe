@@ -22,6 +22,7 @@ The `odb_datasafe` extension provides a complete framework for working with Orac
 - **[Quick Reference](quickref.md)** - Fast reference for all commands
 - **[Standalone Usage](standalone_usage.md)** - Run `odb_datasafe` directly from its folder
 - **[Installation Guide](install_datasafe_service.md)** - Setup instructions
+- **[Troubleshooting Guide](troubleshooting.md)** - Health overview and actions
 - **[Database Prereqs](database_prereqs.md)** - On-prem DB preparation
 - **[IAM Policies Guide](oci-iam-policies.md)** - Required OCI permissions
 - **[Release Notes](release_notes/)** - Version history and changes
@@ -217,6 +218,12 @@ bin/ds_target_list.sh -L NEEDS_ATTENTION -r "db02"
 
 # Overview grouped by cluster and SID (from target-name pattern)
 bin/ds_target_list.sh --overview
+
+# Troubleshooting health overview for selected scope
+bin/ds_target_list.sh --health-overview
+
+# Health overview with drill-down details
+bin/ds_target_list.sh --health-overview --health-details
 
 # Overview for filtered scope
 bin/ds_target_list.sh --overview -r "cluster1"
