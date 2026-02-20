@@ -52,3 +52,9 @@ setup() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"--health-details"* ]]
 }
+
+@test "ds_target_list.sh accepts output-group option" {
+    run "${BIN_DIR}/ds_target_list.sh" --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--output-group"* ]]
+}

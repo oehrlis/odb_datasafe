@@ -175,6 +175,12 @@ bin/ds_target_list.sh --group-problems -f json
 # Show problems in JSON format for automation
 bin/ds_target_list.sh --problems -f json
 
+# Use grouped output mode for overview
+bin/ds_target_list.sh --output-group overview
+
+# Use grouped output mode for troubleshooting (defaults to health overview)
+bin/ds_target_list.sh --output-group troubleshooting
+
 # Show all fields for a target (JSON only)
 bin/ds_target_list.sh -T mydb01 -F all -f json
 

@@ -33,6 +33,7 @@ readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 : "${TARGET_FILTER:=}"
 : "${LIFECYCLE_STATE:=}"
 : "${OUTPUT_FORMAT:=table}" # table|json|csv
+: "${OUTPUT_GROUP:=default}" # default|overview|troubleshooting
 : "${SHOW_COUNT:=false}"    # Default to list mode
 : "${FIELDS:=display-name,lifecycle-state,infrastructure-type}"
 : "${SHOW_PROBLEMS:=false}"
@@ -86,45 +87,59 @@ Description:
 
 Options:
   Common:
-    -h, --help              Show this help message
-    -V, --version           Show version
-    -v, --verbose           Enable verbose output
-    -d, --debug             Enable debug output
-    -q, --quiet             Suppress INFO messages (warnings/errors only)
-    -n, --dry-run           Dry-run mode (show what would be done)
-    --log-file FILE         Log to file
+    -h, --help                          Show this help message
+    -V, --version                       Show version
+    -v, --verbose                       Enable verbose output
+    -d, --debug                         Enable debug output
+    -q, --quiet                         Suppress INFO messages (warnings/errors only)
+    -n, --dry-run                       Dry-run mode (show what would be done)
+    --log-file FILE                     Log to file
 
   OCI:
-    --oci-profile PROFILE   OCI CLI profile (default: ${OCI_CLI_PROFILE:-DEFAULT})
-    --oci-region REGION     OCI region
-    --oci-config FILE       OCI config file (default: ${OCI_CLI_CONFIG_FILE:-~/.oci/config})
+    --oci-profile PROFILE               OCI CLI profile (default: ${OCI_CLI_PROFILE:-DEFAULT})
+    --oci-region REGION                 OCI region
+    --oci-config FILE                   OCI config file (default: ${OCI_CLI_CONFIG_FILE:-~/.oci/config})
 
   Selection:
-    -c, --compartment ID    Compartment OCID or name (default: DS_ROOT_COMP)
-                            Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
-    -A, --all               Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
-    -T, --targets LIST      Comma-separated target names or OCIDs (for details only)
-    -r, --filter REGEX      Filter target names by regex (substring match)
-    -L, --lifecycle STATE   Filter by lifecycle state (ACTIVE, NEEDS_ATTENTION, etc.)
+    -c, --compartment ID                Compartment OCID or name (default: DS_ROOT_COMP)
+                                        Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
+    -A, --all                           Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
+    -T, --targets LIST                  Comma-separated target names or OCIDs (for details only)
+    -r, --filter REGEX                  Filter target names by regex (substring match)
+    -L, --lifecycle STATE               Filter by lifecycle state (ACTIVE, NEEDS_ATTENTION, etc.)
 
   Output:
-    -C, --count             Show summary count by lifecycle state
-    -D, --details           Show detailed target information (default)
-        --overview          Show overview grouped by cluster and SID (from target name)
-        --overview-status               Include lifecycle counts per SID row in overview (default)
+    Mode selection (choose one primary mode):
+    -D, --details                       Show detailed target information (default)
+    -C, --count                         Show summary count by lifecycle state
+        --overview                      Show overview grouped by cluster and SID
+        --health-overview               Show troubleshooting health overview
+        --problems                      Show NEEDS_ATTENTION targets with lifecycle details
+        --group-problems                Group NEEDS_ATTENTION targets by problem type
+
+    Group selector (alternative to direct mode flags):
+    -G, --output-group GROUP            default|overview|troubleshooting
+                                        default: standard details/count behavior
+                                        overview: same as --overview
+                                        troubleshooting: health/problem group
+                                        (defaults to --health-overview)
+
+    Overview options (only with --overview or -G overview):
+        --overview-status               Include lifecycle counts per SID row (default)
         --overview-no-status            Hide lifecycle counts in overview output
         --overview-no-members           Hide member/PDB names in overview output
         --overview-truncate-members     Truncate member/PDB list in table output (default)
-        --overview-no-truncate-members  Show full member/PDB list in table output 
-        --health-overview               Show troubleshooting health overview for selected scope
+        --overview-no-truncate-members  Show full member/PDB list in table output
+
+    Troubleshooting options:
         --health-details                Include issue drill-down details (with --health-overview)
         --health-actions                Include suggested actions in health output (default)
         --health-no-actions             Hide suggested actions in health output
-    -f, --format FMT        Output format: table|json|csv (default: table)
-    -F, --fields FIELDS     Comma-separated fields for details (default: ${FIELDS})
-        --problems          Show NEEDS_ATTENTION targets with lifecycle details
-        --group-problems    Group NEEDS_ATTENTION targets by problem type with counts
-        --summary           Show only summary counts without detailed target lists (for --group-problems)
+        --summary                       Summary only for --group-problems (no target list)
+
+    Format and fields:
+    -f, --format FMT                    Output format: table|json|csv (default: table)
+    -F, --fields FIELDS                 Comma-separated fields for details (default: ${FIELDS})
 
     Overview Parsing:
         Target names are parsed as: <cluster>_<oracle_sid>_<cdb/pdb>
@@ -135,59 +150,32 @@ Options:
         DS_TARGET_NAME_SID_REGEX (used to preserve db names with underscores).
 
 Examples:
-  # Show detailed list for DS_ROOT_COMP (default)
+    # Default detailed list for DS_ROOT_COMP
   ${SCRIPT_NAME}
-
-    # Explicitly select all targets from DS_ROOT_COMP
-    ${SCRIPT_NAME} --all
 
   # Show count summary
   ${SCRIPT_NAME} -C
 
-  # Show count for specific compartment
-  ${SCRIPT_NAME} -C -c MyCompartment
+    # Grouped mode selector: overview
+    ${SCRIPT_NAME} -G overview
 
-  # Show count for NEEDS_ATTENTION only
-  ${SCRIPT_NAME} -C -L NEEDS_ATTENTION
+    # Grouped mode selector: troubleshooting (defaults to health overview)
+    ${SCRIPT_NAME} -G troubleshooting
 
-  # Show list for NEEDS_ATTENTION (quiet mode)
-  ${SCRIPT_NAME} -q -L NEEDS_ATTENTION
-
-  # Show detailed list as JSON
-  ${SCRIPT_NAME} -f json
-
-  # Show specific fields as CSV
-  ${SCRIPT_NAME} -D -f csv -F display-name,id,lifecycle-state
-
-  # Show details for specific targets
-  ${SCRIPT_NAME} -D -T target1,target2
-
-    # Show problem targets (NEEDS_ATTENTION) with details
-    ${SCRIPT_NAME} --problems
-
-  # Group problems and show count per problem type
-  ${SCRIPT_NAME} --group-problems
-
-  # Group problems summary only (no target lists)
-  ${SCRIPT_NAME} --group-problems --summary
-
-    # Overview by cluster/SID for selected scope
-    ${SCRIPT_NAME} --overview
-
-    # Overview without lifecycle status counts
-    ${SCRIPT_NAME} --overview --overview-no-status
-
-    # Overview without member/PDB names
+    # Direct overview mode with concise output
     ${SCRIPT_NAME} --overview --overview-no-members
 
-    # Overview with truncated member/PDB list in table output
-    ${SCRIPT_NAME} --overview --overview-truncate-members
-
-    # Health troubleshooting overview for selected scope
-    ${SCRIPT_NAME} --health-overview
-
-    # Health troubleshooting with issue drill-down
+    # Health troubleshooting with drill-down details
     ${SCRIPT_NAME} --health-overview --health-details
+
+    # Problems grouped summary
+    ${SCRIPT_NAME} --group-problems --summary
+
+    # JSON output for automation
+    ${SCRIPT_NAME} -f json
+
+    # More examples and operational recipes:
+    See doc/quickref.md
 
 EOF
     exit 0
@@ -243,6 +231,11 @@ parse_args() {
                 SHOW_COUNT=true
                 SHOW_COUNT_OVERRIDE=true
                 shift
+                ;;
+            -G | --output-group)
+                need_val "$1" "${2:-}"
+                OUTPUT_GROUP="$2"
+                shift 2
                 ;;
             -D | --details)
                 SHOW_COUNT=false
@@ -365,6 +358,12 @@ parse_args() {
         table | json | csv) : ;;
         *) die "Invalid output format: '${OUTPUT_FORMAT}'. Use table, json, or csv" ;;
     esac
+
+    # Validate output group
+    case "${OUTPUT_GROUP}" in
+        default | overview | troubleshooting) : ;;
+        *) die "Invalid output group: '${OUTPUT_GROUP}'. Use default, overview, or troubleshooting" ;;
+    esac
 }
 
 # ------------------------------------------------------------------------------
@@ -401,6 +400,29 @@ validate_inputs() {
     if [[ "$SHOW_COUNT" == "true" && -n "$TARGETS" ]]; then
         die "Count mode (-C) cannot be used with specific targets (-T). Use --details instead."
     fi
+
+    # Apply grouped output behavior
+    case "${OUTPUT_GROUP}" in
+        overview)
+            if [[ "$SHOW_HEALTH_OVERVIEW" == "true" || "$SHOW_PROBLEMS" == "true" || "$GROUP_PROBLEMS" == "true" || "$SHOW_COUNT" == "true" ]]; then
+                die "--output-group overview cannot be combined with health/problem/count modes"
+            fi
+            SHOW_OVERVIEW=true
+            SHOW_COUNT=false
+            ;;
+        troubleshooting)
+            if [[ "$SHOW_OVERVIEW" == "true" || "$SHOW_COUNT" == "true" ]]; then
+                die "--output-group troubleshooting cannot be combined with --overview or --count"
+            fi
+            if [[ "$SHOW_HEALTH_OVERVIEW" != "true" && "$SHOW_PROBLEMS" != "true" && "$GROUP_PROBLEMS" != "true" ]]; then
+                SHOW_HEALTH_OVERVIEW=true
+            fi
+            SHOW_COUNT=false
+            ;;
+        default)
+            :
+            ;;
+    esac
 
     # Problems mode does not support explicit targets
     if [[ "$SHOW_PROBLEMS" == "true" && -n "$TARGETS" ]]; then

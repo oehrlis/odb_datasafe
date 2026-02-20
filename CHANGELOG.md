@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added `--output-group` (`default|overview|troubleshooting`) to
+  `bin/ds_target_list.sh` to select output behavior groups directly, with
+  troubleshooting defaulting to health overview when no explicit
+  problem/health mode is provided.
+
+### Documentation
+
+- Reorganized `bin/ds_target_list.sh --help` output to group mode-specific
+  options (default/overview/troubleshooting), making mutual exclusivity and
+  option scope clearer.
+- Reduced `ds_target_list.sh` usage examples to core workflows and added a
+  direct quick reference pointer.
+- Updated `doc/index.md` and `doc/quickref.md` examples with
+  `--output-group` usage for overview and troubleshooting modes.
+
 ## [0.16.0] - 2026-02-20
 
 ### Added

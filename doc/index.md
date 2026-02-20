@@ -207,6 +207,12 @@ bin/ds_target_list.sh -L NEEDS_ATTENTION
 # Show count summary
 bin/ds_target_list.sh -C
 
+# Mode group selector: overview
+bin/ds_target_list.sh -G overview
+
+# Mode group selector: troubleshooting (defaults to health overview)
+bin/ds_target_list.sh -G troubleshooting
+
 # Output as JSON
 bin/ds_target_list.sh -f json
 
@@ -230,6 +236,9 @@ bin/ds_target_list.sh --overview -r "cluster1"
 
 # Overview with status counts hidden
 bin/ds_target_list.sh --overview --overview-no-status
+
+# More list/overview/troubleshooting examples
+# See: doc/quickref.md
 ```
 
 ### Target Management
