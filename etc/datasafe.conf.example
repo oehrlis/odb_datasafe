@@ -55,7 +55,8 @@
 #DATASAFE_USER="DS_ADMIN"
 #COMMON_USER_PREFIX="C##"
 
-# Target overview name parsing for ds_target_list.sh --overview
+# Target name parsing for ds_target_list.sh --overview and
+# root target detection in ds_target_update_credentials.sh
 # Default pattern is: <cluster>_<oracle_sid>_<cdb/pdb>
 #DS_TARGET_NAME_SEPARATOR="_"
 #DS_TARGET_NAME_CDBROOT_REGEX="^(CDB\\$ROOT|CDBROOT)$"

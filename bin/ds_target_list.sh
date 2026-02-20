@@ -102,10 +102,9 @@ Options:
   Output:
     -C, --count             Show summary count by lifecycle state
     -D, --details           Show detailed target information (default)
-                --overview          Show overview grouped by cluster and SID (from target name)
-                --overview-status   Include lifecycle counts per SID row in overview (default)
-                --overview-no-status
-                                                        Hide lifecycle counts in overview output
+        --overview          Show overview grouped by cluster and SID (from target name)
+        --overview-status   Include lifecycle counts per SID row in overview (default)
+        --overview-no-status    Hide lifecycle counts in overview output
     -f, --format FMT        Output format: table|json|csv (default: table)
     -F, --fields FIELDS     Comma-separated fields for details (default: ${FIELDS})
         --problems          Show NEEDS_ATTENTION targets with lifecycle details

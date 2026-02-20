@@ -33,7 +33,7 @@ readonly SCRIPT_VERSION
 : "${TARGETS:=}"
 : "${SELECT_ALL:=false}"
 : "${TARGET_FILTER:=}"
-: "${LIFECYCLE_STATE:=ACTIVE}"
+: "${LIFECYCLE_STATE:=}"
 : "${DS_USER:=${DATASAFE_USER:-}}"
 : "${DS_SECRET:=${DATASAFE_SECRET:-}}"
 : "${NO_PROMPT:=false}"
@@ -41,6 +41,7 @@ readonly SCRIPT_VERSION
 : "${DATASAFE_SECRET_FILE:=}"
 : "${RUN_ROOT:=false}"
 : "${COMMON_USER_PREFIX:=C##}"
+: "${DS_TARGET_NAME_CDBROOT_REGEX:=_(CDB\\\$ROOT|CDBROOT)$}"
 : "${APPLY_CHANGES:=false}"
 : "${FORCE_UPDATE:=true}"
 : "${WAIT_FOR_STATE:=}" # Empty = async (no wait); "ACCEPTED" or other for sync wait
@@ -104,14 +105,15 @@ Options:
     -A, --all               Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
     -T, --targets LIST      Comma-separated target names or OCIDs
     -r, --filter REGEX      Filter target names by regex (substring match)
-    -L, --lifecycle STATE   Filter by lifecycle state (default: ${LIFECYCLE_STATE})
+    -L, --lifecycle STATE   Filter by lifecycle state (default: all selected targets)
 
   Credentials:
     -U, --ds-user USER      Database username (default: ${DS_USER:-not set})
     -P, --ds-secret VALUE   Database secret (plain or base64)
     --secret-file FILE      Base64 secret file (optional)
     --cred-file FILE        JSON file with {\"userName\": \"user\", \"password\": \"pass\"}
-    --root                  Root normalization hint (common user with ${COMMON_USER_PREFIX})
+    --root                  Force common-user prefix for all targets (${COMMON_USER_PREFIX})
+                            (root targets are auto-prefixed even without --root)
     --no-prompt             Fail instead of prompting for missing secret
 
   Execution:
@@ -279,16 +281,44 @@ parse_args() {
 # Returns.: 0 on success
 # Output..: Username to stdout
 # ------------------------------------------------------------------------------
-resolve_ds_user() {
+resolve_base_ds_user() {
     local base_user="$DS_USER"
 
     if [[ -n "$COMMON_USER_PREFIX" && "$base_user" == ${COMMON_USER_PREFIX}* ]]; then
         base_user="${base_user#${COMMON_USER_PREFIX}}"
     fi
 
-    if [[ "$RUN_ROOT" == "true" && -n "$COMMON_USER_PREFIX" ]]; then
-        printf '%s' "${COMMON_USER_PREFIX}${base_user}"
-        return 0
+    printf '%s' "$base_user"
+}
+
+# ------------------------------------------------------------------------------
+# Function: target_is_root
+# Purpose.: Determine if target display-name represents CDB root
+# Args....: $1 - target display name
+# Returns.: 0 for root targets, 1 otherwise
+# ------------------------------------------------------------------------------
+target_is_root() {
+    local target_name="$1"
+    [[ "$target_name" =~ $DS_TARGET_NAME_CDBROOT_REGEX ]]
+}
+
+# ------------------------------------------------------------------------------
+# Function: resolve_ds_user_for_target
+# Purpose.: Resolve Data Safe username per target (auto-root aware)
+# Args....: $1 - target display name
+# Returns.: 0 on success
+# Output..: Username to stdout
+# ------------------------------------------------------------------------------
+resolve_ds_user_for_target() {
+    local target_name="$1"
+    local base_user
+    base_user=$(resolve_base_ds_user)
+
+    if [[ "$RUN_ROOT" == "true" ]] || target_is_root "$target_name"; then
+        if [[ -n "$COMMON_USER_PREFIX" ]]; then
+            printf '%s' "${COMMON_USER_PREFIX}${base_user}"
+            return 0
+        fi
     fi
 
     printf '%s' "$base_user"
@@ -342,7 +372,7 @@ validate_inputs() {
         fi
     fi
 
-    DS_USER="$(resolve_ds_user)"
+    DS_USER="$(resolve_base_ds_user)"
 
     if ! ds_validate_target_filter_regex "$TARGET_FILTER"; then
         die "Invalid filter regex: $TARGET_FILTER"
@@ -423,11 +453,15 @@ resolve_credentials() {
 # Notes...: Sets TMP_CRED_JSON global variable
 # ------------------------------------------------------------------------------
 create_temp_cred_json() {
-    TMP_CRED_JSON=$(mktemp)
+    local user_name="${1:-$DS_USER}"
+
+    if [[ -z "$TMP_CRED_JSON" || ! -f "$TMP_CRED_JSON" ]]; then
+        TMP_CRED_JSON=$(mktemp)
+    fi
 
     # Create credentials JSON
     jq -n \
-        --arg user "$DS_USER" \
+        --arg user "$user_name" \
         --arg pass "$DS_SECRET" \
         '{userName: $user, password: $pass}' > "$TMP_CRED_JSON"
 
@@ -481,11 +515,15 @@ update_target_credentials() {
     local target_ocid="$1"
     local target_name="$2"
     local lifecycle_state="${3:-UNKNOWN}"
+    local target_user
+    target_user=$(resolve_ds_user_for_target "$target_name")
+
+    create_temp_cred_json "$target_user"
 
     log_debug "Processing target: $target_name ($target_ocid)"
 
     log_info "Target: $target_name"
-    log_info "  User: $DS_USER"
+    log_info "  User: $target_user"
     log_info "  Secret: [hidden]"
     log_debug "  Lifecycle state: $lifecycle_state"
 
@@ -561,8 +599,6 @@ do_work() {
 
     # Resolve and validate credentials
     resolve_credentials
-    create_temp_cred_json
-
     # Ensure cleanup on exit
     trap cleanup_temp_files EXIT
 

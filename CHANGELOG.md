@@ -30,6 +30,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `doc/quickref.md` to document that `--apply` uses OCI `--force` by default
   and that `--no-force` enables interactive confirmation behavior.
 
+### Fixed
+
+- `bin/ds_target_update_credentials.sh` no longer defaults target collection to
+  `ACTIVE` only; it now selects all targets in scope (matching
+  `ds_target_list.sh` selection behavior) and keeps update safety checks during
+  processing.
+- `bin/ds_target_update_credentials.sh` now auto-detects root targets by name
+  suffix (`..._CDBROOT` or `..._CDB$ROOT`) and automatically applies
+  `COMMON_USER_PREFIX` to the username for those root targets.
+
 ## [0.15.3] - 2026-02-19
 
 ### Changed
