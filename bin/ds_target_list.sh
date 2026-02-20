@@ -630,14 +630,14 @@ build_overview_rows() {
         local key="${cluster}|${sid}"
         grouped_keys["$key"]=1
 
-        total_counts["$key"]=$(( ${total_counts["$key"]:-0} + 1 ))
+        total_counts["$key"]=$((${total_counts["$key"]:-0} + 1))
 
         local member_name="$db_token"
         if is_cdbroot_name "$db_token"; then
-            cdb_counts["$key"]=$(( ${cdb_counts["$key"]:-0} + 1 ))
+            cdb_counts["$key"]=$((${cdb_counts["$key"]:-0} + 1))
             member_name="$DS_TARGET_NAME_ROOT_LABEL"
         else
-            pdb_counts["$key"]=$(( ${pdb_counts["$key"]:-0} + 1 ))
+            pdb_counts["$key"]=$((${pdb_counts["$key"]:-0} + 1))
         fi
 
         local member_key="${key}|${member_name}"
@@ -651,7 +651,7 @@ build_overview_rows() {
 
         local state="${lifecycle_state:-UNKNOWN}"
         local state_key="${key}|${state}"
-        state_counts["$state_key"]=$(( ${state_counts["$state_key"]:-0} + 1 ))
+        state_counts["$state_key"]=$((${state_counts["$state_key"]:-0} + 1))
     done < <(echo "$json_data" | jq -r '.data[] | [."display-name" // "", ."lifecycle-state" // "UNKNOWN"] | @tsv')
 
     local key
@@ -1052,9 +1052,9 @@ evaluate_health_issues() {
             sid_cluster["$sid_key"]="$cluster"
 
             if is_cdbroot_name "$db_token"; then
-                sid_root_count["$sid_key"]=$(( ${sid_root_count["$sid_key"]:-0} + 1 ))
+                sid_root_count["$sid_key"]=$((${sid_root_count["$sid_key"]:-0} + 1))
             else
-                sid_pdb_count["$sid_key"]=$(( ${sid_pdb_count["$sid_key"]:-0} + 1 ))
+                sid_pdb_count["$sid_key"]=$((${sid_pdb_count["$sid_key"]:-0} + 1))
             fi
         else
             printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
