@@ -41,6 +41,7 @@ readonly SCRIPT_VERSION
 : "${CONTAINER_STAGE_TAG:=ContainerStage}"
 : "${CONTAINER_TYPE_TAG:=ContainerType}"
 : "${CLASSIFICATION_TAG:=Classification}"
+SHOW_USAGE_ON_EMPTY_ARGS=true
 
 # shellcheck disable=SC1091
 source "${LIB_DIR}/ds_lib.sh" || {

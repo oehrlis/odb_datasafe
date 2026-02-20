@@ -45,6 +45,7 @@ readonly SCRIPT_VERSION
 : "${APPLY_CHANGES:=false}"
 : "${FORCE_UPDATE:=true}"
 : "${WAIT_FOR_STATE:=}" # Empty = async (no wait); "ACCEPTED" or other for sync wait
+SHOW_USAGE_ON_EMPTY_ARGS=true
 
 # shellcheck disable=SC1091
 source "${LIB_DIR}/ds_lib.sh" || {

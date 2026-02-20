@@ -50,6 +50,7 @@ source "${LIB_DIR}/ds_lib.sh"
 : "${CONTINUE_ON_ERROR:=true}" # Continue processing other targets if one fails
 : "${FORCE:=false}"            # Skip confirmation prompts
 : "${DRY_RUN:=false}"
+SHOW_USAGE_ON_EMPTY_ARGS=true
 
 # Runtime
 COMP_OCID=""

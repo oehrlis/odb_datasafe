@@ -37,6 +37,7 @@ readonly SCRIPT_VERSION
 : "${DB_DOMAIN:=oradba.ch}"
 : "${APPLY_CHANGES:=false}"
 : "${WAIT_FOR_STATE:=}"
+SHOW_USAGE_ON_EMPTY_ARGS=true
 
 # shellcheck disable=SC1091
 source "${LIB_DIR}/ds_lib.sh" || {

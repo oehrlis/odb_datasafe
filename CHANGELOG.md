@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Added opt-in no-argument usage behavior in `lib/common.sh` via
+  `SHOW_USAGE_ON_EMPTY_ARGS=true` for scripts that require explicit
+  operational intent.
+- Enabled no-argument help/usage defaults for:
+  `ds_target_update_connector.sh`, `ds_target_update_credentials.sh`,
+  `ds_target_update_service.sh`, `ds_target_update_tags.sh`,
+  `ds_target_move.sh`, `ds_target_register.sh`, `ds_target_delete.sh`,
+  `ds_target_audit_trail.sh`, and `ds_connector_register_oradba.sh`.
+
+### Documentation
+
+- Added a "Default Behavior Without Parameters" section to `doc/quickref.md`
+  listing scripts that execute with defaults vs scripts that show help by
+  default.
+
 ### Fixed
 
 - Hardened shared CLI argument parsing for strict `set -u` handling by

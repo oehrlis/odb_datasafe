@@ -32,6 +32,7 @@ readonly COMMON_SH_LOADED=1
 : "${SCRIPT_NAME:=$(basename "${BASH_SOURCE[-1]}")}"
 : "${SCRIPT_VERSION:=}"
 : "${SCRIPT_DIR:=$(cd "$(dirname "${BASH_SOURCE[-1]}")" && pwd)}"
+: "${SHOW_USAGE_ON_EMPTY_ARGS:=false}"
 
 # Shared argument array used by parse_common_opts and script-specific parsers.
 # Keep initialized for nounset-safe use in callers (set -- "${ARGS[@]-}").
@@ -366,6 +367,14 @@ need_val() {
 # Notes...: Call this FIRST, then parse script-specific args
 # ------------------------------------------------------------------------------
 parse_common_opts() {
+    if [[ $# -eq 0 && "${SHOW_USAGE_ON_EMPTY_ARGS}" == "true" ]]; then
+        if declare -f usage > /dev/null 2>&1; then
+            usage
+        else
+            die "Help not available"
+        fi
+    fi
+
     ARGS=()
 
     while [[ $# -gt 0 ]]; do

@@ -209,7 +209,29 @@ bin/ds_target_update_tags.sh -r "db02" --apply
 bin/ds_target_update_service.sh -c "MyCompartment" -r "db02" --apply
 ```
 
-### 4. On-Prem Database Prereqs
+### 4. Default Behavior Without Parameters
+
+Scripts with useful no-argument defaults (execute immediately):
+
+- `bin/ds_target_list.sh` → list targets in default scope (`DS_ROOT_COMP` fallback)
+- `bin/ds_target_list_connector.sh` → list connectors in default scope
+- `bin/ds_target_connector_summary.sh` → connector summary output
+- `bin/ds_target_refresh.sh` → refresh `NEEDS_ATTENTION` targets in default scope
+- `bin/ds_tg_report.sh` → report type `all`
+
+Scripts requiring explicit intent show usage/help when started without parameters:
+
+- `bin/ds_target_update_connector.sh`
+- `bin/ds_target_update_credentials.sh`
+- `bin/ds_target_update_service.sh`
+- `bin/ds_target_update_tags.sh`
+- `bin/ds_target_move.sh`
+- `bin/ds_target_register.sh`
+- `bin/ds_target_delete.sh`
+- `bin/ds_target_audit_trail.sh`
+- `bin/ds_connector_register_oradba.sh`
+
+### 5. On-Prem Database Prereqs
 
 `ds_database_prereqs.sh` runs locally on the DB host and creates/updates the
 Data Safe profile, user, and grants. You can use the embedded payload in the
