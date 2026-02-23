@@ -2122,6 +2122,7 @@ build_consolidated_report_json() {
     local lifecycle_counts_json
     local overview_rows
     local issue_rows
+    local issue_analytics_json
     local issue_summary_json
     local needs_attention_breakdown_json
     local top_sids_json
@@ -2156,68 +2157,68 @@ build_consolidated_report_json() {
     overview_rows=$(build_overview_rows "$json_data")
     issue_rows=$(evaluate_health_issues "$json_data")
 
-    issue_summary_json=$(echo "$issue_rows" | jq -R -s '
+    issue_analytics_json=$(jq -R -s '
         def sev_rank: if . == "HIGH" then 3 elif . == "MEDIUM" then 2 elif . == "LOW" then 1 else 0 end;
-        split("\n")
-        | map(select(length > 0) | split("\t"))
-        | map({type: .[0], severity: .[1], sid: .[3], action: .[7]})
-        | group_by(.type)
-        | map({
-            issue: .[0].type,
-            severity: (map(.severity) | max_by(sev_rank)),
-            count: length,
-            sid_count: (map(.sid) | map(select(. != "-" and . != "")) | unique | length),
-            action: .[0].action
-          })
-        | sort_by(-(.severity|sev_rank), -.count, -.sid_count, .issue)
-    ')
+        def map_category:
+            if . == "TARGET_NEEDS_ATTENTION_ACCOUNT_LOCKED" or . == "TARGET_NEEDS_ATTENTION_CREDENTIALS" then "credential issue"
+            elif . == "TARGET_NEEDS_ATTENTION_CONNECTIVITY" then "connectivity/timeout"
+            else "other/unknown"
+            end;
+        (split("\n") | map(select(length > 0) | split("\t"))) as $rows
+        | ($rows | map({type: .[0], severity: .[1], sid: .[3], action: .[7]})) as $issues
+        | {
+            issue_summary:
+                ($issues
+                 | group_by(.type)
+                 | map({
+                     issue: .[0].type,
+                     severity: (map(.severity) | max_by(sev_rank)),
+                     count: length,
+                     sid_count: (map(.sid) | map(select(. != "-" and . != "")) | unique | length),
+                     action: .[0].action
+                   })
+                 | sort_by(-(.severity | sev_rank), -.count, -.sid_count, .issue)),
+            needs_attention_breakdown:
+                ($issues
+                 | map(select(.type | startswith("TARGET_NEEDS_ATTENTION")))
+                 | map({category: (.type | map_category), sid: .sid})
+                 | group_by(.category)
+                 | map({
+                     category: .[0].category,
+                     count: length,
+                     sid_count: (map(.sid) | map(select(. != "-" and . != "")) | unique | length),
+                     sids: (map(.sid) | map(select(. != "-" and . != "")) | unique | sort)
+                   })
+                 | sort_by(-.count, .category)),
+            top_sids:
+                ($issues
+                 | map({severity: .severity, sid: .sid})
+                 | map(select(.sid != "-" and .sid != ""))
+                 | group_by(.sid)
+                 | map({
+                     sid: .[0].sid,
+                     total: length,
+                     high: (map(select(.severity == "HIGH")) | length),
+                     medium: (map(select(.severity == "MEDIUM")) | length),
+                     low: (map(select(.severity == "LOW")) | length)
+                   })
+                 | sort_by(-.total, -.high, .sid)
+                 | .[0:10]),
+            top_sids_total:
+                ($issues
+                 | map(.sid)
+                 | map(select(. != "-" and . != ""))
+                 | unique
+                 | length),
+            total_issue_count: ($rows | length),
+            naming_nonstandard_count: ($rows | map(select(.[0] == "TARGET_NAMING_NONSTANDARD")) | length)
+          }
+    ' <<< "$issue_rows")
 
-        needs_attention_breakdown_json=$(echo "$issue_rows" | jq -R -s '
-                def map_category:
-                        if . == "TARGET_NEEDS_ATTENTION_ACCOUNT_LOCKED" or . == "TARGET_NEEDS_ATTENTION_CREDENTIALS" then "credential issue"
-                        elif . == "TARGET_NEEDS_ATTENTION_CONNECTIVITY" then "connectivity/timeout"
-                        else "other/unknown"
-                        end;
-                split("\n")
-                | map(select(length > 0) | split("\t"))
-                | map({type: .[0], sid: .[3]})
-                | map(select(.type | startswith("TARGET_NEEDS_ATTENTION")))
-                | map({category: (.type | map_category), sid: .sid})
-                | group_by(.category)
-                | map({
-                        category: .[0].category,
-                        count: length,
-                        sid_count: (map(.sid) | map(select(. != "-" and . != "")) | unique | length),
-                        sids: (map(.sid) | map(select(. != "-" and . != "")) | unique | sort)
-                    })
-                | sort_by(-.count, .category)
-        ')
-
-        top_sids_json=$(echo "$issue_rows" | jq -R -s '
-                split("\n")
-                | map(select(length > 0) | split("\t"))
-                | map({severity: .[1], sid: .[3]})
-                | map(select(.sid != "-" and .sid != ""))
-                | group_by(.sid)
-                | map({
-                        sid: .[0].sid,
-                        total: length,
-                        high: (map(select(.severity == "HIGH")) | length),
-                        medium: (map(select(.severity == "MEDIUM")) | length),
-                        low: (map(select(.severity == "LOW")) | length)
-                    })
-                | sort_by(-.total, -.high, .sid)
-                | .[0:10]
-        ')
-
-    top_sids_total=$(echo "$issue_rows" | jq -R -s '
-        split("\n")
-        | map(select(length > 0) | split("\t"))
-        | map(.[3])
-        | map(select(. != "-" and . != ""))
-        | unique
-        | length
-    ')
+    issue_summary_json=$(jq -c '.issue_summary' <<< "$issue_analytics_json")
+    needs_attention_breakdown_json=$(jq -c '.needs_attention_breakdown' <<< "$issue_analytics_json")
+    top_sids_json=$(jq -c '.top_sids' <<< "$issue_analytics_json")
+    top_sids_total=$(jq -r '.top_sids_total' <<< "$issue_analytics_json")
 
     local total_clusters=0
     local total_sids=0
@@ -2240,10 +2241,10 @@ build_consolidated_report_json() {
     total_clusters=${#seen_clusters[@]}
 
     local total_issue_count=0
-    total_issue_count=$(printf '%s\n' "$issue_rows" | sed '/^$/d' | wc -l | tr -d '[:space:]')
+    total_issue_count=$(jq -r '.total_issue_count' <<< "$issue_analytics_json")
 
     local naming_nonstandard_count=0
-    naming_nonstandard_count=$(echo "$issue_rows" | awk -F '\t' '$1 == "TARGET_NAMING_NONSTANDARD" {count++} END {print count+0}')
+    naming_nonstandard_count=$(jq -r '.naming_nonstandard_count' <<< "$issue_analytics_json")
 
     coverage_sid_cdb_ratio=$(safe_div "$total_cdbroots" "$total_sids" 4)
     coverage_avg_pdb_per_cdb=$(safe_div "$total_pdbs" "$total_cdbroots" 4)
@@ -2334,6 +2335,7 @@ build_consolidated_report_json() {
 # ------------------------------------------------------------------------------
 show_report_table() {
     local report_json="$1"
+    local report_meta_row
     local total_sids
     local total_sids_int
     local sid_cdb_ratio
@@ -2342,54 +2344,91 @@ show_report_table() {
     local avg_targets_per_sid
     local needs_attention_total
     local label_width=11
+    local run_id
+    local run_timestamp
+    local scope_type
     local context_label
     local context_ocid
+    local compartment_name
+    local compartment_ocid
+    local filters
+    local raw_targets
+    local selected_scope_targets
+    local selected_targets
+    local total_clusters
+    local total_cdb_roots
+    local total_pdbs
+    local sids_with_root
     local context_display
     local total_issues
+    local warning_parse_skipped
+    local warning_naming_nonstandard
+    local shown_top_sids
+    local total_top_sids
 
-    total_sids=$(echo "$report_json" | jq '.landscape.sids')
+    report_meta_row=$(jq -r '
+        [
+            .run.id,
+            .run.timestamp,
+            .scope.type,
+            (.scope.label // "-"),
+            (if .scope.compartment_ocid == null or .scope.compartment_ocid == "" then "" else .scope.compartment_ocid end),
+            (if .scope.compartment_name == null or .scope.compartment_name == "" then "-" else .scope.compartment_name end),
+            (if .scope.compartment_ocid == null or .scope.compartment_ocid == "" then "-" else .scope.compartment_ocid end),
+            (.scope.filters // "none"),
+            (.scope.raw_targets | tostring),
+            (.scope.selected_targets | tostring),
+            (.targets.selected | tostring),
+            (.landscape.clusters | tostring),
+            (.landscape.sids | tostring),
+            (.landscape.sids_with_root | tostring),
+            (.landscape.cdb_roots | tostring),
+            (.landscape.pdbs | tostring),
+            (.issues.total | tostring),
+            (.coverage_metrics.sid_to_cdb_ratio | tostring),
+            (.coverage_metrics.avg_pdbs_per_cdb | tostring),
+            (.coverage_metrics.avg_targets_per_sid | tostring),
+            (.needs_attention.total | tostring),
+            (.warnings.overview_parse_skipped | tostring),
+            (.warnings.naming_nonstandard | tostring),
+            (.top_affected_sids | length | tostring),
+            (.top_affected_sids_total | tostring)
+        ] | join("\u001f")
+    ' <<< "$report_json")
+
+    IFS=$'\x1f' read -r run_id run_timestamp scope_type context_label context_ocid compartment_name compartment_ocid filters raw_targets selected_scope_targets selected_targets total_clusters total_sids sids_with_root total_cdb_roots total_pdbs total_issues sid_cdb_ratio avg_pdb_per_cdb avg_targets_per_sid needs_attention_total warning_parse_skipped warning_naming_nonstandard shown_top_sids total_top_sids <<< "$report_meta_row"
+
     total_sids_int=${total_sids:-0}
-    total_issues=$(echo "$report_json" | jq '.issues.total')
-    context_label=$(echo "$report_json" | jq -r '.scope.label // "-"')
-    context_ocid=$(echo "$report_json" | jq -r 'if .scope.compartment_ocid == null or .scope.compartment_ocid == "" then "" else .scope.compartment_ocid end')
     context_display="$context_label"
     if [[ "$context_label" == "DS_ROOT_COMP" && -n "$context_ocid" ]]; then
         context_display="${context_label} (${context_ocid})"
     fi
 
     printf "\nData Safe Target Report (High-Level)\n"
-    printf "%-*s : %s\n" "$label_width" "Run ID" "$(echo "$report_json" | jq -r '.run.id')"
-    printf "%-*s : %s\n" "$label_width" "Generated" "$(echo "$report_json" | jq -r '.run.timestamp')"
-    printf "%-*s : %s\n" "$label_width" "Scope" "$(echo "$report_json" | jq -r '.scope.type')"
+    printf "%-*s : %s\n" "$label_width" "Run ID" "$run_id"
+    printf "%-*s : %s\n" "$label_width" "Generated" "$run_timestamp"
+    printf "%-*s : %s\n" "$label_width" "Scope" "$scope_type"
     printf "%-*s : %s\n" "$label_width" "Context" "$context_display"
-    printf "%-*s : %s (%s)\n" "$label_width" "Compartment" \
-        "$(echo "$report_json" | jq -r 'if .scope.compartment_name == null or .scope.compartment_name == "" then "-" else .scope.compartment_name end')" \
-        "$(echo "$report_json" | jq -r 'if .scope.compartment_ocid == null or .scope.compartment_ocid == "" then "-" else .scope.compartment_ocid end')"
-    printf "%-*s : %s\n" "$label_width" "Filters" "$(echo "$report_json" | jq -r '.scope.filters // "none"')"
+    printf "%-*s : %s (%s)\n" "$label_width" "Compartment" "$compartment_name" "$compartment_ocid"
+    printf "%-*s : %s\n" "$label_width" "Filters" "$filters"
     printf "%-*s : raw=%s selected=%s\n" "$label_width" "Targets" \
-        "$(echo "$report_json" | jq -r '.scope.raw_targets')" \
-        "$(echo "$report_json" | jq -r '.scope.selected_targets')"
+        "$raw_targets" \
+        "$selected_scope_targets"
     printf "\n"
 
-    printf "%-28s %10d\n" "Selected targets" "$(echo "$report_json" | jq '.targets.selected')"
-    printf "%-28s %10d\n" "Total clusters" "$(echo "$report_json" | jq '.landscape.clusters')"
-    printf "%-28s %10d\n" "Total Oracle SIDs" "$(echo "$report_json" | jq '.landscape.sids')"
-    printf "%-28s %10d\n" "Total CDB roots" "$(echo "$report_json" | jq '.landscape.cdb_roots')"
-    printf "%-28s %10d\n" "Total PDBs" "$(echo "$report_json" | jq '.landscape.pdbs')"
-    printf "%-28s %10d\n" "Total issues" "$(echo "$report_json" | jq '.issues.total')"
+    printf "%-28s %10d\n" "Selected targets" "$selected_targets"
+    printf "%-28s %10d\n" "Total clusters" "$total_clusters"
+    printf "%-28s %10d\n" "Total Oracle SIDs" "$total_sids"
+    printf "%-28s %10d\n" "Total CDB roots" "$total_cdb_roots"
+    printf "%-28s %10d\n" "Total PDBs" "$total_pdbs"
+    printf "%-28s %10d\n" "Total issues" "$total_issues"
     printf "\n"
 
-    sid_cdb_ratio=$(echo "$report_json" | jq -r '.coverage_metrics.sid_to_cdb_ratio')
     sid_cdb_pct=$(format_pct "$sid_cdb_ratio")
-    avg_pdb_per_cdb=$(echo "$report_json" | jq -r '.coverage_metrics.avg_pdbs_per_cdb')
-    avg_targets_per_sid=$(echo "$report_json" | jq -r '.coverage_metrics.avg_targets_per_sid')
 
     printf "Coverage Metrics:\n"
-    printf "  SID->CDB coverage : %s/%s (%s)\n" \
-        "$(echo "$report_json" | jq -r '.landscape.sids_with_root')" \
-        "$(echo "$report_json" | jq -r '.landscape.sids')" \
-        "$sid_cdb_pct"
-    printf "  CDB root targets : %s\n" "$(echo "$report_json" | jq -r '.landscape.cdb_roots')"
+    printf "  SID->CDB coverage : %s/%s (%s)\n" "$sids_with_root" "$total_sids" "$sid_cdb_pct"
+    printf "  CDB root targets : %s\n" "$total_cdb_roots"
     printf "  Avg PDBs per CDB : %.2f\n" "$avg_pdb_per_cdb"
     printf "  Avg targets/SID  : %.2f\n" "$avg_targets_per_sid"
     printf "\n"
@@ -2399,7 +2438,6 @@ show_report_table() {
         | while IFS=$'\t' read -r lifecycle_state lifecycle_count; do
             printf "  - %-19s : %s\n" "$lifecycle_state" "$lifecycle_count"
         done
-    needs_attention_total=$(echo "$report_json" | jq -r '.needs_attention.total')
     if [[ "$needs_attention_total" -gt 0 ]]; then
         printf "\nNEEDS_ATTENTION breakdown (total=%s):\n" "$needs_attention_total"
         printf "%-23s %7s %7s %s\n" "Category" "Count" "SIDs" "Sample SIDs"
@@ -2416,8 +2454,8 @@ show_report_table() {
     printf "\n"
 
     printf "Warnings:\n"
-    printf "  - Overview parse skipped: %s\n" "$(echo "$report_json" | jq -r '.warnings.overview_parse_skipped')"
-    printf "  - Naming non-standard:    %s\n" "$(echo "$report_json" | jq -r '.warnings.naming_nonstandard')"
+    printf "  - Overview parse skipped: %s\n" "$warning_parse_skipped"
+    printf "  - Naming non-standard:    %s\n" "$warning_naming_nonstandard"
     printf "\n"
 
     if [[ "$total_issues" -gt 0 ]]; then
@@ -2447,11 +2485,6 @@ show_report_table() {
         printf "Issue summary: none\n"
     fi
     printf "\n"
-
-    local shown_top_sids
-    local total_top_sids
-    shown_top_sids=$(echo "$report_json" | jq '.top_affected_sids | length')
-    total_top_sids=$(echo "$report_json" | jq '.top_affected_sids_total')
 
     if [[ "$total_top_sids" -gt 0 ]]; then
         printf "Top affected SIDs (top 10 by issue count):\n"
