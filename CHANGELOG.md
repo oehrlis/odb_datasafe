@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-02-23
+
 ### Changed
 
 - `bin/ds_target_list.sh` mode model was simplified and normalized:
@@ -65,7 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated `doc/index.md` and `doc/quickref.md` examples and flag descriptions
   to reflect the current `ds_target_list.sh` mode aliases/options
   (`health` mode naming, overview flags, report aliases, and logging behavior).
-- Updated `doc/release_notes/v0.16.2.md` to reflect the current consolidated
+- Updated `doc/release_notes/v0.17.0.md` to reflect the current consolidated
   `ds_target_list.sh` CLI and issue-summary output model.
 - Updated script help and tests for `--input-json` / `--save-json` coverage in
   Phase 1 read-only target analysis commands.
@@ -77,6 +79,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added safeguard-focused help/docs/tests for Phase 3 mutating-script replay
   in `update_credentials` and `update_service`, including blocked-by-default
   apply from `--input-json` snapshots.
+
+### Fixed
+
+- `bin/ds_target_refresh.sh` now treats OCI refresh `Conflict` responses with
+  "operation already in progress" as non-fatal skips so bulk refresh runs
+  continue and report skipped targets instead of aborting.
 
 ## [0.16.2] - 2026-02-20
 
