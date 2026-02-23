@@ -109,14 +109,14 @@ Options:
     --oci-config FILE                   OCI config file (default: ${OCI_CLI_CONFIG_FILE:-~/.oci/config})
 
   Selection:
-        -c, --compartment ID                Compartment OCID or name (default: DS_ROOT_COMP)
+    -c, --compartment ID                Compartment OCID or name (default: DS_ROOT_COMP)
                                         Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
     -A, --all                           Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
     -T, --targets LIST                  Comma-separated target names or OCIDs
     -r, --filter REGEX                  Filter target names by regex (substring match)
     -L, --lifecycle STATE               Filter by lifecycle state (ACTIVE, NEEDS_ATTENTION, etc.)
-    --input-json FILE                   Load selected target JSON from file (skip OCI fetch)
-    --save-json FILE                    Save selected target JSON to file for reuse
+        --input-json FILE               Load selected target JSON from file (skip OCI fetch)
+        --save-json FILE                Save selected target JSON to file for reuse
 
     Output:
         Mode selection (single entry point):
@@ -134,22 +134,22 @@ Options:
             --report                    Alias for --mode report
             --details                   Alias for --mode details (default)
 
-    Troubleshooting drill-down (for --mode health|problems):
-            --issue-view VIEW               summary|details (default: summary)
-            --issue ISSUE                   Filter to one issue (code or label text)
-            --action                        Include suggested actions (default)
-            --no-action                     Hide suggested actions
+        Troubleshooting drill-down (for --mode health|problems):
+            --issue-view VIEW           summary|details (default: summary)
+            --issue ISSUE               Filter to one issue (code or label text)
+            --action                    Include suggested actions (default)
+            --no-action                 Hide suggested actions
 
-    Overview options (only with --mode overview):
-        --status                            Include lifecycle counts per SID row (default)
-        --no-status                         Hide lifecycle counts in overview output
-        --no-members                        Hide member/PDB names in overview output
-        --truncate-members                  Truncate member/PDB list in table output (default)
-        --no-truncate-members               Show full member/PDB list in table output
+        Overview options (only with --mode overview):
+            --status                    Include lifecycle counts per SID row (default)
+            --no-status                 Hide lifecycle counts in overview output
+            --no-members                Hide member/PDB names in overview output
+            --truncate-members          Truncate member/PDB list in table output (default)
+            --no-truncate-members       Show full member/PDB list in table output
 
     Format and fields:
-    -f, --format FMT                        Output format: table|json|csv (default: table)
-    -F, --fields FIELDS                     Comma-separated fields for details (default: ${FIELDS})
+    -f, --format FMT                    Output format: table|json|csv (default: table)
+    -F, --fields FIELDS                 Comma-separated fields for details (default: ${FIELDS})
 
     Overview Parsing:
         Target names are parsed as: <cluster>_<oracle_sid>_<cdb/pdb>
@@ -1598,14 +1598,97 @@ evaluate_health_issues() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: summarize_issue_rows_json
+# Purpose.: Aggregate TSV issue rows into summary JSON
+# Args....: $1 - TSV issue rows
+# Returns.: 0
+# Output..: JSON array with issue,severity,count,sid_count,action
+# ------------------------------------------------------------------------------
+summarize_issue_rows_json() {
+    local issue_rows="$1"
+
+    jq -R -s '
+        def sev_rank: if . == "HIGH" then 3 elif . == "MEDIUM" then 2 elif . == "LOW" then 1 else 0 end;
+        split("\n")
+        | map(select(length > 0) | split("\t"))
+        | map({issue: .[0], severity: .[1], sid: .[3], action: .[7]})
+        | group_by(.issue)
+        | map({
+            issue: .[0].issue,
+            severity: (map(.severity) | max_by(sev_rank)),
+            count: length,
+            sid_count: (map(.sid) | map(select(. != "-" and . != "")) | unique | length),
+            action: .[0].action
+          })
+        | sort_by(-(.severity|sev_rank), -.count, -.sid_count, .issue)
+    ' <<< "$issue_rows"
+}
+
+# ------------------------------------------------------------------------------
+# Function: show_issue_summary_table
+# Purpose.: Render issue summary table in a unified report-style layout
+# Args....: $1 - summary JSON array
+#           $2 - total SID count for SID % calculation
+#           $3 - show action column (true|false, default: true)
+# Returns.: 0
+# Output..: formatted issue summary table
+# ------------------------------------------------------------------------------
+show_issue_summary_table() {
+    local summary_json="$1"
+    local total_sids="${2:-0}"
+    local show_actions="${3:-true}"
+
+    if [[ "$show_actions" == "true" ]]; then
+        printf "%-44s %-8s %8s %8s %7s %s\n" "Issue" "Severity" "Count" "SIDs" "SID %" "Suggested Action"
+        printf "%-44s %-8s %8s %8s %7s %s\n" "--------------------------------------------" "--------" "--------" "--------" "-------" "------------------------------"
+        jq -r '.[] | [.issue, .severity, (.count|tostring), (.sid_count|tostring), (.action // "")] | @tsv' <<< "$summary_json" \
+            | while IFS=$'\t' read -r issue_type severity count sid_count action; do
+                local issue_display
+                local sid_ratio
+                local sid_pct
+                local action_display
+                issue_display="$(health_issue_label "$issue_type")"
+                if [[ ${#issue_display} -gt 44 ]]; then
+                    issue_display="${issue_display:0:41}..."
+                fi
+                action_display="$action"
+                if [[ -z "$action_display" ]]; then
+                    action_display="$(health_issue_action "$issue_type")"
+                fi
+                sid_ratio=$(safe_div "$sid_count" "$total_sids" 4)
+                sid_pct=$(format_pct "$sid_ratio")
+                printf "%-44s %-8s %8d %8d %7s %s\n" "$issue_display" "$severity" "$count" "$sid_count" "$sid_pct" "$action_display"
+            done
+    else
+        printf "%-44s %-8s %8s %8s %7s\n" "Issue" "Severity" "Count" "SIDs" "SID %"
+        printf "%-44s %-8s %8s %8s %7s\n" "--------------------------------------------" "--------" "--------" "--------" "-------"
+        jq -r '.[] | [.issue, .severity, (.count|tostring), (.sid_count|tostring)] | @tsv' <<< "$summary_json" \
+            | while IFS=$'\t' read -r issue_type severity count sid_count; do
+                local issue_display
+                local sid_ratio
+                local sid_pct
+                issue_display="$(health_issue_label "$issue_type")"
+                if [[ ${#issue_display} -gt 44 ]]; then
+                    issue_display="${issue_display:0:41}..."
+                fi
+                sid_ratio=$(safe_div "$sid_count" "$total_sids" 4)
+                sid_pct=$(format_pct "$sid_ratio")
+                printf "%-44s %-8s %8d %8d %7s\n" "$issue_display" "$severity" "$count" "$sid_count" "$sid_pct"
+            done
+    fi
+}
+
+# ------------------------------------------------------------------------------
 # Function: show_health_overview_table
 # Purpose.: Display summarized health issue overview
 # Args....: $1 - TSV issue rows
+#           $2 - total SID count
 # Returns.: 0
 # Output..: Health summary table
 # ------------------------------------------------------------------------------
 show_health_overview_table() {
     local issue_rows="$1"
+    local total_sids="${2:-0}"
 
     if [[ -z "$issue_rows" ]]; then
         printf "\nNo health issues detected for selected scope.\n\n"
@@ -1613,47 +1696,10 @@ show_health_overview_table() {
     fi
 
     local grouped
-    grouped=$(echo "$issue_rows" | jq -R -s '
-        def sev_rank: if . == "HIGH" then 3 elif . == "MEDIUM" then 2 elif . == "LOW" then 1 else 0 end;
-        split("\n")
-        | map(select(length > 0) | split("\t"))
-        | map({type: .[0], severity: .[1], sid: .[3], action: .[7]})
-        | group_by(.type)
-        | map({
-            type: .[0].type,
-            severity: (map(.severity) | max_by(sev_rank)),
-            count: length,
-            sid_count: (map(.sid) | map(select(. != "-" and . != "")) | unique | length),
-            action: .[0].action
-          })
-                | sort_by(-(.severity|sev_rank), -.count, -.sid_count, .type)
-    ')
+    grouped=$(summarize_issue_rows_json "$issue_rows")
 
-    if [[ "$SHOW_HEALTH_ACTIONS" == "true" ]]; then
-        printf "\n%-44s %-8s %8s %8s %s\n" "Issue" "Severity" "Count" "SIDs" "Suggested Action"
-        printf "%-44s %-8s %8s %8s %s\n" "--------------------------------------------" "--------" "--------" "--------" "------------------------------"
-        echo "$grouped" | jq -r '.[] | [.type, .severity, (.count|tostring), (.sid_count|tostring), .action] | @tsv' \
-            | while IFS=$'\t' read -r issue_type severity count sid_count action; do
-                local issue_display
-                issue_display="$(health_issue_label "$issue_type")"
-                if [[ ${#issue_display} -gt 44 ]]; then
-                    issue_display="${issue_display:0:41}..."
-                fi
-                printf "%-44s %-8s %8d %8d %s\n" "$issue_display" "$severity" "$count" "$sid_count" "$action"
-            done
-    else
-        printf "\n%-44s %-8s %8s %8s\n" "Issue" "Severity" "Count" "SIDs"
-        printf "%-44s %-8s %8s %8s\n" "--------------------------------------------" "--------" "--------" "--------"
-        echo "$grouped" | jq -r '.[] | [.type, .severity, (.count|tostring), (.sid_count|tostring)] | @tsv' \
-            | while IFS=$'\t' read -r issue_type severity count sid_count; do
-                local issue_display
-                issue_display="$(health_issue_label "$issue_type")"
-                if [[ ${#issue_display} -gt 44 ]]; then
-                    issue_display="${issue_display:0:41}..."
-                fi
-                printf "%-44s %-8s %8d %8d\n" "$issue_display" "$severity" "$count" "$sid_count"
-            done
-    fi
+    printf "\n"
+    show_issue_summary_table "$grouped" "$total_sids" "$SHOW_HEALTH_ACTIONS"
     printf "\n"
 }
 
@@ -1866,8 +1912,10 @@ show_health_details_csv() {
 show_health() {
     local json_data="$1"
     local issue_rows
+    local total_sids=0
 
     issue_rows=$(evaluate_health_issues "$json_data")
+    total_sids=$(build_overview_rows "$json_data" | sed '/^$/d' | wc -l | tr -d '[:space:]')
 
     issue_rows=$(filter_health_scope_rows "$issue_rows" "$HEALTH_SCOPE")
 
@@ -1904,7 +1952,7 @@ show_health() {
 
     case "$OUTPUT_FORMAT" in
         table)
-            show_health_overview_table "$issue_rows"
+            show_health_overview_table "$issue_rows" "$total_sids"
             if [[ "$SHOW_HEALTH_DETAILS" == "true" ]]; then
                 show_health_details_table "$issue_rows"
             fi
@@ -2459,28 +2507,10 @@ show_report_table() {
     printf "\n"
 
     if [[ "$total_issues" -gt 0 ]]; then
+        local issue_summary_json
+        issue_summary_json=$(jq -c '.issues.summary' <<< "$report_json")
         printf "Issue summary (severity/count/SIDs):\n"
-        printf "%-44s %-8s %8s %8s %7s %s\n" "Issue" "Severity" "Count" "SIDs" "SID %" "Suggested Action"
-        printf "%-44s %-8s %8s %8s %7s %s\n" "--------------------------------------------" "--------" "--------" "--------" "-------" "------------------------------"
-        echo "$report_json" | jq -r '.issues.summary[] | [.issue, .severity, (.count|tostring), (.sid_count|tostring), (.action // "")] | @tsv' \
-            | while IFS=$'\t' read -r issue_type severity count sid_count action; do
-                local issue_display
-                local sid_ratio
-                local sid_pct
-                local action_display
-                issue_display="$(health_issue_label "$issue_type")"
-                if [[ ${#issue_display} -gt 44 ]]; then
-                    issue_display="${issue_display:0:41}..."
-                fi
-                action_display="$action"
-                if [[ -z "$action_display" ]]; then
-                    action_display="$(health_issue_action "$issue_type")"
-                fi
-
-                sid_ratio=$(safe_div "$sid_count" "$total_sids_int" 4)
-                sid_pct=$(format_pct "$sid_ratio")
-                printf "%-44s %-8s %8d %8d %7s %s\n" "$issue_display" "$severity" "$count" "$sid_count" "$sid_pct" "$action_display"
-            done
+        show_issue_summary_table "$issue_summary_json" "$total_sids_int" "true"
     else
         printf "Issue summary: none\n"
     fi

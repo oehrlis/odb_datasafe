@@ -139,10 +139,10 @@ All scripts support:
 
 ```bash
 -h, --help         Show usage information
--d, --debug        Enable debug logging
--q, --quiet        Suppress info messages
+-d, --debug        Show TRACE/DEBUG/INFO/WARN/ERROR logs
+-q, --quiet        Show WARN/ERROR logs (default behavior)
 -n, --dry-run      Show what would be done (no changes)
--v, --verbose      Verbose output
+-v, --verbose      Show INFO/WARN/ERROR logs
 ```
 
 Many scripts also support:
@@ -206,13 +206,7 @@ bin/ds_target_list.sh
 bin/ds_target_list.sh -L NEEDS_ATTENTION
 
 # Show count summary
-bin/ds_target_list.sh -C
-
-# Mode group selector: overview
-bin/ds_target_list.sh -G overview
-
-# Mode group selector: troubleshooting (defaults to health overview)
-bin/ds_target_list.sh -G troubleshooting
+bin/ds_target_list.sh --count
 
 # Output as JSON
 bin/ds_target_list.sh -f json
@@ -227,16 +221,16 @@ bin/ds_target_list.sh -L NEEDS_ATTENTION -r "db02"
 bin/ds_target_list.sh --overview
 
 # Troubleshooting health overview for selected scope
-bin/ds_target_list.sh --health-overview
+bin/ds_target_list.sh --health
 
 # Health overview with drill-down details
-bin/ds_target_list.sh --health-overview --health-details
+bin/ds_target_list.sh --health --issue-view details
 
 # Overview for filtered scope
 bin/ds_target_list.sh --overview -r "cluster1"
 
 # Overview with status counts hidden
-bin/ds_target_list.sh --overview --overview-no-status
+bin/ds_target_list.sh --overview --no-status
 
 # One-page consolidated high-level report
 bin/ds_target_list.sh --report
@@ -256,7 +250,7 @@ bin/ds_target_list.sh --input-json ./target_selection.json --report
 # including SID % blast-radius values
 
 # Reuse saved payload with additional local filtering
-bin/ds_target_list.sh --input-json ./target_selection.json -r "db02" --mode issues
+bin/ds_target_list.sh --input-json ./target_selection.json -r "db02" --mode health
 
 # More list/overview/troubleshooting examples
 # See: doc/quickref.md

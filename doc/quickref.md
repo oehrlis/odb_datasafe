@@ -94,7 +94,7 @@ bin/ds_target_list.sh
 bin/ds_target_list.sh --overview
 
 # Overview with status counts disabled
-bin/ds_target_list.sh --overview --overview-no-status
+bin/ds_target_list.sh --overview --no-status
 
 # List Data Safe on-premises connectors
 bin/ds_target_list_connector.sh
@@ -106,12 +106,12 @@ bin/ds_target_connector_summary.sh
 bin/ds_target_connector_summary.sh -D
 
 # Show count summary by lifecycle state
-bin/ds_target_list.sh -C
+bin/ds_target_list.sh --count
 
-# Quiet mode (suppress INFO messages)
+# Quiet mode (default; warnings/errors only)
 bin/ds_target_list.sh -q
 
-# Debug mode (detailed logging)
+# Debug mode (TRACE+DEBUG plus higher levels)
 bin/ds_target_list.sh -d
 
 # Filter by lifecycle state
@@ -161,13 +161,13 @@ bin/ds_target_activate.sh -c "MyCompartment" -T db1,db2 --apply
 bin/ds_target_activate.sh -c "MyCompartment" -r "db02" --apply
 
 # Consolidated issue summary (all issue categories)
-bin/ds_target_list.sh --mode issues
+bin/ds_target_list.sh --mode health
 
-# Problems-only summary (NEEDS_ATTENTION categories)
+# Problems-only summary (NEEDS_ATTENTION + INACTIVE + UNEXPECTED_STATE)
 bin/ds_target_list.sh --mode problems
 
 # Drill down into one issue topic (code or label)
-bin/ds_target_list.sh --mode issues --issue-view details --issue "SID missing CDB root"
+bin/ds_target_list.sh --mode health --issue-view details --issue "SID missing CDB root"
 
 # Overview mode
 bin/ds_target_list.sh --mode overview
@@ -192,13 +192,13 @@ bin/ds_target_list.sh --input-json ./target_selection.json --report
 # collapse to "none" for cleaner healthy-scope output
 
 # Reuse saved payload with additional local filtering
-bin/ds_target_list.sh --input-json ./target_selection.json -r "db02" --mode issues
+bin/ds_target_list.sh --input-json ./target_selection.json -r "db02" --mode health
 
 # Show all fields for a target (JSON only)
 bin/ds_target_list.sh -T mydb01 -F all -f json
 
 # Issue summary in JSON for automation
-bin/ds_target_list.sh --mode issues -f json
+bin/ds_target_list.sh --mode health -f json
 
 # Update credentials for targets matching regex (dry-run default)
 bin/ds_target_update_credentials.sh -r "db02"

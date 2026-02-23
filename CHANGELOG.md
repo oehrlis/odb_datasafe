@@ -10,6 +10,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `bin/ds_target_list.sh` mode model was simplified and normalized:
+  `--mode details|count|overview|health|problems|report` with direct aliases
+  `--details`, `--count`, `--overview`, `--health`, `--problems`, `--report`.
+- `bin/ds_target_list.sh` troubleshooting options were unified to:
+  `--issue-view`, `--issue`, `--action`, and `--no-action`.
+- `bin/ds_target_list.sh` overview toggles were streamlined to:
+  `--status`, `--no-status`, `--no-members`,
+  `--truncate-members`, and `--no-truncate-members`.
+- `bin/ds_target_list.sh` issue-summary table output was consolidated so
+  `--mode health`, `--mode problems`, and `--mode report` share the same
+  report-style columns (`Issue`, `Severity`, `Count`, `SIDs`, `SID %`,
+  `Suggested Action`).
+- `--mode problems` now intentionally scopes to actionable runtime issues
+  (`TARGET_NEEDS_ATTENTION*`, `TARGET_INACTIVE`, `TARGET_UNEXPECTED_STATE`)
+  and still supports drill-down via `--issue-view details`.
+- Report-generation processing in `bin/ds_target_list.sh` now performs fewer
+  repeated `jq` scans by consolidating issue analytics and report metadata
+  extraction paths.
+- Removed dead helper functions in `bin/ds_target_list.sh` that were no longer
+  part of the active execution path.
 - Logging defaults were tightened to be quiet by default across scripts:
   default output now suppresses `INFO`/`DEBUG`/`TRACE` logs and only shows
   `WARN`/`ERROR`/`FATAL`.
@@ -20,6 +40,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `parse_common_opts` now explicitly resets per-invocation baseline log level
   to quiet (`WARN`) before applying CLI log flags, preventing environment or
   config carry-over from re-enabling noisy logs unexpectedly.
+
+### Documentation
+
+- Updated `doc/index.md` and `doc/quickref.md` examples and flag descriptions
+  to reflect the current `ds_target_list.sh` mode aliases/options
+  (`health` mode naming, overview flags, report aliases, and logging behavior).
+- Updated `doc/release_notes/v0.16.2.md` to reflect the current consolidated
+  `ds_target_list.sh` CLI and issue-summary output model.
 
 ## [0.16.2] - 2026-02-20
 
