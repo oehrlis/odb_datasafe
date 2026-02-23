@@ -10,9 +10,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+## [0.17.1] - 2026-02-23
+
+### Changed
+
 - Added backward-compatible short mode aliases in `bin/ds_target_list.sh`:
   `-C` (count), `-H` (health), `-P` (problems), and `-R` (report), while
   preserving existing long options and `--mode` usage.
+- Aligned the `Delta vs previous run` report section in `bin/ds_target_list.sh`
+  using fixed-width labels for cleaner and more consistent terminal output.
+
 
 ## [0.17.0] - 2026-02-23
 

@@ -4,7 +4,7 @@ Oracle Data Safe management extension for OraDBA - comprehensive tools for manag
 OCI Data Safe targets, connectors, and operations.
 
 Current version: see [`../VERSION`](../VERSION) | [Release Notes](release_notes/)
-Latest release: [v0.17.0](release_notes/v0.17.0.md)
+Latest release: [v0.17.1](release_notes/v0.17.1.md)
 
 ## Overview
 
@@ -26,8 +26,8 @@ The `odb_datasafe` extension provides a complete framework for working with Orac
 - **[Database Prereqs](database_prereqs.md)** - On-prem DB preparation
 - **[IAM Policies Guide](oci-iam-policies.md)** - Required OCI permissions
 - **[Release Notes](release_notes/)** - Version history and changes
-- **[v0.17.0 Release Note](release_notes/v0.17.0.md)** - consolidated reporting,
-  JSON replay/save rollout, and guarded mutating workflows
+- **[v0.17.1 Release Note](release_notes/v0.17.1.md)** - report delta alignment
+   polish and short mode alias compatibility updates
 - **[CHANGELOG](../CHANGELOG.md)** - Complete version history
 
 ## Quick Start
