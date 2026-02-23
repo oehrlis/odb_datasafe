@@ -252,6 +252,15 @@ bin/ds_target_list.sh --input-json ./target_selection.json --report
 # Reuse saved payload with additional local filtering
 bin/ds_target_list.sh --input-json ./target_selection.json -r "db02" --mode health
 
+# Reuse saved payload for target-group report and untagged scan
+bin/ds_tg_report.sh --input-json ./target_selection.json -r env
+bin/ds_find_untagged_targets.sh --input-json ./target_selection.json
+
+# Reuse saved payload for connector summary and detail/export workflows
+bin/ds_target_connector_summary.sh --input-json ./target_selection.json
+bin/ds_target_details.sh --input-json ./target_selection.json -f json
+bin/ds_target_export.sh --input-json ./target_selection.json -F json -o targets.json
+
 # More list/overview/troubleshooting examples
 # See: doc/quickref.md
 ```

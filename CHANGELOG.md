@@ -40,6 +40,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `parse_common_opts` now explicitly resets per-invocation baseline log level
   to quiet (`WARN`) before applying CLI log flags, preventing environment or
   config carry-over from re-enabling noisy logs unexpectedly.
+- Added reusable target-source helpers in `lib/oci_helpers.sh` for
+  normalized JSON load/save and source collection (`ds_collect_targets_source`)
+  supporting OCI and local payload workflows.
+- Added Phase 1 `--input-json` / `--save-json` support to read-only scripts:
+  `bin/ds_tg_report.sh`, `bin/ds_find_untagged_targets.sh`, and
+  `bin/ds_target_connector_summary.sh`.
+- Added Phase 2 `--input-json` / `--save-json` support to
+  `bin/ds_target_export.sh` and `bin/ds_target_details.sh`, including
+  local payload processing paths for offline detail/export workflows.
 
 ### Documentation
 
@@ -48,6 +57,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`health` mode naming, overview flags, report aliases, and logging behavior).
 - Updated `doc/release_notes/v0.16.2.md` to reflect the current consolidated
   `ds_target_list.sh` CLI and issue-summary output model.
+- Updated script help and tests for `--input-json` / `--save-json` coverage in
+  Phase 1 read-only target analysis commands.
+- Added script help, quick reference examples, and targeted tests for Phase 2
+  export/details input-json and save-json workflows.
 
 ## [0.16.2] - 2026-02-20
 

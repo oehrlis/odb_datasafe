@@ -105,6 +105,15 @@ bin/ds_target_connector_summary.sh
 # Show detailed targets per connector
 bin/ds_target_connector_summary.sh -D
 
+# Generate target-group report (all sections)
+bin/ds_tg_report.sh
+
+# Run target-group report from saved target JSON
+bin/ds_tg_report.sh --input-json ./target_selection.json -r env
+
+# Persist selected targets while running report
+bin/ds_tg_report.sh -c prod-compartment --save-json ./target_selection.json
+
 # Show count summary by lifecycle state
 bin/ds_target_list.sh --count
 
@@ -341,6 +350,12 @@ bin/ds_target_connector_summary.sh -f csv
 
 # Detailed view with custom fields
 bin/ds_target_connector_summary.sh -D -F display-name,lifecycle-state,id
+
+# Run connector summary from saved target selection JSON (no OCI target list)
+bin/ds_target_connector_summary.sh --input-json ./target_selection.json
+
+# Persist selected targets while generating summary
+bin/ds_target_connector_summary.sh -c prod-compartment --save-json ./target_selection.json
 ```
 
 ### 5. Connector Management
@@ -733,6 +748,12 @@ ds_find_untagged_targets.sh -n Security -o csv
 
 # Find in specific compartment
 ds_find_untagged_targets.sh -c prod-compartment
+
+# Find untagged from saved target selection JSON
+ds_find_untagged_targets.sh --input-json ./target_selection.json
+
+# Persist selected targets from OCI for offline reuse
+ds_find_untagged_targets.sh -c prod-compartment --save-json ./target_selection.json
 ```
 
 ### Start Audit Trails
@@ -802,6 +823,12 @@ ds_target_details.sh -c prod-compartment -O json
 
 # Get cluster/CDB/PDB info for specific target
 ds_target_details.sh -T my-target-id -O table
+
+# Load details from saved target selection payload
+ds_target_details.sh --input-json ./target_selection.json -f json
+
+# Persist selected targets while collecting details
+ds_target_details.sh -c prod-compartment --save-json ./target_selection.json -f json
 ```
 
 ## 🆕 New in v0.3.1
@@ -817,6 +844,12 @@ ds_target_export.sh -c prod-compartment -L ACTIVE -F json -o targets.json
 
 # Export targets created since specific date
 ds_target_export.sh -c prod-compartment -D 2025-01-01
+
+# Export from saved target selection payload
+ds_target_export.sh --input-json ./target_selection.json -F json -o targets.json
+
+# Persist selected targets for offline reuse
+ds_target_export.sh -c prod-compartment --save-json ./target_selection.json
 ```
 
 ### Register New Targets
