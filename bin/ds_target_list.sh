@@ -35,9 +35,9 @@ readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 : "${INPUT_JSON:=}"
 : "${SAVE_JSON:=}"
 : "${OUTPUT_FORMAT:=table}" # table|json|csv
-: "${MODE:=details}" # details|count|overview|health|problems|report
-: "${ISSUE_VIEW:=summary}" # summary|details
-: "${HEALTH_SCOPE:=all}" # all|needs_attention
+: "${MODE:=details}"        # details|count|overview|health|problems|report
+: "${ISSUE_VIEW:=summary}"  # summary|details
+: "${HEALTH_SCOPE:=all}"    # all|needs_attention
 : "${FIELDS:=display-name,lifecycle-state,infrastructure-type}"
 : "${OVERVIEW_INCLUDE_STATUS:=true}"
 : "${OVERVIEW_INCLUDE_MEMBERS:=true}"
@@ -474,8 +474,7 @@ validate_inputs() {
     HEALTH_SCOPE="all"
 
     case "${MODE}" in
-        health)
-            ;;
+        health) ;;
         problems)
             HEALTH_SCOPE="needs_attention"
             ;;

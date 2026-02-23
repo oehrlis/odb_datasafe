@@ -35,13 +35,13 @@ setup() {
 @test "ds_target_list.sh accepts overview-no-members option" {
     run "${BIN_DIR}/ds_target_list.sh" --help
     [ "$status" -eq 0 ]
-    [[ "$output" == *"--overview-no-members"* ]]
+    [[ "$output" == *"--no-members"* ]]
 }
 
 @test "ds_target_list.sh accepts overview-truncate-members option" {
     run "${BIN_DIR}/ds_target_list.sh" --help
     [ "$status" -eq 0 ]
-    [[ "$output" == *"--overview-truncate-members"* ]]
+    [[ "$output" == *"--truncate-members"* ]]
 }
 
 @test "ds_target_list.sh accepts health overview option" {
@@ -65,7 +65,7 @@ setup() {
 @test "ds_target_list.sh accepts simplified health option" {
     run "${BIN_DIR}/ds_target_list.sh" --help
     [ "$status" -eq 0 ]
-    [[ "$output" == *"--mode MODE"* ]] && [[ "$output" == *"issues|problems"* ]]
+    [[ "$output" == *"--mode MODE"* ]] && [[ "$output" == *"health|problems"* ]]
 }
 
 @test "ds_target_list.sh accepts health issue drill-down option" {
@@ -78,7 +78,7 @@ setup() {
     run "${BIN_DIR}/ds_target_list.sh" --help
     [ "$status" -eq 0 ]
     [[ "$output" == *"--mode MODE"* ]]
-    [[ "$output" == *"details|count|overview|issues|problems|report"* ]]
+    [[ "$output" == *"details|count|overview|health|problems|report"* ]]
     [[ "$output" == *"--report"* ]]
     [[ "$output" == *"--input-json FILE"* ]]
     [[ "$output" == *"--save-json FILE"* ]]

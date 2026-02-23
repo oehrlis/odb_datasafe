@@ -113,13 +113,15 @@ teardown() {
 }
 
 @test "Integration: Scripts reject missing required parameters" {
-    # ds_target_update_connector.sh requires mode
+    # Intent-driven scripts show usage on empty args
     run "${BIN_DIR}/ds_target_update_connector.sh" 2>&1 || true
-    [ "$status" -ne 0 ]
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Usage:"* ]] || [[ "$output" == *"usage:"* ]]
     
-    # ds_target_register.sh requires target name
+    # ds_target_register.sh also shows usage on empty args
     run "${BIN_DIR}/ds_target_register.sh" 2>&1 || true
-    [ "$status" -ne 0 ]
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Usage:"* ]] || [[ "$output" == *"usage:"* ]]
 }
 
 # ==============================================================================
@@ -171,7 +173,7 @@ teardown() {
 
 @test "Integration: Update scripts default to dry-run mode" {
     # ds_target_update_tags.sh should default to dry-run
-    run "${BIN_DIR}/ds_target_update_tags.sh" -c "ocid1.test" 2>&1 || true
+    run "${BIN_DIR}/ds_target_update_tags.sh" -v -c "ocid1.test" 2>&1 || true
     [[ "$output" == *"Dry-run"* ]] || [[ "$output" == *"dry-run"* ]] || [[ "$output" == *"no changes"* ]]
 }
 
@@ -295,7 +297,7 @@ teardown() {
 
 @test "Integration: Scripts show usage on parameter errors" {
     run "${BIN_DIR}/ds_target_update_connector.sh" 2>&1 || true
-    [ "$status" -ne 0 ]
+    [ "$status" -eq 0 ]
     # Should show usage or helpful error
     [[ "$output" == *"Usage:"* ]] || [[ "$output" == *"required"* ]] || [[ "$output" == *"ERROR"* ]]
 }

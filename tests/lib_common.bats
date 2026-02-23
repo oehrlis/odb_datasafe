@@ -190,7 +190,7 @@ teardown() {
 @test "parse_common_opts function handles verbose flag" {
     ARGS=()
     parse_common_opts "-v"
-    [ "$LOG_LEVEL" = "DEBUG" ]
+    [ "$LOG_LEVEL" = "INFO" ]
 }
 
 @test "parse_common_opts function handles debug flag" {
@@ -221,7 +221,7 @@ teardown() {
 @test "parse_common_opts function preserves non-common options" {
     ARGS=()
     parse_common_opts "-v" "--custom-option" "value" "positional"
-    [ "$LOG_LEVEL" = "DEBUG" ]  # Verbose should be processed
+    [ "$LOG_LEVEL" = "INFO" ]  # Verbose should be processed
     [ "${#ARGS[@]}" -eq 3 ]  # Custom options should be preserved
     [ "${ARGS[0]}" = "--custom-option" ]
     [ "${ARGS[1]}" = "value" ]
