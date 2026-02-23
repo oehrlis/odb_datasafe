@@ -1945,53 +1945,6 @@ apply_target_filter() {
 }
 
 # ------------------------------------------------------------------------------
-# Function: list_targets_in_compartment
-# Purpose.: List all targets in compartment
-# Args....: $1 - compartment OCID or name
-# Returns.: 0 on success, 1 on error
-# Output..: JSON array of targets to stdout
-# ------------------------------------------------------------------------------
-list_targets_in_compartment() {
-    local compartment="$1"
-    local comp_ocid
-
-    comp_ocid=$(oci_resolve_compartment_ocid "$compartment") || return 1
-
-    log_debug "Listing targets in compartment OCID: $comp_ocid"
-
-    local -a cmd=(
-        data-safe target-database list
-        --compartment-id "$comp_ocid"
-        --compartment-id-in-subtree true
-        --all
-    )
-
-    if [[ -n "$LIFECYCLE_STATE" ]]; then
-        cmd+=(--lifecycle-state "$LIFECYCLE_STATE")
-        log_debug "Filtering by lifecycle state: $LIFECYCLE_STATE"
-    fi
-
-    oci_exec "${cmd[@]}"
-}
-
-# ------------------------------------------------------------------------------
-# Function: get_target_details
-# Purpose.: Get details for specific target
-# Args....: $1 - target OCID
-# Returns.: 0 on success, 1 on error
-# Output..: JSON object to stdout
-# ------------------------------------------------------------------------------
-get_target_details() {
-    local target_ocid="$1"
-
-    log_debug "Getting details for: $target_ocid"
-
-    oci_exec data-safe target-database get \
-        --target-database-id "$target_ocid" \
-        --query 'data'
-}
-
-# ------------------------------------------------------------------------------
 # Function: show_count_summary
 # Purpose.: Display count summary grouped by lifecycle state
 # Args....: $1 - JSON data
