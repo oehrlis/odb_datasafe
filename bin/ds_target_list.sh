@@ -127,11 +127,11 @@ Options:
                                             health: full troubleshooting issue model
                                             problems: focused issue model (NEEDS_ATTENTION/INACTIVE/UNEXPECTED_STATE)
                                             report: one-page high-level consolidated summary
-            --count                     Alias for --mode count
-            --problems                  Alias for --mode problems
+        -C, --count                     Alias for --mode count
+        -P, --problems                  Alias for --mode problems
             --overview                  Alias for --mode overview
-            --health                    Alias for --mode health
-            --report                    Alias for --mode report
+        -H, --health                    Alias for --mode health
+        -R, --report                    Alias for --mode report
             --details                   Alias for --mode details (default)
 
         Troubleshooting drill-down (for --mode health|problems):
@@ -164,19 +164,19 @@ Examples:
     ${SCRIPT_NAME}
 
     # Show count summary
-    ${SCRIPT_NAME} --mode count
+    ${SCRIPT_NAME} -C
 
     # Grouped landscape overview
     ${SCRIPT_NAME} --mode overview
 
     # Full health issue summary across all issue types
-    ${SCRIPT_NAME} --mode health
+    ${SCRIPT_NAME} -H
 
     # NEEDS_ATTENTION-focused problem summary
-    ${SCRIPT_NAME} --mode problems
+    ${SCRIPT_NAME} -P
 
     # One-page consolidated high-level report
-    ${SCRIPT_NAME} --mode report
+    ${SCRIPT_NAME} -R
 
     # Reuse a previously saved selection payload
     ${SCRIPT_NAME} --input-json ./target_selection.json --mode report
@@ -257,11 +257,11 @@ parse_args() {
                 MODE="$2"
                 shift 2
                 ;;
-            --count)
+            -C | --count)
                 MODE="count"
                 shift
                 ;;
-            --problems)
+            -P | --problems)
                 MODE="problems"
                 shift
                 ;;
@@ -269,11 +269,11 @@ parse_args() {
                 MODE="overview"
                 shift
                 ;;
-            --health)
+            -H | --health)
                 MODE="health"
                 shift
                 ;;
-            --report)
+            -R | --report)
                 MODE="report"
                 shift
                 ;;
@@ -2474,10 +2474,10 @@ show_report_table() {
     sid_cdb_pct=$(format_pct "$sid_cdb_ratio")
 
     printf "Coverage Metrics:\n"
-    printf "  SID->CDB coverage : %s/%s (%s)\n" "$sids_with_root" "$total_sids" "$sid_cdb_pct"
-    printf "  CDB root targets : %s\n" "$total_cdb_roots"
-    printf "  Avg PDBs per CDB : %.2f\n" "$avg_pdb_per_cdb"
-    printf "  Avg targets/SID  : %.2f\n" "$avg_targets_per_sid"
+    printf "  %-17s : %s/%s (%s)\n" "SID->CDB coverage" "$sids_with_root" "$total_sids" "$sid_cdb_pct"
+    printf "  %-17s : %s\n" "CDB root targets" "$total_cdb_roots"
+    printf "  %-17s : %.2f\n" "Avg PDBs per CDB" "$avg_pdb_per_cdb"
+    printf "  %-17s : %.2f\n" "Avg targets/SID" "$avg_targets_per_sid"
     printf "\n"
 
     printf "Lifecycle distribution:\n"

@@ -181,6 +181,13 @@ bin/ds_target_list.sh --mode health
 # Problems-only summary (NEEDS_ATTENTION + INACTIVE + UNEXPECTED_STATE)
 bin/ds_target_list.sh --mode problems
 
+# Backward-compatible short aliases for mode switching
+# -C=count, -H=health, -P=problems, -R=report
+bin/ds_target_list.sh -C
+bin/ds_target_list.sh -H
+bin/ds_target_list.sh -P
+bin/ds_target_list.sh -R
+
 # Drill down into one issue topic (code or label)
 bin/ds_target_list.sh --mode health --issue-view details --issue "SID missing CDB root"
 

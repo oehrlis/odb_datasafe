@@ -238,6 +238,12 @@ bin/ds_target_list.sh --report
 # Equivalent explicit mode selector for consolidated report
 bin/ds_target_list.sh --mode report
 
+# Backward-compatible short mode aliases
+bin/ds_target_list.sh -C    # count
+bin/ds_target_list.sh -H    # health
+bin/ds_target_list.sh -P    # problems
+bin/ds_target_list.sh -R    # report
+
 # Save selected target JSON payload for reuse
 bin/ds_target_list.sh --all --save-json ./target_selection.json
 

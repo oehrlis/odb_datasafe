@@ -237,6 +237,15 @@ teardown() {
     [[ "$output" != *"Unknown option"* ]]
 }
 
+@test "Integration: ds_target_list.sh supports short mode aliases" {
+    local mode_flags=("-C" "-H" "-P" "-R")
+
+    for mode_flag in "${mode_flags[@]}"; do
+        run "${BIN_DIR}/ds_target_list.sh" "$mode_flag" -c "ocid1.test" 2>&1 || true
+        [[ "$output" != *"Unknown option"* ]]
+    done
+}
+
 # ==============================================================================
 # Integration Tests: Workflow Compatibility
 # ==============================================================================

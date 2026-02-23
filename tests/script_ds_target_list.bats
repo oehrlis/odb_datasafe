@@ -84,6 +84,15 @@ setup() {
     [[ "$output" == *"--save-json FILE"* ]]
 }
 
+@test "ds_target_list.sh help includes short mode aliases" {
+    run "${BIN_DIR}/ds_target_list.sh" --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"-C, --count"* ]]
+    [[ "$output" == *"-H, --health"* ]]
+    [[ "$output" == *"-P, --problems"* ]]
+    [[ "$output" == *"-R, --report"* ]]
+}
+
 @test "ds_target_list.sh report mode works from input json" {
     local sample_json="${BATS_TEST_TMPDIR}/ds_target_list_sample.json"
 
