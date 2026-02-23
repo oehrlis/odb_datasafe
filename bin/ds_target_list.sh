@@ -35,26 +35,16 @@ readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 : "${INPUT_JSON:=}"
 : "${SAVE_JSON:=}"
 : "${OUTPUT_FORMAT:=table}" # table|json|csv
-: "${OUTPUT_GROUP:=default}" # default|overview|troubleshooting
-: "${MODE:=details}" # details|count|overview|issues|problems|report
+: "${MODE:=details}" # details|count|overview|health|problems|report
 : "${ISSUE_VIEW:=summary}" # summary|details
 : "${HEALTH_SCOPE:=all}" # all|needs_attention
-: "${SHOW_COUNT:=false}"    # Default to list mode
 : "${FIELDS:=display-name,lifecycle-state,infrastructure-type}"
-: "${SHOW_PROBLEMS:=false}"
-: "${SHOW_REPORT:=false}"
-: "${GROUP_PROBLEMS:=false}"
-: "${SHOW_DETAILS:=true}"
-: "${SHOW_OVERVIEW:=false}"
 : "${OVERVIEW_INCLUDE_STATUS:=true}"
 : "${OVERVIEW_INCLUDE_MEMBERS:=true}"
 : "${OVERVIEW_TRUNCATE_MEMBERS:=true}"
 : "${OVERVIEW_MEMBERS_MAX_WIDTH:=80}"
-: "${SHOW_HEALTH_OVERVIEW:=false}"
 : "${SHOW_HEALTH_DETAILS:=false}"
 : "${SHOW_HEALTH_ACTIONS:=true}"
-: "${HEALTH_MODE:=summary}" # summary|details
-: "${HEALTH_MODE_EXPLICIT:=false}"
 : "${HEALTH_ISSUE_FILTER:=}"
 : "${HEALTH_NORMAL_STATES:=ACTIVE,UPDATING}"
 : "${DS_TARGET_NAME_REGEX:=}"
@@ -122,7 +112,7 @@ Options:
         -c, --compartment ID                Compartment OCID or name (default: DS_ROOT_COMP)
                                         Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
     -A, --all                           Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
-    -T, --targets LIST                  Comma-separated target names or OCIDs (for details only)
+    -T, --targets LIST                  Comma-separated target names or OCIDs
     -r, --filter REGEX                  Filter target names by regex (substring match)
     -L, --lifecycle STATE               Filter by lifecycle state (ACTIVE, NEEDS_ATTENTION, etc.)
     --input-json FILE                   Load selected target JSON from file (skip OCI fetch)
@@ -130,27 +120,32 @@ Options:
 
     Output:
         Mode selection (single entry point):
-        -M, --mode MODE                 details|count|overview|issues|problems|report
+        -M, --mode MODE                 details|count|overview|health|problems|report
                                             details: default target list
                                             count: lifecycle summary counts
                                             overview: grouped cluster/SID landscape
-                                            issues: full troubleshooting issue model
-                                            problems: NEEDS_ATTENTION-only issue model
+                                            health: full troubleshooting issue model
+                                            problems: focused issue model (NEEDS_ATTENTION/INACTIVE/UNEXPECTED_STATE)
                                             report: one-page high-level consolidated summary
-                            --report                        Alias for --mode report
+            --count                     Alias for --mode count
+            --problems                  Alias for --mode problems
+            --overview                  Alias for --mode overview
+            --health                    Alias for --mode health
+            --report                    Alias for --mode report
+            --details                   Alias for --mode details (default)
 
-    Troubleshooting drill-down (for --mode issues|problems):
+    Troubleshooting drill-down (for --mode health|problems):
             --issue-view VIEW               summary|details (default: summary)
             --issue ISSUE                   Filter to one issue (code or label text)
-            --health-actions                Include suggested actions in health output (default)
-            --health-no-actions             Hide suggested actions in health output
+            --action                        Include suggested actions (default)
+            --no-action                     Hide suggested actions
 
     Overview options (only with --mode overview):
-        --overview-status                   Include lifecycle counts per SID row (default)
-        --overview-no-status                Hide lifecycle counts in overview output
-        --overview-no-members               Hide member/PDB names in overview output
-        --overview-truncate-members         Truncate member/PDB list in table output (default)
-        --overview-no-truncate-members      Show full member/PDB list in table output
+        --status                            Include lifecycle counts per SID row (default)
+        --no-status                         Hide lifecycle counts in overview output
+        --no-members                        Hide member/PDB names in overview output
+        --truncate-members                  Truncate member/PDB list in table output (default)
+        --no-truncate-members               Show full member/PDB list in table output
 
     Format and fields:
     -f, --format FMT                        Output format: table|json|csv (default: table)
@@ -174,23 +169,23 @@ Examples:
     # Grouped landscape overview
     ${SCRIPT_NAME} --mode overview
 
-    # Full issue summary across all issue types
-    ${SCRIPT_NAME} --mode issues
+    # Full health issue summary across all issue types
+    ${SCRIPT_NAME} --mode health
 
     # NEEDS_ATTENTION-focused problem summary
     ${SCRIPT_NAME} --mode problems
 
     # One-page consolidated high-level report
-    ${SCRIPT_NAME} --report
+    ${SCRIPT_NAME} --mode report
 
     # Reuse a previously saved selection payload
-    ${SCRIPT_NAME} --input-json ./target_selection.json --report
+    ${SCRIPT_NAME} --input-json ./target_selection.json --mode report
 
     # Save selected targets for further processing
     ${SCRIPT_NAME} --save-json ./target_selection.json --mode overview
 
     # Drill down to one issue topic
-    ${SCRIPT_NAME} --mode issues --issue-view details --issue "SID missing CDB root"
+    ${SCRIPT_NAME} --mode health --issue-view details --issue "SID missing CDB root"
 
     # JSON output for automation
     ${SCRIPT_NAME} -f json
@@ -215,7 +210,6 @@ parse_args() {
     # Reset defaults (override any env/config values)
     # These can be explicitly set via command-line options
     [[ -z "${OUTPUT_FORMAT_OVERRIDE:-}" ]] && OUTPUT_FORMAT="table"
-    [[ -z "${SHOW_COUNT_OVERRIDE:-}" ]] && SHOW_COUNT="false"
     [[ -z "${FIELDS_OVERRIDE:-}" ]] && FIELDS="display-name,lifecycle-state,infrastructure-type"
 
     # Parse script-specific options
@@ -258,98 +252,58 @@ parse_args() {
                 SAVE_JSON="$2"
                 shift 2
                 ;;
-            -C | --count)
-                SHOW_COUNT=true
-                SHOW_COUNT_OVERRIDE=true
-                MODE="count"
-                shift
-                ;;
             -M | --mode)
                 need_val "$1" "${2:-}"
                 MODE="$2"
                 shift 2
                 ;;
-            --report)
-                MODE="report"
-                SHOW_COUNT=false
-                SHOW_COUNT_OVERRIDE=true
+            --count)
+                MODE="count"
                 shift
                 ;;
-            -G | --output-group)
-                need_val "$1" "${2:-}"
-                OUTPUT_GROUP="$2"
-                shift 2
-                ;;
-            -D | --details)
-                SHOW_COUNT=false
-                SHOW_COUNT_OVERRIDE=true
-                MODE="details"
+            --problems)
+                MODE="problems"
                 shift
                 ;;
             --overview)
-                SHOW_OVERVIEW=true
-                SHOW_COUNT=false
-                SHOW_COUNT_OVERRIDE=true
                 MODE="overview"
                 shift
                 ;;
-            --overview-status)
+            --health)
+                MODE="health"
+                shift
+                ;;
+            --report)
+                MODE="report"
+                shift
+                ;;
+            --details)
+                MODE="details"
+                shift
+                ;;
+            --status)
                 OVERVIEW_INCLUDE_STATUS=true
                 shift
                 ;;
-            --overview-no-status)
+            --no-status)
                 OVERVIEW_INCLUDE_STATUS=false
                 shift
                 ;;
-            --overview-no-members)
+            --no-members)
                 OVERVIEW_INCLUDE_MEMBERS=false
                 shift
                 ;;
-            --overview-truncate-members)
+            --truncate-members)
                 OVERVIEW_TRUNCATE_MEMBERS=true
                 shift
                 ;;
-            --overview-no-truncate-members)
+            --no-truncate-members)
                 OVERVIEW_TRUNCATE_MEMBERS=false
-                shift
-                ;;
-            --health-overview)
-                SHOW_HEALTH_OVERVIEW=true
-                SHOW_COUNT=false
-                SHOW_COUNT_OVERRIDE=true
-                MODE="issues"
-                shift
-                ;;
-            --health)
-                SHOW_HEALTH_OVERVIEW=true
-                SHOW_COUNT=false
-                SHOW_COUNT_OVERRIDE=true
-                HEALTH_MODE_EXPLICIT=true
-                if [[ $# -gt 1 && "${2:-}" != -* ]]; then
-                    ISSUE_VIEW="$2"
-                    shift 2
-                else
-                    ISSUE_VIEW="summary"
-                    shift
-                fi
-                MODE="issues"
-                ;;
-            --health-details)
-                SHOW_HEALTH_DETAILS=true
-                SHOW_HEALTH_OVERVIEW=true
-                SHOW_COUNT=false
-                SHOW_COUNT_OVERRIDE=true
-                ISSUE_VIEW="details"
-                MODE="issues"
                 shift
                 ;;
             --issue)
                 need_val "$1" "${2:-}"
                 HEALTH_ISSUE_FILTER="$2"
-                SHOW_HEALTH_OVERVIEW=true
-                SHOW_COUNT=false
-                SHOW_COUNT_OVERRIDE=true
-                MODE="issues"
                 shift 2
                 ;;
             --issue-view)
@@ -357,11 +311,11 @@ parse_args() {
                 ISSUE_VIEW="$2"
                 shift 2
                 ;;
-            --health-actions)
+            --action)
                 SHOW_HEALTH_ACTIONS=true
                 shift
                 ;;
-            --health-no-actions)
+            --no-action)
                 SHOW_HEALTH_ACTIONS=false
                 shift
                 ;;
@@ -376,26 +330,6 @@ parse_args() {
                 FIELDS="$2"
                 FIELDS_OVERRIDE=true
                 shift 2
-                ;;
-            --problems)
-                SHOW_PROBLEMS=true
-                SHOW_COUNT=false
-                SHOW_COUNT_OVERRIDE=true
-                MODE="problems"
-                shift
-                ;;
-            --group-problems)
-                GROUP_PROBLEMS=true
-                SHOW_PROBLEMS=true
-                SHOW_COUNT=false
-                SHOW_COUNT_OVERRIDE=true
-                MODE="problems"
-                shift
-                ;;
-            --summary)
-                SHOW_DETAILS=false
-                ISSUE_VIEW="summary"
-                shift
                 ;;
             --oci-profile)
                 need_val "$1" "${2:-}"
@@ -438,16 +372,10 @@ parse_args() {
         *) die "Invalid output format: '${OUTPUT_FORMAT}'. Use table, json, or csv" ;;
     esac
 
-    # Validate output group
-    case "${OUTPUT_GROUP}" in
-        default | overview | troubleshooting) : ;;
-        *) die "Invalid output group: '${OUTPUT_GROUP}'. Use default, overview, or troubleshooting" ;;
-    esac
-
     # Validate consolidated mode
     case "${MODE}" in
-        details | count | overview | issues | problems | report) : ;;
-        *) die "Invalid mode: '${MODE}'. Use details, count, overview, issues, problems, or report" ;;
+        details | count | overview | health | problems | report) : ;;
+        *) die "Invalid mode: '${MODE}'. Use details, count, overview, health, problems, or report" ;;
     esac
 
     # Validate issue view mode
@@ -542,33 +470,19 @@ validate_inputs() {
 
     REPORT_SCOPE_KEY="${REPORT_SCOPE_TYPE}|${REPORT_SCOPE_LABEL}|${REPORT_COMPARTMENT_OCID}|${REPORT_FILTERS}"
 
-    # Normalize mode selection to execution flags
-    SHOW_COUNT=false
-    SHOW_OVERVIEW=false
-    SHOW_HEALTH_OVERVIEW=false
-    SHOW_PROBLEMS=false
-    SHOW_REPORT=false
-    GROUP_PROBLEMS=false
+    # Normalize mode-specific scope
     HEALTH_SCOPE="all"
 
     case "${MODE}" in
-        count)
-            SHOW_COUNT=true
-            ;;
-        overview)
-            SHOW_OVERVIEW=true
-            ;;
-        issues)
-            SHOW_HEALTH_OVERVIEW=true
+        health)
             ;;
         problems)
-            SHOW_HEALTH_OVERVIEW=true
             HEALTH_SCOPE="needs_attention"
             ;;
-        report)
-            SHOW_REPORT=true
-            ;;
         details)
+            :
+            ;;
+        count | overview | report)
             :
             ;;
     esac
@@ -589,13 +503,8 @@ validate_inputs() {
     fi
 
     # Count mode doesn't work with specific targets
-    if [[ "$SHOW_COUNT" == "true" && -n "$TARGETS" ]]; then
-        die "Count mode (-C) cannot be used with specific targets (-T). Use --details instead."
-    fi
-
-    # Problems mode does not support explicit targets
-    if [[ "$SHOW_PROBLEMS" == "true" && -n "$TARGETS" ]]; then
-        die "Problems mode (--problems) cannot be used with specific targets (-T)."
+    if [[ "$MODE" == "count" && -n "$TARGETS" ]]; then
+        die "Count mode (--mode count) cannot be used with specific targets (-T). Use --mode details instead."
     fi
 
     # Normalize fields
@@ -608,36 +517,19 @@ validate_inputs() {
         fi
     fi
 
-    if [[ "$SHOW_PROBLEMS" == "true" ]]; then
-        LIFECYCLE_STATE="NEEDS_ATTENTION"
-        FIELDS="display-name,lifecycle-details"
-    fi
-
-    if [[ "$SHOW_OVERVIEW" == "true" ]]; then
-        if [[ "$SHOW_PROBLEMS" == "true" || "$GROUP_PROBLEMS" == "true" ]]; then
-            die "Overview mode (--overview) cannot be combined with --problems/--group-problems"
-        fi
-
-        if [[ "$SHOW_COUNT" == "true" ]]; then
-            die "Overview mode (--overview) cannot be combined with --count"
-        fi
-
+    if [[ "$MODE" == "overview" ]]; then
         if [[ -n "${FIELDS_OVERRIDE:-}" ]]; then
             log_warn "Ignoring --fields in overview mode"
         fi
     fi
 
-    if [[ "$SHOW_HEALTH_OVERVIEW" == "true" ]]; then
+    if [[ "$MODE" == "health" || "$MODE" == "problems" ]]; then
         if [[ -n "$HEALTH_ISSUE_FILTER" ]]; then
             SHOW_HEALTH_DETAILS=true
         fi
 
-        if [[ "$SHOW_OVERVIEW" == "true" || "$SHOW_PROBLEMS" == "true" || "$GROUP_PROBLEMS" == "true" || "$SHOW_COUNT" == "true" ]]; then
-            die "Health overview mode cannot be combined with --overview, --problems, --group-problems, or --count"
-        fi
-
         if [[ -n "${FIELDS_OVERRIDE:-}" ]]; then
-            log_warn "Ignoring --fields in health overview mode"
+            log_warn "Ignoring --fields in ${MODE} mode"
         fi
     fi
 
@@ -722,7 +614,7 @@ collect_selected_targets_json() {
         return 0
     fi
 
-    if [[ "$SHOW_REPORT" == "true" ]]; then
+    if [[ "$MODE" == "report" ]]; then
         raw_json=$(ds_collect_targets "$COMPARTMENT" "$TARGETS" "" "") || return 1
         REPORT_RAW_TARGETS=$(echo "$raw_json" | jq '.data | length')
 
@@ -1518,7 +1410,7 @@ filter_health_scope_rows() {
     fi
 
     if [[ "$scope" == "needs_attention" ]]; then
-        echo "$issue_rows" | awk -F '\t' '$1 ~ /^TARGET_NEEDS_ATTENTION/'
+        echo "$issue_rows" | awk -F '\t' '$1 ~ /^TARGET_NEEDS_ATTENTION/ || $1 == "TARGET_INACTIVE" || $1 == "TARGET_UNEXPECTED_STATE"'
         return 0
     fi
 
@@ -1974,15 +1866,13 @@ show_health_details_csv() {
 show_health() {
     local json_data="$1"
     local issue_rows
-    local all_issue_rows
 
     issue_rows=$(evaluate_health_issues "$json_data")
-    all_issue_rows="$issue_rows"
 
     issue_rows=$(filter_health_scope_rows "$issue_rows" "$HEALTH_SCOPE")
 
     if [[ -n "$HEALTH_ISSUE_FILTER" ]]; then
-        issue_rows=$(filter_health_issue_rows "$all_issue_rows" "$HEALTH_ISSUE_FILTER")
+        issue_rows=$(filter_health_issue_rows "$issue_rows" "$HEALTH_ISSUE_FILTER")
         if [[ -z "$issue_rows" ]]; then
             log_warn "No health issues matched selector: ${HEALTH_ISSUE_FILTER}"
             case "$OUTPUT_FORMAT" in
@@ -2154,12 +2044,10 @@ show_details_table() {
     local -a field_array field_widths
     IFS=',' read -ra field_array <<< "$fields"
 
-    # Set column widths (display-name gets more space, lifecycle-details in problems mode gets even more)
+    # Set column widths (display-name gets more space)
     for field in "${field_array[@]}"; do
         if [[ "$field" == "display-name" ]]; then
             field_widths+=(50)
-        elif [[ "$field" == "lifecycle-details" && "$SHOW_PROBLEMS" == "true" ]]; then
-            field_widths+=(80)
         else
             field_widths+=(30)
         fi
@@ -2197,16 +2085,10 @@ show_details_table() {
                 local width=${field_widths[$idx]}
                 local max_len=$((width - 2))
 
-                # Don't truncate lifecycle-details in problems mode
-                local current_field="${field_array[$idx]}"
-                if [[ "$current_field" == "lifecycle-details" && "$SHOW_PROBLEMS" == "true" ]]; then
-                    printf "%-${width}s " "$value"
-                else
-                    # Truncate long values
-                    local display_value="${value:0:$max_len}"
-                    [[ ${#value} -gt $max_len ]] && display_value="${display_value}.."
-                    printf "%-${width}s " "$display_value"
-                fi
+                # Truncate long values
+                local display_value="${value:0:$max_len}"
+                [[ ${#value} -gt $max_len ]] && display_value="${display_value}.."
+                printf "%-${width}s " "$display_value"
                 idx=$((idx + 1))
             done
             printf "\n"
@@ -2272,76 +2154,6 @@ show_details_csv() {
 
     # Print data
     echo "$json_data" | jq -r ".data[] | $jq_select | @csv"
-}
-
-# ------------------------------------------------------------------------------
-# Function: show_problems_grouped
-# Purpose.: Display NEEDS_ATTENTION targets grouped by problem type
-# Args....: $1 - JSON data
-#           $2 - output format (table|json|csv)
-# Returns.: 0 on success
-# Output..: Grouped problem summary to stdout
-# ------------------------------------------------------------------------------
-show_problems_grouped() {
-    local json_data="$1"
-    local output_format="${2:-table}"
-
-    log_info "Grouping NEEDS_ATTENTION targets by problem type"
-
-    # Extract and group by lifecycle-details, filtering out nulls and empty strings
-    local grouped_json
-    grouped_json=$(echo "$json_data" | jq -r '
-        .data 
-        | map(select(."lifecycle-details" != null and ."lifecycle-details" != ""))
-        | group_by(."lifecycle-details") 
-        | map({problem: (.[0]."lifecycle-details" // "Unknown"), count: length, targets: [.[] | ."display-name"]})
-        | sort_by(-.count)
-    ')
-
-    case "$output_format" in
-        json)
-            echo "$grouped_json" | jq '.'
-            ;;
-        csv)
-            echo "problem,count,targets"
-            echo "$grouped_json" | jq -r '.[] | [.problem, .count, (.targets | join("; "))] | @csv'
-            ;;
-        table | *)
-            printf "\n"
-            printf "%-70s %10s\n" "Problem Type" "Count"
-            printf "%-70s %10s\n" "$(printf '%0.s-' {1..70})" "----------"
-
-            # Use jq to output JSON and parse it more safely
-            echo "$grouped_json" | jq -r '.[] | @base64' | while read -r line; do
-                local problem count
-                problem=$(echo "$line" | base64 -d 2> /dev/null | jq -r '.problem // "Unknown"')
-                count=$(echo "$line" | base64 -d 2> /dev/null | jq -r '.count // 0')
-
-                # Truncate problem to fit column width (68 chars to leave space)
-                if [[ ${#problem} -gt 68 ]]; then
-                    problem="${problem:0:65}..."
-                fi
-
-                # Validate count is a number
-                if [[ "$count" =~ ^[0-9]+$ ]]; then
-                    printf "%-70s %10d\n" "$problem" "$count"
-                else
-                    log_warn "Invalid count for problem: $problem (count: $count)"
-                fi
-            done
-
-            local total
-            total=$(echo "$json_data" | jq '.data | length')
-            printf "\n%-70s %10d\n" "Total NEEDS_ATTENTION targets" "$total"
-
-            # Show detailed target list per problem if requested
-            if [[ "$SHOW_DETAILS" == "true" ]]; then
-                printf "\n"
-                echo "$grouped_json" | jq -r '.[] | "\n\(.problem) (\(.count) targets):\n  - \(.targets | join("\n  - "))"'
-            fi
-            printf "\n"
-            ;;
-    esac
 }
 
 # ------------------------------------------------------------------------------
@@ -2873,29 +2685,33 @@ do_work() {
     fi
 
     # Display results based on mode
-    if [[ "$SHOW_REPORT" == "true" ]]; then
-        show_report "$json_data"
-    elif [[ "$SHOW_HEALTH_OVERVIEW" == "true" ]]; then
-        show_health "$json_data"
-    elif [[ "$SHOW_COUNT" == "true" ]]; then
-        show_count_summary "$json_data"
-    elif [[ "$SHOW_OVERVIEW" == "true" ]]; then
-        show_overview "$json_data"
-    elif [[ "$GROUP_PROBLEMS" == "true" ]]; then
-        show_problems_grouped "$json_data" "$OUTPUT_FORMAT"
-    else
-        case "$OUTPUT_FORMAT" in
-            table)
-                show_details_table "$json_data" "$FIELDS"
-                ;;
-            json)
-                show_details_json "$json_data" "$FIELDS"
-                ;;
-            csv)
-                show_details_csv "$json_data" "$FIELDS"
-                ;;
-        esac
-    fi
+    case "$MODE" in
+        report)
+            show_report "$json_data"
+            ;;
+        health | problems)
+            show_health "$json_data"
+            ;;
+        count)
+            show_count_summary "$json_data"
+            ;;
+        overview)
+            show_overview "$json_data"
+            ;;
+        details)
+            case "$OUTPUT_FORMAT" in
+                table)
+                    show_details_table "$json_data" "$FIELDS"
+                    ;;
+                json)
+                    show_details_json "$json_data" "$FIELDS"
+                    ;;
+                csv)
+                    show_details_csv "$json_data" "$FIELDS"
+                    ;;
+            esac
+            ;;
+    esac
 }
 
 # =============================================================================
