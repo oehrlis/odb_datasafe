@@ -2557,40 +2557,40 @@ show_report_table() {
 
     printf "Delta vs previous run:\n"
     if [[ "$(echo "$previous_snapshot" | jq 'length')" -eq 0 ]]; then
-        printf "  Previous run   : n/a\n"
-        printf "  selected_targets : n/a\n"
-        printf "  total_issues     : n/a\n"
-        printf "  high_issues      : n/a\n"
-        printf "  medium_issues    : n/a\n"
-        printf "  low_issues       : n/a\n"
-        printf "  needs_attention  : n/a\n"
+        printf "  %-16s : n/a\n" "Previous run"
+        printf "  %-16s : n/a\n" "selected_targets"
+        printf "  %-16s : n/a\n" "total_issues"
+        printf "  %-16s : n/a\n" "high_issues"
+        printf "  %-16s : n/a\n" "medium_issues"
+        printf "  %-16s : n/a\n" "low_issues"
+        printf "  %-16s : n/a\n" "needs_attention"
     else
         if [[ "$(echo "$current_snapshot $previous_snapshot" | jq -s '.[0].scope_key == .[1].scope_key')" != "true" ]]; then
-            printf "  Previous run   : %s (different scope)\n" "$(format_human_time "$previous_run_timestamp")"
-            printf "  delta values   : n/a for different scope\n"
+            printf "  %-16s : %s (different scope)\n" "Previous run" "$(format_human_time "$previous_run_timestamp")"
+            printf "  %-16s : n/a for different scope\n" "delta values"
         else
-            printf "  Previous run   : %s\n" "$(format_human_time "$previous_run_timestamp")"
-            printf "  selected_targets : %7d -> %7d (delta %+7d)\n" \
+            printf "  %-16s : %s\n" "Previous run" "$(format_human_time "$previous_run_timestamp")"
+            printf "  %-16s : %7d -> %7d (delta %+7d)\n" "selected_targets" \
                 "$(echo "$previous_snapshot" | jq -r '.selected_targets')" \
                 "$(echo "$current_snapshot" | jq -r '.selected_targets')" \
                 "$(echo "$current_snapshot $previous_snapshot" | jq -s '.[0].selected_targets - .[1].selected_targets')"
-            printf "  total_issues     : %7d -> %7d (delta %+7d)\n" \
+            printf "  %-16s : %7d -> %7d (delta %+7d)\n" "total_issues" \
                 "$(echo "$previous_snapshot" | jq -r '.total_issues')" \
                 "$(echo "$current_snapshot" | jq -r '.total_issues')" \
                 "$(echo "$current_snapshot $previous_snapshot" | jq -s '.[0].total_issues - .[1].total_issues')"
-            printf "  high_issues      : %7d -> %7d (delta %+7d)\n" \
+            printf "  %-16s : %7d -> %7d (delta %+7d)\n" "high_issues" \
                 "$(echo "$previous_snapshot" | jq -r '.high_issues')" \
                 "$(echo "$current_snapshot" | jq -r '.high_issues')" \
                 "$(echo "$current_snapshot $previous_snapshot" | jq -s '.[0].high_issues - .[1].high_issues')"
-            printf "  medium_issues    : %7d -> %7d (delta %+7d)\n" \
+            printf "  %-16s : %7d -> %7d (delta %+7d)\n" "medium_issues" \
                 "$(echo "$previous_snapshot" | jq -r '.medium_issues')" \
                 "$(echo "$current_snapshot" | jq -r '.medium_issues')" \
                 "$(echo "$current_snapshot $previous_snapshot" | jq -s '.[0].medium_issues - .[1].medium_issues')"
-            printf "  low_issues       : %7d -> %7d (delta %+7d)\n" \
+            printf "  %-16s : %7d -> %7d (delta %+7d)\n" "low_issues" \
                 "$(echo "$previous_snapshot" | jq -r '.low_issues')" \
                 "$(echo "$current_snapshot" | jq -r '.low_issues')" \
                 "$(echo "$current_snapshot $previous_snapshot" | jq -s '.[0].low_issues - .[1].low_issues')"
-            printf "  needs_attention  : %7d -> %7d (delta %+7d)\n" \
+            printf "  %-16s : %7d -> %7d (delta %+7d)\n" "needs_attention" \
                 "$(echo "$previous_snapshot" | jq -r '.needs_attention')" \
                 "$(echo "$current_snapshot" | jq -r '.needs_attention')" \
                 "$(echo "$current_snapshot $previous_snapshot" | jq -s '.[0].needs_attention - .[1].needs_attention')"
