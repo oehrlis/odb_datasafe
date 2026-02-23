@@ -34,6 +34,8 @@ readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 : "${SHOW_DETAILED:=false}" # Summary by default
 : "${FIELDS:=display-name,lifecycle-state,infrastructure-type}"
 : "${SHOW_OCID:=false}"
+: "${INPUT_JSON:=}"
+: "${SAVE_JSON:=}"
 
 # shellcheck disable=SC1091
 source "${LIB_DIR}/ds_lib.sh" || {
@@ -83,6 +85,8 @@ Options:
     -c, --compartment ID        Compartment OCID or name (default: DS_ROOT_COMP)
                                 Configure in: .env or datasafe.conf
     -L, --lifecycle STATE       Filter by lifecycle state (ACTIVE, NEEDS_ATTENTION, etc.)
+                --input-json FILE       Read targets from local JSON (array or {data:[...]})
+                --save-json FILE        Save selected target JSON payload
 
   Output:
     -S, --summary               Show summary counts (default)
@@ -113,6 +117,9 @@ Examples:
 
     # Quiet mode - minimal output
     ${SCRIPT_NAME} -q
+
+    # Run summary from saved target JSON (no target OCI list call)
+    ${SCRIPT_NAME} --input-json ./target_selection.json
 
 EOF
     exit 0
@@ -147,6 +154,16 @@ parse_args() {
             -L | --lifecycle)
                 need_val "$1" "${2:-}"
                 LIFECYCLE_STATE="$2"
+                shift 2
+                ;;
+            --input-json)
+                need_val "$1" "${2:-}"
+                INPUT_JSON="$2"
+                shift 2
+                ;;
+            --save-json)
+                need_val "$1" "${2:-}"
+                SAVE_JSON="$2"
                 shift 2
                 ;;
             -S | --summary)
@@ -222,20 +239,29 @@ parse_args() {
 validate_inputs() {
     log_debug "Validating inputs..."
 
-    require_oci_cli
+    if [[ -n "$INPUT_JSON" ]]; then
+        [[ -r "$INPUT_JSON" ]] || die "Input JSON file not found: $INPUT_JSON"
+        if [[ -n "$COMPARTMENT" ]]; then
+            log_info "Input JSON mode with optional connector name lookup from compartment: $COMPARTMENT"
+        else
+            log_info "Input JSON mode enabled (connector names may appear as Unknown Connector)"
+        fi
+    else
+        require_oci_cli
 
-    # Resolve compartment
-    if [[ -z "$COMPARTMENT" ]]; then
-        COMPARTMENT=$(resolve_compartment_for_operation "") \
-            || die "Failed to resolve compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
+        # Resolve compartment
+        if [[ -z "$COMPARTMENT" ]]; then
+            COMPARTMENT=$(resolve_compartment_for_operation "") \
+                || die "Failed to resolve compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
+        fi
+
+        # Get compartment name for display
+        local comp_name
+        comp_name=$(oci_get_compartment_name "$COMPARTMENT") || comp_name="<unknown>"
+
+        log_debug "Using root compartment OCID: $COMPARTMENT"
+        log_info "Using root compartment: $comp_name (includes sub-compartments)"
     fi
-
-    # Get compartment name for display
-    local comp_name
-    comp_name=$(oci_get_compartment_name "$COMPARTMENT") || comp_name="<unknown>"
-
-    log_debug "Using root compartment OCID: $COMPARTMENT"
-    log_info "Using root compartment: $comp_name (includes sub-compartments)"
 }
 
 # ------------------------------------------------------------------------------
@@ -718,20 +744,36 @@ show_detailed_csv() {
 do_work() {
     local connectors_json targets_json grouped_json
 
-    # Get compartment name for display
-    local comp_name
-    comp_name=$(oci_get_compartment_name "$COMPARTMENT") || comp_name="$COMPARTMENT"
-    log_info "Processing compartment: $comp_name (includes sub-compartments)"
+    if [[ -n "$INPUT_JSON" ]]; then
+        connectors_json='{"data":[]}'
 
-    # Fetch connectors
-    log_info "Fetching on-premises connectors..."
-    connectors_json=$(list_connectors_in_compartment "$COMPARTMENT") \
-        || die "Failed to list connectors"
+        if [[ -n "$COMPARTMENT" ]]; then
+            log_info "Fetching on-premises connectors for label mapping..."
+            connectors_json=$(list_connectors_in_compartment "$COMPARTMENT") || {
+                log_warn "Failed to list connectors; continuing with Unknown Connector labels"
+                connectors_json='{"data":[]}'
+            }
+        fi
 
-    # Fetch targets
-    log_info "Fetching target databases..."
-    targets_json=$(list_targets_in_compartment "$COMPARTMENT") \
-        || die "Failed to list targets"
+        log_info "Loading target databases from input JSON..."
+        targets_json=$(ds_collect_targets_source "" "" "$LIFECYCLE_STATE" "" "$INPUT_JSON" "$SAVE_JSON") \
+            || die "Failed to load targets from input JSON"
+    else
+        # Get compartment name for display
+        local comp_name
+        comp_name=$(oci_get_compartment_name "$COMPARTMENT") || comp_name="$COMPARTMENT"
+        log_info "Processing compartment: $comp_name (includes sub-compartments)"
+
+        # Fetch connectors
+        log_info "Fetching on-premises connectors..."
+        connectors_json=$(list_connectors_in_compartment "$COMPARTMENT") \
+            || die "Failed to list connectors"
+
+        # Fetch targets
+        log_info "Fetching target databases..."
+        targets_json=$(ds_collect_targets_source "$COMPARTMENT" "" "$LIFECYCLE_STATE" "" "" "$SAVE_JSON") \
+            || die "Failed to list targets"
+    fi
 
     local connector_count
     connector_count=$(echo "$connectors_json" | jq '.data | length')

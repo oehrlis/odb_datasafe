@@ -538,6 +538,124 @@ ds_filter_targets_json() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: ds_load_targets_json_file
+# Purpose.: Load targets JSON from file and normalize to object with .data array
+# Args....: $1 - input JSON file path
+# Returns.: 0 on success, 1 on validation/parse error
+# Output..: normalized JSON object with .data array
+# ------------------------------------------------------------------------------
+ds_load_targets_json_file() {
+    local input_file="$1"
+
+    if [[ -z "$input_file" ]]; then
+        log_error "Input JSON file path is required"
+        return 1
+    fi
+
+    if [[ ! -r "$input_file" ]]; then
+        log_error "Input JSON file not found or unreadable: $input_file"
+        return 1
+    fi
+
+    if ! jq -e . "$input_file" > /dev/null 2>&1; then
+        log_error "Invalid JSON in file: $input_file"
+        return 1
+    fi
+
+    if jq -e 'type == "array"' "$input_file" > /dev/null 2>&1; then
+        jq '{data: .}' "$input_file"
+        return 0
+    fi
+
+    if jq -e 'type == "object" and (.data | type == "array")' "$input_file" > /dev/null 2>&1; then
+        jq '.' "$input_file"
+        return 0
+    fi
+
+    log_error "Unsupported input JSON structure in $input_file. Expected array or object with .data array"
+    return 1
+}
+
+# ------------------------------------------------------------------------------
+# Function: ds_save_targets_json_file
+# Purpose.: Save normalized targets JSON payload to output file
+# Args....: $1 - JSON payload
+#           $2 - output file path
+# Returns.: 0 on success, 1 on write error
+# Output..: writes JSON file
+# ------------------------------------------------------------------------------
+ds_save_targets_json_file() {
+    local targets_json="$1"
+    local output_file="$2"
+    local output_dir=""
+
+    if [[ -z "$output_file" ]]; then
+        log_error "Output file path is required"
+        return 1
+    fi
+
+    output_dir=$(dirname "$output_file")
+    [[ "$output_dir" == "." ]] || mkdir -p "$output_dir"
+
+    if ! printf '%s' "$targets_json" | jq '.' > "$output_file"; then
+        log_error "Failed to write JSON payload to: $output_file"
+        return 1
+    fi
+
+    log_info "Saved selected target JSON to: $output_file"
+}
+
+# ------------------------------------------------------------------------------
+# Function: ds_collect_targets_source
+# Purpose.: Collect targets from OCI or local input JSON with optional filtering
+# Args....: $1 - compartment OCID/name (optional)
+#           $2 - explicit target list (optional)
+#           $3 - lifecycle filter (optional; comma-separated supported)
+#           $4 - target display-name regex filter (optional)
+#           $5 - input JSON file path (optional)
+#           $6 - save JSON output file path (optional)
+# Returns.: 0 on success, 1 on error
+# Output..: JSON object with .data array
+# ------------------------------------------------------------------------------
+ds_collect_targets_source() {
+    local compartment_input="${1:-}"
+    local targets_input="${2:-}"
+    local lifecycle_input="${3:-}"
+    local target_filter="${4:-}"
+    local input_json="${5:-}"
+    local save_json="${6:-}"
+    local targets_json=""
+
+    if [[ -n "$input_json" ]]; then
+        targets_json=$(ds_load_targets_json_file "$input_json") || return 1
+
+        if [[ -n "$lifecycle_input" ]]; then
+            targets_json=$(printf '%s' "$targets_json" | jq --arg states "$lifecycle_input" '
+                ($states
+                    | split(",")
+                    | map(gsub("^\\s+|\\s+$"; ""))
+                    | map(select(length > 0))) as $state_list
+                | .data = (.data | map(select(
+                    ((."lifecycle-state" // "") as $target_state
+                        | ($state_list | length) == 0
+                        or ($state_list | index($target_state) != null))
+                )))
+            ') || return 1
+        fi
+
+        targets_json=$(ds_filter_targets_json "$targets_json" "$target_filter") || return 1
+    else
+        targets_json=$(ds_collect_targets "$compartment_input" "$targets_input" "$lifecycle_input" "$target_filter") || return 1
+    fi
+
+    if [[ -n "$save_json" ]]; then
+        ds_save_targets_json_file "$targets_json" "$save_json" || return 1
+    fi
+
+    printf '%s' "$targets_json"
+}
+
+# ------------------------------------------------------------------------------
 # Function: ds_collect_targets
 # Purpose.: Collect targets via explicit list or compartment+lifecycle filters
 # Args....: $1 - Compartment OCID/name (optional)

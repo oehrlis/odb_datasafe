@@ -33,6 +33,9 @@ readonly SCRIPT_VERSION
 : "${REPORT_TYPE:=all}"
 : "${OUTPUT_FORMAT:=table}" # table|json|csv
 : "${TAG_NAMESPACE:=DBSec}"
+: "${INPUT_JSON:=}"
+: "${SAVE_JSON:=}"
+: "${TARGETS_JSON_CACHE:=}"
 
 # shellcheck disable=SC1091
 source "${LIB_DIR}/ds_lib.sh" || {
@@ -76,6 +79,8 @@ Options:
 
   Selection:
     -c, --compartment ID        Compartment OCID or name (default: DS_ROOT_COMP from \$ODB_DATASAFE_BASE/.env)
+                --input-json FILE       Read targets from local JSON (array or {data:[...]})
+                --save-json FILE        Save selected target JSON payload
 
   Report Options:
     -r, --report TYPE           Report type: all|tags|env|missing|undef (default: ${REPORT_TYPE})
@@ -102,6 +107,9 @@ Examples:
     # Export all target tags as CSV
     ${SCRIPT_NAME} -r tags -f csv > targets_tags.csv
 
+    # Run report from saved target JSON (no OCI fetch)
+    ${SCRIPT_NAME} --input-json ./target_selection.json -r env
+
 EOF
     exit 0
 }
@@ -125,6 +133,16 @@ parse_args() {
             -c | --compartment)
                 need_val "$1" "${2:-}"
                 COMPARTMENT="$2"
+                shift 2
+                ;;
+            --input-json)
+                need_val "$1" "${2:-}"
+                INPUT_JSON="$2"
+                shift 2
+                ;;
+            --save-json)
+                need_val "$1" "${2:-}"
+                SAVE_JSON="$2"
                 shift 2
                 ;;
             -r | --report)
@@ -189,12 +207,19 @@ parse_args() {
 validate_inputs() {
     log_debug "Validating inputs..."
 
-    require_oci_cli
+    if [[ -n "$INPUT_JSON" ]]; then
+        [[ -r "$INPUT_JSON" ]] || die "Input JSON file not found: $INPUT_JSON"
+        if [[ -n "$COMPARTMENT" ]]; then
+            log_warn "Ignoring --compartment when --input-json is provided"
+        fi
+    else
+        require_oci_cli
 
-    # Resolve compartment using new pattern: explicit -c > DS_ROOT_COMP > error
-    if [[ -z "$COMPARTMENT" ]]; then
-        COMPARTMENT=$(resolve_compartment_for_operation "$COMPARTMENT") || die "Failed to get root compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
-        log_info "No compartment specified, using DS_ROOT_COMP: $COMPARTMENT"
+        # Resolve compartment using new pattern: explicit -c > DS_ROOT_COMP > error
+        if [[ -z "$COMPARTMENT" ]]; then
+            COMPARTMENT=$(resolve_compartment_for_operation "$COMPARTMENT") || die "Failed to get root compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
+            log_info "No compartment specified, using DS_ROOT_COMP: $COMPARTMENT"
+        fi
     fi
 }
 
@@ -205,12 +230,24 @@ validate_inputs() {
 # Output..: JSON array of targets with tags to stdout
 # ------------------------------------------------------------------------------
 get_targets_with_tags() {
-    local comp_ocid
-    comp_ocid=$(oci_resolve_compartment_ocid "$COMPARTMENT") || return 1
+    if [[ -n "$TARGETS_JSON_CACHE" ]]; then
+        printf '%s' "$TARGETS_JSON_CACHE"
+        return 0
+    fi
 
-    log_debug "Fetching targets with tags from compartment: $comp_ocid"
+    local targets_json
+    if [[ -n "$INPUT_JSON" ]]; then
+        log_debug "Loading targets from input JSON: $INPUT_JSON"
+        targets_json=$(ds_collect_targets_source "" "" "" "" "$INPUT_JSON" "$SAVE_JSON") || return 1
+    else
+        local comp_ocid
+        comp_ocid=$(oci_resolve_compartment_ocid "$COMPARTMENT") || return 1
+        log_debug "Fetching targets with tags from compartment: $comp_ocid"
+        targets_json=$(ds_collect_targets_source "$comp_ocid" "" "" "" "" "$SAVE_JSON") || return 1
+    fi
 
-    ds_list_targets "$comp_ocid"
+    TARGETS_JSON_CACHE="$targets_json"
+    printf '%s' "$TARGETS_JSON_CACHE"
 }
 
 # ------------------------------------------------------------------------------

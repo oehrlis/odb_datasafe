@@ -54,6 +54,9 @@ COMPARTMENT=""
 TAG_NAMESPACE="DBSec"
 STATE_FILTERS="ACTIVE"
 OUTPUT_FORMAT="table"
+INPUT_JSON=""
+SAVE_JSON=""
+TARGETS_JSON_CACHE=""
 
 # Runtime variables
 COMP_NAME=""
@@ -85,6 +88,8 @@ OPTIONS:
     -n, --namespace NS          Tag namespace to check (default: DBSec)
     -s, --lifecycle STATE       Lifecycle state filter (default: ACTIVE)
     -o, --output FORMAT         Output format: table, csv, json (default: table)
+        --input-json FILE       Read targets from local JSON (array or {data:[...]})
+        --save-json FILE        Save selected target JSON payload
         --oci-config FILE       OCI config file
         --oci-profile PROFILE   OCI profile to use
     -h, --help                  Show this help
@@ -98,6 +103,9 @@ EXAMPLES:
   
   # CSV output for specific compartment
   ${SCRIPT_NAME} -c "prod-compartment" -o csv
+
+    # Run from saved target JSON (no OCI fetch)
+    ${SCRIPT_NAME} --input-json ./target_selection.json -n "DBSec"
 
 EXIT CODES:
   0 = Success
@@ -136,6 +144,14 @@ parse_args() {
                 OUTPUT_FORMAT="$2"
                 shift 2
                 ;;
+            --input-json)
+                INPUT_JSON="$2"
+                shift 2
+                ;;
+            --save-json)
+                SAVE_JSON="$2"
+                shift 2
+                ;;
             --oci-config)
                 export OCI_CLI_CONFIG_FILE="$2"
                 shift 2
@@ -145,7 +161,7 @@ parse_args() {
                 shift 2
                 ;;
             -h | --help)
-                Usage 0
+                usage 0
                 ;;
             *)
                 remaining+=("$1")
@@ -166,18 +182,25 @@ parse_args() {
 validate_inputs() {
     log_debug "Validating inputs..."
 
-    require_oci_cli
+    if [[ -n "$INPUT_JSON" ]]; then
+        [[ -r "$INPUT_JSON" ]] || die "Input JSON file not found: $INPUT_JSON"
+        if [[ -n "$COMPARTMENT" ]]; then
+            log_warn "Ignoring --compartment when --input-json is provided"
+        fi
+    else
+        require_oci_cli
 
-    # Resolve compartment using new pattern: explicit -c > DS_ROOT_COMP > error
-    if [[ -z "$COMPARTMENT" ]]; then
-        COMPARTMENT=$(resolve_compartment_for_operation "$COMPARTMENT") || die "Failed to get root compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
-        log_info "No compartment specified, using DS_ROOT_COMP: $COMPARTMENT"
+        # Resolve compartment using new pattern: explicit -c > DS_ROOT_COMP > error
+        if [[ -z "$COMPARTMENT" ]]; then
+            COMPARTMENT=$(resolve_compartment_for_operation "$COMPARTMENT") || die "Failed to get root compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
+            log_info "No compartment specified, using DS_ROOT_COMP: $COMPARTMENT"
+        fi
+
+        # Resolve compartment using helper function (accepts name or OCID)
+        resolve_compartment_to_vars "$COMPARTMENT" "COMP" \
+            || die "Failed to resolve compartment: $COMPARTMENT"
+        log_info "Using compartment: ${COMP_NAME} (${COMP_OCID})"
     fi
-
-    # Resolve compartment using helper function (accepts name or OCID)
-    resolve_compartment_to_vars "$COMPARTMENT" "COMP" \
-        || die "Failed to resolve compartment: $COMPARTMENT"
-    log_info "Using compartment: ${COMP_NAME} (${COMP_OCID})"
 
     # Validate tag namespace
     if [[ -z "$TAG_NAMESPACE" ]]; then
@@ -195,6 +218,30 @@ validate_inputs() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: collect_targets_for_analysis
+# Purpose.: Collect selected targets from OCI or input JSON source
+# Args....: None
+# Returns.: 0 on success, exits on error
+# Output..: JSON object with .data array
+# ------------------------------------------------------------------------------
+collect_targets_for_analysis() {
+    if [[ -n "$TARGETS_JSON_CACHE" ]]; then
+        printf '%s' "$TARGETS_JSON_CACHE"
+        return 0
+    fi
+
+    local targets_json
+    if [[ -n "$INPUT_JSON" ]]; then
+        targets_json=$(ds_collect_targets_source "" "" "$STATE_FILTERS" "" "$INPUT_JSON" "$SAVE_JSON") || die "Failed to load targets from input JSON"
+    else
+        targets_json=$(ds_collect_targets_source "$COMP_OCID" "" "$STATE_FILTERS" "" "" "$SAVE_JSON") || die "Failed to list targets"
+    fi
+
+    TARGETS_JSON_CACHE="$targets_json"
+    printf '%s' "$TARGETS_JSON_CACHE"
+}
+
+# ------------------------------------------------------------------------------
 # Function: find_untagged_targets
 # Purpose.: Find targets without tags in specified namespace
 # Args....: None
@@ -202,10 +249,14 @@ validate_inputs() {
 # Output..: Target list in specified format
 # ------------------------------------------------------------------------------
 find_untagged_targets() {
-    log_info "Retrieving targets from compartment..."
+    if [[ -n "$INPUT_JSON" ]]; then
+        log_info "Loading targets from input JSON..."
+    else
+        log_info "Retrieving targets from compartment..."
+    fi
 
     local targets_json
-    targets_json=$(ds_list_targets "$COMP_OCID" "$STATE_FILTERS") || die "Failed to list targets"
+    targets_json=$(collect_targets_for_analysis)
 
     local total_count
     total_count=$(echo "$targets_json" | jq '.data | length')

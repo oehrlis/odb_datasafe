@@ -39,6 +39,8 @@ readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 : "${OUTPUT_FOLDER:=${SCRIPT_DIR}/../log}"
 : "${OUTPUT_FILE:=}"
 : "${TO_FILE:=false}"
+: "${INPUT_JSON:=}"
+: "${SAVE_JSON:=}"
 
 # Runtime variables
 DETAILS_JSON='[]'
@@ -80,6 +82,8 @@ Options:
     -c, --compartment ID        Compartment OCID or name (default: DS_ROOT_COMP)
     -L, --lifecycle STATE       Filter by lifecycle state (default: ${LIFECYCLE_STATE})
                                 Comma-separated: ACTIVE,NEEDS_ATTENTION,DELETED
+                --input-json FILE       Read targets from local JSON (array or {data:[...]})
+                --save-json FILE        Save selected target JSON payload
 
   Output:
     -f, --format FMT            Output format: table|json|csv (default: ${FORMAT})
@@ -121,6 +125,9 @@ Examples:
 
   # Export all targets in compartment with custom directory
   ${SCRIPT_NAME} -c prod-compartment -d /tmp/reports -f json -w
+
+    # Use saved target selection payload (no OCI list/get)
+    ${SCRIPT_NAME} --input-json ./target_selection.json -f json
 
 EOF
     exit "${exit_code}"
@@ -167,6 +174,16 @@ parse_arguments() {
             -L | --lifecycle)
                 need_val "$1" "${2:-}"
                 LIFECYCLE_STATE="$2"
+                shift 2
+                ;;
+            --input-json)
+                need_val "$1" "${2:-}"
+                INPUT_JSON="$2"
+                shift 2
+                ;;
+            --save-json)
+                need_val "$1" "${2:-}"
+                SAVE_JSON="$2"
                 shift 2
                 ;;
             -f | --format)
@@ -235,7 +252,14 @@ parse_arguments() {
 validate_inputs() {
     log_debug "Validating inputs..."
 
-    require_oci_cli
+    if [[ -n "$INPUT_JSON" ]]; then
+        [[ -r "$INPUT_JSON" ]] || die "Input JSON file not found: $INPUT_JSON"
+        if [[ -n "$TARGETS" ]]; then
+            log_warn "Ignoring --targets when --input-json is provided"
+        fi
+    else
+        require_oci_cli
+    fi
 
     # Validate format
     FORMAT="${FORMAT,,}"
@@ -250,7 +274,7 @@ validate_inputs() {
     log_debug "Output directory: ${OUTPUT_FOLDER}"
 
     # Require explicit target selection to avoid surprising full-tenancy scans
-    if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
+    if [[ -z "$INPUT_JSON" && -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
         log_error "Provide targets (-T) or a compartment (-c)"
         usage 1
     fi
@@ -408,6 +432,93 @@ collect_target_details() {
     # Add to array
     DETAILS_JSON=$(echo "$DETAILS_JSON" | jq -c --argjson row "$record" '. + [$row]')
 
+    return 0
+}
+
+# ------------------------------------------------------------------------------
+# Function: collect_target_details_from_payload
+# Purpose.: Extract detailed record directly from target JSON payload entry
+# Args....: $1 - target JSON object
+# Returns.: 0 on success
+# Output..: Updates DETAILS_JSON array
+# ------------------------------------------------------------------------------
+collect_target_details_from_payload() {
+    local target_data="$1"
+
+    local target_ocid disp lcst created infra ttype host port svc compid conn_ocid conn_name
+    target_ocid=$(echo "$target_data" | jq -r '.id // ""')
+    disp=$(echo "$target_data" | jq -r '."display-name" // ""')
+    lcst=$(echo "$target_data" | jq -r '."lifecycle-state" // ""' | tr '[:lower:]' '[:upper:]')
+    created=$(echo "$target_data" | jq -r '."time-created" // ""')
+    infra=$(echo "$target_data" | jq -r '."infrastructure-type" // ."database-details"."infrastructure-type" // ""')
+    ttype=$(echo "$target_data" | jq -r '."database-type" // ."database-details"."database-type" // ""')
+    host=$(echo "$target_data" | jq -r '."database-details".host // ""')
+    port=$(echo "$target_data" | jq -r '."database-details"."listener-port" // ""')
+    svc=$(echo "$target_data" | jq -r '."database-details"."service-name" // ""')
+    compid=$(echo "$target_data" | jq -r '."compartment-id" // ""')
+
+    conn_ocid=$(echo "$target_data" | jq -r '
+        (."connection-option"["on-prem-connector-id"] // ."connection-option"["on-premise-connector-id"] //
+        (."associated-resource-ids" // [] | map(select(startswith("ocid1.datasafeonpremconnector"))) | .[0]) // "")
+    ')
+
+    if [[ -n "$conn_ocid" && -n "${CONNECTOR_MAP[$conn_ocid]:-}" ]]; then
+        conn_name="${CONNECTOR_MAP[$conn_ocid]}"
+    elif [[ -n "$conn_ocid" ]]; then
+        conn_name="$conn_ocid"
+    else
+        conn_name="N/A"
+    fi
+
+    local cluster cdb pdb
+    if [[ "$disp" =~ ^([^_]+)_([^_]+)_(.+)$ ]]; then
+        cluster="${BASH_REMATCH[1]}"
+        cdb="${BASH_REMATCH[2]}"
+        pdb="${BASH_REMATCH[3]}"
+    elif [[ "$disp" =~ ^([^_]+)_(.+)$ ]]; then
+        cluster=""
+        cdb="${BASH_REMATCH[1]}"
+        pdb="${BASH_REMATCH[2]}"
+    else
+        cluster=""
+        cdb="$disp"
+        pdb=""
+    fi
+
+    local record
+    record=$(jq -n \
+        --arg ocid "$target_ocid" \
+        --arg disp "$disp" \
+        --arg lcst "$lcst" \
+        --arg created "$created" \
+        --arg infra "$infra" \
+        --arg ttype "$ttype" \
+        --arg host "$host" \
+        --arg port "$port" \
+        --arg svc "$svc" \
+        --arg conn "$conn_name" \
+        --arg comp "$compid" \
+        --arg cluster "$cluster" \
+        --arg cdb "$cdb" \
+        --arg pdb "$pdb" \
+        '{
+            datasafe_ocid: $ocid,
+            display_name: $disp,
+            lifecycle: $lcst,
+            created_at: $created,
+            infra_type: $infra,
+            target_type: $ttype,
+            host: $host,
+            port: $port,
+            service_name: $svc,
+            connector_name: $conn,
+            compartment_id: $comp,
+            cluster: $cluster,
+            cdb: $cdb,
+            pdb: $pdb
+        }')
+
+    DETAILS_JSON=$(echo "$DETAILS_JSON" | jq -c --argjson row "$record" '. + [$row]')
     return 0
 }
 
@@ -584,6 +695,29 @@ list_targets_in_compartment() {
 do_work() {
     local -a target_ocids=()
     local compartment_ocid=""
+
+    if [[ -n "$INPUT_JSON" ]]; then
+        log_info "Loading target details from input JSON payload"
+
+        local targets_payload
+        targets_payload=$(ds_collect_targets_source "" "" "$LIFECYCLE_STATE" "" "$INPUT_JSON" "$SAVE_JSON") || die "Failed to load targets from input JSON"
+
+        local payload_count
+        payload_count=$(echo "$targets_payload" | jq '.data | length')
+        if [[ "$payload_count" -eq 0 ]]; then
+            log_warn "No targets found matching criteria"
+            return 0
+        fi
+
+        DETAILS_JSON='[]'
+        while IFS= read -r target_row; do
+            collect_target_details_from_payload "$target_row" || true
+        done < <(echo "$targets_payload" | jq -c '.data[]')
+
+        compute_output_filename
+        emit_output
+        return 0
+    fi
 
     # Collect target OCIDs
     if [[ -n "$TARGETS" ]]; then

@@ -99,6 +99,8 @@ teardown() {
     [[ "$output" == *"Usage:"* ]] || [[ "$output" == *"usage:"* ]] || [[ "$output" == *"USAGE:"* ]]
     [[ "$output" == *"compartment"* ]]
     [[ "$output" == *"namespace"* ]]
+    [[ "$output" == *"--input-json FILE"* ]]
+    [[ "$output" == *"--save-json FILE"* ]]
 }  
 
 @test "ds_find_untagged_targets.sh reads version from .extension file" {
@@ -196,8 +198,8 @@ teardown() {
     [ "$status" -eq 0 ]
 }
 
-@test "ds_find_untagged_targets.sh uses ds_list_targets for lookups" {
-    run bash -c "grep -q 'ds_list_targets' '$SCRIPT_PATH'"
+@test "ds_find_untagged_targets.sh uses shared target source collector" {
+    run bash -c "grep -q 'ds_collect_targets_source' '$SCRIPT_PATH'"
     [ "$status" -eq 0 ]
 }
 
@@ -216,4 +218,19 @@ teardown() {
     # Verify script uses resolve_compartment_to_vars
     run bash -c "grep -q 'resolve_compartment_to_vars' '$SCRIPT_PATH'"
     [ "$status" -eq 0 ]
+}
+
+@test "ds_find_untagged_targets.sh supports input-json mode" {
+    local sample_json="${BATS_TEST_TMPDIR}/untagged_input.json"
+
+    cat > "$sample_json" <<'JSON'
+{"data":[
+  {"id":"ocid1.datasafetarget.oc1..t1","display-name":"db1","lifecycle-state":"ACTIVE","defined-tags":{"DBSec":{"Environment":"Production"}},"database-details":{"database-type":"AUTONOMOUS_DATABASE"}},
+  {"id":"ocid1.datasafetarget.oc1..t2","display-name":"db2","lifecycle-state":"ACTIVE","defined-tags":{},"database-details":{"database-type":"DATABASE_CLOUD_SERVICE"}}
+]}
+JSON
+
+    run bash "$SCRIPT_PATH" --input-json "$sample_json" -o json
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"db2"* ]]
 }

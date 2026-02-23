@@ -56,6 +56,8 @@ LIFECYCLE=""
 SINCE_DATE=""
 FORMAT="csv"
 OUTPUT_FILE=""
+INPUT_JSON=""
+SAVE_JSON=""
 
 # Runtime
 COMP_OCID=""
@@ -90,6 +92,8 @@ OPTIONS:
                             Accepts: 2025-01-01, -2d, -1w, -3m, RFC3339
   -F, --format FORMAT       Export format: csv, json (default: csv)
   -o, --output FILE         Output file (default: ./datasafe_targets.<format>)
+            --input-json FILE     Read targets from local JSON (array or {data:[...]})
+            --save-json FILE      Save selected target JSON payload
     --oci-config FILE       OCI CLI config file
     --oci-profile PROFILE   OCI CLI profile
   -h, --help                Show this help
@@ -108,6 +112,9 @@ EXAMPLES:
     
     # Export targets created since date
     ds_target_export.sh -c prod-compartment -D 2025-01-01
+
+    # Export from saved selection payload (no OCI list call)
+    ds_target_export.sh --input-json ./target_selection.json -F json -o targets.json
 
 EXIT CODES:
     0 = Success
@@ -150,6 +157,14 @@ parse_args() {
                 OUTPUT_FILE="$2"
                 shift 2
                 ;;
+            --input-json)
+                INPUT_JSON="$2"
+                shift 2
+                ;;
+            --save-json)
+                SAVE_JSON="$2"
+                shift 2
+                ;;
             --oci-config)
                 export OCI_CLI_CONFIG_FILE="$2"
                 shift 2
@@ -159,7 +174,7 @@ parse_args() {
                 shift 2
                 ;;
             -h | --help)
-                Usage 0
+                usage 0
                 ;;
             *)
                 remaining+=("$1")
@@ -179,16 +194,28 @@ parse_args() {
 validate_inputs() {
     log_debug "Validating inputs..."
 
-    require_oci_cli
+    if [[ -n "$INPUT_JSON" ]]; then
+        [[ -r "$INPUT_JSON" ]] || die "Input JSON file not found: $INPUT_JSON"
 
-    # Compartment is required
-    if [[ -z "$COMPARTMENT" ]]; then
-        die "Compartment is required. Use -c/--compartment"
+        if [[ -n "$COMPARTMENT" ]]; then
+            require_oci_cli
+            COMP_OCID=$(oci_resolve_compartment_ocid "$COMPARTMENT") || die "Failed to resolve compartment: $COMPARTMENT"
+            log_info "Input JSON mode with connector lookup compartment: $COMPARTMENT ($COMP_OCID)"
+        else
+            log_info "Input JSON mode enabled (connector labels from payload only)"
+        fi
+    else
+        require_oci_cli
+
+        # Compartment is required
+        if [[ -z "$COMPARTMENT" ]]; then
+            die "Compartment is required. Use -c/--compartment"
+        fi
+
+        # Resolve compartment OCID
+        COMP_OCID=$(oci_resolve_compartment_ocid "$COMPARTMENT") || die "Failed to resolve compartment: $COMPARTMENT"
+        log_info "Using compartment: $COMPARTMENT ($COMP_OCID)"
     fi
-
-    # Resolve compartment OCID
-    COMP_OCID=$(oci_resolve_compartment_ocid "$COMPARTMENT") || die "Failed to resolve compartment: $COMPARTMENT"
-    log_info "Using compartment: $COMPARTMENT ($COMP_OCID)"
 
     # Validate format
     case "$FORMAT" in
@@ -303,10 +330,14 @@ sanitize_csv() {
 # Output..: Writes export output to file
 # ------------------------------------------------------------------------------
 export_targets() {
-    log_info "Fetching targets from compartment..."
+    if [[ -n "$INPUT_JSON" ]]; then
+        log_info "Loading targets from input JSON..."
+    else
+        log_info "Fetching targets from compartment..."
+    fi
 
     local targets_json
-    targets_json=$(ds_list_targets "$COMP_OCID" "$LIFECYCLE") || die "Failed to list targets"
+    targets_json=$(ds_collect_targets_source "$COMP_OCID" "" "$LIFECYCLE" "" "$INPUT_JSON" "$SAVE_JSON") || die "Failed to collect targets"
 
     local total_count
     total_count=$(echo "$targets_json" | jq '.data | length')
@@ -361,16 +392,21 @@ export_targets() {
 
         # Get target details for service/port
         local details_json service_name listener_port
-        details_json=$(oci_exec_ro data-safe target-database get \
-            --target-database-id "$target_id") || {
-            log_warn "Failed to get details for $display_name"
-            service_name="N/A"
-            listener_port="0"
-        }
+        if [[ -n "$INPUT_JSON" ]]; then
+            service_name=$(echo "$target" | jq -r '."database-details"["service-name"] // "N/A"')
+            listener_port=$(echo "$target" | jq -r '."database-details"["listener-port"] // "0"')
+        else
+            details_json=$(oci_exec_ro data-safe target-database get \
+                --target-database-id "$target_id") || {
+                log_warn "Failed to get details for $display_name"
+                service_name="N/A"
+                listener_port="0"
+            }
 
-        if [[ -n "$details_json" ]]; then
-            service_name=$(echo "$details_json" | jq -r '.data["database-details"]["service-name"] // "N/A"')
-            listener_port=$(echo "$details_json" | jq -r '.data["database-details"]["listener-port"] // "0"')
+            if [[ -n "$details_json" ]]; then
+                service_name=$(echo "$details_json" | jq -r '.data["database-details"]["service-name"] // "N/A"')
+                listener_port=$(echo "$details_json" | jq -r '.data["database-details"]["listener-port"] // "0"')
+            fi
         fi
 
         # Determine registration status
@@ -476,7 +512,9 @@ main() {
     validate_inputs
 
     # Build connector mapping
-    build_connector_map
+    if [[ -n "$COMP_OCID" ]]; then
+        build_connector_map
+    fi
 
     # Export targets
     export_targets
