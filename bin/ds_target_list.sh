@@ -2657,8 +2657,8 @@ show_report_table() {
 
     if [[ "$total_issues" -gt 0 ]]; then
         printf "Issue summary (severity/count/SIDs):\n"
-        printf "%-26s %-8s %6s %6s %7s %s\n" "Issue" "Severity" "Count" "SIDs" "SID %" "Action"
-        printf "%-26s %-8s %6s %6s %7s %s\n" "--------------------------" "--------" "------" "------" "-------" "------------------"
+        printf "%-44s %-8s %8s %8s %7s %s\n" "Issue" "Severity" "Count" "SIDs" "SID %" "Suggested Action"
+        printf "%-44s %-8s %8s %8s %7s %s\n" "--------------------------------------------" "--------" "--------" "--------" "-------" "------------------------------"
         echo "$report_json" | jq -r '.issues.summary[] | [.issue, .severity, (.count|tostring), (.sid_count|tostring), (.action // "")] | @tsv' \
             | while IFS=$'\t' read -r issue_type severity count sid_count action; do
                 local issue_display
@@ -2666,13 +2666,17 @@ show_report_table() {
                 local sid_pct
                 local action_display
                 issue_display="$(health_issue_label "$issue_type")"
+                if [[ ${#issue_display} -gt 44 ]]; then
+                    issue_display="${issue_display:0:41}..."
+                fi
                 action_display="$action"
                 if [[ -z "$action_display" ]]; then
                     action_display="$(health_issue_action "$issue_type")"
                 fi
+
                 sid_ratio=$(safe_div "$sid_count" "$total_sids_int" 4)
                 sid_pct=$(format_pct "$sid_ratio")
-                printf "%-26s %-8s %6d %6d %7s %s\n" "$issue_display" "$severity" "$count" "$sid_count" "$sid_pct" "$action_display"
+                printf "%-44s %-8s %8d %8d %7s %s\n" "$issue_display" "$severity" "$count" "$sid_count" "$sid_pct" "$action_display"
             done
     else
         printf "Issue summary: none\n"

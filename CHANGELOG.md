@@ -47,6 +47,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refined `--mode report` readability and terminal compatibility:
   aligned banner/metric sections, ASCII-safe labels (`SID->CDB`, `delta`),
   human-readable previous-run timestamps, and full action text in issue rows.
+- Updated `--mode report` issue summary table to use health-overview-style
+  aligned single-line rows while preserving the `SID %` blast-radius column.
 - Improved `--mode report` clarity for low-noise scopes:
   empty issue sections are collapsed to `none`, top-SID block now states it is
   a top-10 view and shows `showing X of Y affected SIDs`.

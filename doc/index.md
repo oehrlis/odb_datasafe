@@ -252,6 +252,8 @@ bin/ds_target_list.sh --input-json ./target_selection.json --report
 
 # Report includes scope banner, coverage metrics, SID impact, top SIDs, and deltas
 # from previous report snapshots in ${ODB_DATASAFE_BASE}/log/
+# Issue summary rows use health-overview-style aligned single-line output,
+# including SID % blast-radius values
 
 # Reuse saved payload with additional local filtering
 bin/ds_target_list.sh --input-json ./target_selection.json -r "db02" --mode issues
