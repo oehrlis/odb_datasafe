@@ -100,7 +100,7 @@ Options:
   Common Options:
     -h, --help                  Show this help message
     -V, --version               Show version
-    -v, --verbose               Enable verbose output (DEBUG level)
+    -v, --verbose               Enable verbose output (default for this script)
     -d, --debug                 Enable debug output (TRACE level)
     -q, --quiet                 Quiet mode (WARN level only)
     -n, --dry-run               Dry-run mode (show what would be done)
@@ -189,8 +189,24 @@ EOF
 # Output..: None (sets global variables)
 # ------------------------------------------------------------------------------
 parse_args() {
+    local has_explicit_log_flag="false"
+    local arg
+    for arg in "$@"; do
+        case "$arg" in
+            -v | --verbose | -d | --debug | -q | --quiet)
+                has_explicit_log_flag="true"
+                break
+                ;;
+        esac
+    done
+
     # First, parse common options (sets ARGS with remaining args)
     parse_common_opts "$@"
+
+    if [[ "$has_explicit_log_flag" == "false" ]]; then
+        # shellcheck disable=SC2034
+        LOG_LEVEL=INFO
+    fi
 
     # Now parse script-specific options from ARGS
     local -a remaining=()

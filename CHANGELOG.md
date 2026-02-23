@@ -10,6 +10,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+## [0.17.2] - 2026-02-23
+
+### Changed
+
+- Updated default logging behavior to start in verbose (`INFO`) mode when no
+  explicit logging flag is provided for operational scripts:
+  - `bin/ds_target_refresh.sh`
+  - `bin/ds_target_update_service.sh`
+  - `bin/ds_target_register.sh`
+  - `bin/ds_target_update_connector.sh`
+  - `bin/ds_target_update_tags.sh`
+  - `bin/ds_target_delete.sh`
+  - `bin/ds_target_activate.sh`
+  - `bin/ds_connector_update.sh`
+  - `bin/ds_target_audit_trail.sh`
+- Preserved explicit logging flag precedence (`--quiet`, `--verbose`, `--debug`)
+  so user-selected verbosity continues to override script defaults.
+
 ## [0.17.1] - 2026-02-23
 
 ### Changed

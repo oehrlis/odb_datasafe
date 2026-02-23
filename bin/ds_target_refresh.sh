@@ -71,7 +71,7 @@ Options:
   Common:
     -h, --help                  Show this help message
     -V, --version               Show version
-    -v, --verbose               Enable verbose output
+    -v, --verbose               Enable verbose output (default for this script)
     -d, --debug                 Enable debug output
     -n, --dry-run               Dry-run mode (show what would be done)
         --log-file FILE         Log to file
@@ -138,7 +138,23 @@ EOF
 # Notes...: Sets global variables for script configuration
 # ------------------------------------------------------------------------------
 parse_args() {
+    local has_explicit_log_flag="false"
+    local arg
+    for arg in "$@"; do
+        case "$arg" in
+            -v | --verbose | -d | --debug | -q | --quiet)
+                has_explicit_log_flag="true"
+                break
+                ;;
+        esac
+    done
+
     parse_common_opts "$@"
+
+    if [[ "$has_explicit_log_flag" == "false" ]]; then
+        # shellcheck disable=SC2034
+        LOG_LEVEL=INFO
+    fi
 
     local -a remaining=()
     set -- "${ARGS[@]-}"
