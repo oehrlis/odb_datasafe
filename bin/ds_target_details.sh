@@ -5,8 +5,8 @@
 # Name.......: ds_target_details.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
-# Date.......: 2026.02.19
-# Version....: v0.15.0
+# Date.......: 2026.02.23
+# Version....: v0.17.0
 # Purpose....: Show/export detailed info for Oracle Data Safe target databases
 #              for given target names/OCIDs or all targets in a compartment.
 #              Output formats: table | json | csv.

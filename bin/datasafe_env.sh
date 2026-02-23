@@ -4,8 +4,8 @@
 # ------------------------------------------------------------------------------
 # Script.....: datasafe_env.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.02.19
-# Version....: v0.15.0
+# Date.......: 2026.02.23
+# Version....: v0.17.0
 # Purpose....: Sourceable standalone shell environment for odb_datasafe
 # Usage......: source /path/to/odb_datasafe/bin/datasafe_env.sh
 # License....: Apache License Version 2.0

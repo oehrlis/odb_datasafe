@@ -5,8 +5,8 @@
 # Name.......: ds_target_delete.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
-# Date.......: 2026.02.19
-# Version....: v0.15.0
+# Date.......: 2026.02.23
+# Version....: v0.17.0
 # Purpose....: Delete Oracle Data Safe target databases and their dependencies
 #              for given target names/OCIDs or all targets in a compartment.
 # Requires...: bash (>=4), oci, jq, lib/ds_lib.sh
