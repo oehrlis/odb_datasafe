@@ -32,12 +32,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   consolidated `--mode details|count|overview|issues|problems` and
   `--issue-view summary|details`, plus `--issue` drill-down filtering
   (accepting issue code or issue label text).
+- Extended `ds_target_list.sh` with report-data source decoupling:
+  `--input-json` can replay previously selected target payloads locally,
+  and `--save-json` can persist selected payloads for downstream processing.
+- Added consolidated report mode in `ds_target_list.sh`:
+  `--mode report` (alias `--report`) for a one-page high-level target
+  summary across scope, landscape, lifecycle, and issue dimensions.
+- Enhanced `--mode report` output with operational context and metrics:
+  scope banner, run ID, raw-vs-selected counts, coverage metrics,
+  SID impact percentages, NEEDS_ATTENTION category breakdown, and
+  top affected SIDs.
+- Added lightweight report delta tracking in `--mode report` via
+  `${ODB_DATASAFE_BASE}/var/ds_target_last_report.json`.
 
 ### Documentation
 
 - Added a "Default Behavior Without Parameters" section to `doc/quickref.md`
   listing scripts that execute with defaults vs scripts that show help by
   default.
+- Updated `doc/index.md` and `doc/quickref.md` with consolidated
+  report-mode examples and JSON save/replay workflows for
+  `ds_target_list.sh`.
 
 ### Fixed
 

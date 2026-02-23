@@ -172,6 +172,24 @@ bin/ds_target_list.sh --mode issues --issue-view details --issue "SID missing CD
 # Overview mode
 bin/ds_target_list.sh --mode overview
 
+# One-page consolidated high-level report
+bin/ds_target_list.sh --report
+
+# Equivalent explicit mode selector for consolidated report
+bin/ds_target_list.sh --mode report
+
+# Save selected target JSON payload for reuse
+bin/ds_target_list.sh --all --save-json ./target_selection.json
+
+# Run reporting from saved JSON payload (no OCI fetch)
+bin/ds_target_list.sh --input-json ./target_selection.json --report
+
+# Report output includes scope banner, coverage metrics, SID impact %,
+# NEEDS_ATTENTION breakdown, top affected SIDs, and run-to-run deltas
+
+# Reuse saved payload with additional local filtering
+bin/ds_target_list.sh --input-json ./target_selection.json -r "db02" --mode issues
+
 # Show all fields for a target (JSON only)
 bin/ds_target_list.sh -T mydb01 -F all -f json
 

@@ -1,9 +1,12 @@
 #!/usr/bin/env bats
 
 setup() {
-    export REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/.." && pwd)"
-    export BIN_DIR="${REPO_ROOT}/bin"
-    export SCRIPT_VERSION="$(tr -d '\n' < "${REPO_ROOT}/VERSION" 2>/dev/null || echo '0.0.0')"
+    REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/.." && pwd)"
+    BIN_DIR="${REPO_ROOT}/bin"
+    SCRIPT_VERSION="$(tr -d '\n' < "${REPO_ROOT}/VERSION" 2>/dev/null || echo '0.0.0')"
+    ODB_DATASAFE_BASE="${BATS_TEST_TMPDIR}/odb_datasafe"
+    export REPO_ROOT BIN_DIR SCRIPT_VERSION ODB_DATASAFE_BASE
+    mkdir -p "${ODB_DATASAFE_BASE}/var"
 }
 
 @test "ds_target_list.sh exists and is executable" {
@@ -69,4 +72,40 @@ setup() {
     run "${BIN_DIR}/ds_target_list.sh" --help
     [ "$status" -eq 0 ]
     [[ "$output" == *"--issue ISSUE"* ]]
+}
+
+@test "ds_target_list.sh help includes report and json replay options" {
+    run "${BIN_DIR}/ds_target_list.sh" --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--mode MODE"* ]]
+    [[ "$output" == *"details|count|overview|issues|problems|report"* ]]
+    [[ "$output" == *"--report"* ]]
+    [[ "$output" == *"--input-json FILE"* ]]
+    [[ "$output" == *"--save-json FILE"* ]]
+}
+
+@test "ds_target_list.sh report mode works from input json" {
+    local sample_json="${BATS_TEST_TMPDIR}/ds_target_list_sample.json"
+
+    cat > "$sample_json" <<'JSON'
+{"data":[
+  {"display-name":"clusterA_cdb01_CDB$ROOT","lifecycle-state":"ACTIVE","lifecycle-details":""},
+  {"display-name":"clusterA_cdb01_app1","lifecycle-state":"ACTIVE","lifecycle-details":""},
+  {"display-name":"clusterA_cdb01_app2","lifecycle-state":"NEEDS_ATTENTION","lifecycle-details":"ORA-01017: invalid username/password"},
+  {"display-name":"clusterB_cdb02_CDB$ROOT","lifecycle-state":"NEEDS_ATTENTION","lifecycle-details":"failed to connect login timeout"},
+  {"display-name":"badname","lifecycle-state":"INACTIVE","lifecycle-details":""}
+]}
+JSON
+
+    run "${BIN_DIR}/ds_target_list.sh" --input-json "$sample_json" --report
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Data Safe Target Report (High-Level)"* ]]
+    [[ "$output" == *"Run ID"* ]]
+    [[ "$output" == *"Coverage Metrics:"* ]]
+    [[ "$output" == *"SID→CDB coverage"* ]]
+    [[ "$output" == *"Issue summary (severity/count/SIDs):"* ]]
+    [[ "$output" == *"SID %"* ]]
+    [[ "$output" == *"NEEDS_ATTENTION breakdown"* ]]
+    [[ "$output" == *"Top affected SIDs (by issue count):"* ]]
+    [[ "$output" == *"Delta vs previous run:"* ]]
 }

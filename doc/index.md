@@ -26,7 +26,8 @@ The `odb_datasafe` extension provides a complete framework for working with Orac
 - **[Database Prereqs](database_prereqs.md)** - On-prem DB preparation
 - **[IAM Policies Guide](oci-iam-policies.md)** - Required OCI permissions
 - **[Release Notes](release_notes/)** - Version history and changes
-- **[v0.16.2 Release Note](release_notes/v0.16.2.md)** - CLI consolidation, registration defaults, and shell-compatibility hardening
+- **[v0.16.2 Release Note](release_notes/v0.16.2.md)** - CLI consolidation,
+  registration defaults, and shell-compatibility hardening
 - **[CHANGELOG](../CHANGELOG.md)** - Complete version history
 
 ## Quick Start
@@ -236,6 +237,24 @@ bin/ds_target_list.sh --overview -r "cluster1"
 
 # Overview with status counts hidden
 bin/ds_target_list.sh --overview --overview-no-status
+
+# One-page consolidated high-level report
+bin/ds_target_list.sh --report
+
+# Equivalent explicit mode selector for consolidated report
+bin/ds_target_list.sh --mode report
+
+# Save selected target JSON payload for reuse
+bin/ds_target_list.sh --all --save-json ./target_selection.json
+
+# Run reporting from saved JSON payload (no OCI fetch)
+bin/ds_target_list.sh --input-json ./target_selection.json --report
+
+# Report includes scope banner, coverage metrics, SID impact, top SIDs, and deltas
+# from previous report snapshots in ${ODB_DATASAFE_BASE}/var/
+
+# Reuse saved payload with additional local filtering
+bin/ds_target_list.sh --input-json ./target_selection.json -r "db02" --mode issues
 
 # More list/overview/troubleshooting examples
 # See: doc/quickref.md
