@@ -1150,6 +1150,7 @@ resolve_target_to_vars() {
 # Function: ds_refresh_target
 # Purpose.: Refresh a Data Safe target
 # Args....: $1 - Target OCID
+# Returns.: 0 on success, 2 when refresh is already in progress (skip), non-zero on error
 # ------------------------------------------------------------------------------
 ds_refresh_target() {
     local target_ocid="$1"
@@ -1169,20 +1170,35 @@ ds_refresh_target() {
     fi
 
     # Build OCI command based on wait flag
-    local output
+    local -a refresh_cmd=(oci data-safe target-database refresh --target-database-id "$target_ocid")
+
     if [[ "${WAIT_FOR_COMPLETION:-false}" == "true" ]]; then
+        refresh_cmd+=(--wait-for-state SUCCEEDED --wait-for-state FAILED)
         log_info "[$current/$total] Refreshing: $target_name (waiting for completion...)"
-        output=$(oci_exec data-safe target-database refresh \
-            --target-database-id "$target_ocid" \
-            --wait-for-state SUCCEEDED \
-            --wait-for-state FAILED)
     else
         log_info "[$current/$total] Refreshing: $target_name (async)"
-        output=$(oci_exec data-safe target-database refresh \
-            --target-database-id "$target_ocid")
     fi
 
-    local exit_code=$?
+    [[ -n "${OCI_CLI_CONFIG_FILE}" ]] && refresh_cmd+=(--config-file "${OCI_CLI_CONFIG_FILE}")
+    [[ -n "${OCI_CLI_PROFILE}" ]] && refresh_cmd+=(--profile "${OCI_CLI_PROFILE}")
+    [[ -n "${OCI_CLI_REGION}" ]] && refresh_cmd+=(--region "${OCI_CLI_REGION}")
+
+    log_debug "OCI command: ${refresh_cmd[*]}"
+
+    local output=""
+    local exit_code=0
+    if output=$("${refresh_cmd[@]}" 2>&1); then
+        exit_code=0
+    else
+        exit_code=$?
+        log_error "OCI command failed (exit ${exit_code}): ${refresh_cmd[*]}"
+        log_debug "Output: $output"
+    fi
+
+    if [[ $exit_code -ne 0 ]] && [[ "$output" == *"Conflict"* ]] && [[ "$output" == *"already in progress"* ]]; then
+        log_warn "[$current/$total] Skipping refresh for $target_name: operation already in progress"
+        return 2
+    fi
 
     # Handle output based on log level and log file
     if [[ -n "$output" ]]; then

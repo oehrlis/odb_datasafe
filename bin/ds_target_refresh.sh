@@ -304,11 +304,18 @@ refresh_single_target() {
     fi
 
     # Pass the counter info to ds_refresh_target
+    local refresh_rc=0
     if ds_refresh_target "$target_ocid" "$current" "$total"; then
         log_debug "✓ Successfully refreshed: $target_name"
         SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
         return 0
     else
+        refresh_rc=$?
+        if [[ $refresh_rc -eq 2 ]]; then
+            log_warn "[$current/$total] Skipped refresh (already in progress): $target_name"
+            SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
+            return 0
+        fi
         log_error "✗ Failed to refresh: $target_name"
         FAILED_COUNT=$((FAILED_COUNT + 1))
         return 1
@@ -351,7 +358,9 @@ do_work() {
         IFS=$'\t' read -r target_ocid target_name <<< "$target_row"
         [[ -z "$target_ocid" ]] && continue
         current=$((current + 1))
-        refresh_single_target "$target_ocid" "$target_name" "$current" "$total"
+        if ! refresh_single_target "$target_ocid" "$target_name" "$current" "$total"; then
+            :
+        fi
     done
 
     # Print summary
