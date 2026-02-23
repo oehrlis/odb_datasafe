@@ -34,6 +34,10 @@ readonly SCRIPT_VERSION
 : "${SELECT_ALL:=false}"
 : "${TARGET_FILTER:=}"
 : "${LIFECYCLE_STATE:=ACTIVE}"
+: "${INPUT_JSON:=}"
+: "${SAVE_JSON:=}"
+: "${ALLOW_STALE_SELECTION:=false}"
+: "${MAX_SNAPSHOT_AGE:=24h}"
 : "${DB_DOMAIN:=oradba.ch}"
 : "${APPLY_CHANGES:=false}"
 : "${WAIT_FOR_STATE:=}"
@@ -87,6 +91,12 @@ Options:
     -T, --targets LIST          Comma-separated target names or OCIDs
     -r, --filter REGEX          Filter target names by regex (substring match)
     -L, --lifecycle STATE       Filter by lifecycle state (default: ${LIFECYCLE_STATE})
+        --input-json FILE       Read targets from local JSON (array or {data:[...]})
+        --save-json FILE        Save selected target JSON payload
+        --allow-stale-selection Allow --apply with --input-json
+                    (disabled by default for safety)
+        --max-snapshot-age AGE  Max input-json age (default: ${MAX_SNAPSHOT_AGE})
+                    Examples: 900, 30m, 24h, 2d, off
 
   Service Update:
         --domain DOMAIN         Domain for new service names (default: ${DB_DOMAIN})
@@ -115,6 +125,12 @@ Examples:
 
     # Update only targets matching regex
     ${SCRIPT_NAME} -c my-compartment -r "cdb10b" --apply
+
+    # Dry-run from saved target selection JSON
+    ${SCRIPT_NAME} --input-json ./target_selection.json
+
+    # Apply from saved selection JSON (requires explicit safeguard override)
+    ${SCRIPT_NAME} --input-json ./target_selection.json --apply --allow-stale-selection
 
 EOF
     exit 0
@@ -158,6 +174,25 @@ parse_args() {
             -L | --lifecycle)
                 need_val "$1" "${2:-}"
                 LIFECYCLE_STATE="$2"
+                shift 2
+                ;;
+            --input-json)
+                need_val "$1" "${2:-}"
+                INPUT_JSON="$2"
+                shift 2
+                ;;
+            --save-json)
+                need_val "$1" "${2:-}"
+                SAVE_JSON="$2"
+                shift 2
+                ;;
+            --allow-stale-selection)
+                ALLOW_STALE_SELECTION=true
+                shift
+                ;;
+            --max-snapshot-age)
+                need_val "$1" "${2:-}"
+                MAX_SNAPSHOT_AGE="$2"
                 shift 2
                 ;;
             --domain)
@@ -221,21 +256,38 @@ parse_args() {
 validate_inputs() {
     log_debug "Validating inputs..."
 
-    require_oci_cli
+    if [[ -n "$INPUT_JSON" ]]; then
+        [[ -r "$INPUT_JSON" ]] || die "Input JSON file not found: $INPUT_JSON"
+        ds_validate_input_json_freshness "$INPUT_JSON" "$MAX_SNAPSHOT_AGE" || die "Input JSON snapshot freshness check failed"
 
-    COMPARTMENT=$(ds_resolve_all_targets_scope "$SELECT_ALL" "$COMPARTMENT" "$TARGETS") || die "Invalid --all usage. --all requires DS_ROOT_COMP and cannot be combined with -c/--compartment or -T/--targets"
+        if [[ "$APPLY_CHANGES" == "true" && "$ALLOW_STALE_SELECTION" != "true" ]]; then
+            die "Refusing --apply with --input-json without --allow-stale-selection"
+        fi
 
-    if [[ "$SELECT_ALL" == "true" ]]; then
-        log_info "Using DS_ROOT_COMP scope via --all"
-    fi
+        if [[ "$SELECT_ALL" == "true" || -n "$COMPARTMENT" || -n "$TARGETS" ]]; then
+            log_warn "Ignoring --all/--compartment/--targets when --input-json is provided"
+        fi
 
-    # If no scope specified, use DS_ROOT_COMP as default when available
-    if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
-        if [[ -n "${DS_ROOT_COMP:-}" ]]; then
-            COMPARTMENT=$(resolve_compartment_for_operation "$COMPARTMENT") || die "Failed to get root compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
-            log_info "No scope specified, using DS_ROOT_COMP: $COMPARTMENT"
-        else
-            usage
+        if [[ "$APPLY_CHANGES" == "true" ]]; then
+            require_oci_cli
+        fi
+    else
+        require_oci_cli
+
+        COMPARTMENT=$(ds_resolve_all_targets_scope "$SELECT_ALL" "$COMPARTMENT" "$TARGETS") || die "Invalid --all usage. --all requires DS_ROOT_COMP and cannot be combined with -c/--compartment or -T/--targets"
+
+        if [[ "$SELECT_ALL" == "true" ]]; then
+            log_info "Using DS_ROOT_COMP scope via --all"
+        fi
+
+        # If no scope specified, use DS_ROOT_COMP as default when available
+        if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
+            if [[ -n "${DS_ROOT_COMP:-}" ]]; then
+                COMPARTMENT=$(resolve_compartment_for_operation "$COMPARTMENT") || die "Failed to get root compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
+                log_info "No scope specified, using DS_ROOT_COMP: $COMPARTMENT"
+            else
+                usage
+            fi
         fi
     fi
 
@@ -409,16 +461,16 @@ do_work() {
     fi
 
     local success_count=0 error_count=0
-    local -a target_ocids=()
+    local -a target_rows=()
 
     log_info "Discovering targets (lifecycle: $LIFECYCLE_STATE)"
 
     local json_data
-    json_data=$(ds_collect_targets "$COMPARTMENT" "$TARGETS" "$LIFECYCLE_STATE" "$TARGET_FILTER") || die "Failed to collect targets"
+    json_data=$(ds_collect_targets_source "$COMPARTMENT" "$TARGETS" "$LIFECYCLE_STATE" "$TARGET_FILTER" "$INPUT_JSON" "$SAVE_JSON") || die "Failed to collect targets"
 
-    mapfile -t target_ocids < <(echo "$json_data" | jq -r '.data[].id')
+    mapfile -t target_rows < <(echo "$json_data" | jq -r '.data[] | [(.id // ""), (."display-name" // ""), (.databaseDetails.serviceName // ."database-details"."service-name" // "")] | @tsv')
 
-    local total_count=${#target_ocids[@]}
+    local total_count=${#target_rows[@]}
     log_info "Found $total_count targets to process"
 
     if [[ $total_count -eq 0 ]]; then
@@ -431,21 +483,25 @@ do_work() {
 
     local current=0
     local target_ocid=""
+    local target_row=""
     local target_data=""
     local target_name=""
     local current_service=""
 
-    for target_ocid in "${target_ocids[@]}"; do
+    for target_row in "${target_rows[@]}"; do
+        IFS=$'\t' read -r target_ocid target_name current_service <<< "$target_row"
+        [[ -z "$target_ocid" ]] && continue
         current=$((current + 1))
 
-        if ! target_data=$(get_target_details "$target_ocid"); then
-            log_error "[$current/$total_count] Failed to get details for target: $target_ocid"
-            error_count=$((error_count + 1))
-            continue
+        if [[ -z "$current_service" && -z "$INPUT_JSON" ]]; then
+            if ! target_data=$(get_target_details "$target_ocid"); then
+                log_error "[$current/$total_count] Failed to get details for target: $target_ocid"
+                error_count=$((error_count + 1))
+                continue
+            fi
+            target_name=$(echo "$target_data" | jq -r '."display-name"')
+            current_service=$(echo "$target_data" | jq -r '.databaseDetails.serviceName // ""')
         fi
-
-        target_name=$(echo "$target_data" | jq -r '."display-name"')
-        current_service=$(echo "$target_data" | jq -r '.databaseDetails.serviceName // ""')
 
         log_info "[$current/$total_count] Processing: $target_name"
         if update_target_service "$target_ocid" "$target_name" "$current_service"; then

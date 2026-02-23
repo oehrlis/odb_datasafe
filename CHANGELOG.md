@@ -49,6 +49,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added Phase 2 `--input-json` / `--save-json` support to
   `bin/ds_target_export.sh` and `bin/ds_target_details.sh`, including
   local payload processing paths for offline detail/export workflows.
+- Started Phase 3 safeguard rollout for mutating scripts by adding
+  `--input-json` / `--save-json` support to `bin/ds_target_refresh.sh` and
+  `bin/ds_target_update_tags.sh` with fail-closed apply behavior:
+  offline apply is blocked by default and requires
+  `--allow-stale-selection`, with optional freshness enforcement via
+  `--max-snapshot-age`.
+- Extended Phase 3 safeguard rollout to
+  `bin/ds_target_update_credentials.sh` and
+  `bin/ds_target_update_service.sh` with the same fail-closed replay model
+  (`--allow-stale-selection` + `--max-snapshot-age`) for offline apply paths.
 
 ### Documentation
 
@@ -61,6 +71,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Phase 1 read-only target analysis commands.
 - Added script help, quick reference examples, and targeted tests for Phase 2
   export/details input-json and save-json workflows.
+- Added safeguard-focused help/docs/tests for Phase 3 mutating-script replay
+  (`refresh`, `update_tags`) including blocked-by-default apply from
+  `--input-json` snapshots.
+- Added safeguard-focused help/docs/tests for Phase 3 mutating-script replay
+  in `update_credentials` and `update_service`, including blocked-by-default
+  apply from `--input-json` snapshots.
 
 ## [0.16.2] - 2026-02-20
 

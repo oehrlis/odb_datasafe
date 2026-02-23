@@ -34,6 +34,10 @@ readonly SCRIPT_VERSION
 : "${SELECT_ALL:=false}"
 : "${TARGET_FILTER:=}"
 : "${LIFECYCLE_STATE:=}"
+: "${INPUT_JSON:=}"
+: "${SAVE_JSON:=}"
+: "${ALLOW_STALE_SELECTION:=false}"
+: "${MAX_SNAPSHOT_AGE:=24h}"
 : "${DS_USER:=${DATASAFE_USER:-}}"
 : "${DS_SECRET:=${DATASAFE_SECRET:-}}"
 : "${NO_PROMPT:=false}"
@@ -107,6 +111,12 @@ Options:
     -T, --targets LIST          Comma-separated target names or OCIDs
     -r, --filter REGEX          Filter target names by regex (substring match)
     -L, --lifecycle STATE       Filter by lifecycle state (default: all selected targets)
+        --input-json FILE       Read targets from local JSON (array or {data:[...]})
+        --save-json FILE        Save selected target JSON payload
+        --allow-stale-selection Allow --apply with --input-json
+                    (disabled by default for safety)
+        --max-snapshot-age AGE  Max input-json age (default: ${MAX_SNAPSHOT_AGE})
+                    Examples: 900, 30m, 24h, 2d, off
 
   Credentials:
     -U, --ds-user USER          Database username (default: ${DS_USER:-not set})
@@ -147,6 +157,12 @@ Examples:
 
     # Bulk update for compartment (interactive secret, wait for state)
     ${SCRIPT_NAME} -c my-compartment -U dbuser --apply --wait-for-state ACCEPTED
+
+    # Dry-run from saved target selection JSON
+    ${SCRIPT_NAME} --input-json ./target_selection.json -U dbuser --dry-run
+
+    # Apply from saved target selection JSON (requires explicit safeguard override)
+    ${SCRIPT_NAME} --input-json ./target_selection.json -U dbuser --apply --allow-stale-selection
 
 EOF
     exit 0
@@ -190,6 +206,25 @@ parse_args() {
             -L | --lifecycle)
                 need_val "$1" "${2:-}"
                 LIFECYCLE_STATE="$2"
+                shift 2
+                ;;
+            --input-json)
+                need_val "$1" "${2:-}"
+                INPUT_JSON="$2"
+                shift 2
+                ;;
+            --save-json)
+                need_val "$1" "${2:-}"
+                SAVE_JSON="$2"
+                shift 2
+                ;;
+            --allow-stale-selection)
+                ALLOW_STALE_SELECTION=true
+                shift
+                ;;
+            --max-snapshot-age)
+                need_val "$1" "${2:-}"
+                MAX_SNAPSHOT_AGE="$2"
                 shift 2
                 ;;
             -U | --ds-user | --username)
@@ -334,10 +369,27 @@ resolve_ds_user_for_target() {
 validate_inputs() {
     log_debug "Validating inputs..."
 
-    require_oci_cli
-    require_cmd base64
+    if [[ -n "$INPUT_JSON" ]]; then
+        [[ -r "$INPUT_JSON" ]] || die "Input JSON file not found: $INPUT_JSON"
+        ds_validate_input_json_freshness "$INPUT_JSON" "$MAX_SNAPSHOT_AGE" || die "Input JSON snapshot freshness check failed"
 
-    COMPARTMENT=$(ds_resolve_all_targets_scope "$SELECT_ALL" "$COMPARTMENT" "$TARGETS") || die "Invalid --all usage. --all requires DS_ROOT_COMP and cannot be combined with -c/--compartment or -T/--targets"
+        if [[ "$APPLY_CHANGES" == "true" && "$ALLOW_STALE_SELECTION" != "true" ]]; then
+            die "Refusing --apply with --input-json without --allow-stale-selection"
+        fi
+
+        if [[ "$SELECT_ALL" == "true" || -n "$COMPARTMENT" || -n "$TARGETS" ]]; then
+            log_warn "Ignoring --all/--compartment/--targets when --input-json is provided"
+        fi
+
+        if [[ "$APPLY_CHANGES" == "true" ]]; then
+            require_oci_cli
+        fi
+    else
+        require_oci_cli
+
+        COMPARTMENT=$(ds_resolve_all_targets_scope "$SELECT_ALL" "$COMPARTMENT" "$TARGETS") || die "Invalid --all usage. --all requires DS_ROOT_COMP and cannot be combined with -c/--compartment or -T/--targets"
+    fi
+    require_cmd base64
 
     # If neither targets nor compartment specified, show help
     if [[ -z "$TARGETS" && -z "$COMPARTMENT" && -z "$CRED_FILE" && -z "$DS_USER" ]]; then
@@ -609,7 +661,7 @@ do_work() {
         log_info "Processing targets from compartment scope..."
     fi
 
-    json_data=$(ds_collect_targets "$COMPARTMENT" "$TARGETS" "$LIFECYCLE_STATE" "$TARGET_FILTER") || die "Failed to collect targets"
+    json_data=$(ds_collect_targets_source "$COMPARTMENT" "$TARGETS" "$LIFECYCLE_STATE" "$TARGET_FILTER" "$INPUT_JSON" "$SAVE_JSON") || die "Failed to collect targets"
 
     local total_count
     total_count=$(echo "$json_data" | jq '.data | length')

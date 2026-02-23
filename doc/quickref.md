@@ -157,6 +157,12 @@ bin/ds_target_refresh.sh -c "MyCompartment" -L NEEDS_ATTENTION
 # Refresh intersection of explicit targets and regex filter
 bin/ds_target_refresh.sh -T db01,db02,db03 -r "db02"
 
+# Dry-run refresh from saved selection JSON
+bin/ds_target_refresh.sh --input-json ./target_selection.json --dry-run
+
+# Apply refresh from saved selection JSON (requires explicit safeguard override)
+bin/ds_target_refresh.sh --input-json ./target_selection.json --allow-stale-selection
+
 # Activate INACTIVE targets in a compartment (dry-run by default)
 bin/ds_target_activate.sh -c "MyCompartment" -L INACTIVE
 
@@ -215,14 +221,32 @@ bin/ds_target_update_credentials.sh -r "db02"
 # Apply credential update for regex-matched targets
 bin/ds_target_update_credentials.sh -r "db02" --apply
 
+# Dry-run credential update from saved selection JSON
+bin/ds_target_update_credentials.sh --input-json ./target_selection.json -U dbuser --dry-run
+
+# Apply credential update from saved selection JSON (requires explicit safeguard override)
+bin/ds_target_update_credentials.sh --input-json ./target_selection.json -U dbuser --apply --allow-stale-selection
+
 # Apply with interactive OCI confirmation (disable default force mode)
 bin/ds_target_update_credentials.sh -r "db02" --apply --no-force
 
 # Update tags for targets matching regex
 bin/ds_target_update_tags.sh -r "db02" --apply
 
+# Dry-run tag update from saved selection JSON
+bin/ds_target_update_tags.sh --input-json ./target_selection.json
+
+# Apply tag update from saved selection JSON (requires explicit safeguard override)
+bin/ds_target_update_tags.sh --input-json ./target_selection.json --apply --allow-stale-selection
+
 # Update service names for targets matching regex
 bin/ds_target_update_service.sh -c "MyCompartment" -r "db02" --apply
+
+# Dry-run service update from saved selection JSON
+bin/ds_target_update_service.sh --input-json ./target_selection.json
+
+# Apply service update from saved selection JSON (requires explicit safeguard override)
+bin/ds_target_update_service.sh --input-json ./target_selection.json --apply --allow-stale-selection
 ```
 
 ### 4. Default Behavior Without Parameters
