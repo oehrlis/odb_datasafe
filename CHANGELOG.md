@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Logging defaults were tightened to be quiet by default across scripts:
+  default output now suppresses `INFO`/`DEBUG`/`TRACE` logs and only shows
+  `WARN`/`ERROR`/`FATAL`.
+- Updated common logging flag semantics in `lib/common.sh`:
+  - `--quiet` keeps `WARN`/`ERROR`/`FATAL` only,
+  - `--verbose` enables `INFO` (without `DEBUG`/`TRACE`),
+  - `--debug` enables full trace output (`TRACE` + `DEBUG` + higher levels).
+- `parse_common_opts` now explicitly resets per-invocation baseline log level
+  to quiet (`WARN`) before applying CLI log flags, preventing environment or
+  config carry-over from re-enabling noisy logs unexpectedly.
+
 ## [0.16.2] - 2026-02-20
 
 ### Changed

@@ -20,7 +20,7 @@ readonly COMMON_SH_LOADED=1
 # =============================================================================
 
 # Log levels: 0=TRACE, 1=DEBUG, 2=INFO, 3=WARN, 4=ERROR, 5=FATAL
-: "${LOG_LEVEL:=2}"     # Default: INFO
+: "${LOG_LEVEL:=3}"     # Default: WARN (quiet by default)
 : "${LOG_FILE:=}"       # Optional: log to file
 : "${LOG_COLORS:=auto}" # auto|always|never
 
@@ -367,6 +367,10 @@ need_val() {
 # Notes...: Call this FIRST, then parse script-specific args
 # ------------------------------------------------------------------------------
 parse_common_opts() {
+    # Enforce quiet-by-default behavior for every script invocation.
+    # Explicit CLI flags (-v/-d/-q) can override this baseline.
+    LOG_LEVEL=WARN
+
     if [[ $# -eq 0 && "${SHOW_USAGE_ON_EMPTY_ARGS}" == "true" ]]; then
         if declare -f usage > /dev/null 2>&1; then
             usage
@@ -391,7 +395,7 @@ parse_common_opts() {
                 exit 0
                 ;;
             -v | --verbose)
-                LOG_LEVEL=DEBUG
+                LOG_LEVEL=INFO
                 shift
                 ;;
             -d | --debug)
