@@ -45,6 +45,7 @@ readonly SCRIPT_VERSION
 : "${CONTAINER_STAGE_TAG:=ContainerStage}"
 : "${CONTAINER_TYPE_TAG:=ContainerType}"
 : "${CLASSIFICATION_TAG:=Classification}"
+# shellcheck disable=SC2034 # consumed by parse_common_opts in common.sh
 SHOW_USAGE_ON_EMPTY_ARGS=true
 
 # shellcheck disable=SC1091

@@ -42,6 +42,7 @@ readonly SCRIPT_VERSION
 : "${APPLY_CHANGES:=false}"
 : "${WAIT_FOR_COMPLETION:=false}" # Default to no-wait for speed
 : "${EXCLUDE_AUTO:=false}"
+# shellcheck disable=SC2034 # consumed by parse_common_opts in common.sh
 SHOW_USAGE_ON_EMPTY_ARGS=true
 
 # shellcheck disable=SC1091

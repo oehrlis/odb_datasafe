@@ -49,6 +49,7 @@ readonly SCRIPT_VERSION
 : "${APPLY_CHANGES:=false}"
 : "${FORCE_UPDATE:=true}"
 : "${WAIT_FOR_STATE:=}" # Empty = async (no wait); "ACCEPTED" or other for sync wait
+# shellcheck disable=SC2034 # consumed by parse_common_opts in common.sh
 SHOW_USAGE_ON_EMPTY_ARGS=true
 
 # shellcheck disable=SC1091

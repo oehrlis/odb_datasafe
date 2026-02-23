@@ -28,6 +28,7 @@
 : "${FORCE:=false}"              # skip confirmation prompts
 : "${DELETE_DEPENDENCIES:=true}" # delete audit trails, assessments, policies
 : "${CONTINUE_ON_ERROR:=true}"   # continue processing other targets if one fails
+# shellcheck disable=SC2034 # consumed by parse_common_opts in common.sh
 SHOW_USAGE_ON_EMPTY_ARGS=true
 
 # Runtime

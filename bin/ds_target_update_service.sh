@@ -41,6 +41,7 @@ readonly SCRIPT_VERSION
 : "${DB_DOMAIN:=oradba.ch}"
 : "${APPLY_CHANGES:=false}"
 : "${WAIT_FOR_STATE:=}"
+# shellcheck disable=SC2034 # consumed by parse_common_opts in common.sh
 SHOW_USAGE_ON_EMPTY_ARGS=true
 
 # shellcheck disable=SC1091

@@ -41,6 +41,7 @@ source "${LIB_DIR}/ds_lib.sh"
 DATASAFE_ENV=""
 CONNECTOR_INFO=""
 DRY_RUN=false
+# shellcheck disable=SC2034 # consumed by parse_common_opts in common.sh
 SHOW_USAGE_ON_EMPTY_ARGS=true
 
 # =============================================================================

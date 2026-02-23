@@ -34,6 +34,7 @@ readonly SCRIPT_VERSION
 : "${RETENTION_DAYS:=90}"
 : "${UPDATE_LAST_ARCHIVE:=true}"
 : "${COLLECTION_FREQUENCY:=DAILY}"
+# shellcheck disable=SC2034 # consumed by parse_common_opts in common.sh
 SHOW_USAGE_ON_EMPTY_ARGS=true
 
 # Runtime globals

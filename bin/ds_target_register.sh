@@ -78,6 +78,7 @@ DISPLAY_NAME=""
 DESCRIPTION=""
 CLUSTER=""
 CHECK_ONLY=false
+# shellcheck disable=SC2034 # consumed by parse_common_opts in common.sh
 SHOW_USAGE_ON_EMPTY_ARGS=true
 
 # Runtime
