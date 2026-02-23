@@ -69,6 +69,7 @@ readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 : "${REPORT_COMPARTMENT_OCID:=}"
 : "${REPORT_COMPARTMENT_NAME:=}"
 : "${REPORT_FILTERS:=none}"
+: "${REPORT_SCOPE_KEY:=}"
 : "${COLLECTED_JSON_DATA:=}"
 
 # Runtime counters
@@ -118,7 +119,7 @@ Options:
     --oci-config FILE                   OCI config file (default: ${OCI_CLI_CONFIG_FILE:-~/.oci/config})
 
   Selection:
-    -c, --compartment ID                Compartment OCID or name (default: DS_ROOT_COMP)
+        -c, --compartment ID                Compartment OCID or name (default: DS_ROOT_COMP)
                                         Configure in: \$ODB_DATASAFE_BASE/.env or datasafe.conf
     -A, --all                           Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
     -T, --targets LIST                  Comma-separated target names or OCIDs (for details only)
@@ -465,6 +466,7 @@ parse_args() {
 # ------------------------------------------------------------------------------
 validate_inputs() {
     log_debug "Validating inputs..."
+    local used_default_root_scope="false"
 
     if [[ -z "$INPUT_JSON" ]]; then
         require_oci_cli
@@ -478,6 +480,7 @@ validate_inputs() {
 
         # Resolve compartment using new pattern: explicit -c > DS_ROOT_COMP > error
         if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
+            used_default_root_scope="true"
             COMPARTMENT=$(resolve_compartment_for_operation "$COMPARTMENT") || die "Failed to resolve compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
 
             # Get compartment name for display
@@ -504,7 +507,11 @@ validate_inputs() {
             REPORT_SCOPE_LABEL="DS_ROOT_COMP"
         else
             REPORT_SCOPE_TYPE="compartment"
-            REPORT_SCOPE_LABEL="${COMPARTMENT:-DS_ROOT_COMP}"
+            if [[ "$used_default_root_scope" == "true" ]]; then
+                REPORT_SCOPE_LABEL="DS_ROOT_COMP"
+            else
+                REPORT_SCOPE_LABEL="${COMPARTMENT:-DS_ROOT_COMP}"
+            fi
         fi
     fi
 
@@ -532,6 +539,8 @@ validate_inputs() {
     else
         REPORT_FILTERS="none"
     fi
+
+    REPORT_SCOPE_KEY="${REPORT_SCOPE_TYPE}|${REPORT_SCOPE_LABEL}|${REPORT_COMPARTMENT_OCID}|${REPORT_FILTERS}"
 
     # Normalize mode selection to execution flags
     SHOW_COUNT=false
@@ -795,6 +804,31 @@ safe_div() {
 format_pct() {
     local ratio="${1:-0}"
     awk -v r="$ratio" 'BEGIN { printf "%.1f%%", (r * 100) }'
+}
+
+# ------------------------------------------------------------------------------
+# Function: format_human_time
+# Purpose.: Convert ISO UTC timestamp to human-readable UTC string
+# Args....: $1 - timestamp in ISO format (e.g. 2026-02-23T09:02:07Z)
+# Returns.: 0
+# Output..: formatted time (YYYY-MM-DD HH:MM:SS UTC) or original input
+# ------------------------------------------------------------------------------
+format_human_time() {
+    local iso_time="${1:-}"
+
+    if [[ -z "$iso_time" ]]; then
+        echo "unknown"
+        return 0
+    fi
+
+    if command -v date > /dev/null 2>&1; then
+        if date -u -j -f "%Y-%m-%dT%H:%M:%SZ" "$iso_time" "+%Y-%m-%d %H:%M:%S UTC" > /dev/null 2>&1; then
+            date -u -j -f "%Y-%m-%dT%H:%M:%SZ" "$iso_time" "+%Y-%m-%d %H:%M:%S UTC"
+            return 0
+        fi
+    fi
+
+    echo "$iso_time"
 }
 
 # ------------------------------------------------------------------------------
@@ -1374,6 +1408,56 @@ health_issue_label() {
             ;;
         *)
             echo "$issue_code"
+            ;;
+    esac
+}
+
+# ------------------------------------------------------------------------------
+# Function: health_issue_action
+# Purpose.: Provide suggested action text for an issue code
+# Args....: $1 - issue code
+# Returns.: 0
+# Output..: action text to stdout
+# ------------------------------------------------------------------------------
+health_issue_action() {
+    local issue_code="$1"
+
+    case "$issue_code" in
+        TARGET_NEEDS_ATTENTION_ACCOUNT_LOCKED)
+            echo "Unlock/reset account; update creds; refresh"
+            ;;
+        TARGET_NEEDS_ATTENTION_CREDENTIALS)
+            echo "Reset/update DB creds; refresh target"
+            ;;
+        TARGET_NEEDS_ATTENTION_CONNECTIVITY)
+            echo "Check connector/network/listener; refresh"
+            ;;
+        TARGET_NEEDS_ATTENTION_FETCH_DETAILS)
+            echo "Validate connect details; refresh"
+            ;;
+        TARGET_NEEDS_ATTENTION_OTHER)
+            echo "Review lifecycle-details; targeted checks"
+            ;;
+        SID_MISSING_ROOT)
+            echo "Register/refresh missing CDB root"
+            ;;
+        SID_DUPLICATE_ROOT)
+            echo "Review duplicate roots; keep one"
+            ;;
+        SID_ROOT_WITHOUT_PDB)
+            echo "Verify/register missing PDB targets"
+            ;;
+        TARGET_INACTIVE)
+            echo "Activate target if expected"
+            ;;
+        TARGET_UNEXPECTED_STATE)
+            echo "Wait/retry; refresh after state stabilizes"
+            ;;
+        TARGET_NAMING_NONSTANDARD)
+            echo "Adjust naming regex/standard"
+            ;;
+        *)
+            echo "Review details and remediate"
             ;;
     esac
 }
@@ -2276,12 +2360,14 @@ build_consolidated_report_json() {
     local issue_summary_json
     local needs_attention_breakdown_json
     local top_sids_json
+    local top_sids_total=0
     local run_timestamp
     local run_hash
     local run_id
     local coverage_sid_cdb_ratio
     local coverage_avg_pdb_per_cdb
     local coverage_avg_targets_per_sid
+    local sid_with_root_count=0
 
     selected_count=$(echo "$json_data" | jq '.data | length')
     REPORT_SELECTED_TARGETS="$selected_count"
@@ -2309,13 +2395,14 @@ build_consolidated_report_json() {
         def sev_rank: if . == "HIGH" then 3 elif . == "MEDIUM" then 2 elif . == "LOW" then 1 else 0 end;
         split("\n")
         | map(select(length > 0) | split("\t"))
-        | map({type: .[0], severity: .[1], sid: .[3]})
+        | map({type: .[0], severity: .[1], sid: .[3], action: .[7]})
         | group_by(.type)
         | map({
             issue: .[0].type,
             severity: (map(.severity) | max_by(sev_rank)),
             count: length,
-                        sid_count: (map(.sid) | map(select(. != "-" and . != "")) | unique | length)
+            sid_count: (map(.sid) | map(select(. != "-" and . != "")) | unique | length),
+            action: .[0].action
           })
         | sort_by(-(.severity|sev_rank), -.count, -.sid_count, .issue)
     ')
@@ -2358,6 +2445,15 @@ build_consolidated_report_json() {
                 | .[0:10]
         ')
 
+    top_sids_total=$(echo "$issue_rows" | jq -R -s '
+        split("\n")
+        | map(select(length > 0) | split("\t"))
+        | map(.[3])
+        | map(select(. != "-" and . != ""))
+        | unique
+        | length
+    ')
+
     local total_clusters=0
     local total_sids=0
     local total_cdbroots=0
@@ -2368,6 +2464,9 @@ build_consolidated_report_json() {
     while IFS=$'\t' read -r cluster _sid cdb_count pdb_count target_count _members _status; do
         [[ -z "$cluster" ]] && continue
         total_sids=$((total_sids + 1))
+        if ((cdb_count > 0)); then
+            sid_with_root_count=$((sid_with_root_count + 1))
+        fi
         total_cdbroots=$((total_cdbroots + cdb_count))
         total_pdbs=$((total_pdbs + pdb_count))
         total_targets=$((total_targets + target_count))
@@ -2398,6 +2497,7 @@ build_consolidated_report_json() {
         --argjson lifecycle_counts "$lifecycle_counts_json" \
         --argjson total_clusters "$total_clusters" \
         --argjson total_sids "$total_sids" \
+        --argjson sid_with_root_count "$sid_with_root_count" \
         --argjson total_cdbroots "$total_cdbroots" \
         --argjson total_pdbs "$total_pdbs" \
         --argjson total_targets "$total_targets" \
@@ -2410,6 +2510,7 @@ build_consolidated_report_json() {
         --argjson issues "$issue_summary_json" \
         --argjson needs_attention_breakdown "$needs_attention_breakdown_json" \
         --argjson top_affected_sids "$top_sids_json" \
+        --argjson top_affected_sids_total "$top_sids_total" \
         '{
             generated_at: (now | todateiso8601),
             run: {
@@ -2432,6 +2533,7 @@ build_consolidated_report_json() {
             landscape: {
                 clusters: $total_clusters,
                 sids: $total_sids,
+                sids_with_root: $sid_with_root_count,
                 cdb_roots: $total_cdbroots,
                 pdbs: $total_pdbs,
                 targets: $total_targets
@@ -2449,6 +2551,7 @@ build_consolidated_report_json() {
                 total: ([ $lifecycle_counts[]? | select(.state == "NEEDS_ATTENTION") | .count ] | add // 0),
                 breakdown: $needs_attention_breakdown
             },
+            top_affected_sids_total: $top_affected_sids_total,
             top_affected_sids: $top_affected_sids,
             warnings: {
                 overview_parse_skipped: $parse_skipped,
@@ -2473,20 +2576,32 @@ show_report_table() {
     local avg_pdb_per_cdb
     local avg_targets_per_sid
     local needs_attention_total
+    local label_width=11
+    local context_label
+    local context_ocid
+    local context_display
+    local total_issues
 
     total_sids=$(echo "$report_json" | jq '.landscape.sids')
     total_sids_int=${total_sids:-0}
+    total_issues=$(echo "$report_json" | jq '.issues.total')
+    context_label=$(echo "$report_json" | jq -r '.scope.label // "-"')
+    context_ocid=$(echo "$report_json" | jq -r 'if .scope.compartment_ocid == null or .scope.compartment_ocid == "" then "" else .scope.compartment_ocid end')
+    context_display="$context_label"
+    if [[ "$context_label" == "DS_ROOT_COMP" && -n "$context_ocid" ]]; then
+        context_display="${context_label} (${context_ocid})"
+    fi
 
     printf "\nData Safe Target Report (High-Level)\n"
-    printf "Run ID   : %s\n" "$(echo "$report_json" | jq -r '.run.id')"
-    printf "Generated: %s\n" "$(echo "$report_json" | jq -r '.run.timestamp')"
-    printf "Scope    : %s\n" "$(echo "$report_json" | jq -r '.scope.type')"
-    printf "Context  : %s\n" "$(echo "$report_json" | jq -r '.scope.label // "-"')"
-    printf "Compartment: %s (%s)\n" \
+    printf "%-*s : %s\n" "$label_width" "Run ID" "$(echo "$report_json" | jq -r '.run.id')"
+    printf "%-*s : %s\n" "$label_width" "Generated" "$(echo "$report_json" | jq -r '.run.timestamp')"
+    printf "%-*s : %s\n" "$label_width" "Scope" "$(echo "$report_json" | jq -r '.scope.type')"
+    printf "%-*s : %s\n" "$label_width" "Context" "$context_display"
+    printf "%-*s : %s (%s)\n" "$label_width" "Compartment" \
         "$(echo "$report_json" | jq -r 'if .scope.compartment_name == null or .scope.compartment_name == "" then "-" else .scope.compartment_name end')" \
         "$(echo "$report_json" | jq -r 'if .scope.compartment_ocid == null or .scope.compartment_ocid == "" then "-" else .scope.compartment_ocid end')"
-    printf "Filters  : %s\n" "$(echo "$report_json" | jq -r '.scope.filters // "none"')"
-    printf "Targets  : raw=%s selected=%s\n" \
+    printf "%-*s : %s\n" "$label_width" "Filters" "$(echo "$report_json" | jq -r '.scope.filters // "none"')"
+    printf "%-*s : raw=%s selected=%s\n" "$label_width" "Targets" \
         "$(echo "$report_json" | jq -r '.scope.raw_targets')" \
         "$(echo "$report_json" | jq -r '.scope.selected_targets')"
     printf "\n"
@@ -2505,26 +2620,34 @@ show_report_table() {
     avg_targets_per_sid=$(echo "$report_json" | jq -r '.coverage_metrics.avg_targets_per_sid')
 
     printf "Coverage Metrics:\n"
-    printf "  SID→CDB coverage  : %s/%s (%s)\n" \
-        "$(echo "$report_json" | jq -r '.landscape.cdb_roots')" \
+    printf "  SID->CDB coverage : %s/%s (%s)\n" \
+        "$(echo "$report_json" | jq -r '.landscape.sids_with_root')" \
         "$(echo "$report_json" | jq -r '.landscape.sids')" \
         "$sid_cdb_pct"
-    printf "  Avg PDBs per CDB  : %.2f\n" "$avg_pdb_per_cdb"
-    printf "  Avg targets per SID: %.2f\n" "$avg_targets_per_sid"
+    printf "  CDB root targets : %s\n" "$(echo "$report_json" | jq -r '.landscape.cdb_roots')"
+    printf "  Avg PDBs per CDB : %.2f\n" "$avg_pdb_per_cdb"
+    printf "  Avg targets/SID  : %.2f\n" "$avg_targets_per_sid"
     printf "\n"
 
     printf "Lifecycle distribution:\n"
-    echo "$report_json" | jq -r '.targets.lifecycle[] | "  - \(.state): \(.count)"'
-    needs_attention_total=$(echo "$report_json" | jq -r '.needs_attention.total')
-    printf "\nNEEDS_ATTENTION breakdown (total=%s):\n" "$needs_attention_total"
-    printf "%-23s %7s %7s %s\n" "Category" "Count" "SIDs" "Sample SIDs"
-    printf "%-23s %7s %7s %s\n" "-----------------------" "-------" "-------" "------------------------------"
-    echo "$report_json" | jq -r '.needs_attention.breakdown[] | [.category, (.count|tostring), (.sid_count|tostring), (.sids|join(","))] | @tsv' \
-        | while IFS=$'\t' read -r category count sid_count sid_csv; do
-            local sid_display
-            sid_display=$(shorten_list "$sid_csv" 10)
-            printf "%-23s %7d %7d %s\n" "$category" "$count" "$sid_count" "$sid_display"
+    echo "$report_json" | jq -r '.targets.lifecycle[] | [.state, (.count|tostring)] | @tsv' \
+        | while IFS=$'\t' read -r lifecycle_state lifecycle_count; do
+            printf "  - %-19s : %s\n" "$lifecycle_state" "$lifecycle_count"
         done
+    needs_attention_total=$(echo "$report_json" | jq -r '.needs_attention.total')
+    if [[ "$needs_attention_total" -gt 0 ]]; then
+        printf "\nNEEDS_ATTENTION breakdown (total=%s):\n" "$needs_attention_total"
+        printf "%-23s %7s %7s %s\n" "Category" "Count" "SIDs" "Sample SIDs"
+        printf "%-23s %7s %7s %s\n" "-----------------------" "-------" "-------" "------------------------------"
+        echo "$report_json" | jq -r '.needs_attention.breakdown[] | [.category, (.count|tostring), (.sid_count|tostring), (.sids|join(","))] | @tsv' \
+            | while IFS=$'\t' read -r category count sid_count sid_csv; do
+                local sid_display
+                sid_display=$(shorten_list "$sid_csv" 10)
+                printf "%-23s %7d %7d %s\n" "$category" "$count" "$sid_count" "$sid_display"
+            done
+    else
+        printf "\nNEEDS_ATTENTION breakdown: none\n"
+    fi
     printf "\n"
 
     printf "Warnings:\n"
@@ -2532,37 +2655,55 @@ show_report_table() {
     printf "  - Naming non-standard:    %s\n" "$(echo "$report_json" | jq -r '.warnings.naming_nonstandard')"
     printf "\n"
 
-    printf "Issue summary (severity/count/SIDs):\n"
-    printf "%-34s %-8s %7s %7s %8s\n" "Issue" "Severity" "Count" "SIDs" "SID %"
-    printf "%-34s %-8s %7s %7s %8s\n" "----------------------------------" "--------" "-------" "-------" "--------"
-    echo "$report_json" | jq -r '.issues.summary[] | [.issue, .severity, (.count|tostring), (.sid_count|tostring)] | @tsv' \
-        | while IFS=$'\t' read -r issue_type severity count sid_count; do
-            local issue_display
-            local sid_ratio
-            local sid_pct
-            issue_display="$(health_issue_label "$issue_type")"
-            if [[ ${#issue_display} -gt 34 ]]; then
-                issue_display="${issue_display:0:31}..."
-            fi
-            sid_ratio=$(safe_div "$sid_count" "$total_sids_int" 4)
-            sid_pct=$(format_pct "$sid_ratio")
-            printf "%-34s %-8s %7d %7d %8s\n" "$issue_display" "$severity" "$count" "$sid_count" "$sid_pct"
-        done
+    if [[ "$total_issues" -gt 0 ]]; then
+        printf "Issue summary (severity/count/SIDs):\n"
+        printf "%-26s %-8s %6s %6s %7s %s\n" "Issue" "Severity" "Count" "SIDs" "SID %" "Action"
+        printf "%-26s %-8s %6s %6s %7s %s\n" "--------------------------" "--------" "------" "------" "-------" "------------------"
+        echo "$report_json" | jq -r '.issues.summary[] | [.issue, .severity, (.count|tostring), (.sid_count|tostring), (.action // "")] | @tsv' \
+            | while IFS=$'\t' read -r issue_type severity count sid_count action; do
+                local issue_display
+                local sid_ratio
+                local sid_pct
+                local action_display
+                issue_display="$(health_issue_label "$issue_type")"
+                action_display="$action"
+                if [[ -z "$action_display" ]]; then
+                    action_display="$(health_issue_action "$issue_type")"
+                fi
+                sid_ratio=$(safe_div "$sid_count" "$total_sids_int" 4)
+                sid_pct=$(format_pct "$sid_ratio")
+                printf "%-26s %-8s %6d %6d %7s %s\n" "$issue_display" "$severity" "$count" "$sid_count" "$sid_pct" "$action_display"
+            done
+    else
+        printf "Issue summary: none\n"
+    fi
     printf "\n"
 
-    printf "Top affected SIDs (by issue count):\n"
-    echo "$report_json" | jq -r '.top_affected_sids[] | "  - \(.sid): total=\(.total) (HIGH:\(.high) MEDIUM:\(.medium) LOW:\(.low))"'
+    local shown_top_sids
+    local total_top_sids
+    shown_top_sids=$(echo "$report_json" | jq '.top_affected_sids | length')
+    total_top_sids=$(echo "$report_json" | jq '.top_affected_sids_total')
+
+    if [[ "$total_top_sids" -gt 0 ]]; then
+        printf "Top affected SIDs (top 10 by issue count):\n"
+        printf "  showing %d of %d affected SIDs\n" "$shown_top_sids" "$total_top_sids"
+        echo "$report_json" | jq -r '.top_affected_sids[] | "  - \(.sid): total=\(.total) (HIGH:\(.high) MEDIUM:\(.medium) LOW:\(.low))"'
+    else
+        printf "Top affected SIDs: none\n"
+    fi
     printf "\n"
 
     local base_state_dir
     local state_file
     local current_snapshot
     local previous_snapshot
+    local previous_run_timestamp
     base_state_dir="${ODB_DATASAFE_BASE:-${SCRIPT_DIR}/..}"
-    state_file="${base_state_dir}/var/ds_target_last_report.json"
+    state_file="${base_state_dir}/log/ds_target_last_report.json"
 
     current_snapshot=$(jq -n \
         --arg timestamp "$(echo "$report_json" | jq -r '.run.timestamp')" \
+        --arg scope_key "${REPORT_SCOPE_KEY}" \
         --argjson selected_targets "$(echo "$report_json" | jq '.targets.selected')" \
         --argjson total_issues "$(echo "$report_json" | jq '.issues.total')" \
         --argjson high_issues "$(echo "$report_json" | jq '[.issues.summary[]? | select(.severity == "HIGH") | .count] | add // 0')" \
@@ -2571,6 +2712,7 @@ show_report_table() {
         --argjson needs_attention "$(echo "$report_json" | jq '.needs_attention.total')" \
         '{
             timestamp: $timestamp,
+            scope_key: $scope_key,
             selected_targets: $selected_targets,
             total_issues: $total_issues,
             high_issues: $high_issues,
@@ -2580,22 +2722,48 @@ show_report_table() {
         }')
 
     previous_snapshot=$(load_last_report "$state_file")
+    previous_run_timestamp=$(echo "$previous_snapshot" | jq -r '.timestamp // "unknown"')
 
     printf "Delta vs previous run:\n"
     if [[ "$(echo "$previous_snapshot" | jq 'length')" -eq 0 ]]; then
-        printf "  Δ selected_targets: n/a\n"
-        printf "  Δ total_issues    : n/a\n"
-        printf "  Δ high_issues     : n/a\n"
-        printf "  Δ medium_issues   : n/a\n"
-        printf "  Δ low_issues      : n/a\n"
-        printf "  Δ needs_attention : n/a\n"
+        printf "  Previous run   : n/a\n"
+        printf "  selected_targets : n/a\n"
+        printf "  total_issues     : n/a\n"
+        printf "  high_issues      : n/a\n"
+        printf "  medium_issues    : n/a\n"
+        printf "  low_issues       : n/a\n"
+        printf "  needs_attention  : n/a\n"
     else
-        printf "  Δ selected_targets: %+d\n" "$(echo "$current_snapshot $previous_snapshot" | jq -s '.[0].selected_targets - .[1].selected_targets')"
-        printf "  Δ total_issues    : %+d\n" "$(echo "$current_snapshot $previous_snapshot" | jq -s '.[0].total_issues - .[1].total_issues')"
-        printf "  Δ high_issues     : %+d\n" "$(echo "$current_snapshot $previous_snapshot" | jq -s '.[0].high_issues - .[1].high_issues')"
-        printf "  Δ medium_issues   : %+d\n" "$(echo "$current_snapshot $previous_snapshot" | jq -s '.[0].medium_issues - .[1].medium_issues')"
-        printf "  Δ low_issues      : %+d\n" "$(echo "$current_snapshot $previous_snapshot" | jq -s '.[0].low_issues - .[1].low_issues')"
-        printf "  Δ needs_attention : %+d\n" "$(echo "$current_snapshot $previous_snapshot" | jq -s '.[0].needs_attention - .[1].needs_attention')"
+        if [[ "$(echo "$current_snapshot $previous_snapshot" | jq -s '.[0].scope_key == .[1].scope_key')" != "true" ]]; then
+            printf "  Previous run   : %s (different scope)\n" "$(format_human_time "$previous_run_timestamp")"
+            printf "  delta values   : n/a for different scope\n"
+        else
+            printf "  Previous run   : %s\n" "$(format_human_time "$previous_run_timestamp")"
+            printf "  selected_targets : %7d -> %7d (delta %+7d)\n" \
+                "$(echo "$previous_snapshot" | jq -r '.selected_targets')" \
+                "$(echo "$current_snapshot" | jq -r '.selected_targets')" \
+                "$(echo "$current_snapshot $previous_snapshot" | jq -s '.[0].selected_targets - .[1].selected_targets')"
+            printf "  total_issues     : %7d -> %7d (delta %+7d)\n" \
+                "$(echo "$previous_snapshot" | jq -r '.total_issues')" \
+                "$(echo "$current_snapshot" | jq -r '.total_issues')" \
+                "$(echo "$current_snapshot $previous_snapshot" | jq -s '.[0].total_issues - .[1].total_issues')"
+            printf "  high_issues      : %7d -> %7d (delta %+7d)\n" \
+                "$(echo "$previous_snapshot" | jq -r '.high_issues')" \
+                "$(echo "$current_snapshot" | jq -r '.high_issues')" \
+                "$(echo "$current_snapshot $previous_snapshot" | jq -s '.[0].high_issues - .[1].high_issues')"
+            printf "  medium_issues    : %7d -> %7d (delta %+7d)\n" \
+                "$(echo "$previous_snapshot" | jq -r '.medium_issues')" \
+                "$(echo "$current_snapshot" | jq -r '.medium_issues')" \
+                "$(echo "$current_snapshot $previous_snapshot" | jq -s '.[0].medium_issues - .[1].medium_issues')"
+            printf "  low_issues       : %7d -> %7d (delta %+7d)\n" \
+                "$(echo "$previous_snapshot" | jq -r '.low_issues')" \
+                "$(echo "$current_snapshot" | jq -r '.low_issues')" \
+                "$(echo "$current_snapshot $previous_snapshot" | jq -s '.[0].low_issues - .[1].low_issues')"
+            printf "  needs_attention  : %7d -> %7d (delta %+7d)\n" \
+                "$(echo "$previous_snapshot" | jq -r '.needs_attention')" \
+                "$(echo "$current_snapshot" | jq -r '.needs_attention')" \
+                "$(echo "$current_snapshot $previous_snapshot" | jq -s '.[0].needs_attention - .[1].needs_attention')"
+        fi
     fi
     printf "\n"
 

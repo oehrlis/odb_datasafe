@@ -186,6 +186,8 @@ bin/ds_target_list.sh --input-json ./target_selection.json --report
 
 # Report output includes scope banner, coverage metrics, SID impact %,
 # NEEDS_ATTENTION breakdown, top affected SIDs, and run-to-run deltas
+# Top affected SIDs shows top 10 with "showing X of Y"; empty issue sections
+# collapse to "none" for cleaner healthy-scope output
 
 # Reuse saved payload with additional local filtering
 bin/ds_target_list.sh --input-json ./target_selection.json -r "db02" --mode issues

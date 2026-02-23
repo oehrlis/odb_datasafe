@@ -43,7 +43,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   SID impact percentages, NEEDS_ATTENTION category breakdown, and
   top affected SIDs.
 - Added lightweight report delta tracking in `--mode report` via
-  `${ODB_DATASAFE_BASE}/var/ds_target_last_report.json`.
+  `${ODB_DATASAFE_BASE}/log/ds_target_last_report.json`.
+- Refined `--mode report` readability and terminal compatibility:
+  aligned banner/metric sections, ASCII-safe labels (`SID->CDB`, `delta`),
+  human-readable previous-run timestamps, and full action text in issue rows.
+- Improved `--mode report` clarity for low-noise scopes:
+  empty issue sections are collapsed to `none`, top-SID block now states it is
+  a top-10 view and shows `showing X of Y affected SIDs`.
+- Context banner now preserves root-scope intent by showing
+  `DS_ROOT_COMP (<ocid>)` when default root-compartment selection is used.
 
 ### Documentation
 

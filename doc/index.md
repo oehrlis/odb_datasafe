@@ -251,7 +251,7 @@ bin/ds_target_list.sh --all --save-json ./target_selection.json
 bin/ds_target_list.sh --input-json ./target_selection.json --report
 
 # Report includes scope banner, coverage metrics, SID impact, top SIDs, and deltas
-# from previous report snapshots in ${ODB_DATASAFE_BASE}/var/
+# from previous report snapshots in ${ODB_DATASAFE_BASE}/log/
 
 # Reuse saved payload with additional local filtering
 bin/ds_target_list.sh --input-json ./target_selection.json -r "db02" --mode issues

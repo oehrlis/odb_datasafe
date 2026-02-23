@@ -6,7 +6,7 @@ setup() {
     SCRIPT_VERSION="$(tr -d '\n' < "${REPO_ROOT}/VERSION" 2>/dev/null || echo '0.0.0')"
     ODB_DATASAFE_BASE="${BATS_TEST_TMPDIR}/odb_datasafe"
     export REPO_ROOT BIN_DIR SCRIPT_VERSION ODB_DATASAFE_BASE
-    mkdir -p "${ODB_DATASAFE_BASE}/var"
+    mkdir -p "${ODB_DATASAFE_BASE}/log"
 }
 
 @test "ds_target_list.sh exists and is executable" {
@@ -102,10 +102,28 @@ JSON
     [[ "$output" == *"Data Safe Target Report (High-Level)"* ]]
     [[ "$output" == *"Run ID"* ]]
     [[ "$output" == *"Coverage Metrics:"* ]]
-    [[ "$output" == *"SID→CDB coverage"* ]]
+    [[ "$output" == *"SID->CDB coverage"* ]]
     [[ "$output" == *"Issue summary (severity/count/SIDs):"* ]]
     [[ "$output" == *"SID %"* ]]
     [[ "$output" == *"NEEDS_ATTENTION breakdown"* ]]
-    [[ "$output" == *"Top affected SIDs (by issue count):"* ]]
+    [[ "$output" == *"Top affected SIDs (top 10 by issue count):"* ]]
     [[ "$output" == *"Delta vs previous run:"* ]]
+}
+
+@test "ds_target_list.sh report mode simplifies empty issue sections" {
+    local sample_json="${BATS_TEST_TMPDIR}/ds_target_list_no_issues.json"
+
+    cat > "$sample_json" <<'JSON'
+{"data":[
+  {"display-name":"clusterX_cdb01_CDB$ROOT","lifecycle-state":"ACTIVE","lifecycle-details":""},
+  {"display-name":"clusterX_cdb01_app1","lifecycle-state":"ACTIVE","lifecycle-details":""},
+  {"display-name":"clusterX_cdb01_app2","lifecycle-state":"ACTIVE","lifecycle-details":""}
+]}
+JSON
+
+    run "${BIN_DIR}/ds_target_list.sh" --input-json "$sample_json" --report
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"NEEDS_ATTENTION breakdown: none"* ]]
+    [[ "$output" == *"Issue summary: none"* ]]
+    [[ "$output" == *"Top affected SIDs: none"* ]]
 }
