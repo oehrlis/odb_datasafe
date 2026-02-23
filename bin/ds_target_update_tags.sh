@@ -34,6 +34,10 @@ readonly SCRIPT_VERSION
 : "${SELECT_ALL:=false}"
 : "${TARGET_FILTER:=}"
 : "${APPLY_CHANGES:=false}"
+: "${INPUT_JSON:=}"
+: "${SAVE_JSON:=}"
+: "${ALLOW_STALE_SELECTION:=false}"
+: "${MAX_SNAPSHOT_AGE:=24h}"
 : "${LIFECYCLE_STATE:=ACTIVE}"
 : "${WAIT_FOR_STATE:=}"
 : "${TAG_NAMESPACE:=DBSec}"
@@ -90,6 +94,12 @@ Options:
     -A, --all                   Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
     -T, --targets LIST          Comma-separated target names or OCIDs
     -r, --filter REGEX          Filter target names by regex (substring match)
+        --input-json FILE       Read targets from local JSON (array or {data:[...]})
+        --save-json FILE        Save selected target JSON payload
+        --allow-stale-selection Allow --apply with --input-json
+                    (disabled by default for safety)
+        --max-snapshot-age AGE  Max input-json age (default: ${MAX_SNAPSHOT_AGE})
+                    Examples: 900, 30m, 24h, 2d, off
 
   Execution:
         --apply                 Apply changes (default: dry-run only)
@@ -118,6 +128,12 @@ Examples:
 
     # Update specific targets
     ${SCRIPT_NAME} -T target1,target2 --apply
+
+    # Dry-run using saved target selection JSON
+    ${SCRIPT_NAME} --input-json ./target_selection.json
+
+    # Apply from saved selection JSON (requires explicit stale-selection override)
+    ${SCRIPT_NAME} --input-json ./target_selection.json --apply --allow-stale-selection
 
 EOF
     exit 0
@@ -156,6 +172,25 @@ parse_args() {
             -r | --filter)
                 need_val "$1" "${2:-}"
                 TARGET_FILTER="$2"
+                shift 2
+                ;;
+            --input-json)
+                need_val "$1" "${2:-}"
+                INPUT_JSON="$2"
+                shift 2
+                ;;
+            --save-json)
+                need_val "$1" "${2:-}"
+                SAVE_JSON="$2"
+                shift 2
+                ;;
+            --allow-stale-selection)
+                ALLOW_STALE_SELECTION=true
+                shift
+                ;;
+            --max-snapshot-age)
+                need_val "$1" "${2:-}"
+                MAX_SNAPSHOT_AGE="$2"
                 shift 2
                 ;;
             --apply)
@@ -244,21 +279,38 @@ parse_args() {
 validate_inputs() {
     log_debug "Validating inputs..."
 
-    require_oci_cli
+    if [[ -n "$INPUT_JSON" ]]; then
+        [[ -r "$INPUT_JSON" ]] || die "Input JSON file not found: $INPUT_JSON"
+        ds_validate_input_json_freshness "$INPUT_JSON" "$MAX_SNAPSHOT_AGE" || die "Input JSON snapshot freshness check failed"
 
-    COMPARTMENT=$(ds_resolve_all_targets_scope "$SELECT_ALL" "$COMPARTMENT" "$TARGETS") || die "Invalid --all usage. --all requires DS_ROOT_COMP and cannot be combined with -c/--compartment or -T/--targets"
+        if [[ "$APPLY_CHANGES" == "true" && "$ALLOW_STALE_SELECTION" != "true" ]]; then
+            die "Refusing --apply with --input-json without --allow-stale-selection"
+        fi
 
-    # Require either targets or compartment (or DS_ROOT_COMP)
-    if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
-        # Try to use DS_ROOT_COMP as fallback
-        COMPARTMENT=$(resolve_compartment_for_operation "") || usage
-        log_info "No scope specified, using resolved compartment: $COMPARTMENT"
-    fi
+        if [[ "$SELECT_ALL" == "true" || -n "$COMPARTMENT" || -n "$TARGETS" ]]; then
+            log_warn "Ignoring --all/--compartment/--targets when --input-json is provided"
+        fi
 
-    if [[ -n "$COMPARTMENT" ]]; then
-        COMPARTMENT_OCID=$(resolve_compartment_for_operation "$COMPARTMENT") || die "Failed to resolve compartment"
-        COMPARTMENT_NAME=$(oci_get_compartment_name "$COMPARTMENT_OCID" 2> /dev/null) || COMPARTMENT_NAME="$COMPARTMENT_OCID"
-        log_info "Using compartment: $COMPARTMENT_NAME ($COMPARTMENT_OCID)"
+        if [[ "$APPLY_CHANGES" == "true" ]]; then
+            require_oci_cli
+        fi
+    else
+        require_oci_cli
+
+        COMPARTMENT=$(ds_resolve_all_targets_scope "$SELECT_ALL" "$COMPARTMENT" "$TARGETS") || die "Invalid --all usage. --all requires DS_ROOT_COMP and cannot be combined with -c/--compartment or -T/--targets"
+
+        # Require either targets or compartment (or DS_ROOT_COMP)
+        if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
+            # Try to use DS_ROOT_COMP as fallback
+            COMPARTMENT=$(resolve_compartment_for_operation "") || usage
+            log_info "No scope specified, using resolved compartment: $COMPARTMENT"
+        fi
+
+        if [[ -n "$COMPARTMENT" ]]; then
+            COMPARTMENT_OCID=$(resolve_compartment_for_operation "$COMPARTMENT") || die "Failed to resolve compartment"
+            COMPARTMENT_NAME=$(oci_get_compartment_name "$COMPARTMENT_OCID" 2> /dev/null) || COMPARTMENT_NAME="$COMPARTMENT_OCID"
+            log_info "Using compartment: $COMPARTMENT_NAME ($COMPARTMENT_OCID)"
+        fi
     fi
 
     if ! ds_validate_target_filter_regex "$TARGET_FILTER"; then
@@ -275,6 +327,17 @@ validate_inputs() {
 # ------------------------------------------------------------------------------
 resolve_target_compartment_name() {
     local target_comp_ocid="$1"
+
+    if [[ -n "$INPUT_JSON" ]]; then
+        if [[ -n "$target_comp_ocid" && "$target_comp_ocid" != "null" ]]; then
+            echo "$target_comp_ocid"
+        elif [[ -n "$COMPARTMENT_NAME" ]]; then
+            echo "$COMPARTMENT_NAME"
+        else
+            echo "unknown"
+        fi
+        return 0
+    fi
 
     if [[ -n "$target_comp_ocid" && "$target_comp_ocid" != "null" ]]; then
         get_compartment_name "$target_comp_ocid"
@@ -325,7 +388,7 @@ normalize_target_payload() {
 # Output..: JSON object with .data array
 # ------------------------------------------------------------------------------
 collect_targets_for_tagging() {
-    ds_collect_targets "$COMPARTMENT" "$TARGETS" "$LIFECYCLE_STATE" "$TARGET_FILTER"
+    ds_collect_targets_source "$COMPARTMENT" "$TARGETS" "$LIFECYCLE_STATE" "$TARGET_FILTER" "$INPUT_JSON" "$SAVE_JSON"
 }
 
 # ------------------------------------------------------------------------------

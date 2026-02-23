@@ -36,6 +36,10 @@ readonly SCRIPT_VERSION
 : "${LIFECYCLE_STATE:=NEEDS_ATTENTION}" # Default to NEEDS_ATTENTION
 : "${DRY_RUN:=false}"
 : "${WAIT_FOR_COMPLETION:=false}" # Default to no-wait for speed
+: "${INPUT_JSON:=}"
+: "${SAVE_JSON:=}"
+: "${ALLOW_STALE_SELECTION:=false}"
+: "${MAX_SNAPSHOT_AGE:=24h}"
 
 # Counters
 SUCCESS_COUNT=0
@@ -85,6 +89,12 @@ Options:
     -r, --filter REGEX          Filter target names by regex (substring match)
     -L, --lifecycle STATE       Filter by lifecycle state (default: NEEDS_ATTENTION)
                                 Use ACTIVE, NEEDS_ATTENTION, etc.
+        --input-json FILE       Read targets from local JSON (array or {data:[...]})
+        --save-json FILE        Save selected target JSON payload
+        --allow-stale-selection Allow apply/refresh from --input-json
+                    (disabled by default for safety)
+        --max-snapshot-age AGE  Max input-json age (default: ${MAX_SNAPSHOT_AGE})
+                    Examples: 900, 30m, 24h, 2d, off
         --wait                  Wait for each refresh to complete (slower but shows status)
         --no-wait               Don't wait for completion (default, faster for bulk)
 
@@ -109,6 +119,12 @@ Examples:
 
     # Refresh by positional args
     ${SCRIPT_NAME} target1 target2 target3
+
+    # Dry-run from saved selection JSON
+    ${SCRIPT_NAME} --input-json ./target_selection.json --dry-run
+
+    # Apply refresh from saved JSON (requires explicit stale-selection override)
+    ${SCRIPT_NAME} --input-json ./target_selection.json --allow-stale-selection
 
 EOF
     exit 0
@@ -151,6 +167,25 @@ parse_args() {
             -L | --lifecycle)
                 need_val "$1" "${2:-}"
                 LIFECYCLE_STATE="$2"
+                shift 2
+                ;;
+            --input-json)
+                need_val "$1" "${2:-}"
+                INPUT_JSON="$2"
+                shift 2
+                ;;
+            --save-json)
+                need_val "$1" "${2:-}"
+                SAVE_JSON="$2"
+                shift 2
+                ;;
+            --allow-stale-selection)
+                ALLOW_STALE_SELECTION=true
+                shift
+                ;;
+            --max-snapshot-age)
+                need_val "$1" "${2:-}"
+                MAX_SNAPSHOT_AGE="$2"
                 shift 2
                 ;;
             --wait)
@@ -206,18 +241,35 @@ parse_args() {
 validate_inputs() {
     log_debug "Validating inputs..."
 
-    require_oci_cli
+    if [[ -n "$INPUT_JSON" ]]; then
+        [[ -r "$INPUT_JSON" ]] || die "Input JSON file not found: $INPUT_JSON"
+        ds_validate_input_json_freshness "$INPUT_JSON" "$MAX_SNAPSHOT_AGE" || die "Input JSON snapshot freshness check failed"
 
-    COMPARTMENT=$(ds_resolve_all_targets_scope "$SELECT_ALL" "$COMPARTMENT" "$TARGETS") || die "Invalid --all usage. --all requires DS_ROOT_COMP and cannot be combined with -c/--compartment or -T/--targets"
+        if [[ "$DRY_RUN" != "true" && "$ALLOW_STALE_SELECTION" != "true" ]]; then
+            die "Refusing apply refresh from --input-json without --allow-stale-selection (use --dry-run to preview)"
+        fi
 
-    if [[ "$SELECT_ALL" == "true" ]]; then
-        log_info "Using DS_ROOT_COMP scope via --all"
-    fi
+        if [[ "$SELECT_ALL" == "true" || -n "$COMPARTMENT" || -n "$TARGETS" ]]; then
+            log_warn "Ignoring --all/--compartment/--targets when --input-json is provided"
+        fi
 
-    # Resolve compartment using new pattern: explicit -c > DS_ROOT_COMP > error
-    if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
-        COMPARTMENT=$(resolve_compartment_for_operation "$COMPARTMENT") || die "Failed to resolve compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
-        log_info "No compartment specified, using DS_ROOT_COMP: $COMPARTMENT"
+        if [[ "$DRY_RUN" != "true" ]]; then
+            require_oci_cli
+        fi
+    else
+        require_oci_cli
+
+        COMPARTMENT=$(ds_resolve_all_targets_scope "$SELECT_ALL" "$COMPARTMENT" "$TARGETS") || die "Invalid --all usage. --all requires DS_ROOT_COMP and cannot be combined with -c/--compartment or -T/--targets"
+
+        if [[ "$SELECT_ALL" == "true" ]]; then
+            log_info "Using DS_ROOT_COMP scope via --all"
+        fi
+
+        # Resolve compartment using new pattern: explicit -c > DS_ROOT_COMP > error
+        if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
+            COMPARTMENT=$(resolve_compartment_for_operation "$COMPARTMENT") || die "Failed to resolve compartment. Set DS_ROOT_COMP in .env or datasafe.conf (see --help for details) or use -c/--compartment"
+            log_info "No compartment specified, using DS_ROOT_COMP: $COMPARTMENT"
+        fi
     fi
 
     if ! ds_validate_target_filter_regex "$TARGET_FILTER"; then
@@ -237,15 +289,13 @@ validate_inputs() {
 # ------------------------------------------------------------------------------
 refresh_single_target() {
     local target_ocid="$1"
-    local current="${2:-1}"
-    local total="${3:-1}"
-    local target_name
+    local target_name="${2:-}"
+    local current="${3:-1}"
+    local total="${4:-1}"
 
-    target_name=$(ds_resolve_target_name "$target_ocid" 2> /dev/null) || {
-        log_error "Failed to resolve target name: $target_ocid"
-        FAILED_COUNT=$((FAILED_COUNT + 1))
-        return 1
-    }
+    if [[ -z "$target_name" ]]; then
+        target_name=$(ds_resolve_target_name "$target_ocid" 2> /dev/null) || target_name="$target_ocid"
+    fi
 
     if [[ "${DRY_RUN}" == "true" ]]; then
         log_info "[$current/$total] [DRY-RUN] Would refresh: $target_name ($target_ocid)"
@@ -273,15 +323,15 @@ refresh_single_target() {
 # Notes...: Orchestrates target discovery, refresh operations, and reporting
 # ------------------------------------------------------------------------------
 do_work() {
-    local -a target_ocids=()
+    local -a target_rows=()
 
     log_info "Discovering targets (lifecycle: $LIFECYCLE_STATE)"
     local targets_json
-    targets_json=$(ds_collect_targets "$COMPARTMENT" "$TARGETS" "$LIFECYCLE_STATE" "$TARGET_FILTER") || die "Failed to collect targets"
+    targets_json=$(ds_collect_targets_source "$COMPARTMENT" "$TARGETS" "$LIFECYCLE_STATE" "$TARGET_FILTER" "$INPUT_JSON" "$SAVE_JSON") || die "Failed to collect targets"
 
-    mapfile -t target_ocids < <(echo "$targets_json" | jq -r '.data[].id')
+    mapfile -t target_rows < <(echo "$targets_json" | jq -r '.data[] | [(.id // ""), (."display-name" // "")] | @tsv')
 
-    local count=${#target_ocids[@]}
+    local count=${#target_rows[@]}
     if [[ $count -eq 0 ]]; then
         if [[ -n "$TARGET_FILTER" ]]; then
             die "No targets matched filter regex: $TARGET_FILTER" 1
@@ -293,12 +343,15 @@ do_work() {
     log_info "Found $count targets to refresh"
 
     # Refresh each target
-    local total=${#target_ocids[@]}
+    local total=${#target_rows[@]}
     local current=0
+    local target_ocid target_name
 
-    for target_ocid in "${target_ocids[@]}"; do
+    for target_row in "${target_rows[@]}"; do
+        IFS=$'\t' read -r target_ocid target_name <<< "$target_row"
+        [[ -z "$target_ocid" ]] && continue
         current=$((current + 1))
-        refresh_single_target "$target_ocid" "$current" "$total"
+        refresh_single_target "$target_ocid" "$target_name" "$current" "$total"
     done
 
     # Print summary

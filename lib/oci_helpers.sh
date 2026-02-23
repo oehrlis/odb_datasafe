@@ -656,6 +656,99 @@ ds_collect_targets_source() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: _ds_file_mtime
+# Purpose.: Get file modification time as epoch seconds (macOS/Linux)
+# Args....: $1 - file path
+# Returns.: 0 on success, 1 on error
+# Output..: mtime epoch seconds
+# ------------------------------------------------------------------------------
+_ds_file_mtime() {
+    local file_path="$1"
+
+    if stat -f '%m' "$file_path" > /dev/null 2>&1; then
+        stat -f '%m' "$file_path"
+        return 0
+    fi
+
+    if stat -c '%Y' "$file_path" > /dev/null 2>&1; then
+        stat -c '%Y' "$file_path"
+        return 0
+    fi
+
+    return 1
+}
+
+# ------------------------------------------------------------------------------
+# Function: _ds_duration_to_seconds
+# Purpose.: Convert duration string to seconds
+# Args....: $1 - duration (e.g. 24h, 30m, 900, 2d)
+# Returns.: 0 on success, 1 on parse error
+# Output..: duration in seconds
+# ------------------------------------------------------------------------------
+_ds_duration_to_seconds() {
+    local duration_input="$1"
+
+    if [[ "$duration_input" =~ ^([0-9]+)([smhd]?)$ ]]; then
+        local value="${BASH_REMATCH[1]}"
+        local unit="${BASH_REMATCH[2]}"
+        case "$unit" in
+            s | "") echo "$value" ;;
+            m) echo $((value * 60)) ;;
+            h) echo $((value * 3600)) ;;
+            d) echo $((value * 86400)) ;;
+            *) return 1 ;;
+        esac
+        return 0
+    fi
+
+    return 1
+}
+
+# ------------------------------------------------------------------------------
+# Function: ds_validate_input_json_freshness
+# Purpose.: Enforce max age safeguard for input JSON snapshots
+# Args....: $1 - input JSON file path
+#           $2 - max age string (e.g. 24h, 30m, 3600, 0/off/none to disable)
+# Returns.: 0 if fresh/disabled, 1 if stale or invalid max-age
+# Output..: log messages on failure
+# ------------------------------------------------------------------------------
+ds_validate_input_json_freshness() {
+    local input_file="$1"
+    local max_age_input="${2:-24h}"
+    local now=""
+    local file_mtime=""
+    local max_age_seconds=""
+    local snapshot_age=""
+
+    case "${max_age_input,,}" in
+        "" | 0 | off | none)
+            return 0
+            ;;
+    esac
+
+    max_age_seconds=$(_ds_duration_to_seconds "$max_age_input") || {
+        log_error "Invalid --max-snapshot-age value: $max_age_input (use 900, 30m, 24h, 2d, or off)"
+        return 1
+    }
+
+    now=$(date +%s)
+    file_mtime=$(_ds_file_mtime "$input_file") || {
+        log_error "Cannot read mtime for input JSON: $input_file"
+        return 1
+    }
+
+    snapshot_age=$((now - file_mtime))
+
+    if ((snapshot_age > max_age_seconds)); then
+        log_error "Input JSON snapshot is too old (${snapshot_age}s > ${max_age_seconds}s): $input_file"
+        log_error "Use a newer snapshot, increase --max-snapshot-age, or set --max-snapshot-age off"
+        return 1
+    fi
+
+    return 0
+}
+
+# ------------------------------------------------------------------------------
 # Function: ds_collect_targets
 # Purpose.: Collect targets via explicit list or compartment+lifecycle filters
 # Args....: $1 - Compartment OCID/name (optional)
