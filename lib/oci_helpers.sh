@@ -1187,17 +1187,18 @@ ds_refresh_target() {
 
     local output=""
     local exit_code=0
+    local output_lc=""
     if output=$("${refresh_cmd[@]}" 2>&1); then
         exit_code=0
     else
         exit_code=$?
+        output_lc=$(printf '%s' "$output" | tr '[:upper:]' '[:lower:]')
+        if [[ "$output_lc" == *"conflict"* ]] && [[ "$output_lc" == *"already in progress"* ]]; then
+            log_warn "[$current/$total] Skipping refresh for $target_name: operation already in progress"
+            return 2
+        fi
         log_error "OCI command failed (exit ${exit_code}): ${refresh_cmd[*]}"
         log_debug "Output: $output"
-    fi
-
-    if [[ $exit_code -ne 0 ]] && [[ "$output" == *"Conflict"* ]] && [[ "$output" == *"already in progress"* ]]; then
-        log_warn "[$current/$total] Skipping refresh for $target_name: operation already in progress"
-        return 2
     fi
 
     # Handle output based on log level and log file

@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+### Fixed
+
+- `bin/ds_target_refresh.sh` / `lib/oci_helpers.sh`: refresh calls that hit OCI
+  "operation already in progress" conflicts are now classified before generic
+  OCI failure logging, so expected skip cases no longer emit misleading
+  `ERROR` messages and are reported as warning-level skips only.
+
 ## [0.17.2] - 2026-02-23
 
 ### Changed
