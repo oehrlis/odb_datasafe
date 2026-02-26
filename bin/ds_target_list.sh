@@ -1711,18 +1711,24 @@ show_health_overview_table() {
 # ------------------------------------------------------------------------------
 show_health_details_table() {
     local issue_rows="$1"
+    local issue_col_width=44
 
     if [[ -z "$issue_rows" ]]; then
         return 0
     fi
 
     if [[ "$SHOW_HEALTH_ACTIONS" == "true" ]]; then
-        printf "%-33s %-8s %-20s %-15s %-42s %-16s %-44s %s\n" "Issue" "Severity" "Cluster" "SID" "Target" "State" "Reason" "Suggested Action"
-        printf "%-33s %-8s %-20s %-15s %-42s %-16s %-44s %s\n" "---------------------------------" "--------" "--------------------" "---------------" "------------------------------------------" "----------------" "--------------------------------------------" "------------------------------"
+        printf "%-44s %-8s %-20s %-15s %-42s %-16s %-44s %s\n" "Issue" "Severity" "Cluster" "SID" "Target" "State" "Reason" "Suggested Action"
+        printf "%-44s %-8s %-20s %-15s %-42s %-16s %-44s %s\n" "--------------------------------------------" "--------" "--------------------" "---------------" "------------------------------------------" "----------------" "--------------------------------------------" "------------------------------"
         echo "$issue_rows" | while IFS=$'\t' read -r issue_type severity cluster sid target state reason action; do
             [[ -z "$issue_type" ]] && continue
-            printf "%-33s %-8s %-20s %-15s %-42s %-16s %-44s %s\n" \
-                "$(health_issue_label "$issue_type")" \
+            local issue_display
+            issue_display="$(health_issue_label "$issue_type")"
+            if [[ ${#issue_display} -gt $issue_col_width ]]; then
+                issue_display="${issue_display:0:$((issue_col_width - 3))}..."
+            fi
+            printf "%-44s %-8s %-20s %-15s %-42s %-16s %-44s %s\n" \
+                "$issue_display" \
                 "$severity" \
                 "${cluster:0:20}" \
                 "${sid:0:15}" \
@@ -1732,12 +1738,17 @@ show_health_details_table() {
                 "$action"
         done
     else
-        printf "%-33s %-8s %-20s %-15s %-42s %-16s %s\n" "Issue" "Severity" "Cluster" "SID" "Target" "State" "Reason"
-        printf "%-33s %-8s %-20s %-15s %-42s %-16s %s\n" "---------------------------------" "--------" "--------------------" "---------------" "------------------------------------------" "----------------" "--------------------------------------------"
+        printf "%-44s %-8s %-20s %-15s %-42s %-16s %s\n" "Issue" "Severity" "Cluster" "SID" "Target" "State" "Reason"
+        printf "%-44s %-8s %-20s %-15s %-42s %-16s %s\n" "--------------------------------------------" "--------" "--------------------" "---------------" "------------------------------------------" "----------------" "--------------------------------------------"
         echo "$issue_rows" | while IFS=$'\t' read -r issue_type severity cluster sid target state reason _action; do
             [[ -z "$issue_type" ]] && continue
-            printf "%-33s %-8s %-20s %-15s %-42s %-16s %s\n" \
-                "$(health_issue_label "$issue_type")" \
+            local issue_display
+            issue_display="$(health_issue_label "$issue_type")"
+            if [[ ${#issue_display} -gt $issue_col_width ]]; then
+                issue_display="${issue_display:0:$((issue_col_width - 3))}..."
+            fi
+            printf "%-44s %-8s %-20s %-15s %-42s %-16s %s\n" \
+                "$issue_display" \
                 "$severity" \
                 "${cluster:0:20}" \
                 "${sid:0:15}" \

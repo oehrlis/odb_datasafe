@@ -36,3 +36,16 @@ setup() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"Specify --host or --cluster"* ]] || [[ "$output" == *"required with --host as alternative"* ]]
 }
+
+@test "ds_target_register.sh uses valid create wait states" {
+    run grep -E -- '--wait-for-state (SUCCEEDED|FAILED)' "${BIN_DIR}/ds_target_register.sh"
+    [ "$status" -eq 0 ]
+
+    run grep -E -- '--wait-for-state ACTIVE' "${BIN_DIR}/ds_target_register.sh"
+    [ "$status" -ne 0 ]
+}
+
+@test "ds_target_register.sh uses die message before exit code" {
+    run grep -E -- 'die "Target registration failed" 2' "${BIN_DIR}/ds_target_register.sh"
+    [ "$status" -eq 0 ]
+}

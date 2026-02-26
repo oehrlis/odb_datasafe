@@ -16,6 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "operation already in progress" conflicts are now classified before generic
   OCI failure logging, so expected skip cases no longer emit misleading
   `ERROR` messages and are reported as warning-level skips only.
+- `bin/ds_target_list.sh`: fixed `--mode problems|health --issue-view details`
+  table alignment when issue labels are long by using a wider fixed `Issue`
+  column and truncating overflow labels with ellipsis.
+- `bin/ds_target_register.sh`: fixed registration create wait handling by using
+  valid OCI Data Safe operation states (`SUCCEEDED`/`FAILED`) instead of
+  invalid target lifecycle state `ACTIVE`, and corrected fatal error exit
+  invocation so failures return code `2` without secondary shell errors.
 
 ## [0.17.2] - 2026-02-23
 

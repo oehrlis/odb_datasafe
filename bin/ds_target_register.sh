@@ -713,12 +713,12 @@ register_target() {
     local result
     result=$(oci_exec data-safe target-database create \
         --from-json "file://$json_file" \
-        --wait-for-state ACTIVE \
+        --wait-for-state SUCCEEDED \
         --wait-for-state FAILED) || {
         log_error "Registration failed"
         log_error "$result"
         rm -f "$json_file"
-        die 2 "Target registration failed"
+        die "Target registration failed" 2
     }
 
     local target_id
