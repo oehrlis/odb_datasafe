@@ -49,3 +49,13 @@ setup() {
     run grep -E -- 'die "Target registration failed" 2' "${BIN_DIR}/ds_target_register.sh"
     [ "$status" -eq 0 ]
 }
+
+@test "ds_target_register.sh payload includes vmClusterId for cloud-at-customer" {
+    run grep -E -- 'vmClusterId' "${BIN_DIR}/ds_target_register.sh"
+    [ "$status" -eq 0 ]
+}
+
+@test "ds_target_register.sh resolves pluggableDatabaseId for PDB scope" {
+    run grep -E -- 'pluggableDatabaseId|resolve_pluggable_db_ocid' "${BIN_DIR}/ds_target_register.sh"
+    [ "$status" -eq 0 ]
+}
