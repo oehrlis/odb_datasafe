@@ -84,8 +84,8 @@ SHOW_USAGE_ON_EMPTY_ARGS=true
 # Runtime
 COMP_OCID=""
 CONNECTOR_OCID=""
-# shellcheck disable=SC2034  # CLUSTER_OCID reserved for future cluster discovery feature
 CLUSTER_OCID=""
+PLUGGABLE_DB_OCID=""
 
 # ------------------------------------------------------------------------------
 # Functions
@@ -279,6 +279,41 @@ trim_whitespace() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: collect_search_compartment_ocids
+# Purpose.: Build candidate compartment OCID list for OCI resource discovery
+# Args....: None (uses COMP_OCID/COMPARTMENT/DS_REGISTER_COMPARTMENT/DS_ROOT_COMP)
+# Returns.: 0
+# Output..: newline-separated compartment OCIDs
+# ------------------------------------------------------------------------------
+collect_search_compartment_ocids() {
+    local scopes=""
+    local candidate
+    local resolved
+
+    for candidate in "${COMP_OCID:-}" "${COMPARTMENT:-}" "${DS_REGISTER_COMPARTMENT:-}" "${DS_ROOT_COMP:-}"; do
+        [[ -z "$candidate" ]] && continue
+        if is_ocid "$candidate"; then
+            resolved="$candidate"
+        else
+            resolved=$(oci_resolve_compartment_ocid "$candidate" 2> /dev/null || true)
+        fi
+        [[ -z "$resolved" ]] && continue
+        if ! grep -Fqx "$resolved" <<< "$scopes"; then
+            scopes+="${resolved}"$'\n'
+        fi
+    done
+
+    if [[ -z "$scopes" ]]; then
+        resolved=$(get_root_compartment_ocid 2> /dev/null || true)
+        if [[ -n "$resolved" ]]; then
+            scopes+="${resolved}"$'\n'
+        fi
+    fi
+
+    printf '%s' "$scopes"
+}
+
+# ------------------------------------------------------------------------------
 # Function: resolve_default_connector
 # Purpose.: Resolve default connector when --connector is not provided
 # Args....: None
@@ -333,28 +368,13 @@ resolve_default_connector() {
 resolve_compartment_from_cluster() {
     local cluster_ref="$1"
 
-    if is_ocid "$cluster_ref"; then
-        oci_exec_ro db cloud-vm-cluster get \
-            --cloud-vm-cluster-id "$cluster_ref" \
-            --query 'data."compartment-id"' \
-            --raw-output
-        return $?
-    fi
+    [[ -z "$cluster_ref" ]] && return 1
 
-    local root_comp_ocid
-    root_comp_ocid=$(get_root_compartment_ocid) || return 1
+    local vm_cluster_ocid
+    vm_cluster_ocid=$(resolve_vm_cluster_ocid 2> /dev/null || true)
+    [[ -z "$vm_cluster_ocid" ]] && return 1
 
-    local clusters_json
-    clusters_json=$(oci_exec_ro db cloud-vm-cluster list \
-        --compartment-id "$root_comp_ocid" \
-        --compartment-id-in-subtree true \
-        --all) || return 1
-
-    echo "$clusters_json" | jq -r --arg cluster "$cluster_ref" '
-        .data[]
-        | select((."display-name" // "") == $cluster)
-        | ."compartment-id"
-    ' | head -n1
+    resolve_vm_cluster_compartment_ocid "$vm_cluster_ocid"
 }
 
 # ------------------------------------------------------------------------------
@@ -366,22 +386,201 @@ resolve_compartment_from_cluster() {
 # ------------------------------------------------------------------------------
 resolve_compartment_from_host() {
     local host_name="$1"
-    local host_lc
-    host_lc=$(printf '%s' "$host_name" | tr '[:upper:]' '[:lower:]')
+    [[ -z "$host_name" ]] && return 1
 
-    local root_comp_ocid
-    root_comp_ocid=$(get_root_compartment_ocid) || return 1
+    local esc
+    esc="${host_name//\'/\'\\\'}"
 
-    local nodes_json
-    nodes_json=$(oci_exec_ro db node list \
-        --compartment-id "$root_comp_ocid" \
-        --compartment-id-in-subtree true \
-        --all) || return 1
+    local out
+    local resolved_comp
+    out=$(oci_structured_search_query "query DbNode resources where displayName = '${esc}'" 10 2> /dev/null || true)
+    resolved_comp=$(jq -r '
+        (.data.items // [])
+        | map(."compartment-id" // .compartmentId // empty)
+        | first // empty
+    ' <<< "$out")
+    if [[ -n "$resolved_comp" && "$resolved_comp" != "null" ]]; then
+        printf '%s\n' "$resolved_comp"
+        return 0
+    fi
 
-    echo "$nodes_json" | jq -r --arg host "$host_lc" '
+    return 1
+}
+
+# ------------------------------------------------------------------------------
+# Function: resolve_vm_cluster_ocid
+# Purpose.: Resolve VM cluster OCID from explicit cluster or host fallback
+# Args....: None (uses CLUSTER/HOST/COMP_OCID globals)
+# Returns.: 0 on success, 1 on failure
+# Output..: VM cluster OCID to stdout
+# ------------------------------------------------------------------------------
+resolve_vm_cluster_ocid() {
+    local cluster_ref="${CLUSTER:-}"
+
+    if [[ -n "$cluster_ref" ]]; then
+        if [[ "$cluster_ref" =~ ^ocid1\.(cloudvmcluster|vmcluster)\. ]]; then
+            printf '%s' "$cluster_ref"
+            return 0
+        fi
+
+        local resolved_cluster
+        local cluster_esc
+        cluster_esc="${cluster_ref//\'/\'\\\'}"
+        local search_out
+        search_out=$(oci_structured_search_query "query all resources where displayName = '${cluster_esc}'" 50 2> /dev/null || true)
+        resolved_cluster=$(jq -r '
+            (.data.items // [])
+            | map(.identifier // .id // empty)
+            | map(select(test("^ocid1\\.(vmcluster|cloudvmcluster)\\.")))
+            | first // empty
+        ' <<< "$search_out")
+        if [[ -n "$resolved_cluster" && "$resolved_cluster" != "null" ]]; then
+            printf '%s' "$resolved_cluster"
+            return 0
+        fi
+
+        # Fallback for environments without OCI Search permissions:
+        # try classic DB list calls only in configured/known scopes.
+        local scope_ocids
+        scope_ocids=$(collect_search_compartment_ocids)
+        local scope_comp
+        while IFS= read -r scope_comp; do
+            [[ -z "$scope_comp" ]] && continue
+
+            local vm_clusters_json
+            vm_clusters_json=$(oci_exec_ro db vm-cluster list \
+                --compartment-id "$scope_comp" \
+                --all 2> /dev/null || true)
+            if [[ -n "$vm_clusters_json" ]]; then
+                resolved_cluster=$(echo "$vm_clusters_json" | jq -r --arg cluster "$cluster_ref" '
+                    .data[]
+                    | select((."display-name" // "") == $cluster)
+                    | .id
+                ' | head -n1)
+                if [[ -n "$resolved_cluster" && "$resolved_cluster" != "null" ]]; then
+                    printf '%s' "$resolved_cluster"
+                    return 0
+                fi
+            fi
+
+            local cloud_vm_clusters_json
+            cloud_vm_clusters_json=$(oci_exec_ro db cloud-vm-cluster list \
+                --compartment-id "$scope_comp" \
+                --all 2> /dev/null || true)
+            if [[ -n "$cloud_vm_clusters_json" ]]; then
+                resolved_cluster=$(echo "$cloud_vm_clusters_json" | jq -r --arg cluster "$cluster_ref" '
+                    .data[]
+                    | select((."display-name" // "") == $cluster)
+                    | .id
+                ' | head -n1)
+                if [[ -n "$resolved_cluster" && "$resolved_cluster" != "null" ]]; then
+                    printf '%s' "$resolved_cluster"
+                    return 0
+                fi
+            fi
+        done <<< "$scope_ocids"
+    fi
+
+    if [[ -n "${HOST:-}" ]]; then
+        local host_esc
+        host_esc="${HOST//\'/\'\\\'}"
+        local search_out
+        local resolved_from_host
+
+        search_out=$(oci_structured_search_query "query DbNode resources where displayName = '${host_esc}'" 10 2> /dev/null || true)
+        resolved_from_host=$(jq -r '
+            (.data.items // [])
+            | map(.additionalDetails // ."additional-details" // {})
+            | map(.vmClusterId // ."vm-cluster-id" // .cloudVmClusterId // ."cloud-vm-cluster-id" // empty)
+            | first // empty
+        ' <<< "$search_out")
+        if [[ -n "$resolved_from_host" && "$resolved_from_host" != "null" ]]; then
+            printf '%s' "$resolved_from_host"
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
+# ------------------------------------------------------------------------------
+# Function: resolve_vm_cluster_compartment_ocid
+# Purpose.: Resolve compartment OCID from VM cluster OCID
+# Args....: $1 - VM cluster OCID
+# Returns.: 0 on success, 1 on failure
+# Output..: compartment OCID
+# ------------------------------------------------------------------------------
+resolve_vm_cluster_compartment_ocid() {
+    local vm_cluster_ocid="$1"
+    [[ -z "$vm_cluster_ocid" ]] && return 1
+
+    if [[ "$vm_cluster_ocid" =~ ^ocid1\.vmcluster\. ]]; then
+        oci_exec_ro db vm-cluster get \
+            --vm-cluster-id "$vm_cluster_ocid" \
+            --query 'data."compartment-id"' \
+            --raw-output 2> /dev/null
+        return $?
+    fi
+
+    if [[ "$vm_cluster_ocid" =~ ^ocid1\.cloudvmcluster\. ]]; then
+        oci_exec_ro db cloud-vm-cluster get \
+            --cloud-vm-cluster-id "$vm_cluster_ocid" \
+            --query 'data."compartment-id"' \
+            --raw-output 2> /dev/null
+        return $?
+    fi
+
+    oci_get_compartment_of_ocid "$vm_cluster_ocid"
+}
+
+# ------------------------------------------------------------------------------
+# Function: resolve_pluggable_db_ocid
+# Purpose.: Resolve pluggable database OCID for PDB scope
+# Args....: None (uses PDB/SID/COMP_OCID/CLUSTER_OCID globals)
+# Returns.: 0 on success, 1 on failure
+# Output..: Pluggable database OCID to stdout
+# ------------------------------------------------------------------------------
+resolve_pluggable_db_ocid() {
+    [[ -z "${PDB:-}" ]] && return 1
+
+    local databases_json
+    databases_json=$(oci_exec_ro db database list \
+        --compartment-id "$COMP_OCID" \
+        --all 2> /dev/null || true)
+    [[ -n "$databases_json" ]] || return 1
+
+    local database_id
+    database_id=$(echo "$databases_json" | jq -r \
+        --arg sid "${SID:-}" \
+        --arg cluster "${CLUSTER_OCID:-}" '
         .data[]
-        | select((."hostname" // "" | ascii_downcase) == $host)
-        | ."compartment-id"
+        | select(
+            ((."db-name" // "" | ascii_downcase) == ($sid | ascii_downcase))
+            or ((."db-unique-name" // "" | ascii_downcase) == ($sid | ascii_downcase))
+        )
+        | select(
+            ($cluster == "")
+            or ((."vm-cluster-id" // "") == $cluster)
+            or ((."cloud-vm-cluster-id" // "") == $cluster)
+        )
+        | .id
+    ' | head -n1)
+    [[ -n "$database_id" && "$database_id" != "null" ]] || return 1
+
+    local pdbs_json
+    pdbs_json=$(oci_exec_ro db pluggable-database list \
+        --database-id "$database_id" \
+        --all 2> /dev/null || true)
+    [[ -n "$pdbs_json" ]] || return 1
+
+    echo "$pdbs_json" | jq -r --arg pdb "$PDB" '
+        .data[]
+        | select(
+            ((."pdb-name" // "" | ascii_downcase) == ($pdb | ascii_downcase))
+            or ((."pdb-name" // "" | ascii_downcase) == (($pdb | ascii_downcase) + "_"))
+            or ((."display-name" // "" | ascii_downcase) == ($pdb | ascii_downcase))
+        )
+        | .id
     ' | head -n1
 }
 
@@ -415,7 +614,8 @@ resolve_ds_user() {
 # Args....: None
 # Returns.: 0 on success, exits on error
 # Output..: Info messages about resolved resources
-# Notes...: Sets COMP_OCID, COMP_NAME, CONNECTOR_OCID, SERVICE_NAME, DISPLAY_NAME
+# Notes...: Sets COMP_OCID, COMP_NAME, CONNECTOR_OCID, SERVICE_NAME, DISPLAY_NAME,
+#           CLUSTER_OCID, PLUGGABLE_DB_OCID
 # ------------------------------------------------------------------------------
 validate_inputs() {
     log_debug "Validating inputs..."
@@ -425,6 +625,20 @@ validate_inputs() {
     # Required fields
     [[ -z "$HOST" && -z "$CLUSTER" ]] && die "Missing resource identifier. Specify --host or --cluster"
     [[ -z "$SID" ]] && die "Missing required option: --sid"
+
+    if CLUSTER_OCID=$(resolve_vm_cluster_ocid 2> /dev/null || true); then
+        if [[ -n "$CLUSTER_OCID" ]]; then
+            log_debug "Resolved VM cluster OCID from host/cluster input: ${CLUSTER_OCID}"
+            if [[ -z "$COMPARTMENT" ]]; then
+                local vm_cluster_compartment
+                vm_cluster_compartment=$(resolve_vm_cluster_compartment_ocid "$CLUSTER_OCID" 2> /dev/null || true)
+                if [[ -n "$vm_cluster_compartment" && "$vm_cluster_compartment" != "null" ]]; then
+                    COMPARTMENT="$vm_cluster_compartment"
+                    log_info "Using compartment derived from VM cluster: ${COMPARTMENT}"
+                fi
+            fi
+        fi
+    fi
 
     if [[ -z "$COMPARTMENT" ]]; then
         local derived_compartment=""
@@ -505,6 +719,36 @@ validate_inputs() {
     resolve_compartment_to_vars "$COMPARTMENT" "COMP" \
         || die "Failed to resolve compartment: $COMPARTMENT"
     log_info "Target compartment: ${COMP_NAME} (${COMP_OCID})"
+
+    if [[ -z "$CLUSTER_OCID" ]]; then
+        if CLUSTER_OCID=$(resolve_vm_cluster_ocid); then
+            log_info "Resolved VM cluster OCID: ${CLUSTER_OCID}"
+        else
+            if [[ "$RUN_ROOT" == "true" ]]; then
+                if [[ "${DRY_RUN:-false}" == "true" ]]; then
+                    log_warn "Dry-run: unable to resolve VM cluster OCID. Payload will omit vmClusterId and create would fail until cluster is resolved."
+                    log_warn "Provide --cluster <ocid1.vmcluster...|ocid1.cloudvmcluster...> or ensure lookup permissions/scope."
+                else
+                    die "Failed to resolve VM cluster OCID. Provide a valid --cluster (name or OCID) or ensure host lookup is possible."
+                fi
+            fi
+            log_warn "Could not resolve VM cluster OCID for PDB scope; will rely on pluggable DB lookup"
+        fi
+    else
+        log_info "Resolved VM cluster OCID: ${CLUSTER_OCID}"
+    fi
+
+    if [[ "$RUN_ROOT" != "true" ]]; then
+        if PLUGGABLE_DB_OCID=$(resolve_pluggable_db_ocid); then
+            log_info "Resolved pluggable DB OCID: ${PLUGGABLE_DB_OCID}"
+        else
+            if [[ "${DRY_RUN:-false}" == "true" ]]; then
+                log_warn "Dry-run: unable to resolve pluggable database OCID for SID '${SID}' and PDB '${PDB}'."
+            else
+                die "Failed to resolve pluggable database OCID for SID '${SID}' and PDB '${PDB}'"
+            fi
+        fi
+    fi
 
     # Resolve connector OCID (accept name or OCID)
     if [[ "$CONNECTOR" =~ ^ocid1\.datasafeonpremconnector\. ]]; then
@@ -630,6 +874,12 @@ show_registration_plan() {
     if [[ -n "$CLUSTER" ]]; then
         log_info "  Cluster:       $CLUSTER"
     fi
+    if [[ -n "$CLUSTER_OCID" ]]; then
+        log_info "  VM Cluster ID: ${CLUSTER_OCID}"
+    fi
+    if [[ -n "$PLUGGABLE_DB_OCID" ]]; then
+        log_info "  PDB OCID:      ${PLUGGABLE_DB_OCID}"
+    fi
 
     if [[ -n "$DESCRIPTION" ]]; then
         log_info "  Description:   $DESCRIPTION"
@@ -666,12 +916,18 @@ register_target() {
         --arg infra "CLOUD_AT_CUSTOMER" \
         --argjson port "$LISTENER_PORT" \
         --arg svc "$SERVICE_NAME" \
-        '{
+        --arg vmClusterId "$CLUSTER_OCID" \
+        --arg pluggableDatabaseId "$PLUGGABLE_DB_OCID" \
+        --arg runRoot "$RUN_ROOT" '
+        {
             databaseType: $dbType,
             infrastructureType: $infra,
             listenerPort: $port,
             serviceName: $svc
-        }')
+        }
+        | if ($vmClusterId != "") then . + {vmClusterId: $vmClusterId} else . end
+        | if ($runRoot != "true" and $pluggableDatabaseId != "") then . + {pluggableDatabaseId: $pluggableDatabaseId} else . end
+    ')
 
     # Create full payload
     jq -n \
@@ -698,6 +954,11 @@ register_target() {
         }' > "$json_file"
 
     log_debug "JSON payload created: $json_file"
+    if [[ "${DEBUG:-false}" == "true" || "${TRACE:-false}" == "true" ]]; then
+        jq '.' "$json_file" | while IFS= read -r line; do
+            log_debug "PAYLOAD: $line"
+        done
+    fi
 
     if [[ "${DRY_RUN:-false}" == "true" ]]; then
         log_info "DRY-RUN: Would execute:"
@@ -717,7 +978,7 @@ register_target() {
         --wait-for-state FAILED) || {
         log_error "Registration failed"
         log_error "$result"
-        rm -f "$json_file"
+        log_warn "Keeping failed registration payload for analysis: $json_file"
         die "Target registration failed" 2
     }
 
