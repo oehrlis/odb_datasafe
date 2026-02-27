@@ -10,6 +10,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `lib/oci_helpers.sh`: demoted raw OCI CLI command lines and error output from
+  `log_debug` to `log_trace` in `oci_exec`, `oci_exec_ro`, `ds_refresh_target`,
+  and `ds_update_target_tags`. Running with `--debug` now shows only semantic
+  decisions; `--trace` reveals raw OCI command details.
+- `bin/ds_target_register.sh`: demoted "Validating inputs…" entry log and
+  JSON payload dump lines from `log_debug` to `log_trace` for the same reason.
+- `lib/oci_helpers.sh`: extracted three general-purpose OCI helpers for DbNode
+  and VM-cluster lookups out of the script and into the shared library:
+  - `oci_resolve_dbnode_by_host(host)` — single structured-search call returning
+    raw DbNode JSON for further field extraction.
+  - `oci_resolve_compartment_by_dbnode_name(host)` — resolve compartment OCID
+    from DbNode display name (hostname).
+  - `oci_resolve_vm_cluster_compartment(ocid)` — resolve compartment OCID from
+    VM-cluster OCID with type dispatch (`vmcluster` / `cloudvmcluster`) and
+    fallback to generic search.
+- `bin/ds_target_register.sh`: `resolve_compartment_from_host()` and
+  `resolve_vm_cluster_compartment_ocid()` are now thin delegation wrappers
+  for the corresponding library functions above.
+- `bin/ds_target_list.sh`: removed three private functions that duplicated
+  existing library equivalents:
+  - `apply_target_filter()` → replaced with `ds_filter_targets_json()` from
+    `lib/oci_helpers.sh` (2 call sites; filter is now passed as a parameter
+    instead of read from a global).
+  - `load_json_selection()` → replaced with `ds_load_targets_json_file()` from
+    `lib/oci_helpers.sh`.
+  - `save_json_selection()` → replaced with `ds_save_targets_json_file()` from
+    `lib/oci_helpers.sh`.
+
 ### Fixed
 
 - `bin/ds_target_register.sh`: Data Safe registration payload for
@@ -24,13 +52,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   resolving VM cluster first (from `--cluster` or `--host`) and deriving
   compartment from the resolved VM cluster before falling back to configured
   defaults.
-- `bin/ds_target_register.sh`: debug runs now log full registration payload and
-  failed create attempts keep the generated JSON payload file path for direct
-  OCI troubleshooting.
+- `bin/ds_target_register.sh`: host-based compartment and cluster-OCID
+  derivation now issues a single `query DbNode resources where displayName =
+  '...'` OCI call and extracts both the `compartment-id` and `vmClusterId`
+  from the result, eliminating a redundant second DbNode search.
+- `bin/ds_target_register.sh`: registration no longer uses `--wait-for-state`
+  (which mixed OCI CLI progress output into the captured JSON result, causing
+  jq parse failures). Target creation is submitted asynchronously and the
+  script polls `ds_list_targets` every 15 s until the target reaches `ACTIVE`
+  or `FAILED` state (max 10 min).
+- `bin/ds_target_register.sh`: `credentials.password` is now redacted as
+  `"****"` in all DEBUG- and TRACE-level JSON payload dumps, preventing
+  plaintext passwords from appearing in logs.
 - `bin/ds_target_register.sh`: VM cluster discovery now supports both OCI DB
   resource families (`cloud-vm-cluster` and `vm-cluster`) for `--cluster`
   name/OCID resolution and compartment lookup, addressing environments where
   Exadata resources are exposed as `vmcluster` rather than `cloudvmcluster`.
+- `bin/ds_target_register.sh`: cluster and compartment OCI lookups now call
+  `oci_exec_ro search resource structured-search` directly instead of routing
+  through `oci_structured_search_query`, ensuring debug/trace messages from
+  `oci_exec_ro` are visible and avoiding a missing-function error when only the
+  script is deployed without an updated `lib/oci_helpers.sh`.
 - `lib/oci_helpers.sh` / `bin/ds_target_register.sh`: introduced a simplified,
   legacy-style structured-search resolver path (`oci_resolve_ocid_by_name`,
   `oci_get_compartment_of_ocid`) and switched registration cluster/compartment

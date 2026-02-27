@@ -359,53 +359,14 @@ resolve_default_connector() {
 }
 
 # ------------------------------------------------------------------------------
-# Function: resolve_compartment_from_cluster
-# Purpose.: Resolve compartment OCID from VM cluster reference
-# Args....: $1 - cluster name or OCID
-# Returns.: 0 on success, 1 on failure
-# Output..: compartment OCID to stdout
-# ------------------------------------------------------------------------------
-resolve_compartment_from_cluster() {
-    local cluster_ref="$1"
-
-    [[ -z "$cluster_ref" ]] && return 1
-
-    local vm_cluster_ocid
-    vm_cluster_ocid=$(resolve_vm_cluster_ocid 2> /dev/null || true)
-    [[ -z "$vm_cluster_ocid" ]] && return 1
-
-    resolve_vm_cluster_compartment_ocid "$vm_cluster_ocid"
-}
-
-# ------------------------------------------------------------------------------
 # Function: resolve_compartment_from_host
 # Purpose.: Resolve compartment OCID from DB host name
 # Args....: $1 - host name
 # Returns.: 0 on success, 1 on failure
 # Output..: compartment OCID to stdout
+# Notes...: Delegates to oci_resolve_compartment_by_dbnode_name() in oci_helpers.sh
 # ------------------------------------------------------------------------------
-resolve_compartment_from_host() {
-    local host_name="$1"
-    [[ -z "$host_name" ]] && return 1
-
-    local esc
-    esc="${host_name//\'/\'\\\'}"
-
-    local out
-    local resolved_comp
-    out=$(oci_structured_search_query "query DbNode resources where displayName = '${esc}'" 10 2> /dev/null || true)
-    resolved_comp=$(jq -r '
-        (.data.items // [])
-        | map(."compartment-id" // .compartmentId // empty)
-        | first // empty
-    ' <<< "$out")
-    if [[ -n "$resolved_comp" && "$resolved_comp" != "null" ]]; then
-        printf '%s\n' "$resolved_comp"
-        return 0
-    fi
-
-    return 1
-}
+resolve_compartment_from_host() { oci_resolve_compartment_by_dbnode_name "$@"; }
 
 # ------------------------------------------------------------------------------
 # Function: resolve_vm_cluster_ocid
@@ -418,86 +379,137 @@ resolve_vm_cluster_ocid() {
     local cluster_ref="${CLUSTER:-}"
 
     if [[ -n "$cluster_ref" ]]; then
+        # Direct OCID - skip all searches
         if [[ "$cluster_ref" =~ ^ocid1\.(cloudvmcluster|vmcluster)\. ]]; then
+            log_debug "Cluster OCID provided directly: ${cluster_ref}"
             printf '%s' "$cluster_ref"
             return 0
         fi
 
-        local resolved_cluster
-        local cluster_esc
-        cluster_esc="${cluster_ref//\'/\'\\\'}"
+        local cluster_esc="${cluster_ref//\'/\'\\\'}"
+        local resolved_cluster=""
         local search_out
-        search_out=$(oci_structured_search_query "query all resources where displayName = '${cluster_esc}'" 50 2> /dev/null || true)
-        resolved_cluster=$(jq -r '
-            (.data.items // [])
-            | map(.identifier // .id // empty)
-            | map(select(test("^ocid1\\.(vmcluster|cloudvmcluster)\\.")))
-            | first // empty
-        ' <<< "$search_out")
-        if [[ -n "$resolved_cluster" && "$resolved_cluster" != "null" ]]; then
+
+        # ------------------------------------------------------------------
+        # Strategy 1: OCI structured search — tenant-wide, no compartment needed.
+        # Note: calls oci_exec_ro directly (not via oci_resolve_ocid_by_name)
+        # so that debug/trace messages are visible in the log output.
+        # ------------------------------------------------------------------
+        log_debug "Strategy 1a: structured search for cluster '${cluster_ref}' (VmCluster type)"
+        search_out=$(oci_exec_ro search resource structured-search \
+            --query-text "query VmCluster resources where displayName = '${cluster_esc}'" \
+            --limit 25 || true)
+        resolved_cluster=$(jq -r \
+            '(.data.items // []) | map(.identifier // .id // empty) | first // empty' \
+            <<< "$search_out" 2>/dev/null || true)
+        [[ "$resolved_cluster" == "null" ]] && resolved_cluster=""
+        if [[ -n "$resolved_cluster" ]]; then
+            log_debug "Found '${cluster_ref}' as VmCluster: ${resolved_cluster}"
             printf '%s' "$resolved_cluster"
             return 0
         fi
 
-        # Fallback for environments without OCI Search permissions:
-        # try classic DB list calls only in configured/known scopes.
-        local scope_ocids
-        scope_ocids=$(collect_search_compartment_ocids)
-        local scope_comp
-        while IFS= read -r scope_comp; do
-            [[ -z "$scope_comp" ]] && continue
-
-            local vm_clusters_json
-            vm_clusters_json=$(oci_exec_ro db vm-cluster list \
-                --compartment-id "$scope_comp" \
-                --all 2> /dev/null || true)
-            if [[ -n "$vm_clusters_json" ]]; then
-                resolved_cluster=$(echo "$vm_clusters_json" | jq -r --arg cluster "$cluster_ref" '
-                    .data[]
-                    | select((."display-name" // "") == $cluster)
-                    | .id
-                ' | head -n1)
-                if [[ -n "$resolved_cluster" && "$resolved_cluster" != "null" ]]; then
-                    printf '%s' "$resolved_cluster"
-                    return 0
-                fi
-            fi
-
-            local cloud_vm_clusters_json
-            cloud_vm_clusters_json=$(oci_exec_ro db cloud-vm-cluster list \
-                --compartment-id "$scope_comp" \
-                --all 2> /dev/null || true)
-            if [[ -n "$cloud_vm_clusters_json" ]]; then
-                resolved_cluster=$(echo "$cloud_vm_clusters_json" | jq -r --arg cluster "$cluster_ref" '
-                    .data[]
-                    | select((."display-name" // "") == $cluster)
-                    | .id
-                ' | head -n1)
-                if [[ -n "$resolved_cluster" && "$resolved_cluster" != "null" ]]; then
-                    printf '%s' "$resolved_cluster"
-                    return 0
-                fi
-            fi
-        done <<< "$scope_ocids"
-    fi
-
-    if [[ -n "${HOST:-}" ]]; then
-        local host_esc
-        host_esc="${HOST//\'/\'\\\'}"
-        local search_out
-        local resolved_from_host
-
-        search_out=$(oci_structured_search_query "query DbNode resources where displayName = '${host_esc}'" 10 2> /dev/null || true)
-        resolved_from_host=$(jq -r '
-            (.data.items // [])
-            | map(.additionalDetails // ."additional-details" // {})
-            | map(.vmClusterId // ."vm-cluster-id" // .cloudVmClusterId // ."cloud-vm-cluster-id" // empty)
-            | first // empty
-        ' <<< "$search_out")
-        if [[ -n "$resolved_from_host" && "$resolved_from_host" != "null" ]]; then
-            printf '%s' "$resolved_from_host"
+        log_debug "Strategy 1b: structured search for cluster '${cluster_ref}' (CloudVmCluster type)"
+        search_out=$(oci_exec_ro search resource structured-search \
+            --query-text "query CloudVmCluster resources where displayName = '${cluster_esc}'" \
+            --limit 25 || true)
+        resolved_cluster=$(jq -r \
+            '(.data.items // []) | map(.identifier // .id // empty) | first // empty' \
+            <<< "$search_out" 2>/dev/null || true)
+        [[ "$resolved_cluster" == "null" ]] && resolved_cluster=""
+        if [[ -n "$resolved_cluster" ]]; then
+            log_debug "Found '${cluster_ref}' as CloudVmCluster: ${resolved_cluster}"
+            printf '%s' "$resolved_cluster"
             return 0
         fi
+
+        log_debug "Structured search found no results for cluster '${cluster_ref}'"
+
+        # ------------------------------------------------------------------
+        # Strategy 2: DB list fallback — expand each scope compartment to its
+        # full sub-compartment tree (one iam-list call per scope), then search
+        # VmCluster and CloudVmCluster in every compartment found.
+        # This handles environments where OCI Search is unavailable or the
+        # cluster is in a sub-compartment not covered by the scope directly.
+        # ------------------------------------------------------------------
+        local scope_ocids
+        scope_ocids=$(collect_search_compartment_ocids)
+
+        if [[ -z "$scope_ocids" ]]; then
+            log_debug "No compartments available for DB list fallback; skipping strategy 2"
+        else
+            # Build a deduplicated flat list: each scope comp + all its sub-compartments
+            local all_search_comps=""
+            local scope_comp
+            while IFS= read -r scope_comp; do
+                [[ -z "$scope_comp" ]] && continue
+                if ! grep -Fqx "$scope_comp" <<< "$all_search_comps"; then
+                    all_search_comps+="${scope_comp}"$'\n'
+                fi
+
+                log_debug "Expanding sub-compartments of ${scope_comp} for DB list search..."
+                local sub_comps_json
+                sub_comps_json=$(oci_exec_ro iam compartment list \
+                    --compartment-id "$scope_comp" \
+                    --compartment-id-in-subtree true \
+                    --all 2>/dev/null || true)
+                if [[ -n "$sub_comps_json" ]]; then
+                    local sub_ocid
+                    while IFS= read -r sub_ocid; do
+                        [[ -z "$sub_ocid" ]] && continue
+                        if ! grep -Fqx "$sub_ocid" <<< "$all_search_comps"; then
+                            all_search_comps+="${sub_ocid}"$'\n'
+                        fi
+                    done < <(echo "$sub_comps_json" | \
+                        jq -r '.data[] | select(."lifecycle-state" == "ACTIVE") | .id // empty')
+                fi
+            done <<< "$scope_ocids"
+
+            local search_comp
+            while IFS= read -r search_comp; do
+                [[ -z "$search_comp" ]] && continue
+
+                log_debug "DB list: checking VmCluster in compartment ${search_comp}"
+                local vm_clusters_json
+                vm_clusters_json=$(oci_exec_ro db vm-cluster list \
+                    --compartment-id "$search_comp" \
+                    --all 2>/dev/null || true)
+                if [[ -n "$vm_clusters_json" ]]; then
+                    resolved_cluster=$(echo "$vm_clusters_json" | jq -r \
+                        --arg cluster "$cluster_ref" '
+                        .data[]
+                        | select((."display-name" // "") == $cluster)
+                        | .id
+                    ' | head -n1)
+                    if [[ -n "$resolved_cluster" && "$resolved_cluster" != "null" ]]; then
+                        log_debug "Found '${cluster_ref}' as VmCluster in ${search_comp}: ${resolved_cluster}"
+                        printf '%s' "$resolved_cluster"
+                        return 0
+                    fi
+                fi
+
+                log_debug "DB list: checking CloudVmCluster in compartment ${search_comp}"
+                local cloud_vm_clusters_json
+                cloud_vm_clusters_json=$(oci_exec_ro db cloud-vm-cluster list \
+                    --compartment-id "$search_comp" \
+                    --all 2>/dev/null || true)
+                if [[ -n "$cloud_vm_clusters_json" ]]; then
+                    resolved_cluster=$(echo "$cloud_vm_clusters_json" | jq -r \
+                        --arg cluster "$cluster_ref" '
+                        .data[]
+                        | select((."display-name" // "") == $cluster)
+                        | .id
+                    ' | head -n1)
+                    if [[ -n "$resolved_cluster" && "$resolved_cluster" != "null" ]]; then
+                        log_debug "Found '${cluster_ref}' as CloudVmCluster in ${search_comp}: ${resolved_cluster}"
+                        printf '%s' "$resolved_cluster"
+                        return 0
+                    fi
+                fi
+            done <<< "$all_search_comps"
+        fi
+
+        log_debug "All strategies exhausted; cluster '${cluster_ref}' not resolved"
     fi
 
     return 1
@@ -509,29 +521,9 @@ resolve_vm_cluster_ocid() {
 # Args....: $1 - VM cluster OCID
 # Returns.: 0 on success, 1 on failure
 # Output..: compartment OCID
+# Notes...: Delegates to oci_resolve_vm_cluster_compartment() in oci_helpers.sh
 # ------------------------------------------------------------------------------
-resolve_vm_cluster_compartment_ocid() {
-    local vm_cluster_ocid="$1"
-    [[ -z "$vm_cluster_ocid" ]] && return 1
-
-    if [[ "$vm_cluster_ocid" =~ ^ocid1\.vmcluster\. ]]; then
-        oci_exec_ro db vm-cluster get \
-            --vm-cluster-id "$vm_cluster_ocid" \
-            --query 'data."compartment-id"' \
-            --raw-output 2> /dev/null
-        return $?
-    fi
-
-    if [[ "$vm_cluster_ocid" =~ ^ocid1\.cloudvmcluster\. ]]; then
-        oci_exec_ro db cloud-vm-cluster get \
-            --cloud-vm-cluster-id "$vm_cluster_ocid" \
-            --query 'data."compartment-id"' \
-            --raw-output 2> /dev/null
-        return $?
-    fi
-
-    oci_get_compartment_of_ocid "$vm_cluster_ocid"
-}
+resolve_vm_cluster_compartment_ocid() { oci_resolve_vm_cluster_compartment "$@"; }
 
 # ------------------------------------------------------------------------------
 # Function: resolve_pluggable_db_ocid
@@ -618,7 +610,7 @@ resolve_ds_user() {
 #           CLUSTER_OCID, PLUGGABLE_DB_OCID
 # ------------------------------------------------------------------------------
 validate_inputs() {
-    log_debug "Validating inputs..."
+    log_trace "Validating inputs..."
 
     require_oci_cli
 
@@ -626,52 +618,7 @@ validate_inputs() {
     [[ -z "$HOST" && -z "$CLUSTER" ]] && die "Missing resource identifier. Specify --host or --cluster"
     [[ -z "$SID" ]] && die "Missing required option: --sid"
 
-    if CLUSTER_OCID=$(resolve_vm_cluster_ocid 2> /dev/null || true); then
-        if [[ -n "$CLUSTER_OCID" ]]; then
-            log_debug "Resolved VM cluster OCID from host/cluster input: ${CLUSTER_OCID}"
-            if [[ -z "$COMPARTMENT" ]]; then
-                local vm_cluster_compartment
-                vm_cluster_compartment=$(resolve_vm_cluster_compartment_ocid "$CLUSTER_OCID" 2> /dev/null || true)
-                if [[ -n "$vm_cluster_compartment" && "$vm_cluster_compartment" != "null" ]]; then
-                    COMPARTMENT="$vm_cluster_compartment"
-                    log_info "Using compartment derived from VM cluster: ${COMPARTMENT}"
-                fi
-            fi
-        fi
-    fi
-
-    if [[ -z "$COMPARTMENT" ]]; then
-        local derived_compartment=""
-
-        if [[ -n "$HOST" ]]; then
-            derived_compartment=$(resolve_compartment_from_host "$HOST" 2> /dev/null || true)
-            if [[ -n "$derived_compartment" ]]; then
-                COMPARTMENT="$derived_compartment"
-                log_info "Using compartment derived from host '$HOST': $COMPARTMENT"
-            fi
-        fi
-
-        if [[ -z "$COMPARTMENT" && -n "$CLUSTER" ]]; then
-            derived_compartment=$(resolve_compartment_from_cluster "$CLUSTER" 2> /dev/null || true)
-            if [[ -n "$derived_compartment" ]]; then
-                COMPARTMENT="$derived_compartment"
-                log_info "Using compartment derived from cluster '$CLUSTER': $COMPARTMENT"
-            fi
-        fi
-
-        if [[ -z "$COMPARTMENT" ]]; then
-            COMPARTMENT="${DS_REGISTER_COMPARTMENT:-${DS_ROOT_COMP:-}}"
-            [[ -n "$COMPARTMENT" ]] || die "Missing target compartment. Use --compartment or provide resolvable --host/--cluster"
-            log_warn "Could not derive compartment from resource; using configured default: $COMPARTMENT"
-        fi
-    fi
-
-    if [[ -z "$CONNECTOR" ]]; then
-        CONNECTOR="$(resolve_default_connector)" || die "Missing connector. Use --connector or configure ONPREM_CONNECTOR(_OCID) / ONPREM_CONNECTOR_LIST"
-        log_info "Using default connector: $CONNECTOR"
-    fi
-
-    # Scope validation
+    # Scope validation (done early, before OCI calls and DS_USER/secret resolution)
     if [[ -z "$PDB" && "$RUN_ROOT" != "true" ]]; then
         die "Specify scope: --pdb <name> OR --root"
     fi
@@ -715,11 +662,107 @@ validate_inputs() {
         die "Missing required option: --ds-secret (not needed with --check)"
     fi
 
-    # Resolve compartment using helper function (accepts name or OCID)
+    # Compartment derivation: try cluster/host before falling back to env vars.
+    # Resolve COMP_OCID early so the cluster-name fallback loop has the correct search scope.
+    if [[ -z "$COMPARTMENT" ]]; then
+        local derived_compartment=""
+
+        # Try cluster: a direct OCID lookup or typed structured search gives both CLUSTER_OCID
+        # and compartment in one pass, avoiding a second resolve_vm_cluster_ocid() call later.
+        if [[ -n "$CLUSTER" ]]; then
+            if is_ocid "$CLUSTER"; then
+                # OCID provided directly - skip search, derive compartment immediately
+                CLUSTER_OCID="$CLUSTER"
+                log_debug "Cluster OCID provided directly: ${CLUSTER_OCID}"
+                derived_compartment=$(resolve_vm_cluster_compartment_ocid "$CLUSTER_OCID" 2>/dev/null || true)
+                if [[ -n "$derived_compartment" && "$derived_compartment" != "null" ]]; then
+                    log_info "Using compartment derived from cluster OCID: $derived_compartment"
+                else
+                    derived_compartment=""
+                fi
+            else
+                # Name provided - use full resolution (structured search + sub-compartment
+                # enumeration) so debug/trace messages are visible in the log output.
+                log_debug "Resolving cluster by name: ${CLUSTER}"
+                local cluster_ocid_candidate=""
+                cluster_ocid_candidate=$(resolve_vm_cluster_ocid || true)
+                if [[ -n "$cluster_ocid_candidate" ]]; then
+                    CLUSTER_OCID="$cluster_ocid_candidate"
+                    log_debug "Early resolved cluster OCID: ${CLUSTER_OCID}"
+                    derived_compartment=$(resolve_vm_cluster_compartment_ocid "$CLUSTER_OCID" 2>/dev/null || true)
+                    [[ "$derived_compartment" == "null" ]] && derived_compartment=""
+                    if [[ -n "$derived_compartment" ]]; then
+                        log_info "Using compartment derived from cluster '$CLUSTER': $derived_compartment"
+                    fi
+                fi
+            fi
+        fi
+
+        # Try host if cluster derivation did not yield a compartment.
+        # One DbNode search extracts both compartment-id and vm-cluster OCID together.
+        if [[ -z "$derived_compartment" && -n "$HOST" ]]; then
+            log_debug "Deriving compartment and cluster OCID from host: ${HOST}"
+            local dbnode_json
+            dbnode_json=$(oci_resolve_dbnode_by_host "$HOST" 2>/dev/null || true)
+            if [[ -n "$dbnode_json" ]]; then
+                derived_compartment=$(jq -r \
+                    '(.data.items // [])[0] | ."compartment-id" // .compartmentId // empty' \
+                    <<< "$dbnode_json" 2>/dev/null || true)
+                [[ "$derived_compartment" == "null" ]] && derived_compartment=""
+                if [[ -n "$derived_compartment" ]]; then
+                    log_info "Using compartment derived from host '$HOST': $derived_compartment"
+                fi
+                # Also extract cluster OCID from the same DbNode response
+                if [[ -z "${CLUSTER_OCID:-}" ]]; then
+                    local dbnode_cluster
+                    dbnode_cluster=$(jq -r '
+                        (.data.items // [])[0]
+                        | (.additionalDetails // ."additional-details" // {})
+                        | (.vmClusterId // ."vm-cluster-id"
+                           // .cloudVmClusterId // ."cloud-vm-cluster-id" // empty)
+                    ' <<< "$dbnode_json" 2>/dev/null || true)
+                    [[ "$dbnode_cluster" == "null" ]] && dbnode_cluster=""
+                    if [[ -n "$dbnode_cluster" ]]; then
+                        CLUSTER_OCID="$dbnode_cluster"
+                        log_debug "Derived cluster OCID from host '${HOST}': ${CLUSTER_OCID}"
+                    fi
+                fi
+            fi
+        fi
+
+        if [[ -n "$derived_compartment" ]]; then
+            COMPARTMENT="$derived_compartment"
+        else
+            # Compartment could not be derived from the provided cluster/host.
+            # Without knowing the cluster's compartment, we cannot register correctly.
+            local resource_ref="${CLUSTER:-${HOST:-}}"
+            if [[ "${DRY_RUN:-false}" == "true" ]]; then
+                # In dry-run, fall back to configured default for plan generation only
+                COMPARTMENT="${DS_REGISTER_COMPARTMENT:-${DS_ROOT_COMP:-}}"
+                if [[ -n "$COMPARTMENT" ]]; then
+                    log_warn "Unable to derive compartment from resource '${resource_ref}' (cluster/host not resolvable via OCI search)."
+                    log_warn "Using configured default for dry-run plan only: $COMPARTMENT"
+                    log_warn "Actual registration requires --cluster <OCID> or explicit --compartment."
+                else
+                    die "Unable to derive compartment from resource '${resource_ref}'. Use --cluster <OCID> or --compartment."
+                fi
+            else
+                die "Unable to derive compartment from resource '${resource_ref}'. Provide --cluster <OCID> or specify --compartment explicitly."
+            fi
+        fi
+    fi
+
+    # Resolve compartment OCID early so the cluster-name fallback loop searches the right scope
     resolve_compartment_to_vars "$COMPARTMENT" "COMP" \
         || die "Failed to resolve compartment: $COMPARTMENT"
     log_info "Target compartment: ${COMP_NAME} (${COMP_OCID})"
 
+    if [[ -z "$CONNECTOR" ]]; then
+        CONNECTOR="$(resolve_default_connector)" || die "Missing connector. Use --connector or configure ONPREM_CONNECTOR(_OCID) / ONPREM_CONNECTOR_LIST"
+        log_info "Using default connector: $CONNECTOR"
+    fi
+
+    # Resolve cluster OCID once, with COMP_OCID now available for the fallback loop
     if [[ -z "$CLUSTER_OCID" ]]; then
         if CLUSTER_OCID=$(resolve_vm_cluster_ocid); then
             log_info "Resolved VM cluster OCID: ${CLUSTER_OCID}"
@@ -731,8 +774,9 @@ validate_inputs() {
                 else
                     die "Failed to resolve VM cluster OCID. Provide a valid --cluster (name or OCID) or ensure host lookup is possible."
                 fi
+            else
+                log_warn "Could not resolve VM cluster OCID for PDB scope; will rely on pluggable DB lookup"
             fi
-            log_warn "Could not resolve VM cluster OCID for PDB scope; will rely on pluggable DB lookup"
         fi
     else
         log_info "Resolved VM cluster OCID: ${CLUSTER_OCID}"
@@ -768,7 +812,7 @@ validate_inputs() {
             log_debug "Using explicit connector compartment: $CONNECTOR_COMPARTMENT"
         else
             # Use helper function (DS_CONNECTOR_COMP -> DS_ROOT_COMP -> target compartment)
-            connector_search_comp=$(get_connector_compartment_ocid 2> /dev/null || echo "$COMP_OCID")
+            connector_search_comp=$(get_connector_compartment_ocid 2>/dev/null || echo "$COMP_OCID")
             log_debug "Using default connector compartment"
         fi
 
@@ -907,7 +951,12 @@ register_target() {
         pdb_name="$PDB"
     fi
 
-    local desc="${DESCRIPTION:-PDB ${pdb_name} on Database ${SID} at ${HOST}}"
+    local desc
+    if [[ "$RUN_ROOT" == "true" ]]; then
+        desc="${DESCRIPTION:-CDB\$ROOT on Database ${SID} at ${HOST}}"
+    else
+        desc="${DESCRIPTION:-PDB ${pdb_name} on Database ${SID} at ${HOST}}"
+    fi
 
     # Build database details JSON
     local db_details
@@ -955,44 +1004,70 @@ register_target() {
 
     log_debug "JSON payload created: $json_file"
     if [[ "${DEBUG:-false}" == "true" || "${TRACE:-false}" == "true" ]]; then
-        jq '.' "$json_file" | while IFS= read -r line; do
-            log_debug "PAYLOAD: $line"
+        jq '.credentials.password = "****"' "$json_file" | while IFS= read -r line; do
+            log_trace "PAYLOAD: $line"
         done
     fi
 
     if [[ "${DRY_RUN:-false}" == "true" ]]; then
         log_info "DRY-RUN: Would execute:"
         log_info "  oci data-safe target-database create --from-json file://$json_file"
-        cat "$json_file" | jq '.' | while IFS= read -r line; do
-            log_debug "  $line"
+        jq '.credentials.password = "****"' "$json_file" | while IFS= read -r line; do
+            log_trace "  $line"
         done
         rm -f "$json_file"
         return 0
     fi
 
-    # Execute registration using oci_exec (respects dry-run)
+    # Execute registration (no --wait-for-state: oci_exec captures 2>&1 which mixes
+    # OCI CLI progress output with JSON, corrupting the result for jq).
+    # Instead we poll ds_list_targets until the target reaches ACTIVE/FAILED state.
     local result
     result=$(oci_exec data-safe target-database create \
-        --from-json "file://$json_file" \
-        --wait-for-state SUCCEEDED \
-        --wait-for-state FAILED) || {
+        --from-json "file://$json_file") || {
         log_error "Registration failed"
         log_error "$result"
         log_warn "Keeping failed registration payload for analysis: $json_file"
         die "Target registration failed" 2
     }
-
-    local target_id
-    target_id=$(echo "$result" | jq -r '.data.id // empty')
-
-    if [[ -n "$target_id" ]]; then
-        log_info "Successfully registered target: $DISPLAY_NAME"
-        log_info "Target OCID: $target_id"
-    else
-        log_warn "Registration command completed but could not extract target ID"
-    fi
-
     rm -f "$json_file"
+
+    log_info "Target registration submitted. Waiting for ACTIVE state..."
+    local target_id=""
+    local elapsed=0
+    local poll_interval=15
+    local max_wait=600  # 10 minutes
+    while [[ $elapsed -lt $max_wait ]]; do
+        sleep "$poll_interval"
+        elapsed=$((elapsed + poll_interval))
+
+        local poll_json
+        poll_json=$(ds_list_targets "$COMP_OCID" 2>/dev/null || true)
+
+        target_id=$(echo "$poll_json" | jq -r \
+            --arg name "$DISPLAY_NAME" \
+            '.data[] | select(."display-name" == $name and ."lifecycle-state" == "ACTIVE") | .id' \
+            2>/dev/null | head -1 || true)
+        if [[ -n "$target_id" ]]; then
+            log_info "Successfully registered target: $DISPLAY_NAME"
+            log_info "Target OCID: $target_id"
+            return 0
+        fi
+
+        local failed_id
+        failed_id=$(echo "$poll_json" | jq -r \
+            --arg name "$DISPLAY_NAME" \
+            '.data[] | select(."display-name" == $name and ."lifecycle-state" == "FAILED") | .id' \
+            2>/dev/null | head -1 || true)
+        if [[ -n "$failed_id" ]]; then
+            die "Target registration failed (FAILED state): $DISPLAY_NAME ($failed_id)"
+        fi
+
+        log_info "Waiting for target ACTIVE... (${elapsed}/${max_wait}s)"
+    done
+
+    log_warn "Target registration submitted but ACTIVE state not confirmed in ${max_wait}s"
+    log_warn "Check status: ds_target_list.sh -T $DISPLAY_NAME"
 }
 
 # ------------------------------------------------------------------------------

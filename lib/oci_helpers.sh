@@ -136,8 +136,8 @@ check_oci_cli_auth() {
     else
         exit_code=$?
         log_error "OCI CLI authentication failed (exit ${exit_code})"
-        log_debug "Test command: ${cmd[*]}"
-        log_debug "Error output: $output"
+        log_trace "Test command: ${cmd[*]}"
+        log_trace "Error output: $output"
 
         # Provide helpful error messages
         if [[ "$output" =~ "ConfigFileNotFound" ]]; then
@@ -297,8 +297,8 @@ oci_exec() {
     [[ -n "${OCI_CLI_PROFILE}" ]] && cmd+=(--profile "${OCI_CLI_PROFILE}")
     [[ -n "${OCI_CLI_REGION}" ]] && cmd+=(--region "${OCI_CLI_REGION}")
 
-    # Log command in debug mode
-    log_debug "OCI command: ${cmd[*]}"
+    # Log command at trace level (raw command detail belongs at trace, not debug)
+    log_trace "OCI command: ${cmd[*]}"
 
     # Dry-run: just show command
     if [[ "${DRY_RUN}" == "true" ]]; then
@@ -317,7 +317,7 @@ oci_exec() {
     else
         exit_code=$?
         log_error "OCI command failed (exit ${exit_code}): ${cmd[*]}"
-        log_debug "Output: $output"
+        log_trace "Output: $output"
         return $exit_code
     fi
 }
@@ -339,8 +339,8 @@ oci_exec_ro() {
     [[ -n "${OCI_CLI_PROFILE}" ]] && cmd+=(--profile "${OCI_CLI_PROFILE}")
     [[ -n "${OCI_CLI_REGION}" ]] && cmd+=(--region "${OCI_CLI_REGION}")
 
-    # Log command in debug mode
-    log_debug "OCI command: ${cmd[*]}"
+    # Log command at trace level (raw command detail belongs at trace, not debug)
+    log_trace "OCI command: ${cmd[*]}"
 
     # Execute command (always, even in dry-run)
     local output
@@ -353,7 +353,7 @@ oci_exec_ro() {
     else
         exit_code=$?
         log_error "OCI command failed (exit ${exit_code}): ${cmd[*]}"
-        log_debug "Output: $output"
+        log_trace "Output: $output"
         return $exit_code
     fi
 }
@@ -474,6 +474,82 @@ oci_get_compartment_of_ocid() {
     [[ "$comp_ocid" == "null" ]] && comp_ocid=""
 
     printf '%s\n' "${comp_ocid:-}"
+}
+
+# ------------------------------------------------------------------------------
+# Function: oci_resolve_dbnode_by_host
+# Purpose.: Search for a DbNode by display name (hostname) and return raw JSON
+# Args....: $1 - DbNode display name (hostname)
+# Returns.: 0; raw structured-search JSON to stdout (may be empty on no result)
+# Notes...: Returns at most 1 result (--limit 1). Callers extract specific fields.
+#           Use oci_resolve_compartment_by_dbnode_name() for compartment lookup.
+# ------------------------------------------------------------------------------
+oci_resolve_dbnode_by_host() {
+    local host_name="$1"
+    [[ -z "$host_name" ]] && return 1
+    local esc="${host_name//\'/\'\\\'}"
+    oci_exec_ro search resource structured-search \
+        --query-text "query DbNode resources where displayName = '${esc}'" \
+        --limit 1 2>/dev/null || true
+}
+
+# ------------------------------------------------------------------------------
+# Function: oci_resolve_compartment_by_dbnode_name
+# Purpose.: Resolve compartment OCID from DbNode display name (hostname)
+# Args....: $1 - DbNode display name (hostname)
+# Returns.: 0 on success; compartment OCID to stdout
+# ------------------------------------------------------------------------------
+oci_resolve_compartment_by_dbnode_name() {
+    local host_name="$1"
+    [[ -z "$host_name" ]] && return 1
+    local esc="${host_name//\'/\'\\\'}"
+    local out
+    out=$(oci_exec_ro search resource structured-search \
+        --query-text "query DbNode resources where displayName = '${esc}'" \
+        --limit 10 2>/dev/null || true)
+    local resolved_comp
+    resolved_comp=$(jq -r '
+        (.data.items // [])
+        | map(."compartment-id" // .compartmentId // empty)
+        | first // empty
+    ' <<< "$out")
+    [[ "$resolved_comp" == "null" ]] && resolved_comp=""
+    if [[ -n "$resolved_comp" ]]; then
+        printf '%s\n' "$resolved_comp"
+        return 0
+    fi
+    return 1
+}
+
+# ------------------------------------------------------------------------------
+# Function: oci_resolve_vm_cluster_compartment
+# Purpose.: Resolve compartment OCID from VM cluster OCID
+# Args....: $1 - VM cluster OCID (vmcluster or cloudvmcluster)
+# Returns.: 0 on success; compartment OCID to stdout
+# Notes...: Type-dispatches by OCID prefix for direct API call; falls back to
+#           generic structured search via oci_get_compartment_of_ocid().
+# ------------------------------------------------------------------------------
+oci_resolve_vm_cluster_compartment() {
+    local vm_cluster_ocid="$1"
+    [[ -z "$vm_cluster_ocid" ]] && return 1
+
+    if [[ "$vm_cluster_ocid" =~ ^ocid1\.vmcluster\. ]]; then
+        oci_exec_ro db vm-cluster get \
+            --vm-cluster-id "$vm_cluster_ocid" \
+            --query 'data."compartment-id"' \
+            --raw-output 2>/dev/null
+        return $?
+    fi
+
+    if [[ "$vm_cluster_ocid" =~ ^ocid1\.cloudvmcluster\. ]]; then
+        oci_exec_ro db cloud-vm-cluster get \
+            --cloud-vm-cluster-id "$vm_cluster_ocid" \
+            --query 'data."compartment-id"' \
+            --raw-output 2>/dev/null
+        return $?
+    fi
+
+    oci_get_compartment_of_ocid "$vm_cluster_ocid"
 }
 
 # =============================================================================
@@ -1301,7 +1377,7 @@ ds_refresh_target() {
     [[ -n "${OCI_CLI_PROFILE}" ]] && refresh_cmd+=(--profile "${OCI_CLI_PROFILE}")
     [[ -n "${OCI_CLI_REGION}" ]] && refresh_cmd+=(--region "${OCI_CLI_REGION}")
 
-    log_debug "OCI command: ${refresh_cmd[*]}"
+    log_trace "OCI command: ${refresh_cmd[*]}"
 
     local output=""
     local exit_code=0
@@ -1316,7 +1392,7 @@ ds_refresh_target() {
             return 2
         fi
         log_error "OCI command failed (exit ${exit_code}): ${refresh_cmd[*]}"
-        log_debug "Output: $output"
+        log_trace "Output: $output"
     fi
 
     # Handle output based on log level and log file
@@ -1358,8 +1434,8 @@ ds_update_target_tags() {
 
     if [[ "${DRY_RUN}" == "true" ]]; then
         log_info "[DRY-RUN] Would update tags: $target_name ($target_ocid)"
-        [[ -n "$freeform_tags" ]] && log_debug "Freeform tags: $freeform_tags"
-        [[ -n "$defined_tags" ]] && log_debug "Defined tags: $defined_tags"
+        [[ -n "$freeform_tags" ]] && log_trace "Freeform tags: $freeform_tags"
+        [[ -n "$defined_tags" ]] && log_trace "Defined tags: $defined_tags"
         return 0
     fi
 

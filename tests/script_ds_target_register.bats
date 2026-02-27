@@ -37,12 +37,14 @@ setup() {
     [[ "$output" == *"Specify --host or --cluster"* ]] || [[ "$output" == *"required with --host as alternative"* ]]
 }
 
-@test "ds_target_register.sh uses valid create wait states" {
-    run grep -E -- '--wait-for-state (SUCCEEDED|FAILED)' "${BIN_DIR}/ds_target_register.sh"
-    [ "$status" -eq 0 ]
-
-    run grep -E -- '--wait-for-state ACTIVE' "${BIN_DIR}/ds_target_register.sh"
+@test "ds_target_register.sh polls ds_list_targets for ACTIVE state after registration" {
+    # --wait-for-state mixes OCI CLI progress output into stdout (via 2>&1 in oci_exec),
+    # corrupting the JSON result. The script uses a poll loop instead.
+    run bash -c "grep -E -- '--wait-for-state' '${BIN_DIR}/ds_target_register.sh' | grep -v '^[[:space:]]*#'"
     [ "$status" -ne 0 ]
+
+    run grep -E 'ds_list_targets|lifecycle-state.*ACTIVE' "${BIN_DIR}/ds_target_register.sh"
+    [ "$status" -eq 0 ]
 }
 
 @test "ds_target_register.sh uses die message before exit code" {
@@ -57,5 +59,20 @@ setup() {
 
 @test "ds_target_register.sh resolves pluggableDatabaseId for PDB scope" {
     run grep -E -- 'pluggableDatabaseId|resolve_pluggable_db_ocid' "${BIN_DIR}/ds_target_register.sh"
+    [ "$status" -eq 0 ]
+}
+
+@test "ds_target_register.sh uses single DbNode call for host-based derivation" {
+    # HOST block should call oci_resolve_dbnode_by_host (combined compartment+cluster)
+    run grep 'oci_resolve_dbnode_by_host' "${BIN_DIR}/ds_target_register.sh"
+    [ "$status" -eq 0 ]
+}
+
+@test "ds_target_register.sh delegates compartment/cluster functions to library" {
+    # Both local functions should be thin wrappers, not reimplementing OCI calls
+    run grep 'oci_resolve_compartment_by_dbnode_name' "${BIN_DIR}/ds_target_register.sh"
+    [ "$status" -eq 0 ]
+
+    run grep 'oci_resolve_vm_cluster_compartment' "${BIN_DIR}/ds_target_register.sh"
     [ "$status" -eq 0 ]
 }

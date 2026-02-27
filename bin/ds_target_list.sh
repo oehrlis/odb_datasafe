@@ -537,52 +537,6 @@ validate_inputs() {
     fi
 }
 
-# ------------------------------------------------------------------------------
-# Function: load_json_selection
-# Purpose.: Load selected target JSON payload from file
-# Args....: $1 - path to JSON file
-# Returns.: 0 on success, exits on error
-# Output..: Normalized JSON object with .data array
-# ------------------------------------------------------------------------------
-load_json_selection() {
-    local input_file="$1"
-
-    if ! jq -e . "$input_file" > /dev/null 2>&1; then
-        die "Invalid JSON in file: $input_file"
-    fi
-
-    if jq -e 'type == "array"' "$input_file" > /dev/null 2>&1; then
-        jq '{data: .}' "$input_file"
-        return 0
-    fi
-
-    if jq -e 'type == "object" and (.data | type == "array")' "$input_file" > /dev/null 2>&1; then
-        jq '.' "$input_file"
-        return 0
-    fi
-
-    die "Unsupported input JSON structure in $input_file. Expected array or object with .data array"
-}
-
-# ------------------------------------------------------------------------------
-# Function: save_json_selection
-# Purpose.: Persist selected target JSON payload to file
-# Args....: $1 - JSON payload
-#           $2 - output file path
-# Returns.: 0 on success, exits on error
-# Output..: Writes JSON file
-# ------------------------------------------------------------------------------
-save_json_selection() {
-    local json_data="$1"
-    local output_file="$2"
-    local output_dir
-
-    output_dir=$(dirname "$output_file")
-    [[ "$output_dir" == "." ]] || mkdir -p "$output_dir"
-
-    echo "$json_data" | jq '.' > "$output_file"
-    log_info "Saved selected target JSON to: $output_file"
-}
 
 # ------------------------------------------------------------------------------
 # Function: collect_selected_targets_json
@@ -596,12 +550,12 @@ collect_selected_targets_json() {
     local raw_json
 
     if [[ -n "$INPUT_JSON" ]]; then
-        raw_json=$(load_json_selection "$INPUT_JSON") || die "Failed to load input JSON"
+        raw_json=$(ds_load_targets_json_file "$INPUT_JSON") || die "Failed to load input JSON"
         REPORT_RAW_TARGETS=$(echo "$raw_json" | jq '.data | length')
         json_data="$raw_json"
 
         if [[ -n "$TARGET_FILTER" ]]; then
-            json_data=$(apply_target_filter "$json_data") || die "Failed to apply target filter on input JSON"
+            json_data=$(ds_filter_targets_json "$json_data" "$TARGET_FILTER") || die "Failed to apply target filter on input JSON"
         fi
 
         if [[ -n "$LIFECYCLE_STATE" ]]; then
@@ -622,7 +576,7 @@ collect_selected_targets_json() {
             json_data=$(echo "$json_data" | jq --arg state "$LIFECYCLE_STATE" '.data = (.data | map(select((."lifecycle-state" // "") == $state)))')
         fi
         if [[ -n "$TARGET_FILTER" ]]; then
-            json_data=$(apply_target_filter "$json_data") || return 1
+            json_data=$(ds_filter_targets_json "$json_data" "$TARGET_FILTER") || return 1
         fi
 
         REPORT_SELECTED_TARGETS=$(echo "$json_data" | jq '.data | length')
@@ -1985,24 +1939,6 @@ show_health() {
 }
 
 # ------------------------------------------------------------------------------
-# Function: apply_target_filter
-# Purpose.: Filter target JSON by display-name regex
-# Args....: $1 - JSON data object with .data array
-# Returns.: 0 on success
-# Output..: Filtered JSON data object
-# ------------------------------------------------------------------------------
-apply_target_filter() {
-    local json_data="$1"
-
-    if [[ -z "$TARGET_FILTER" ]]; then
-        echo "$json_data"
-        return 0
-    fi
-
-    echo "$json_data" | jq --arg re "$TARGET_FILTER" '.data = (.data | map(select((."display-name" // "") | test($re))))'
-}
-
-# ------------------------------------------------------------------------------
 # Function: show_count_summary
 # Purpose.: Display count summary grouped by lifecycle state
 # Args....: $1 - JSON data
@@ -2699,7 +2635,8 @@ do_work() {
     json_data="$COLLECTED_JSON_DATA"
 
     if [[ -n "$SAVE_JSON" ]]; then
-        save_json_selection "$json_data" "$SAVE_JSON"
+        ds_save_targets_json_file "$json_data" "$SAVE_JSON" || die "Failed to save JSON to: $SAVE_JSON"
+        log_info "Saved selected target JSON to: $SAVE_JSON"
     fi
 
     if [[ -n "$TARGET_FILTER" ]]; then

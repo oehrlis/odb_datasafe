@@ -394,10 +394,33 @@ teardown() {
     export DS_ROOT_COMP="ocid1.compartment.oc1..root"
     source "${LIB_DIR}/common.sh"
     source "${LIB_DIR}/oci_helpers.sh"
-    
+
     # Test with non-existent target (should return 1, not call die)
     run ds_resolve_target_ocid "definitely-does-not-exist-target-name" "ocid1.compartment.oc1..root"
-    
+
     # Should return error code 1, not exit/die
     [ "$status" -eq 1 ] || [ "$status" -eq 0 ]
+}
+
+@test "oci_resolve_dbnode_by_host function exists in oci_helpers.sh" {
+    run bash -c "source '${LIB_DIR}/common.sh' && source '${LIB_DIR}/oci_helpers.sh' && declare -F oci_resolve_dbnode_by_host"
+    [ "$status" -eq 0 ]
+}
+
+@test "oci_resolve_compartment_by_dbnode_name function exists in oci_helpers.sh" {
+    run bash -c "source '${LIB_DIR}/common.sh' && source '${LIB_DIR}/oci_helpers.sh' && declare -F oci_resolve_compartment_by_dbnode_name"
+    [ "$status" -eq 0 ]
+}
+
+@test "oci_resolve_vm_cluster_compartment function exists in oci_helpers.sh" {
+    run bash -c "source '${LIB_DIR}/common.sh' && source '${LIB_DIR}/oci_helpers.sh' && declare -F oci_resolve_vm_cluster_compartment"
+    [ "$status" -eq 0 ]
+}
+
+@test "oci_exec and oci_exec_ro log OCI command at trace not debug level" {
+    run grep -E 'log_debug "OCI command:' "${LIB_DIR}/oci_helpers.sh"
+    [ "$status" -ne 0 ]
+
+    run grep -E 'log_trace "OCI command:' "${LIB_DIR}/oci_helpers.sh"
+    [ "$status" -eq 0 ]
 }
