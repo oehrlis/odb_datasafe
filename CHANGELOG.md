@@ -12,6 +12,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `bin/ds_target_register.sh`: Data Safe registration payload for
+  cloud-at-customer now resolves and includes required resource identifiers
+  (`vmClusterId` for root scope and `pluggableDatabaseId` for PDB scope),
+  fixing OCI `InvalidParameter` errors such as
+  "The vm cluster id or pluggable database id cannot be null.".
+- `bin/ds_target_register.sh`: improved automatic compartment derivation from
+  host/cluster by trying configured search scopes (`DS_REGISTER_COMPARTMENT`
+  and `DS_ROOT_COMP`) instead of relying on a single root-compartment path.
+- `bin/ds_target_register.sh`: resolution order now follows legacy behavior by
+  resolving VM cluster first (from `--cluster` or `--host`) and deriving
+  compartment from the resolved VM cluster before falling back to configured
+  defaults.
+- `bin/ds_target_register.sh`: debug runs now log full registration payload and
+  failed create attempts keep the generated JSON payload file path for direct
+  OCI troubleshooting.
+- `bin/ds_target_register.sh`: VM cluster discovery now supports both OCI DB
+  resource families (`cloud-vm-cluster` and `vm-cluster`) for `--cluster`
+  name/OCID resolution and compartment lookup, addressing environments where
+  Exadata resources are exposed as `vmcluster` rather than `cloudvmcluster`.
+- `lib/oci_helpers.sh` / `bin/ds_target_register.sh`: introduced a simplified,
+  legacy-style structured-search resolver path (`oci_resolve_ocid_by_name`,
+  `oci_get_compartment_of_ocid`) and switched registration cluster/compartment
+  lookup to this model, avoiding fragile `db node list` / cluster list flows
+  that require additional parameters in some OCI CLI versions.
+
 ## [0.17.3] - 2026-02-26
 
 ### Changed

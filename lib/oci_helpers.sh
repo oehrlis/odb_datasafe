@@ -358,6 +358,124 @@ oci_exec_ro() {
     fi
 }
 
+# ------------------------------------------------------------------------------
+# Function: oci_structured_search_query
+# Purpose.: Execute OCI structured search query
+# Args....: $1 - query text
+#           $2 - limit (optional, default: 25)
+# Returns.: 0 on success, non-zero on error
+# Output..: JSON result
+# ------------------------------------------------------------------------------
+oci_structured_search_query() {
+    local query_text="$1"
+    local limit="${2:-25}"
+
+    if [[ -z "$query_text" ]]; then
+        return 1
+    fi
+
+    oci_exec_ro search resource structured-search \
+        --query-text "$query_text" \
+        --limit "$limit"
+}
+
+# ------------------------------------------------------------------------------
+# Function: oci_resolve_ocid_by_name
+# Purpose.: Resolve resource OCID from display name using structured search
+# Args....: $1 - kind alias (vmcluster|compartment|database|dbnode)
+#           $2 - name or OCID
+#           $3 - region (optional, currently ignored)
+#           $4 - OCID prefix filter (optional, e.g. ocid1.vmcluster.)
+# Returns.: 0
+# Output..: OCID or empty string
+# ------------------------------------------------------------------------------
+oci_resolve_ocid_by_name() {
+    local kind_in="$1"
+    local name_or_id="$2"
+    local _region="${3:-}"
+    local prefix="${4:-}"
+
+    [[ -n "$kind_in" && -n "$name_or_id" ]] || {
+        printf '%s\n' ""
+        return 0
+    }
+
+    if is_ocid "$name_or_id"; then
+        printf '%s\n' "$name_or_id"
+        return 0
+    fi
+
+    local kind
+    case "${kind_in,,}" in
+        vmcluster | vm_cluster) kind="VmCluster" ;;
+        cloudvmcluster | cloud-vm-cluster) kind="CloudVmCluster" ;;
+        compartment) kind="Compartment" ;;
+        dbnode | db_node) kind="DbNode" ;;
+        database | db) kind="Database" ;;
+        *) kind="" ;;
+    esac
+
+    local esc
+    esc="${name_or_id//\'/\'\\\'}"
+
+    local out=""
+    local ocid=""
+
+    if [[ -n "$kind" ]]; then
+        out=$(oci_structured_search_query "query ${kind} resources where displayName = '${esc}'" 25 2> /dev/null || true)
+        ocid=$(jq -r '(.data.items // []) | map(.identifier // .id // empty) | first // empty' <<< "$out")
+        [[ "$ocid" == "null" ]] && ocid=""
+    fi
+
+    if [[ -z "$ocid" ]]; then
+        out=$(oci_structured_search_query "query all resources where displayName = '${esc}'" 25 2> /dev/null || true)
+        ocid=$(jq -r --arg kind "$kind" '
+            (.data.items // [])
+            | (if ($kind == "") then . else map(select((."resource-type" // .resourceType // "") == $kind)) end)
+            | map(.identifier // .id // empty)
+            | first // empty
+        ' <<< "$out")
+        [[ "$ocid" == "null" ]] && ocid=""
+    fi
+
+    if [[ -n "$prefix" && -n "$ocid" && "$ocid" != "$prefix"* ]]; then
+        ocid=""
+    fi
+
+    printf '%s\n' "${ocid:-}"
+}
+
+# ------------------------------------------------------------------------------
+# Function: oci_get_compartment_of_ocid
+# Purpose.: Resolve compartment OCID for a given resource OCID via search
+# Args....: $1 - resource OCID
+# Returns.: 0
+# Output..: compartment OCID or empty string
+# ------------------------------------------------------------------------------
+oci_get_compartment_of_ocid() {
+    local resource_ocid="$1"
+
+    if [[ -z "$resource_ocid" ]]; then
+        printf '%s\n' ""
+        return 0
+    fi
+
+    local esc
+    esc="${resource_ocid//\'/\'\\\'}"
+
+    local out
+    local comp_ocid
+    out=$(oci_structured_search_query "query all resources where identifier = '${esc}'" 1 2> /dev/null || true)
+    comp_ocid=$(jq -r '
+        (.data.items // [])
+        | map(."compartment-id" // .compartmentId // empty)
+        | first // empty
+    ' <<< "$out")
+    [[ "$comp_ocid" == "null" ]] && comp_ocid=""
+
+    printf '%s\n' "${comp_ocid:-}"
+}
+
 # =============================================================================
 # COMPARTMENT OPERATIONS
 # =============================================================================
