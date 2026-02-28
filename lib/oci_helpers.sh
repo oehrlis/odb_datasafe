@@ -490,7 +490,7 @@ oci_resolve_dbnode_by_host() {
     local esc="${host_name//\'/\'\\\'}"
     oci_exec_ro search resource structured-search \
         --query-text "query DbNode resources where displayName = '${esc}'" \
-        --limit 1 2>/dev/null || true
+        --limit 1 2> /dev/null || true
 }
 
 # ------------------------------------------------------------------------------
@@ -506,7 +506,7 @@ oci_resolve_compartment_by_dbnode_name() {
     local out
     out=$(oci_exec_ro search resource structured-search \
         --query-text "query DbNode resources where displayName = '${esc}'" \
-        --limit 10 2>/dev/null || true)
+        --limit 10 2> /dev/null || true)
     local resolved_comp
     resolved_comp=$(jq -r '
         (.data.items // [])
@@ -537,7 +537,7 @@ oci_resolve_vm_cluster_compartment() {
         oci_exec_ro db vm-cluster get \
             --vm-cluster-id "$vm_cluster_ocid" \
             --query 'data."compartment-id"' \
-            --raw-output 2>/dev/null
+            --raw-output 2> /dev/null
         return $?
     fi
 
@@ -545,7 +545,7 @@ oci_resolve_vm_cluster_compartment() {
         oci_exec_ro db cloud-vm-cluster get \
             --cloud-vm-cluster-id "$vm_cluster_ocid" \
             --query 'data."compartment-id"' \
-            --raw-output 2>/dev/null
+            --raw-output 2> /dev/null
         return $?
     fi
 
@@ -1294,7 +1294,7 @@ ds_is_cdb_root_target() {
     local target_json
     target_json=$(oci_exec_ro data-safe target-database get \
         --target-database-id "$target_ocid" \
-        --query 'data' 2>/dev/null) || {
+        --query 'data' 2> /dev/null) || {
         log_debug "Failed to get target details for tag check"
         return 1
     }
