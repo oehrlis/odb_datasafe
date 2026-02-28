@@ -513,12 +513,7 @@ create_temp_cred_json() {
         TMP_CRED_JSON=$(mktemp)
     fi
 
-    # Create credentials JSON
-    jq -n \
-        --arg user "$user_name" \
-        --arg pass "$DS_SECRET" \
-        '{userName: $user, password: $pass}' > "$TMP_CRED_JSON"
-
+    ds_write_cred_json_file "$TMP_CRED_JSON" "$user_name" "$DS_SECRET"
     log_debug "Created temporary credentials file: $TMP_CRED_JSON"
 }
 
@@ -535,26 +530,7 @@ cleanup_temp_files() {
     fi
 }
 
-# ------------------------------------------------------------------------------
-# ----------------------------------------------------------------------------
-# Function: is_updatable_lifecycle_state
-# Purpose.: Check whether lifecycle state supports credential updates
-# Args....: $1 - Lifecycle state
-# Returns.: 0 if updatable, 1 otherwise
-# Output..: None
-# ----------------------------------------------------------------------------
-is_updatable_lifecycle_state() {
-    local lifecycle_state="$1"
-
-    case "$lifecycle_state" in
-        ACTIVE | NEEDS_ATTENTION)
-            return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
-}
+is_updatable_lifecycle_state() { ds_is_updatable_lifecycle_state "$@"; }
 
 # ----------------------------------------------------------------------------
 # Function: update_target_credentials

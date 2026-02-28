@@ -245,30 +245,12 @@ validate_inputs() {
 
 # ------------------------------------------------------------------------------
 # Function: build_connector_map
-# Purpose.: Build a connector OCID-to-name mapping
-# Args....: None
+# Purpose.: Build a connector OCID-to-name mapping (delegates to ds_build_connector_map)
+# Args....: None (reads global COMP_OCID)
 # Returns.: 0 on success
 # Output..: Populates CONNECTOR_MAP
 # ------------------------------------------------------------------------------
-build_connector_map() {
-    log_info "Building connector map..."
-
-    local connectors_json
-    connectors_json=$(oci_exec_ro data-safe on-prem-connector list \
-        --compartment-id "$COMP_OCID" \
-        --compartment-id-in-subtree true \
-        --all) || {
-        log_warn "Failed to list on-prem connectors; connector names may show as OCID"
-        return 0
-    }
-
-    # Build associative array: ocid -> name
-    while IFS=$'\t' read -r ocid name; do
-        [[ -n "$ocid" ]] && CONNECTOR_MAP["$ocid"]="$name"
-    done < <(echo "$connectors_json" | jq -r '.data[]? | [.id, .["display-name"]] | @tsv')
-
-    log_debug "Loaded ${#CONNECTOR_MAP[@]} connectors"
-}
+build_connector_map() { ds_build_connector_map "$COMP_OCID" true; }
 
 # ------------------------------------------------------------------------------
 # Function: get_connector_name

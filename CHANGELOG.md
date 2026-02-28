@@ -37,6 +37,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `lib/oci_helpers.sh`.
   - `save_json_selection()` → replaced with `ds_save_targets_json_file()` from
     `lib/oci_helpers.sh`.
+- `lib/oci_helpers.sh`: extracted five additional general-purpose helpers into
+  the shared library:
+  - `ds_is_updatable_lifecycle_state(state)` — returns 0 when a target's
+    lifecycle state (`ACTIVE`, `NEEDS_ATTENTION`) permits credential updates.
+  - `ds_is_cdb_root_target(name, ocid)` — detects CDB$ROOT scope via name
+    pattern (`_CDBROOT`) and freeform tags (`DBSec.Container`,
+    `DBSec.ContainerType`).
+  - `ds_build_connector_map(compartment_ocid, use_subtree)` — populates the
+    caller's `CONNECTOR_MAP` associative array (OCID → name) using
+    `oci_exec_ro`; optional subtree flag.
+  - `ds_write_cred_json_file(path, user, pass)` — writes a `{userName, password}`
+    JSON credential file via `jq -n`.
+  - `ds_resolve_user_for_scope(scope, base_user, prefix)` — strips or prepends
+    `COMMON_USER_PREFIX` based on scope label (`PDB` / `ROOT`).
+- `bin/ds_target_update_credentials.sh`: `is_updatable_lifecycle_state()` and
+  the `jq -n` call in `create_temp_cred_json()` now delegate to the library.
+- `bin/ds_target_activate.sh`: `is_cdb_root()`, `resolve_ds_user()`, and the
+  `jq -n` calls in `create_temp_cred_json()` now delegate to the library.
+- `bin/ds_target_details.sh`: `build_connector_map()` now delegates to
+  `ds_build_connector_map()` in the library.
+- `bin/ds_target_export.sh`: `build_connector_map()` now delegates to
+  `ds_build_connector_map()` in the library.
 
 ### Fixed
 

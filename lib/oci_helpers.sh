@@ -1256,6 +1256,67 @@ ds_get_target_compartment() {
     echo "$result"
 }
 
+# ------------------------------------------------------------------------------
+# Function: ds_is_updatable_lifecycle_state
+# Purpose.: Check whether a target lifecycle state supports credential/config updates
+# Args....: $1 - Lifecycle state string
+# Returns.: 0 if updatable (ACTIVE or NEEDS_ATTENTION), 1 otherwise
+# Output..: None
+# ------------------------------------------------------------------------------
+ds_is_updatable_lifecycle_state() {
+    local lifecycle_state="$1"
+    case "$lifecycle_state" in
+        ACTIVE | NEEDS_ATTENTION) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# ------------------------------------------------------------------------------
+# Function: ds_is_cdb_root_target
+# Purpose.: Detect if a Data Safe target represents a CDB$ROOT scope
+# Args....: $1 - Target display name
+#           $2 - Target OCID
+# Returns.: 0 if CDB$ROOT, 1 if PDB or unknown
+# Notes...: Checks name pattern first (fast), then freeform tag (slower OCI call)
+# ------------------------------------------------------------------------------
+ds_is_cdb_root_target() {
+    local target_name="$1"
+    local target_ocid="$2"
+
+    # Fast path: name ends with _CDBROOT
+    if [[ "$target_name" =~ _CDBROOT$ ]]; then
+        log_debug "Target '$target_name' identified as CDB\$ROOT (name pattern)"
+        return 0
+    fi
+
+    # Slow path: check freeform tag DBSec.Container
+    log_debug "Checking tags for CDB\$ROOT detection: $target_name"
+    local target_json
+    target_json=$(oci_exec_ro data-safe target-database get \
+        --target-database-id "$target_ocid" \
+        --query 'data' 2>/dev/null) || {
+        log_debug "Failed to get target details for tag check"
+        return 1
+    }
+    local container_tag
+    container_tag=$(printf '%s' "$target_json" | jq -r '."freeform-tags"."DBSec.Container" // ""')
+    if [[ "${container_tag^^}" == "CDBROOT" ]]; then
+        log_debug "Target '$target_name' identified as CDB\$ROOT (tag DBSec.Container)"
+        return 0
+    fi
+
+    # Also check DBSec.ContainerType tag (alternate tagging convention)
+    local container_type_tag
+    container_type_tag=$(printf '%s' "$target_json" | jq -r '."freeform-tags"."DBSec.ContainerType" // ""')
+    if [[ "${container_type_tag^^}" == "CDBROOT" ]]; then
+        log_debug "Target '$target_name' identified as CDB\$ROOT (tag DBSec.ContainerType)"
+        return 0
+    fi
+
+    log_debug "Target '$target_name' identified as PDB (default)"
+    return 1
+}
+
 # =============================================================================
 # COMMON RESOLUTION HELPERS
 # =============================================================================
@@ -1740,6 +1801,76 @@ ds_get_connector_details() {
 
     oci_exec_ro data-safe on-prem-connector get \
         --on-prem-connector-id "$connector_ocid"
+}
+
+# ------------------------------------------------------------------------------
+# Function: ds_build_connector_map
+# Purpose.: Populate caller's CONNECTOR_MAP associative array (ocid -> name)
+# Args....: $1 - Compartment OCID
+#           $2 - Include subtree (true|false, default: false)
+# Returns.: 0 on success (partial results on OCI failure)
+# Output..: Fills CONNECTOR_MAP in calling scope; logs count
+# Notes...: CONNECTOR_MAP must be declared as associative array by caller
+# ------------------------------------------------------------------------------
+ds_build_connector_map() {
+    local compartment_ocid="$1"
+    local use_subtree="${2:-false}"
+
+    log_debug "Building connector map for compartment"
+    local args=(data-safe on-prem-connector list --compartment-id "$compartment_ocid" --all)
+    [[ "$use_subtree" == "true" ]] && args+=(--compartment-id-in-subtree true)
+
+    local connectors_json
+    connectors_json=$(oci_exec_ro "${args[@]}") || {
+        log_warn "Failed to list on-prem connectors; connector names may show as OCIDs"
+        return 0
+    }
+    while IFS=$'\t' read -r ocid name; do
+        [[ -n "$ocid" ]] && CONNECTOR_MAP["$ocid"]="${name:-Unknown}"
+    done < <(printf '%s' "$connectors_json" | jq -r '.data[]? | [.id, (."display-name" // "")] | @tsv')
+    log_debug "Loaded ${#CONNECTOR_MAP[@]} connectors"
+}
+
+# ------------------------------------------------------------------------------
+# Function: ds_write_cred_json_file
+# Purpose.: Write a Data Safe credential JSON file (userName + password)
+# Args....: $1 - Output file path
+#           $2 - Username
+#           $3 - Password
+# Returns.: 0 on success, 1 on jq error
+# Output..: Writes JSON to $1
+# ------------------------------------------------------------------------------
+ds_write_cred_json_file() {
+    local output_path="$1"
+    local user_name="$2"
+    local password="$3"
+    jq -n --arg user "$user_name" --arg pass "$password" \
+        '{userName: $user, password: $pass}' > "$output_path"
+}
+
+# ------------------------------------------------------------------------------
+# Function: ds_resolve_user_for_scope
+# Purpose.: Resolve Data Safe username for PDB or ROOT (CDB) scope
+# Args....: $1 - Scope: "PDB" or "ROOT"
+#           $2 - Base username (e.g. DS_USER or DATASAFE_USER)
+#           $3 - Common user prefix (e.g. "C##", optional)
+# Returns.: 0 on success
+# Output..: Resolved username to stdout
+# Notes...: ROOT scope prepends prefix; PDB scope strips prefix if present
+# ------------------------------------------------------------------------------
+ds_resolve_user_for_scope() {
+    local scope="$1"
+    local base_user="$2"
+    local prefix="${3:-}"
+
+    # Strip prefix from base user if present
+    [[ -n "$prefix" && "$base_user" == ${prefix}* ]] && base_user="${base_user#${prefix}}"
+
+    if [[ "$scope" == "ROOT" && -n "$prefix" ]]; then
+        printf '%s' "${prefix}${base_user}"
+        return 0
+    fi
+    printf '%s' "$base_user"
 }
 
 # ------------------------------------------------------------------------------

@@ -282,35 +282,12 @@ validate_inputs() {
 
 # ------------------------------------------------------------------------------
 # Function: build_connector_map
-# Purpose.: Build mapping of connector OCIDs to names for the compartment
+# Purpose.: Build mapping of connector OCIDs to names (delegates to ds_build_connector_map)
 # Args....: $1 - compartment OCID
 # Returns.: 0 on success
 # Output..: Populates CONNECTOR_MAP associative array
 # ------------------------------------------------------------------------------
-build_connector_map() {
-    local compartment_ocid="$1"
-
-    log_debug "Building connector mapping for compartment"
-
-    # Query connectors in compartment
-    local connectors_json
-    connectors_json=$(oci_exec data-safe on-prem-connector list \
-        --compartment-id "$compartment_ocid" \
-        --all) || {
-        log_debug "No connectors found or query failed"
-        return 0
-    }
-
-    # Parse and store in map
-    while IFS=$'\t' read -r ocid name; do
-        if [[ -n "$ocid" ]]; then
-            CONNECTOR_MAP["$ocid"]="${name:-Unknown}"
-        fi
-    done < <(echo "$connectors_json" | jq -r '.data[]? | [.id, (."display-name" // "")] | @tsv')
-
-    log_debug "Mapped ${#CONNECTOR_MAP[@]} connectors"
-    return 0
-}
+build_connector_map() { ds_build_connector_map "$@"; }
 
 # ------------------------------------------------------------------------------
 # Function: collect_target_details

@@ -272,28 +272,12 @@ parse_args() {
 }
 
 # Function: resolve_ds_user
-# Purpose.: Resolve Data Safe username for scope
+# Purpose.: Resolve Data Safe username for scope (delegates to ds_resolve_user_for_scope)
 # Args....: $1 - Scope label (PDB or ROOT)
 # Returns.: 0 on success
 # Output..: Username to stdout
 # ------------------------------------------------------------------------------
-resolve_ds_user() {
-    local scope="$1"
-    local base_user="$DS_USER"
-
-    if [[ -n "$COMMON_USER_PREFIX" && "$base_user" == ${COMMON_USER_PREFIX}* ]]; then
-        base_user="${base_user#${COMMON_USER_PREFIX}}"
-    fi
-
-    if [[ "$scope" == "ROOT" ]]; then
-        if [[ -n "$COMMON_USER_PREFIX" ]]; then
-            printf '%s' "${COMMON_USER_PREFIX}${base_user}"
-            return 0
-        fi
-    fi
-
-    printf '%s' "$base_user"
-}
+resolve_ds_user() { ds_resolve_user_for_scope "$1" "$DS_USER" "$COMMON_USER_PREFIX"; }
 
 # ------------------------------------------------------------------------------
 # Function: validate_inputs
@@ -386,18 +370,12 @@ validate_inputs() {
 create_temp_cred_json() {
     # Create PDB credentials file
     TMP_CRED_JSON=$(mktemp)
-    jq -n \
-        --arg user "$DS_USER_PDB" \
-        --arg pass "$DS_SECRET" \
-        '{userName: $user, password: $pass}' > "$TMP_CRED_JSON"
+    ds_write_cred_json_file "$TMP_CRED_JSON" "$DS_USER_PDB" "$DS_SECRET"
     log_debug "Created PDB credentials file: $TMP_CRED_JSON"
 
     # Create CDB credentials file
     TMP_CDB_CRED_JSON=$(mktemp)
-    jq -n \
-        --arg user "$DS_USER_ROOT" \
-        --arg pass "$DS_SECRET" \
-        '{userName: $user, password: $pass}' > "$TMP_CDB_CRED_JSON"
+    ds_write_cred_json_file "$TMP_CDB_CRED_JSON" "$DS_USER_ROOT" "$DS_SECRET"
     log_debug "Created CDB credentials file: $TMP_CDB_CRED_JSON"
 }
 
@@ -422,51 +400,12 @@ cleanup_temp_files() {
 
 # ------------------------------------------------------------------------------
 # Function: is_cdb_root
-# Purpose.: Detect if target is a CDB$ROOT target
+# Purpose.: Detect if target is a CDB$ROOT target (delegates to ds_is_cdb_root_target)
 # Args....: $1 - target name
 #           $2 - target OCID
 # Returns.: 0 if CDB$ROOT, 1 if PDB
-# Notes...: Checks name first (fast), then tags (slower)
 # ------------------------------------------------------------------------------
-is_cdb_root() {
-    local target_name="$1"
-    local target_ocid="$2"
-
-    # First check: name ends with _CDBROOT (fast)
-    if [[ "$target_name" =~ _CDBROOT$ ]]; then
-        log_debug "Target '$target_name' identified as CDB\$ROOT (name pattern)"
-        return 0
-    fi
-
-    # Fallback: check tags (slower)
-    log_debug "Checking tags for target: $target_name"
-    local target_json
-    target_json=$(oci_exec_ro data-safe target-database get \
-        --target-database-id "$target_ocid" \
-        --query 'data' 2> /dev/null) || {
-        log_debug "Failed to get target details for tag check"
-        return 1
-    }
-
-    # Check for DBSec.Container: CDBROOT
-    local container_tag
-    container_tag=$(echo "$target_json" | jq -r '."freeform-tags"."DBSec.Container" // ""')
-    if [[ "${container_tag^^}" == "CDBROOT" ]]; then
-        log_debug "Target '$target_name' identified as CDB\$ROOT (tag DBSec.Container)"
-        return 0
-    fi
-
-    # Check for DBSec.ContainerType: cdbroot
-    local container_type_tag
-    container_type_tag=$(echo "$target_json" | jq -r '."freeform-tags"."DBSec.ContainerType" // ""')
-    if [[ "${container_type_tag^^}" == "CDBROOT" ]]; then
-        log_debug "Target '$target_name' identified as CDB\$ROOT (tag DBSec.ContainerType)"
-        return 0
-    fi
-
-    log_debug "Target '$target_name' identified as PDB (default)"
-    return 1
-}
+is_cdb_root() { ds_is_cdb_root_target "$@"; }
 
 # ------------------------------------------------------------------------------
 # Function: activate_single_target
