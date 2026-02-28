@@ -734,7 +734,7 @@ do_work() {
         targets_data=$(list_targets_in_compartment "$compartment_ocid") \
             || die "Failed to list targets in compartment"
 
-        while IFS=$'\t' read -r ocid name; do
+        while IFS=$'\t' read -r ocid _name; do
             [[ -n "$ocid" ]] && target_ocids+=("$ocid")
         done <<< "$targets_data"
     fi
