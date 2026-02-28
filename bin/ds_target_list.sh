@@ -537,7 +537,6 @@ validate_inputs() {
     fi
 }
 
-
 # ------------------------------------------------------------------------------
 # Function: collect_selected_targets_json
 # Purpose.: Resolve selected targets from OCI or input JSON
