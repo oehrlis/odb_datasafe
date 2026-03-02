@@ -45,6 +45,12 @@ readonly SCRIPT_VERSION
 : "${CONTAINER_STAGE_TAG:=ContainerStage}"
 : "${CONTAINER_TYPE_TAG:=ContainerType}"
 : "${CLASSIFICATION_TAG:=Classification}"
+# Regex applied to compartment name; capture group 1 is the environment value.
+# Set DS_ENV_COMP_REGEX in datasafe.conf for your compartment naming convention.
+# Example: '^cmp-.*-([^-]+)-projects$' captures "prod" from cmp-lzp-dbso-prod-projects
+: "${ENV_COMP_REGEX:=${DS_ENV_COMP_REGEX:-}}"
+: "${CONTAINER_STAGE_VALUE:=}"  # Explicit override; default: auto-derive as {type}-{env}
+: "${CLASSIFICATION_VALUE:=}"   # Explicit override; default: undef
 # shellcheck disable=SC2034 # consumed by parse_common_opts in common.sh
 SHOW_USAGE_ON_EMPTY_ARGS=true
 
@@ -115,26 +121,42 @@ Options:
         --type-tag TAG          Container type tag key (default: ${CONTAINER_TYPE_TAG})
         --class-tag TAG         Classification tag key (default: ${CLASSIFICATION_TAG})
 
-Tag Rules:
-    - Environment derived from compartment pattern: cmp-{org}-{env}-projects
-    - Supported environments: test, qs, prod
-    - Default values: Environment=undef, ContainerStage=undef, etc.
+  Tag Values:
+        --env-regex PATTERN     Regex for Environment derivation from compartment name.
+                                Capture group 1 is the environment value (e.g. "prod").
+                                Can also be set via DS_ENV_COMP_REGEX in datasafe.conf.
+                                Example: '^cmp-.*-([^-]+)-projects\$'
+        --stage VALUE           Explicit ContainerStage value (overrides auto-derive).
+                                Default: auto-derive as {type}-{env} (e.g. "pdb-prod").
+        --class VALUE           Explicit Classification value (default: undef).
+
+Tag Derivation:
+    - Environment  : capture group 1 of ENV_COMP_REGEX applied to compartment name;
+                     "undef" if regex is not set or compartment name does not match.
+    - ContainerType: "cdbroot" when target name ends in _CDBROOT, otherwise "pdb".
+    - ContainerStage: "{type}-{env}" (e.g. "cdbroot-prod"); "undef" when Environment
+                     is "undef". Override with --stage.
+    - Classification: "undef" by default; set with --class.
 
 Examples:
-    # Dry-run for all targets in DS_ROOT_COMP
+    # Dry-run for all targets in DS_ROOT_COMP with env regex from datasafe.conf
     ${SCRIPT_NAME}
 
-    # Apply changes to specific compartment
-    ${SCRIPT_NAME} -c cmp-lzp-dbso-prod-projects --apply
+    # Apply with inline environment regex
+    ${SCRIPT_NAME} -c ocid1.compartment.oc1..xxx --apply \\
+        --env-regex '^cmp-.*-([^-]+)-projects\$'
 
-    # Update specific targets
-    ${SCRIPT_NAME} -T target1,target2 --apply
+    # Apply to specific targets
+    ${SCRIPT_NAME} -T target1,target2 --apply \\
+        --env-regex '^cmp-.*-([^-]+)-projects\$' --class internal
 
     # Dry-run using saved target selection JSON
-    ${SCRIPT_NAME} --input-json ./target_selection.json
+    ${SCRIPT_NAME} --input-json ./target_selection.json \\
+        --env-regex '^cmp-.*-([^-]+)-projects\$'
 
-    # Apply from saved selection JSON (requires explicit stale-selection override)
-    ${SCRIPT_NAME} --input-json ./target_selection.json --apply --allow-stale-selection
+    # Apply from saved selection (requires --allow-stale-selection)
+    ${SCRIPT_NAME} --input-json ./target_selection.json --apply \\
+        --allow-stale-selection --env-regex '^cmp-.*-([^-]+)-projects\$'
 
 EOF
     exit 0
@@ -237,6 +259,21 @@ parse_args() {
             --class-tag)
                 need_val "$1" "${2:-}"
                 CLASSIFICATION_TAG="$2"
+                shift 2
+                ;;
+            --env-regex)
+                need_val "$1" "${2:-}"
+                ENV_COMP_REGEX="$2"
+                shift 2
+                ;;
+            --stage)
+                need_val "$1" "${2:-}"
+                CONTAINER_STAGE_VALUE="$2"
+                shift 2
+                ;;
+            --class)
+                need_val "$1" "${2:-}"
+                CLASSIFICATION_VALUE="$2"
                 shift 2
                 ;;
             -L | --lifecycle)
@@ -463,24 +500,44 @@ process_collected_targets() {
 
 # ------------------------------------------------------------------------------
 # Function: get_env_from_compartment_name
-# Purpose.: Derive environment from compartment name pattern
+# Purpose.: Derive environment value from compartment name using ENV_COMP_REGEX
 # Args....: $1 - Compartment name
 # Returns.: 0 on success
-# Output..: Environment string (test|qs|prod|undef)
+# Output..: Environment string (capture group 1 of regex, or "undef")
+# Notes...: Set ENV_COMP_REGEX (or DS_ENV_COMP_REGEX in datasafe.conf) to match
+#           your compartment naming convention. Capture group 1 is the env value.
+#           Example: '^cmp-.*-([^-]+)-projects$' captures "prod" from
+#           "cmp-lzp-dbso-prod-projects".
 # ------------------------------------------------------------------------------
 get_env_from_compartment_name() {
     local comp_name="$1"
-    local env="undef"
 
-    # Pattern: cmp-{org}-{env}-projects
-    if [[ "$comp_name" =~ ^cmp-[^-]+-([^-]+)-projects$ ]]; then
-        env="${BASH_REMATCH[1]}"
+    if [[ -z "$ENV_COMP_REGEX" ]]; then
+        echo "undef"
+        return 0
     fi
 
-    case "$env" in
-        test | qs | prod) echo "$env" ;;
-        *) echo "undef" ;;
-    esac
+    if [[ "$comp_name" =~ $ENV_COMP_REGEX ]]; then
+        echo "${BASH_REMATCH[1]:-undef}"
+    else
+        echo "undef"
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# Function: get_container_type_from_name
+# Purpose.: Derive container type from Data Safe target name suffix
+# Args....: $1 - Target display name
+# Returns.: 0 on success
+# Output..: "cdbroot" when name ends in _CDBROOT, otherwise "pdb"
+# ------------------------------------------------------------------------------
+get_container_type_from_name() {
+    local target_name="$1"
+    if [[ "$target_name" =~ _CDBROOT$ ]]; then
+        echo "cdbroot"
+    else
+        echo "pdb"
+    fi
 }
 
 # ------------------------------------------------------------------------------
@@ -515,15 +572,15 @@ build_tag_update_json() {
     local type="$3"
     local classification="$4"
 
+    # NOTE: --defined-tags expects the namespace map directly, NOT wrapped
+    # in a {"defined-tags": {...}} envelope (that would be rejected by OCI CLI).
     cat << EOF
 {
-  "defined-tags": {
-    "${TAG_NAMESPACE}": {
-      "${ENVIRONMENT_TAG}": "${env}",
-      "${CONTAINER_STAGE_TAG}": "${stage}",
-      "${CONTAINER_TYPE_TAG}": "${type}",
-      "${CLASSIFICATION_TAG}": "${classification}"
-    }
+  "${TAG_NAMESPACE}": {
+    "${ENVIRONMENT_TAG}": "${env}",
+    "${CONTAINER_STAGE_TAG}": "${stage}",
+    "${CONTAINER_TYPE_TAG}": "${type}",
+    "${CLASSIFICATION_TAG}": "${classification}"
   }
 }
 EOF
@@ -552,12 +609,24 @@ update_target_tags() {
     local env
     env=$(get_env_from_compartment_name "$comp_name")
 
-    log_debug "Target compartment: $comp_name -> Environment: $env"
+    # Derive container type from target name suffix
+    local container_type
+    container_type=$(get_container_type_from_name "$target_name")
 
-    # Default tag values - customize as needed
-    local container_stage="undef"
-    local container_type="undef"
-    local classification="undef"
+    # Derive container stage: {type}-{env}, or explicit override
+    local container_stage
+    if [[ -n "$CONTAINER_STAGE_VALUE" ]]; then
+        container_stage="$CONTAINER_STAGE_VALUE"
+    elif [[ "$env" != "undef" ]]; then
+        container_stage="${container_type}-${env}"
+    else
+        container_stage="undef"
+    fi
+
+    # Classification: explicit override or undef
+    local classification="${CLASSIFICATION_VALUE:-undef}"
+
+    log_debug "Target compartment: $comp_name -> Environment: $env, Type: $container_type, Stage: $container_stage"
 
     # Build update JSON
     local update_json
@@ -576,6 +645,7 @@ update_target_tags() {
             data-safe target-database update
             --target-database-id "$target_ocid"
             --defined-tags "$update_json"
+            --force
         )
 
         if [[ -n "$WAIT_STATE" ]]; then

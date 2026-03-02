@@ -122,6 +122,12 @@
 # Required tags
 #REQUIRED_TAGS="Classification,Environment,Owner"
 
+# Regex for Environment tag derivation from compartment name.
+# Capture group 1 is used as the Environment value.
+# Adapt to your compartment naming convention.
+# Example: compartment "cmp-lzp-dbso-prod-projects" → Environment "prod"
+#DS_ENV_COMP_REGEX='^cmp-.*-([^-]+)-projects$'
+
 # -----------------------------------------------------------------------------
 # Performance & Limits
 # -----------------------------------------------------------------------------
