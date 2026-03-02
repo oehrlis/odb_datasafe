@@ -68,6 +68,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `bin/ds_target_register.sh`: PDB registration on ExaCC no longer fails when
+  `pluggableDatabaseId` cannot be resolved. For ExaCC targets (where
+  `CLUSTER_OCID` is set), a failed PDB OCID lookup is now a warning rather than
+  a fatal error — the Data Safe API accepts the registration using
+  `vmClusterId` + `serviceName` alone, matching the legacy behaviour confirmed
+  in `register_datasafe_pdb_v1.0.0.sh`. Non-ExaCC registrations still require
+  and enforce a resolved pluggable DB OCID.
 - `bin/ds_target_audit_trail.sh`: fixed `start_audit_trails()` — the correct
   flow is: list trails via `audit-trail list --compartment-id <ocid> --target-id
   <ocid> --all` (response is `AuditTrailCollection`: `{"data":{"items":[...]}}`,

@@ -788,6 +788,10 @@ validate_inputs() {
         else
             if [[ "${DRY_RUN:-false}" == "true" ]]; then
                 log_warn "Dry-run: unable to resolve pluggable database OCID for SID '${SID}' and PDB '${PDB}'."
+            elif [[ -n "${CLUSTER_OCID:-}" ]]; then
+                # ExaCC: registration identifies the PDB via vmClusterId + serviceName;
+                # pluggableDatabaseId is not required and can be omitted safely.
+                log_warn "Could not resolve pluggable DB OCID for '${PDB}' — not required for ExaCC (vmClusterId + serviceName used instead)"
             else
                 die "Failed to resolve pluggable database OCID for SID '${SID}' and PDB '${PDB}'"
             fi
