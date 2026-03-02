@@ -291,16 +291,16 @@ get_connector_compartment_ocid() {
 # Notes...: Only --password is masked; extend the list below for other secrets
 # ------------------------------------------------------------------------------
 _oci_redact_cmd() {
-    local -a out=()
+    local -a _redacted=()
     local prev=""
     for arg in "$@"; do
         case "$prev" in
-            --password) out+=("****") ;;
-            *) out+=("$arg") ;;
+            --password) _redacted+=("****") ;;
+            *) _redacted+=("$arg") ;;
         esac
         prev="$arg"
     done
-    printf '%q ' "${out[@]}"
+    printf '%q ' "${_redacted[@]}"
 }
 
 # ------------------------------------------------------------------------------
