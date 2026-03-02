@@ -4,8 +4,8 @@
 # ------------------------------------------------------------------------------
 # Script.....: ds_target_refresh.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
-# Date.......: 2026.02.23
-# Version....: v0.17.0
+# Date.......: 2026.03.02
+# Version....: v0.17.4
 # Purpose....: Refresh Oracle Data Safe target databases
 # Usage......: ds_target_refresh.sh [OPTIONS] [TARGETS...]
 # License....: Apache License Version 2.0
@@ -25,7 +25,7 @@ source "${SCRIPT_DIR}/../lib/ds_lib.sh"
 
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_NAME
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.7.1')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.17.4')"
 readonly SCRIPT_VERSION
 
 # Defaults
