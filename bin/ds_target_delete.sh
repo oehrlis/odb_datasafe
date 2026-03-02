@@ -22,13 +22,13 @@
 : "${OCI_CLI_CONFIG_FILE:=${HOME}/.oci/config}"
 : "${OCI_CLI_PROFILE:=DEFAULT}"
 
-: "${COMPARTMENT:=}"     # name or OCID
-: "${TARGETS:=}"         # CSV names/OCIDs (overrides compartment mode)
-: "${TARGET_FILTER:=}"   # Regex filter on target display names
+: "${COMPARTMENT:=}"                  # name or OCID
+: "${TARGETS:=}"                      # CSV names/OCIDs (overrides compartment mode)
+: "${TARGET_FILTER:=}"                # Regex filter on target display names
 : "${STATE_FILTERS:=NEEDS_ATTENTION}" # CSV lifecycle states when scanning compartment
-: "${FORCE:=false}"              # skip confirmation prompts
-: "${DELETE_DEPENDENCIES:=true}" # delete audit trails, assessments, policies
-: "${CONTINUE_ON_ERROR:=true}"   # continue processing other targets if one fails
+: "${FORCE:=false}"                   # skip confirmation prompts
+: "${DELETE_DEPENDENCIES:=true}"      # delete audit trails, assessments, policies
+: "${CONTINUE_ON_ERROR:=true}"        # continue processing other targets if one fails
 # shellcheck disable=SC2034 # consumed by parse_common_opts in common.sh
 SHOW_USAGE_ON_EMPTY_ARGS=true
 

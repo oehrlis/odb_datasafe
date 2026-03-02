@@ -66,6 +66,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `bin/ds_target_details.sh`: removed dead `list_targets_in_compartment()`
   function, which was no longer called after the refactor to
   `ds_collect_targets_source`.
+- `bin/ds_target_details.sh`: fixed `--filter` not applied when using
+  `--input-json`; the 4th arg to `ds_collect_targets_source` was `""` instead
+  of `"$TARGET_FILTER"` in the input-json branch of `do_work()`.
+- `tests/script_ds_target_audit_trail.bats`: fixed "accepts valid --filter
+  regex with -T" test — replaced the target name `some-target` with a target
+  OCID (`ocid1.datasafetargetdatabase.oc1..t1`) to avoid the name-resolution
+  OCI call that requires `DS_ROOT_COMP` in the test environment; updated mock
+  to return `some-target` as `display-name` (so filter `some` still matches).
 
 - `lib/oci_helpers.sh`: demoted raw OCI CLI command lines and error output from
   `log_debug` to `log_trace` in `oci_exec`, `oci_exec_ro`, `ds_refresh_target`,

@@ -678,7 +678,7 @@ do_work() {
         log_info "Loading target details from input JSON payload"
 
         local targets_payload
-        targets_payload=$(ds_collect_targets_source "" "" "$LIFECYCLE_STATE" "" "$INPUT_JSON" "$SAVE_JSON") || die "Failed to load targets from input JSON"
+        targets_payload=$(ds_collect_targets_source "" "" "$LIFECYCLE_STATE" "$TARGET_FILTER" "$INPUT_JSON" "$SAVE_JSON") || die "Failed to load targets from input JSON"
 
         local payload_count
         payload_count=$(echo "$targets_payload" | jq '.data | length')
@@ -704,7 +704,7 @@ do_work() {
         || die "Failed to collect targets"
 
     # Resolve compartment OCID for connector map (best-effort)
-    compartment_ocid=$(resolve_compartment_for_operation "$COMPARTMENT") 2>/dev/null || true
+    compartment_ocid=$(resolve_compartment_for_operation "$COMPARTMENT") 2> /dev/null || true
 
     while IFS= read -r ocid; do
         [[ -n "$ocid" ]] && target_ocids+=("$ocid")
