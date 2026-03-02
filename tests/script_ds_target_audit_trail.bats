@@ -53,6 +53,87 @@ printf '{"data":[]}\n'; exit 0
 EOF
     chmod +x "${TEST_BIN_DIR}/oci"
 
-    run "${BIN_DIR}/ds_target_audit_trail.sh" -T ocid1.datasafetargetdatabase.oc1..t1 --filter 'some' --dry-run
+    run "${BIN_DIR}/ds_target_audit_trail.sh" -T ocid1.datasafetargetdatabase.oc1..t1 --filter 'some'
     [ "$status" -eq 0 ]
+}
+
+# ---------------------------------------------------------------------------
+# --list subcommand
+# ---------------------------------------------------------------------------
+
+@test "ds_target_audit_trail.sh --help shows --list, --input-json, --format flags" {
+    run "${BIN_DIR}/ds_target_audit_trail.sh" --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--list"* ]]
+    [[ "$output" == *"--input-json"* ]]
+    [[ "$output" == *"--format"* ]]
+}
+
+@test "ds_target_audit_trail.sh --list shows (no trail) for target without audit trail" {
+    local sample_json="${BATS_TEST_TMPDIR}/targets_no_trail.json"
+    cat > "$sample_json" <<'JSON'
+{"data":[
+  {"id":"ocid1.datasafetargetdatabase.oc1..t1","display-name":"prod_cdb01_CDBROOT",
+   "lifecycle-state":"ACTIVE","compartment-id":"ocid1.compartment.oc1..testcomp"}
+]}
+JSON
+
+    cat > "${TEST_BIN_DIR}/oci" <<'EOF'
+#!/usr/bin/env bash
+[[ "$*" == *"--version"* ]] && { echo "3.0.0"; exit 0; }
+[[ "$*" == *"audit-trail list"* ]] && { printf '{"data":{"items":[]}}\n'; exit 0; }
+printf '{"data":[]}\n'; exit 0
+EOF
+    chmod +x "${TEST_BIN_DIR}/oci"
+
+    run "${BIN_DIR}/ds_target_audit_trail.sh" --list --input-json "$sample_json"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"no trail"* || "$output" == *"missing"* ]]
+}
+
+@test "ds_target_audit_trail.sh --list shows COLLECTING for active audit trail" {
+    local sample_json="${BATS_TEST_TMPDIR}/targets_collecting.json"
+    cat > "$sample_json" <<'JSON'
+{"data":[
+  {"id":"ocid1.datasafetargetdatabase.oc1..t1","display-name":"prod_cdb01_CDBROOT",
+   "lifecycle-state":"ACTIVE","compartment-id":"ocid1.compartment.oc1..testcomp"}
+]}
+JSON
+
+    cat > "${TEST_BIN_DIR}/oci" <<'EOF'
+#!/usr/bin/env bash
+[[ "$*" == *"--version"* ]] && { echo "3.0.0"; exit 0; }
+[[ "$*" == *"audit-trail list"* ]] && {
+    printf '{"data":{"items":[{"id":"ocid1.audittrail.oc1..a1","lifecycle-state":"COLLECTING"}]}}\n'
+    exit 0
+}
+printf '{"data":[]}\n'; exit 0
+EOF
+    chmod +x "${TEST_BIN_DIR}/oci"
+
+    run "${BIN_DIR}/ds_target_audit_trail.sh" --list --input-json "$sample_json"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"COLLECTING"* ]]
+}
+
+@test "ds_target_audit_trail.sh --list --format csv outputs CSV header" {
+    local sample_json="${BATS_TEST_TMPDIR}/targets_csv.json"
+    cat > "$sample_json" <<'JSON'
+{"data":[
+  {"id":"ocid1.datasafetargetdatabase.oc1..t1","display-name":"prod_cdb01_CDBROOT",
+   "lifecycle-state":"ACTIVE","compartment-id":"ocid1.compartment.oc1..testcomp"}
+]}
+JSON
+
+    cat > "${TEST_BIN_DIR}/oci" <<'EOF'
+#!/usr/bin/env bash
+[[ "$*" == *"--version"* ]] && { echo "3.0.0"; exit 0; }
+[[ "$*" == *"audit-trail list"* ]] && { printf '{"data":{"items":[]}}\n'; exit 0; }
+printf '{"data":[]}\n'; exit 0
+EOF
+    chmod +x "${TEST_BIN_DIR}/oci"
+
+    run "${BIN_DIR}/ds_target_audit_trail.sh" --list --input-json "$sample_json" -f csv
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"target,target-id,trail-state,note"* ]]
 }

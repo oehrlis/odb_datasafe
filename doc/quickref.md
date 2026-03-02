@@ -787,17 +787,35 @@ ds_find_untagged_targets.sh --input-json ./target_selection.json
 ds_find_untagged_targets.sh -c prod-compartment --save-json ./target_selection.json
 ```
 
-### Start Audit Trails
+### Audit Trail Status and Start
 
 ```bash
-# Start UNIFIED_AUDIT trails (default)
+# List audit trail states for all targets in DS_ROOT_COMP (read-only)
+ds_target_audit_trail.sh --list --all
+
+# List trail states from saved target JSON (avoids re-fetching targets)
+ds_target_list.sh --all --save-json /tmp/targets.json
+ds_target_audit_trail.sh --list --input-json /tmp/targets.json
+
+# List trail states filtered by name, CSV output
+ds_target_audit_trail.sh --list --all --filter prod -f csv
+
+# List trail states as JSON for automation
+ds_target_audit_trail.sh --list --all -f json
+
+# Start audit trails for specific targets
 ds_target_audit_trail.sh -T target1,target2
 
-# Customize audit trail settings
-ds_target_audit_trail.sh -c prod-compartment \
-  --audit-type UNIFIED_AUDIT \
-  --retention-days 180 \
-  --collection-frequency WEEKLY
+# Start trails for all ACTIVE targets in a compartment
+ds_target_audit_trail.sh -c prod-compartment -L ACTIVE
+
+# Start trails with custom collection start time and auto-purge
+ds_target_audit_trail.sh --all \
+  --start-time 2025-01-01T00:00:00Z \
+  --auto-purge false
+
+# Start from saved target selection (no re-fetch from OCI)
+ds_target_audit_trail.sh --input-json /tmp/targets.json
 ```
 
 ### Move Targets Between Compartments

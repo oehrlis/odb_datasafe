@@ -10,6 +10,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `bin/ds_target_audit_trail.sh`: added `--list`/`-l` subcommand for a
+  read-only per-target audit trail status view — one row per target showing
+  display name, trail lifecycle state (`COLLECTING`, `STOPPED`, `(no trail)`,
+  etc.) and an advisory note (`ok`, `needs restart`, `missing`, …).
+  Supports `-f/--format table|json|csv`, `--input-json FILE` (targets from
+  `ds_target_list.sh --save-json`, avoiding a second OCI target fetch), and
+  `--save-json FILE`. Compartment-id is extracted from the cached target payload
+  so no extra `target-database get` call is needed when scanning by compartment
+  or using `--input-json`; falls back to `target-database get` only for explicit
+  OCID targets lacking compartment-id in the payload.
+- `bin/ds_target_audit_trail.sh`: added `--input-json`/`--save-json` support
+  to the existing start mode as well, so targets pre-selected by
+  `ds_target_list.sh --save-json` can be fed directly to start without
+  re-fetching from OCI.
+- `tests/script_ds_target_audit_trail.bats`: four new `--list` tests covering
+  help flags, `(no trail)` state, `COLLECTING` state, and CSV output header.
+
 - `bin/ds_target_audit_trail.sh`: added `-A/--all` (select all targets from
   `DS_ROOT_COMP`) and `-r/--filter REGEX` (display-name regex filter) scope
   flags, using `ds_resolve_all_targets_scope`, `ds_validate_target_filter_regex`,

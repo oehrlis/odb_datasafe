@@ -32,11 +32,16 @@ readonly SCRIPT_VERSION
 : "${LIFECYCLE:=ACTIVE}"
 : "${START_TIME:=now}"
 : "${AUTO_PURGE:=true}"
+: "${INPUT_JSON:=}"         # --input-json: read targets from local JSON file
+: "${SAVE_JSON:=}"          # --save-json: save selected target JSON payload
+: "${LIST_MODE:=false}"     # --list: show audit trail status instead of starting
+: "${OUTPUT_FORMAT:=table}" # -f/--format: output format for --list (table|json|csv)
 # shellcheck disable=SC2034 # consumed by parse_common_opts in common.sh
 SHOW_USAGE_ON_EMPTY_ARGS=true
 
 # Runtime globals
 RESOLVED_TARGETS=()
+TARGETS_PAYLOAD_JSON=""  # Cached by resolve_targets(); reused by list_audit_trails()
 started_count=0
 failed_count=0
 
@@ -65,14 +70,14 @@ usage() {
 Usage: ${SCRIPT_NAME} [OPTIONS]
 
 Description:
-    Start Data Safe audit trails for target database(s). Supports single/multiple
-    targets by name/OCID, or scan entire compartment by lifecycle state.
+    Start or list Data Safe audit trails for target database(s). Supports single/
+    multiple targets by name/OCID, compartment scan, or reading from a saved JSON.
 
 Options:
   Common:
     -h, --help                      Show this help message
     -V, --version                   Show version
-    -v, --verbose                   Enable verbose output (default for this script)
+    -v, --verbose                   Enable verbose output
     -d, --debug                     Enable debug output
         --log-file FILE             Log to file
 
@@ -86,27 +91,40 @@ Options:
     -c, --compartment COMP          Compartment OCID or name (default: DS_ROOT_COMP)
     -A, --all                       Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
     -r, --filter REGEX              Filter target names by regex (substring match)
-
-  Filtering:
     -L, --lifecycle STATES          Lifecycle state filter (default: ACTIVE)
                                     Use comma-separated values: ACTIVE,NEEDS_ATTENTION
+        --input-json FILE           Read targets from local JSON (from ds_target_list.sh --save-json)
+        --save-json FILE            Save selected target JSON payload to file
 
-  Audit Configuration:
+  Action:
+    -l, --list                      List audit trail lifecycle states (read-only)
+    -n, --dry-run                   Show plan without starting trails (start mode only)
+
+  Audit Configuration (start mode only):
         --start-time TIME           Collection start time (RFC3339 or 'now', default: now)
         --auto-purge true|false     Enable auto-purge on the audit trail (default: true)
 
-  Execution:
-    -n, --dry-run               Show plan without starting trails
+  Output (list mode only):
+    -f, --format FMT                Output format: table|json|csv (default: table)
 
 Examples:
   # Start audit trail for specific target
-  ${SCRIPT_NAME} -T my-target --audit-type UNIFIED_AUDIT
+  ${SCRIPT_NAME} -T my-target
 
   # Start trails for all ACTIVE targets in compartment
   ${SCRIPT_NAME} -c my-compartment -L ACTIVE
 
   # Multiple targets (dry-run)
   ${SCRIPT_NAME} -T target1,target2 --dry-run
+
+  # List audit trail states for all targets in DS_ROOT_COMP
+  ${SCRIPT_NAME} --list --all
+
+  # List trail states from saved target JSON (avoids re-fetching targets from OCI)
+  ${SCRIPT_NAME} --list --input-json ./targets.json
+
+  # List trail states filtered by name, as CSV
+  ${SCRIPT_NAME} --list --all --filter prod -f csv
 
 EOF
     exit 0
@@ -177,6 +195,25 @@ parse_args() {
                 AUTO_PURGE="$2"
                 shift 2
                 ;;
+            -l | --list)
+                LIST_MODE=true
+                shift
+                ;;
+            --input-json)
+                need_val "$1" "${2:-}"
+                INPUT_JSON="$2"
+                shift 2
+                ;;
+            --save-json)
+                need_val "$1" "${2:-}"
+                SAVE_JSON="$2"
+                shift 2
+                ;;
+            -f | --format)
+                need_val "$1" "${2:-}"
+                OUTPUT_FORMAT="$2"
+                shift 2
+                ;;
             --oci-profile)
                 need_val "$1" "${2:-}"
                 export OCI_CLI_PROFILE="$2"
@@ -224,14 +261,19 @@ validate_inputs() {
 
     require_oci_cli
 
+    # Validate --input-json file is readable if provided
+    if [[ -n "$INPUT_JSON" ]]; then
+        [[ -r "$INPUT_JSON" ]] || die "Input JSON file not found or not readable: $INPUT_JSON"
+    fi
+
     # Resolve --all to DS_ROOT_COMP (errors if combined with -c or -T)
     COMPARTMENT=$(ds_resolve_all_targets_scope "$SELECT_ALL" "$COMPARTMENT" "$TARGETS") \
         || die "Invalid --all usage. --all requires DS_ROOT_COMP and cannot be combined with -c/--compartment or -T/--targets"
 
-    # If no explicit scope, fall back to DS_ROOT_COMP (consistent with ds_target_refresh.sh)
-    if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
+    # If no explicit scope and no --input-json, fall back to DS_ROOT_COMP
+    if [[ -z "$TARGETS" && -z "$COMPARTMENT" && -z "$INPUT_JSON" ]]; then
         COMPARTMENT=$(resolve_compartment_for_operation "") \
-            || die "Specify -T/--targets, -c/--compartment, -A/--all, or set DS_ROOT_COMP"
+            || die "Specify -T/--targets, -c/--compartment, -A/--all, set DS_ROOT_COMP, or use --input-json"
         log_info "No compartment specified, using DS_ROOT_COMP: $COMPARTMENT"
     fi
 
@@ -240,15 +282,18 @@ validate_inputs() {
         die "Invalid --filter regex: $TARGET_FILTER"
     fi
 
-    # Validate boolean flag
-    case "${AUTO_PURGE,,}" in
-        true | false) ;;
-        *) die "Invalid --auto-purge value: $AUTO_PURGE. Use: true or false" ;;
-    esac
-
-    log_info "Audit trail configuration:"
-    log_info "  Start time: $START_TIME"
-    log_info "  Auto-purge: $AUTO_PURGE"
+    if [[ "${LIST_MODE}" == "true" ]]; then
+        log_info "Audit trail list mode"
+    else
+        # Validate boolean flag (start mode only)
+        case "${AUTO_PURGE,,}" in
+            true | false) ;;
+            *) die "Invalid --auto-purge value: $AUTO_PURGE. Use: true or false" ;;
+        esac
+        log_info "Audit trail configuration:"
+        log_info "  Start time: $START_TIME"
+        log_info "  Auto-purge: $AUTO_PURGE"
+    fi
 }
 
 # ------------------------------------------------------------------------------
@@ -262,13 +307,123 @@ resolve_targets() {
     log_debug "Resolving targets..."
 
     local targets_json
-    targets_json=$(ds_collect_targets_source "$COMPARTMENT" "$TARGETS" "$LIFECYCLE" "$TARGET_FILTER") || return 1
+    targets_json=$(ds_collect_targets_source \
+        "$COMPARTMENT" "$TARGETS" "$LIFECYCLE" "$TARGET_FILTER" \
+        "$INPUT_JSON" "$SAVE_JSON") || return 1
+    TARGETS_PAYLOAD_JSON="$targets_json"
 
     while IFS= read -r target_id; do
         [[ -n "$target_id" ]] && RESOLVED_TARGETS+=("$target_id")
     done < <(jq -r '.data[].id // empty' <<< "$targets_json")
 
-    log_info "Found ${#RESOLVED_TARGETS[@]} target(s) for audit trail start"
+    log_info "Found ${#RESOLVED_TARGETS[@]} target(s) for audit trail operation"
+    return 0
+}
+
+# ------------------------------------------------------------------------------
+# Function: list_audit_trails
+# Purpose.: List audit trail lifecycle states for resolved targets
+# Args....: None
+# Returns.: 0 on success
+# Output..: Table/JSON/CSV of target name, trail state, and advisory note
+# Notes...: Extracts compartment-id from TARGETS_PAYLOAD_JSON to avoid an
+#           extra target-database get call; falls back to oci_exec_ro when the
+#           cached payload lacks compartment-id (e.g. explicit OCID targets).
+# ------------------------------------------------------------------------------
+list_audit_trails() {
+    log_info "Listing audit trail states for ${#RESOLVED_TARGETS[@]} target(s)..."
+
+    local -a rows=()
+
+    for target_ocid in "${RESOLVED_TARGETS[@]}"; do
+        log_debug "  Querying: $target_ocid"
+
+        # Extract name + compartment from cached payload (avoids an extra OCI call)
+        local target_name target_compartment
+        target_name=$(jq -r --arg id "$target_ocid" \
+            '.data[] | select(.id == $id) | ."display-name" // empty' \
+            <<< "$TARGETS_PAYLOAD_JSON")
+        target_compartment=$(jq -r --arg id "$target_ocid" \
+            '.data[] | select(.id == $id) | ."compartment-id" // empty' \
+            <<< "$TARGETS_PAYLOAD_JSON")
+
+        # Fall back to target-database get if compartment-id is missing in payload
+        if [[ -z "$target_compartment" ]]; then
+            local tgt_json
+            tgt_json=$(oci_exec_ro data-safe target-database get \
+                --target-database-id "$target_ocid" 2> /dev/null) || tgt_json="{}"
+            [[ -z "$target_name" ]] && \
+                target_name=$(jq -r '.data."display-name" // empty' <<< "$tgt_json")
+            target_compartment=$(jq -r '.data."compartment-id" // empty' <<< "$tgt_json")
+        fi
+        [[ -z "$target_name" ]] && target_name="$target_ocid"
+        [[ -z "$target_compartment" ]] && target_compartment="${COMPARTMENT:-${DS_ROOT_COMP:-}}"
+
+        # Query audit trail state for this target
+        local trails_json trail_state note
+        trails_json=$(oci_exec_ro data-safe audit-trail list \
+            --compartment-id "$target_compartment" \
+            --target-id "$target_ocid" \
+            --all 2> /dev/null) || trails_json='{"data":{"items":[]}}'
+
+        trail_state=$(printf '%s' "$trails_json" | \
+            jq -r '(.data.items // .data)[]?."lifecycle-state" // empty' | head -n1)
+
+        if [[ -z "$trail_state" ]]; then
+            trail_state="(no trail)"
+            note="missing"
+        else
+            case "${trail_state^^}" in
+                COLLECTING)               note="ok"               ;;
+                STARTING | RESUMING)      note="starting"         ;;
+                STOPPED)                  note="needs restart"    ;;
+                INACTIVE)                 note="inactive"         ;;
+                NEEDS_ATTENTION | FAILED) note="needs attention"  ;;
+                DELETING | DELETED)       note="deleted"          ;;
+                *)                        note=""                 ;;
+            esac
+        fi
+
+        rows+=("${target_name}|${target_ocid}|${trail_state}|${note}")
+    done
+
+    # Render output in the requested format
+    case "${OUTPUT_FORMAT,,}" in
+        json)
+            printf '[\n'
+            local sep=""
+            local name ocid state nte
+            for row in "${rows[@]}"; do
+                IFS='|' read -r name ocid state nte <<< "$row"
+                printf '%s  {"target":"%s","target-id":"%s","trail-state":"%s","note":"%s"}\n' \
+                    "$sep" "$name" "$ocid" "$state" "$nte"
+                sep=","
+            done
+            printf ']\n'
+            ;;
+        csv)
+            printf 'target,target-id,trail-state,note\n'
+            local name ocid state nte
+            for row in "${rows[@]}"; do
+                IFS='|' read -r name ocid state nte <<< "$row"
+                printf '%s,%s,%s,%s\n' "$name" "$ocid" "$state" "$nte"
+            done
+            ;;
+        *)
+            # shellcheck disable=SC2183  # printf repeating format is intentional
+            printf '%-44s %-16s %s\n' "TARGET" "TRAIL STATE" "NOTE"
+            printf '%-44s %-16s %s\n' \
+                "$(printf '%0.s-' {1..44})" \
+                "$(printf '%0.s-' {1..16})" \
+                "$(printf '%0.s-' {1..20})"
+            local name ocid state nte
+            for row in "${rows[@]}"; do
+                IFS='|' read -r name ocid state nte <<< "$row"
+                printf '%-44s %-16s %s\n' "$name" "$state" "$nte"
+            done
+            ;;
+    esac
+
     return 0
 }
 
@@ -404,28 +559,37 @@ main() {
     parse_args "$@"
     validate_inputs
 
-    # Resolve and start audit trails
+    # Resolve targets then either list or start audit trails
     if resolve_targets && [[ ${#RESOLVED_TARGETS[@]} -gt 0 ]]; then
-        start_audit_trails
-
-        # Summary
-        log_info "Audit trail start summary:"
-        log_info "  Targets processed: ${#RESOLVED_TARGETS[@]}"
-        log_info "  Successfully started: ${started_count}"
-        log_info "  Failed starts: ${failed_count}"
-
-        if [[ "${DRY_RUN}" == "true" ]]; then
-            log_info "  [DRY-RUN] No actual changes were made"
-        fi
-
-        if [[ ${failed_count} -eq 0 ]]; then
-            log_info "All audit trails started successfully"
-            exit 0
+        if [[ "${LIST_MODE}" == "true" ]]; then
+            list_audit_trails
         else
-            die "${failed_count} audit trail(s) failed to start" 1
+            start_audit_trails
+
+            # Summary
+            log_info "Audit trail start summary:"
+            log_info "  Targets processed: ${#RESOLVED_TARGETS[@]}"
+            log_info "  Successfully started: ${started_count}"
+            log_info "  Failed starts: ${failed_count}"
+
+            if [[ "${DRY_RUN}" == "true" ]]; then
+                log_info "  [DRY-RUN] No actual changes were made"
+            fi
+
+            if [[ ${failed_count} -eq 0 ]]; then
+                log_info "All audit trails started successfully"
+                exit 0
+            else
+                die "${failed_count} audit trail(s) failed to start" 1
+            fi
         fi
     else
-        die "No targets available for audit trail start" 1
+        if [[ "${LIST_MODE}" == "true" ]]; then
+            log_warn "No targets found matching criteria"
+            exit 0
+        else
+            die "No targets available for audit trail start" 1
+        fi
     fi
 }
 

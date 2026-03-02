@@ -109,7 +109,7 @@ bin/ds_target_refresh.sh -T mydb01 --dry-run
 | `ds_target_update_service.sh`        | Update connector service configuration |
 | `ds_target_update_tags.sh`           | Update target tags                     |
 | `ds_target_delete.sh`                | Remove Data Safe target                |
-| `ds_target_audit_trail.sh`           | Manage audit trail configuration       |
+| `ds_target_audit_trail.sh`           | Start or list audit trail status       |
 | `ds_target_export.sh`                | Export target information              |
 | `ds_target_move.sh`                  | Move target to different compartment   |
 | `ds_target_connect_details.sh`       | Show connection details                |
