@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+<!-- markdownlint-disable MD024 -->
 # Changelog Archive — versions prior to 0.15.0
 
 This file contains the changelog history for all versions prior to **0.15.0**.
@@ -491,6 +493,7 @@ For current and recent changes see the main [CHANGELOG.md](../../../CHANGELOG.md
 
 - **Connector grouping** in `ds_target_connector_summary.sh` now uses `associated-resource-ids` for accurate mapping
 - **Compartment resolution** in `resolve_compartment_for_operation()` now resolves `DS_ROOT_COMP` names to OCIDs
+
 ## [0.6.1] - 2026-01-23
 
 ### Added
@@ -579,7 +582,7 @@ For current and recent changes see the main [CHANGELOG.md](../../../CHANGELOG.md
   - `ds_target_register.sh` - Updated help display to show usage when no parameters provided
   - Documentation refreshed to reflect latest script initialization order
 
-- **Configuration** 
+- **Configuration**
   - Updated `etc/datasafe.conf.example` with `DS_CONNECTOR_COMP` documentation
 
 - **Test Suite** (2026-01-22)
@@ -620,7 +623,7 @@ For current and recent changes see the main [CHANGELOG.md](../../../CHANGELOG.md
 
 - **Read-Only Operations Use `oci_exec_ro()`**
   - Added `oci_exec_ro()` function that always executes (even in dry-run mode)
-  - Updated compartment/target resolution to use `oci_exec_ro()` 
+  - Updated compartment/target resolution to use `oci_exec_ro()`
   - Lookups and queries now work correctly in dry-run mode
   - Only write operations respect dry-run flag
 
@@ -674,6 +677,7 @@ For current and recent changes see the main [CHANGELOG.md](../../../CHANGELOG.md
     - Dry-run mode message now in do_work()
 
 - **Function Headers** - Standardized format across all scripts:
+
   ```bash
   # Function: function_name
   # Purpose.: Brief description
@@ -689,7 +693,7 @@ For current and recent changes see the main [CHANGELOG.md](../../../CHANGELOG.md
   - Fixed "unbound variable" errors when using `set -euo pipefail`
   - SCRIPT_DIR must be defined before SCRIPT_VERSION
   - SCRIPT_VERSION uses SCRIPT_DIR in its grep command
-  - Fixed in: ds_tg_report.sh, ds_target_update_tags.sh, ds_target_update_connector.sh, 
+  - Fixed in: ds_tg_report.sh, ds_target_update_tags.sh, ds_target_update_connector.sh,
     ds_target_update_service.sh, ds_target_update_credentials.sh
 
 - **Debug Message Contamination**
@@ -702,7 +706,7 @@ For current and recent changes see the main [CHANGELOG.md](../../../CHANGELOG.md
   - Fixed read-only operations (compartment/target lookups) being blocked in dry-run mode
   - Separated `oci_exec()` (respects DRY_RUN) from `oci_exec_ro()` (always executes)
   - Removed duplicate dry-run mode messages (now shown once in do_work())
-  - Fixed in: ds_target_update_credentials.sh, ds_target_update_connector.sh, 
+  - Fixed in: ds_target_update_credentials.sh, ds_target_update_connector.sh,
     ds_target_update_service.sh, ds_target_update_tags.sh
 
 - **Compartment Resolution**
@@ -746,7 +750,7 @@ For current and recent changes see the main [CHANGELOG.md](../../../CHANGELOG.md
     - Eliminates need to sync VERSION and .extension files
     - Could be extended to read other metadata (name, description, etc.)
   - Applies to 8 scripts: ds_target_list.sh, ds_target_update_tags.sh, ds_target_update_credentials.sh,
-    ds_target_update_connector.sh, ds_target_update_service.sh, ds_target_refresh.sh, 
+    ds_target_update_connector.sh, ds_target_update_service.sh, ds_target_refresh.sh,
     ds_tg_report.sh, TEMPLATE.sh
   - Updated .extension version: 0.5.2 → 0.5.3
 
@@ -759,7 +763,7 @@ For current and recent changes see the main [CHANGELOG.md](../../../CHANGELOG.md
     - Provides immediate CLI workaround with `-c/--compartment` flag
   - **Help Text** - Standardized two-line format for compartment option:
     - Line 1: `-c, --compartment ID    Compartment OCID or name (default: DS_ROOT_COMP)`
-    - Line 2: `                        Configure in: $ODB_DATASAFE_BASE/.env or datasafe.conf`
+    - Line 2: `Configure in: $ODB_DATASAFE_BASE/.env or datasafe.conf`
     - Clearly shows both configuration file locations
   - **Configuration Cascade Order** (documented in help text):
     1. `$ODB_DATASAFE_BASE/.env` (extension base directory)
@@ -912,6 +916,7 @@ For current and recent changes see the main [CHANGELOG.md](../../../CHANGELOG.md
 ### Technical Details
 
 **Makefile Enhancements:**
+
 - Color-coded output for better readability
 - Organized targets into logical categories (Development, Build, Version, CI/CD, Tools)
 - Better error handling and tool detection
@@ -919,11 +924,13 @@ For current and recent changes see the main [CHANGELOG.md](../../../CHANGELOG.md
 - Added comprehensive help system
 
 **Testing:**
+
 - Unit tests run fast (60s timeout, exclude integration)
 - Full test suite available via `make test-all`
 - Integration tests separated for CI/CD efficiency
 
 **Quality:**
+
 - Shellcheck: 100% pass rate maintained
 - Markdown lint: Configured for CHANGELOG format
 - All template standards adopted
