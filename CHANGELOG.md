@@ -8,7 +8,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
+### Added
+
+- `bin/ds_target_audit_trail.sh`: added `-A/--all` (select all targets from
+  `DS_ROOT_COMP`) and `-r/--filter REGEX` (display-name regex filter) scope
+  flags, using `ds_resolve_all_targets_scope`, `ds_validate_target_filter_regex`,
+  and `ds_collect_targets_source` from `lib/oci_helpers.sh`.
+- `bin/ds_target_details.sh`: added `-A/--all` and `-r/--filter REGEX` scope
+  flags; target discovery in `do_work()` now uses `ds_collect_targets_source`
+  for a single, unified collection path.
+- `bin/ds_target_move.sh`: added `-A/--all` and `-r/--filter REGEX` scope
+  flags; filter applied via `ds_filter_targets_json` in the compartment-scan
+  branch of `preflight_checks()`.
+- `bin/ds_target_delete.sh`: added `-r/--filter REGEX` scope flag; filter
+  applied via `ds_filter_targets_json` in the compartment-scan branch of
+  `validate_inputs()`.
+
+### Fixed
+
+- `bin/ds_target_audit_trail.sh`: fixed `start_audit_trails()` to list audit
+  trails per target first (`audit-trail list --target-database-id`) then start
+  each trail by its own OCID (`audit-trail start --audit-trail-id`). The
+  previous `--target-database-id` parameter is not accepted by `audit-trail
+  start` (OCI exit 2: "No such option"). Removed invalid CLI parameters
+  (`--is-auto-queries-enabled`, `--update-last-archive-timestamp`,
+  `--audit-trail-type`, `--collection-frequency`) from the start call; valid
+  parameters are `--audit-collection-start-time` and `--is-auto-purge-enabled`.
+- `bin/ds_target_audit_trail.sh`: fixed inverted argument order in `die` call
+  (`die 1 "msg"` → `die "msg" 1`) that caused "numeric argument required"
+  shell errors on failure.
+- `bin/ds_target_audit_trail.sh`: removed `2>&1` redirect on `oci_exec` call
+  so that `log_error` / `log_trace` messages from `oci_exec` on OCI failures
+  are visible in the terminal (previously suppressed to `/dev/null`).
+- `bin/ds_target_delete.sh`: fixed missing `shift` after `--stop-on-error`
+  flag, which caused the next argument to be silently consumed.
+- `bin/ds_target_details.sh`: removed dead `list_targets_in_compartment()`
+  function, which was no longer called after the refactor to
+  `ds_collect_targets_source`.
 
 - `lib/oci_helpers.sh`: demoted raw OCI CLI command lines and error output from
   `log_debug` to `log_trace` in `oci_exec`, `oci_exec_ro`, `ds_refresh_target`,

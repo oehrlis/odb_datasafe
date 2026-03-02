@@ -22,9 +22,10 @@
 : "${OCI_CLI_CONFIG_FILE:=${HOME}/.oci/config}"
 : "${OCI_CLI_PROFILE:=DEFAULT}"
 
-: "${COMPARTMENT:=}" # name or OCID
-: "${TARGETS:=}"     # CSV names/OCIDs (overrides compartment mode)
-: "${STATE_FILTERS:=NEEDS_ATTENTION}"# CSV lifecycle states when scanning compartment
+: "${COMPARTMENT:=}"     # name or OCID
+: "${TARGETS:=}"         # CSV names/OCIDs (overrides compartment mode)
+: "${TARGET_FILTER:=}"   # Regex filter on target display names
+: "${STATE_FILTERS:=NEEDS_ATTENTION}" # CSV lifecycle states when scanning compartment
 : "${FORCE:=false}"              # skip confirmation prompts
 : "${DELETE_DEPENDENCIES:=true}" # delete audit trails, assessments, policies
 : "${CONTINUE_ON_ERROR:=true}"   # continue processing other targets if one fails
@@ -82,13 +83,14 @@ Usage:
 Delete Data Safe target databases and their dependencies. Either provide 
 explicit targets (-T) or scan a compartment (-c). If both are provided, -T takes precedence.
 
-Target selection (choose one):
+Target selection:
   -T, --targets <LIST>          Comma-separated target names or OCIDs
-                                (or) use lifecycle-state filtering:  
+  -c, --compartment <OCID|NAME> Compartment OCID or name (env: COMPARTMENT/COMP_OCID)
+  -r, --filter <REGEX>          Filter target names by regex (substring match)
+                                (or) use lifecycle-state filtering:
   -s, --lifecycle <LIST>        Comma-separated states (default: ${STATE_FILTERS})
 
 Scope:
-  -c, --compartment <OCID|NAME> Compartment OCID or name (env: COMPARTMENT/COMP_OCID)
 
 Deletion options:
   -f, --force                   Skip confirmation prompts
@@ -154,12 +156,17 @@ parse_args() {
                 DELETE_DEPENDENCIES=false
                 shift
                 ;;
+            -r | --filter)
+                TARGET_FILTER="$2"
+                shift 2
+                ;;
             --continue-on-error)
                 CONTINUE_ON_ERROR=true
                 shift
                 ;;
             --stop-on-error)
                 CONTINUE_ON_ERROR=false
+                shift
                 ;;
             --oci-config)
                 OCI_CLI_CONFIG_FILE="$2"
@@ -211,6 +218,11 @@ validate_inputs() {
     COMP_OCID=$(resolve_compartment_for_operation "$COMPARTMENT") || die "Failed to resolve compartment"
     log_info "Using compartment: $COMP_OCID"
 
+    # Validate filter regex
+    if ! ds_validate_target_filter_regex "$TARGET_FILTER"; then
+        die "Invalid --filter regex: $TARGET_FILTER"
+    fi
+
     # Build target list
     if [[ -n "$TARGETS" ]]; then
         # Resolve target names/OCIDs to OCIDs
@@ -242,6 +254,9 @@ validate_inputs() {
         log_debug "Scanning compartment for targets with state: $STATE_FILTERS"
         local targets_json
         targets_json=$(ds_list_targets "$COMP_OCID" "$STATE_FILTERS") || die "Failed to list targets in compartment"
+        if [[ -n "$TARGET_FILTER" ]]; then
+            targets_json=$(ds_filter_targets_json "$targets_json" "$TARGET_FILTER")
+        fi
 
         mapfile -t RESOLVED_TARGETS < <(echo "$targets_json" | jq -r '.data[]?.id // empty')
     fi

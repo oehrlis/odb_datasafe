@@ -44,6 +44,8 @@ source "${LIB_DIR}/ds_lib.sh"
 : "${OCI_CLI_PROFILE:=DEFAULT}"
 : "${COMPARTMENT:=}"           # Source compartment name or OCID
 : "${TARGETS:=}"               # CSV names/OCIDs (overrides compartment mode)
+: "${SELECT_ALL:=false}"       # Select all targets from DS_ROOT_COMP
+: "${TARGET_FILTER:=}"         # Regex filter on target display names
 : "${STATE_FILTERS:=ACTIVE}"   # CSV lifecycle states when scanning compartment
 : "${DEST_COMPARTMENT:=}"      # Destination compartment name or OCID (required)
 : "${MOVE_DEPENDENCIES:=true}" # Move audit trails, assessments, policies
@@ -84,13 +86,15 @@ Usage:
 Move Data Safe targets and their referencing objects to another compartment.
 Either provide explicit targets (-T) or scan a compartment (-c).
 
-Target selection (choose one):
+Target selection:
     -T, --targets <LIST>                Comma-separated target names or OCIDs
+    -c, --compartment <OCID|NAME>       Source compartment OCID or name (env: COMPARTMENT/COMP_OCID)
+    -A, --all                           Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
+    -r, --filter <REGEX>                Filter target names by regex (substring match)
                                         (or) use lifecycle-state filtering:
     -s, --lifecycle <LIST>              Comma-separated states (default: ${STATE_FILTERS})
 
 Scope:
-    -c, --compartment <OCID|NAME>       Source compartment OCID or name (env: COMPARTMENT/COMP_OCID)
     -D, --dest-compartment <OCID|NAME>  Destination compartment OCID or name (required)
 
 Move options:
@@ -150,6 +154,15 @@ parse_args() {
             -c | --compartment)
                 need_val "$1" "${2:-}"
                 COMPARTMENT="$2"
+                shift 2
+                ;;
+            -A | --all)
+                SELECT_ALL=true
+                shift 1
+                ;;
+            -r | --filter)
+                need_val "$1" "${2:-}"
+                TARGET_FILTER="$2"
                 shift 2
                 ;;
             -D | --dest-compartment)
@@ -224,8 +237,8 @@ validate_inputs() {
         usage 1
     fi
 
-    if [[ -z "${TARGETS}" && -z "${COMPARTMENT}" && ${#POSITIONAL[@]} -eq 0 ]]; then
-        log_error "Provide targets (-T) or a source compartment (-c)"
+    if [[ -z "${TARGETS}" && -z "${COMPARTMENT}" && "${SELECT_ALL}" != "true" && ${#POSITIONAL[@]} -eq 0 ]]; then
+        log_error "Provide targets (-T), a source compartment (-c), or use --all"
         usage 1
     fi
 }
@@ -243,6 +256,15 @@ preflight_checks() {
         || die "Cannot resolve destination compartment '${DEST_COMPARTMENT}'"
 
     log_info "Destination compartment: ${DEST_COMP_NAME} (${DEST_COMP_OCID})"
+
+    # Resolve --all to DS_ROOT_COMP (errors if combined with -c or -T)
+    COMPARTMENT=$(ds_resolve_all_targets_scope "$SELECT_ALL" "$COMPARTMENT" "$TARGETS") \
+        || die "Invalid --all usage. --all requires DS_ROOT_COMP and cannot be combined with -c/--compartment or -T/--targets"
+
+    # Validate filter regex
+    if ! ds_validate_target_filter_regex "$TARGET_FILTER"; then
+        die "Invalid --filter regex: $TARGET_FILTER"
+    fi
 
     # Collect target OCIDs
     local -a target_ocids=()
@@ -306,6 +328,9 @@ preflight_checks() {
         # List targets in compartment with state filters (comma-separated supported)
         local targets_json
         targets_json=$(ds_list_targets "$compartment_ocid" "$STATE_FILTERS") || die "Failed to list targets in compartment"
+        if [[ -n "$TARGET_FILTER" ]]; then
+            targets_json=$(ds_filter_targets_json "$targets_json" "$TARGET_FILTER")
+        fi
         while IFS=$'\t' read -r ocid; do
             [[ -n "$ocid" ]] && target_ocids+=("$ocid")
         done < <(echo "$targets_json" | jq -r '.data[]?.id' 2> /dev/null)

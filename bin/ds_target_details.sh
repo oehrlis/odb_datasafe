@@ -34,6 +34,8 @@ readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 # Defaults
 : "${COMPARTMENT:=}"
 : "${TARGETS:=}"
+: "${SELECT_ALL:=false}"
+: "${TARGET_FILTER:=}"
 : "${LIFECYCLE_STATE:=ACTIVE,NEEDS_ATTENTION}"
 : "${FORMAT:=table}"
 : "${OUTPUT_FOLDER:=${SCRIPT_DIR}/../log}"
@@ -80,6 +82,8 @@ Options:
   Target Selection:
     -T, --targets LIST          Comma-separated target names or OCIDs
     -c, --compartment ID        Compartment OCID or name (default: DS_ROOT_COMP)
+    -A, --all                   Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
+    -r, --filter REGEX          Filter target names by regex (substring match)
     -L, --lifecycle STATE       Filter by lifecycle state (default: ${LIFECYCLE_STATE})
                                 Comma-separated: ACTIVE,NEEDS_ATTENTION,DELETED
                 --input-json FILE       Read targets from local JSON (array or {data:[...]})
@@ -169,6 +173,15 @@ parse_arguments() {
             -c | --compartment)
                 need_val "$1" "${2:-}"
                 COMPARTMENT="$2"
+                shift 2
+                ;;
+            -A | --all)
+                SELECT_ALL=true
+                shift
+                ;;
+            -r | --filter)
+                need_val "$1" "${2:-}"
+                TARGET_FILTER="$2"
                 shift 2
                 ;;
             -L | --lifecycle)
@@ -273,9 +286,20 @@ validate_inputs() {
         || die "Cannot create output directory: ${OUTPUT_FOLDER}"
     log_debug "Output directory: ${OUTPUT_FOLDER}"
 
+    # Resolve --all to DS_ROOT_COMP (errors if combined with -c or -T)
+    if [[ -z "$INPUT_JSON" ]]; then
+        COMPARTMENT=$(ds_resolve_all_targets_scope "$SELECT_ALL" "$COMPARTMENT" "$TARGETS") \
+            || die "Invalid --all usage. --all requires DS_ROOT_COMP and cannot be combined with -c/--compartment or -T/--targets"
+    fi
+
+    # Validate filter regex
+    if ! ds_validate_target_filter_regex "$TARGET_FILTER"; then
+        die "Invalid --filter regex: $TARGET_FILTER"
+    fi
+
     # Require explicit target selection to avoid surprising full-tenancy scans
     if [[ -z "$INPUT_JSON" && -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
-        log_error "Provide targets (-T) or a compartment (-c)"
+        log_error "Provide targets (-T), a compartment (-c), or use --all"
         usage 1
     fi
 }
@@ -640,30 +664,6 @@ emit_output() {
 }
 
 # ------------------------------------------------------------------------------
-# Function: list_targets_in_compartment
-# Purpose.: List targets in compartment matching lifecycle state filter
-# Args....: $1 - compartment OCID
-# Returns.: 0 on success
-# Output..: Tab-separated target OCIDs and names
-# ------------------------------------------------------------------------------
-list_targets_in_compartment() {
-    local compartment_ocid="$1"
-
-    log_debug "Listing targets in compartment with lifecycle filter: $LIFECYCLE_STATE"
-
-    local targets_json
-    targets_json=$(ds_list_targets "$compartment_ocid" "$LIFECYCLE_STATE") || {
-        log_error "Failed to list targets in compartment"
-        return 1
-    }
-
-    # Output OCID and name
-    echo "$targets_json" | jq -r '.data[]? | [.id, (."display-name" // "")] | @tsv'
-
-    return 0
-}
-
-# ------------------------------------------------------------------------------
 # Function: do_work
 # Purpose.: Main work function - discover targets and collect details
 # Args....: None
@@ -696,48 +696,18 @@ do_work() {
         return 0
     fi
 
-    # Collect target OCIDs
-    if [[ -n "$TARGETS" ]]; then
-        # Process explicit targets
-        log_info "Processing explicit targets"
+    # Collect target OCIDs via unified helper
+    log_info "Collecting targets (lifecycle: $LIFECYCLE_STATE)"
+    local targets_data
+    targets_data=$(ds_collect_targets_source "$COMPARTMENT" "$TARGETS" "$LIFECYCLE_STATE" "$TARGET_FILTER") \
+        || die "Failed to collect targets"
 
-        # Resolve compartment using standard pattern: explicit > DS_ROOT_COMP > error
-        compartment_ocid=$(resolve_compartment_for_operation "$COMPARTMENT") \
-            || die "Failed to resolve compartment for target resolution"
+    # Resolve compartment OCID for connector map (best-effort)
+    compartment_ocid=$(resolve_compartment_for_operation "$COMPARTMENT") 2>/dev/null || true
 
-        IFS=',' read -ra target_list <<< "$TARGETS"
-        for target in "${target_list[@]}"; do
-            target="${target// /}" # trim spaces
-
-            if is_ocid "$target"; then
-                target_ocids+=("$target")
-            else
-                # Resolve name to OCID in compartment
-                local target_ocid
-                target_ocid=$(ds_resolve_target_ocid "$target" "$compartment_ocid") || {
-                    log_error "Failed to resolve target: $target"
-                    continue
-                }
-                target_ocids+=("$target_ocid")
-            fi
-        done
-    else
-        # Scan compartment
-        log_info "Scanning compartment for targets"
-
-        # Resolve compartment using standard pattern: explicit > DS_ROOT_COMP > error
-        compartment_ocid=$(resolve_compartment_for_operation "$COMPARTMENT") \
-            || die "Failed to resolve compartment for target scan"
-
-        # List targets in compartment
-        local targets_data
-        targets_data=$(list_targets_in_compartment "$compartment_ocid") \
-            || die "Failed to list targets in compartment"
-
-        while IFS=$'\t' read -r ocid _name; do
-            [[ -n "$ocid" ]] && target_ocids+=("$ocid")
-        done <<< "$targets_data"
-    fi
+    while IFS= read -r ocid; do
+        [[ -n "$ocid" ]] && target_ocids+=("$ocid")
+    done < <(echo "$targets_data" | jq -r '.data[].id // empty')
 
     # Check if we have targets
     if [[ ${#target_ocids[@]} -eq 0 ]]; then
