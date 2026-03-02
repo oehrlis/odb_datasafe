@@ -86,6 +86,7 @@ COMP_OCID=""
 CONNECTOR_OCID=""
 CLUSTER_OCID=""
 PLUGGABLE_DB_OCID=""
+_VMCLUSTER_FOUND_COMP=""  # Side-effect set by resolve_vm_cluster_ocid() on Strategy 1 hit
 
 # ------------------------------------------------------------------------------
 # Functions
@@ -390,16 +391,20 @@ resolve_vm_cluster_ocid() {
 
         # ------------------------------------------------------------------
         # Strategy 1: structured search — VmCluster then CloudVmCluster.
-        # oci_resolve_vmcluster_by_name() returns OCID + compartment-id in one
-        # call; we only need the OCID here (compartment is consumed by the
-        # validate_inputs() early-resolution path).
+        # Sets _VMCLUSTER_FOUND_COMP as a side-effect so validate_inputs()
+        # can use the compartment without an extra OCI round-trip.
         # ------------------------------------------------------------------
+        _VMCLUSTER_FOUND_COMP=""
         log_debug "Strategy 1: structured search for cluster '${cluster_ref}'"
         local cluster_json=""
-        cluster_json=$(oci_resolve_vmcluster_by_name "$cluster_ref" 2>/dev/null || true)
+        cluster_json=$(oci_resolve_vmcluster_by_name "$cluster_ref" || true)
         if [[ -n "$cluster_json" ]]; then
             resolved_cluster=$(jq -r '.id // empty' <<< "$cluster_json")
             [[ "$resolved_cluster" == "null" ]] && resolved_cluster=""
+            if [[ -n "$resolved_cluster" ]]; then
+                _VMCLUSTER_FOUND_COMP=$(jq -r '."compartment-id" // empty' <<< "$cluster_json")
+                [[ "$_VMCLUSTER_FOUND_COMP" == "null" ]] && _VMCLUSTER_FOUND_COMP=""
+            fi
         fi
         if [[ -n "$resolved_cluster" ]]; then
             log_debug "Found cluster '${cluster_ref}' via structured search: ${resolved_cluster}"
@@ -665,24 +670,16 @@ validate_inputs() {
                     derived_compartment=""
                 fi
             else
-                # Name provided — structured search returns OCID + compartment-id in one
-                # call; only fall through to resolve_vm_cluster_ocid() (Strategy 2: DB list)
-                # when the structured search yields no result.
+                # Name provided — resolve_vm_cluster_ocid() tries structured search
+                # (Strategy 1: returns OCID + sets _VMCLUSTER_FOUND_COMP) then DB-list
+                # fallback (Strategy 2). Read compartment from the side-effect global
+                # to avoid a second OCI round-trip.
                 log_debug "Resolving cluster by name: ${CLUSTER}"
-                local cluster_json=""
-                cluster_json=$(oci_resolve_vmcluster_by_name "$CLUSTER" 2>/dev/null || true)
-                if [[ -n "$cluster_json" ]]; then
-                    CLUSTER_OCID=$(jq -r '.id // empty' <<< "$cluster_json")
-                    [[ "$CLUSTER_OCID" == "null" ]] && CLUSTER_OCID=""
-                    derived_compartment=$(jq -r '."compartment-id" // empty' <<< "$cluster_json")
-                    [[ "$derived_compartment" == "null" ]] && derived_compartment=""
-                    [[ -n "$CLUSTER_OCID" ]] && log_debug "Early resolved cluster OCID: ${CLUSTER_OCID}"
+                _VMCLUSTER_FOUND_COMP=""
+                if CLUSTER_OCID=$(resolve_vm_cluster_ocid || true); [[ -n "$CLUSTER_OCID" ]]; then
+                    log_debug "Early resolved cluster OCID: ${CLUSTER_OCID}"
+                    derived_compartment="$_VMCLUSTER_FOUND_COMP"
                     [[ -n "$derived_compartment" ]] && log_info "Using compartment derived from cluster '$CLUSTER': $derived_compartment"
-                fi
-                # If structured search failed (e.g. IAM limits), fall back to Strategy 2
-                if [[ -z "$CLUSTER_OCID" ]]; then
-                    CLUSTER_OCID=$(resolve_vm_cluster_ocid || true)
-                    [[ -n "$CLUSTER_OCID" ]] && log_debug "Resolved cluster OCID via DB-list fallback: ${CLUSTER_OCID}"
                 fi
             fi
         fi
