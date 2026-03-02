@@ -324,7 +324,8 @@ start_audit_trails() {
         trail_info=$(echo "$trails_json" | jq -r '(.data.items // .data)[]? | [.id, (."lifecycle-state" // "UNKNOWN")] | @tsv')
 
         if [[ -z "$trail_info" ]]; then
-            log_warn "No audit trails found for: $target_name"
+            log_warn "No audit trails found for: $target_name — skipping"
+            started_count=$((started_count + 1))
             continue
         fi
 
@@ -351,8 +352,22 @@ start_audit_trails() {
                 --is-auto-purge-enabled "$AUTO_PURGE" > /dev/null; then
                 trail_ok=$((trail_ok + 1))
             else
-                log_error "Failed to start audit trail $trail_ocid for: $target_name"
-                trail_fail=$((trail_fail + 1))
+                # Re-check state: if the trail is now running it was already started
+                local post_state
+                post_state=$(oci_exec_ro data-safe audit-trail get \
+                    --audit-trail-id "$trail_ocid" \
+                    --query 'data."lifecycle-state"' \
+                    --raw-output 2> /dev/null || echo "UNKNOWN")
+                case "${post_state^^}" in
+                    COLLECTING | STARTING | RESUMING)
+                        log_info "Audit trail already ${post_state} for: $target_name — skipping"
+                        trail_skip=$((trail_skip + 1))
+                        ;;
+                    *)
+                        log_error "Failed to start audit trail $trail_ocid for: $target_name (state: ${post_state})"
+                        trail_fail=$((trail_fail + 1))
+                        ;;
+                esac
             fi
         done <<< "$trail_info"
 
