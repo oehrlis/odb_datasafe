@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.5] - 2026-03-02
+
 ### Added
 
 - `bin/ds_target_register.sh`: added `--wait-state STATE` option. The default
@@ -17,6 +19,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   lifecycle state or `FAILED`, with a 10-minute timeout). Any valid Data Safe
   target lifecycle state is accepted (`ACTIVE`, `NEEDS_ATTENTION`, etc.).
   `WAIT_STATE` is normalised to uppercase at parse time.
+
+- All mutating scripts now expose a unified `--wait-state STATE` option
+  (default: empty → return immediately after OCI API submission):
+  - `bin/ds_target_refresh.sh`: replaced `--wait` / `--no-wait` with
+    `--wait-state STATE`; passes `--wait-for-state "${WAIT_STATE}"` to
+    `oci data-safe target-database refresh` only when non-empty.
+  - `bin/ds_target_update_connector.sh`: replaced boolean `WAIT_FOR_COMPLETION`
+    with `WAIT_STATE`; conditionally appends `--wait-for-state` to the OCI call.
+  - `bin/ds_target_activate.sh`, `bin/ds_target_update_credentials.sh`,
+    `bin/ds_target_update_service.sh`, `bin/ds_target_update_tags.sh`:
+    renamed script option from `--wait-for-state` to `--wait-state` and
+    variable from `WAIT_FOR_STATE` to `WAIT_STATE`; OCI CLI passthrough
+    (`--wait-for-state "$WAIT_STATE"`) unchanged.
+  - `bin/ds_target_delete.sh`: removed hardcoded `--wait-for-state SUCCEEDED`;
+    added `--wait-state STATE` option. Default is now async (no blocking);
+    pass `--wait-state SUCCEEDED` to restore the previous blocking behaviour.
+  - `bin/ds_target_move.sh`: added `--wait-state STATE` option; `step_move_targets()`
+    conditionally appends `--wait-for-state "${WAIT_STATE}"` to the
+    `oci_exec data-safe target-database change-compartment` call.
+  - `lib/oci_helpers.sh`: `ds_refresh_target()` updated to branch on `WAIT_STATE`
+    (non-empty → blocking with state label in log; empty → async).
+
+- `lib/oci_helpers.sh`: `check_oci_auth()` now logs the loaded `datasafe.conf`
+  file paths (from `_DATASAFE_CONF_FILES`) and the resolved `DS_ROOT_COMP` value
+  at DEBUG level, making configuration-discovery issues visible in debug output.
+- `lib/common.sh`: added `_DATASAFE_CONF_FILES` global; `load_config()` appends
+  each successfully loaded config file path to it so `check_oci_auth()` can emit
+  a single summary log line.
 
 - `lib/oci_helpers.sh`: new `oci_resolve_vmcluster_by_name()` — resolves a VM
   cluster display name to OCID **and** `compartment-id` in a single structured-

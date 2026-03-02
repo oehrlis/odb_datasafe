@@ -5,7 +5,7 @@
 # Script.....: ds_target_activate.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.03.02
-# Version....: v0.17.4
+# Version....: v0.17.5
 # Purpose....: Activate inactive Oracle Data Safe target databases
 # Usage......: ds_target_activate.sh [OPTIONS] [TARGETS...]
 # License....: Apache License Version 2.0
@@ -25,7 +25,7 @@ source "${SCRIPT_DIR}/../lib/ds_lib.sh"
 
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_NAME
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.17.4')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.17.5')"
 readonly SCRIPT_VERSION
 
 # Defaults
@@ -36,7 +36,7 @@ readonly SCRIPT_VERSION
 : "${LIFECYCLE_STATE:=INACTIVE}"
 : "${DRY_RUN:=false}"
 : "${APPLY_CHANGES:=false}"
-: "${WAIT_FOR_STATE:=}"
+: "${WAIT_STATE:=}"
 : "${DS_SECRET:=${DATASAFE_SECRET:-}}"
 : "${DS_USER:=DS_ADMIN}"
 : "${DATASAFE_SECRET_FILE:=}"
@@ -100,7 +100,7 @@ Options:
   Execution:
         --apply                 Apply changes (default: dry-run only)
     -n, --dry-run               Dry-run mode (show what would be done)
-        --wait-for-state STATE  Wait for operation completion with state (e.g., ACCEPTED)
+        --wait-state STATE  Wait for operation completion with state (e.g., ACCEPTED)
                                 Default: async (no wait)
 
   Credentials:
@@ -230,9 +230,9 @@ parse_args() {
                 RUN_ROOT=true
                 shift
                 ;;
-            --wait-for-state)
+            --wait-state)
                 need_val "$1" "${2:-}"
-                WAIT_FOR_STATE="$2"
+                WAIT_STATE="$2"
                 shift 2
                 ;;
             --oci-profile)
@@ -456,8 +456,8 @@ activate_single_target() {
         --force
     )
 
-    if [[ -n "$WAIT_FOR_STATE" ]]; then
-        cmd+=(--wait-for-state "$WAIT_FOR_STATE")
+    if [[ -n "$WAIT_STATE" ]]; then
+        cmd+=(--wait-for-state "$WAIT_STATE")
     fi
 
     if oci_exec "${cmd[@]}" > /dev/null 2>&1; then

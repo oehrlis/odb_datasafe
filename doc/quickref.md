@@ -167,7 +167,7 @@ bin/ds_target_refresh.sh --input-json ./target_selection.json --allow-stale-sele
 bin/ds_target_activate.sh -c "MyCompartment" -L INACTIVE
 
 # Apply activation changes and wait for completion
-bin/ds_target_activate.sh -c "MyCompartment" -L INACTIVE --apply --wait-for-state ACCEPTED
+bin/ds_target_activate.sh -c "MyCompartment" -L INACTIVE --apply --wait-state ACCEPTED
 
 # Activate specific targets by name (uses --compartment or DS_ROOT_COMP for resolution)
 bin/ds_target_activate.sh -c "MyCompartment" -T db1,db2 --apply
@@ -563,6 +563,45 @@ All scripts should support these where applicable:
 # Execution Control
 -n, --dry-run                 Show what would be done (no changes)
 -y, --yes                     Skip confirmation prompts
+```
+
+### Wait State (`--wait-state STATE`)
+
+Supported in all mutating scripts:
+
+- `ds_target_refresh.sh`
+- `ds_target_activate.sh`
+- `ds_target_update_credentials.sh`
+- `ds_target_update_connector.sh`
+- `ds_target_update_service.sh`
+- `ds_target_update_tags.sh`
+- `ds_target_register.sh`
+- `ds_target_delete.sh`
+- `ds_target_move.sh`
+
+Behavior:
+
+- Default (empty): submit the OCI API call and return immediately (async, fast).
+- `--wait-state STATE`: block until the work request reaches the given lifecycle state.
+- Common values: `ACCEPTED`, `IN_PROGRESS`, `SUCCEEDED`, `FAILED`.
+
+Examples:
+
+```bash
+# Refresh and return immediately (default)
+ds_target_refresh.sh -T mydb01
+
+# Refresh and wait until the work request is SUCCEEDED
+ds_target_refresh.sh -T mydb01 --wait-state SUCCEEDED
+
+# Activate and wait for ACCEPTED (earliest confirmation)
+ds_target_activate.sh -T mydb01 --apply --wait-state ACCEPTED
+
+# Delete and wait for SUCCEEDED
+ds_target_delete.sh -T mydb01 --force --wait-state SUCCEEDED
+
+# Move and wait for SUCCEEDED
+ds_target_move.sh -T mydb01 -D prod-compartment --wait-state SUCCEEDED
 ```
 
 ### Target Name Regex Filter (`-r`, `--filter`)

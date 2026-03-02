@@ -5,7 +5,7 @@
 # Script.....: ds_target_update_credentials.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.03.02
-# Version....: v0.17.4
+# Version....: v0.17.5
 # Purpose....: Update Oracle Data Safe target database credentials
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
@@ -25,7 +25,7 @@ readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly LIB_DIR="${SCRIPT_DIR}/../lib"
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.17.4')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.17.5')"
 readonly SCRIPT_VERSION
 
 # Defaults
@@ -48,7 +48,7 @@ readonly SCRIPT_VERSION
 : "${DS_TARGET_NAME_CDBROOT_REGEX:=_(CDB\\\$ROOT|CDBROOT)$}"
 : "${APPLY_CHANGES:=false}"
 : "${FORCE_UPDATE:=true}"
-: "${WAIT_FOR_STATE:=}" # Empty = async (no wait); "ACCEPTED" or other for sync wait
+: "${WAIT_STATE:=}" # Empty = async (no wait); "ACCEPTED" or other for sync wait
 # shellcheck disable=SC2034 # consumed by parse_common_opts in common.sh
 SHOW_USAGE_ON_EMPTY_ARGS=true
 
@@ -133,7 +133,7 @@ Options:
         --force                 Pass --force to OCI update (enabled by default with --apply)
         --no-force              Disable --force (allows OCI interactive confirmation prompts)
     -n, --dry-run               Dry-run mode (show what would be done)
-        --wait-for-state STATE  Wait for operation completion with state (e.g., ACCEPTED)
+        --wait-state STATE  Wait for operation completion with state (e.g., ACCEPTED)
                                 Default: async (no wait)
 
 Credential Sources (in order of precedence):
@@ -151,13 +151,13 @@ Examples:
         ${SCRIPT_NAME} --cred-file creds.json --apply --force
 
     # Apply changes and wait for completion
-        ${SCRIPT_NAME} --cred-file creds.json --apply --force --wait-for-state ACCEPTED
+        ${SCRIPT_NAME} --cred-file creds.json --apply --force --wait-state ACCEPTED
 
     # Update specific targets with username/secret
         ${SCRIPT_NAME} -T target1,target2 -U myuser -P mysecret --apply --force
 
     # Bulk update for compartment (interactive secret, wait for state)
-    ${SCRIPT_NAME} -c my-compartment -U dbuser --apply --wait-for-state ACCEPTED
+    ${SCRIPT_NAME} -c my-compartment -U dbuser --apply --wait-state ACCEPTED
 
     # Dry-run from saved target selection JSON
     ${SCRIPT_NAME} --input-json ./target_selection.json -U dbuser --dry-run
@@ -271,9 +271,9 @@ parse_args() {
                 FORCE_UPDATE=false
                 shift
                 ;;
-            --wait-for-state)
+            --wait-state)
                 need_val "$1" "${2:-}"
-                WAIT_FOR_STATE="$2"
+                WAIT_STATE="$2"
                 shift 2
                 ;;
             --oci-profile)
@@ -590,8 +590,8 @@ update_target_credentials() {
         fi
 
         # Add wait-for-state if specified
-        if [[ -n "$WAIT_FOR_STATE" ]]; then
-            cmd+=(--wait-for-state "$WAIT_FOR_STATE")
+        if [[ -n "$WAIT_STATE" ]]; then
+            cmd+=(--wait-for-state "$WAIT_STATE")
         fi
 
         if oci_exec "${cmd[@]}" > /dev/null; then

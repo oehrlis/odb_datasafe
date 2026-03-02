@@ -5,7 +5,7 @@
 # Script.....: ds_target_refresh.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.03.02
-# Version....: v0.17.4
+# Version....: v0.17.5
 # Purpose....: Refresh Oracle Data Safe target databases
 # Usage......: ds_target_refresh.sh [OPTIONS] [TARGETS...]
 # License....: Apache License Version 2.0
@@ -25,7 +25,7 @@ source "${SCRIPT_DIR}/../lib/ds_lib.sh"
 
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_NAME
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.17.4')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.17.5')"
 readonly SCRIPT_VERSION
 
 # Defaults
@@ -35,7 +35,7 @@ readonly SCRIPT_VERSION
 : "${TARGET_FILTER:=}"
 : "${LIFECYCLE_STATE:=NEEDS_ATTENTION}" # Default to NEEDS_ATTENTION
 : "${DRY_RUN:=false}"
-: "${WAIT_FOR_COMPLETION:=false}" # Default to no-wait for speed
+: "${WAIT_STATE:=}"               # State to wait for; empty = return after submit
 : "${INPUT_JSON:=}"
 : "${SAVE_JSON:=}"
 : "${ALLOW_STALE_SELECTION:=false}"
@@ -95,8 +95,8 @@ Options:
                     (disabled by default for safety)
         --max-snapshot-age AGE  Max input-json age (default: ${MAX_SNAPSHOT_AGE})
                     Examples: 900, 30m, 24h, 2d, off
-        --wait                  Wait for each refresh to complete (slower but shows status)
-        --no-wait               Don't wait for completion (default, faster for bulk)
+        --wait-state STATE      Wait for each refresh to reach STATE (e.g. SUCCEEDED).
+                                Default: return after submit (async, faster for bulk)
 
 Examples:
     # Refresh all NEEDS_ATTENTION targets in DS_ROOT_COMP (fast, async)
@@ -105,8 +105,8 @@ Examples:
     # Explicitly select all targets from DS_ROOT_COMP
     ${SCRIPT_NAME} --all
 
-    # Refresh with progress monitoring (slower)
-    ${SCRIPT_NAME} --wait
+    # Refresh and wait for each target to reach SUCCEEDED state
+    ${SCRIPT_NAME} --wait-state SUCCEEDED
 
     # Refresh specific compartment
     ${SCRIPT_NAME} -c MyCompartment
@@ -204,13 +204,10 @@ parse_args() {
                 MAX_SNAPSHOT_AGE="$2"
                 shift 2
                 ;;
-            --wait)
-                WAIT_FOR_COMPLETION=true
-                shift
-                ;;
-            --no-wait)
-                WAIT_FOR_COMPLETION=false
-                shift
+            --wait-state)
+                need_val "$1" "${2:-}"
+                WAIT_STATE="${2^^}"
+                shift 2
                 ;;
             --oci-profile)
                 need_val "$1" "${2:-}"

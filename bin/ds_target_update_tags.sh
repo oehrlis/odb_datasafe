@@ -5,7 +5,7 @@
 # Script.....: ds_target_update_tags.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.03.02
-# Version....: v0.17.4
+# Version....: v0.17.5
 # Purpose....: Update Oracle Data Safe target database tags based on compartment
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
@@ -25,7 +25,7 @@ readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly LIB_DIR="${SCRIPT_DIR}/../lib"
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.17.4')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.17.5')"
 readonly SCRIPT_VERSION
 
 # Defaults
@@ -39,7 +39,7 @@ readonly SCRIPT_VERSION
 : "${ALLOW_STALE_SELECTION:=false}"
 : "${MAX_SNAPSHOT_AGE:=24h}"
 : "${LIFECYCLE_STATE:=ACTIVE}"
-: "${WAIT_FOR_STATE:=}"
+: "${WAIT_STATE:=}"
 : "${TAG_NAMESPACE:=DBSec}"
 : "${ENVIRONMENT_TAG:=Environment}"
 : "${CONTAINER_STAGE_TAG:=ContainerStage}"
@@ -106,7 +106,7 @@ Options:
         --apply                 Apply changes (default: dry-run only)
     -n, --dry-run               Dry-run mode (show what would be done)
     -L, --lifecycle STATE       Lifecycle state filter (default: ${LIFECYCLE_STATE})
-        --wait-for-state STATE  Wait for target update to reach state (e.g. ACCEPTED)
+        --wait-state STATE  Wait for target update to reach state (e.g. ACCEPTED)
 
   Tag Configuration:
         --namespace NS          Tag namespace (default: ${TAG_NAMESPACE})
@@ -244,9 +244,9 @@ parse_args() {
                 LIFECYCLE_STATE="$2"
                 shift 2
                 ;;
-            --wait-for-state)
+            --wait-state)
                 need_val "$1" "${2:-}"
-                WAIT_FOR_STATE="$2"
+                WAIT_STATE="$2"
                 shift 2
                 ;;
             --oci-profile)
@@ -578,8 +578,8 @@ update_target_tags() {
             --defined-tags "$update_json"
         )
 
-        if [[ -n "$WAIT_FOR_STATE" ]]; then
-            cmd+=(--wait-for-state "$WAIT_FOR_STATE")
+        if [[ -n "$WAIT_STATE" ]]; then
+            cmd+=(--wait-for-state "$WAIT_STATE")
         fi
 
         if oci_exec "${cmd[@]}" > /dev/null; then

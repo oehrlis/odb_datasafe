@@ -1465,12 +1465,12 @@ ds_refresh_target() {
         return 0
     fi
 
-    # Build OCI command based on wait flag
+    # Build OCI command based on wait state
     local -a refresh_cmd=(oci data-safe target-database refresh --target-database-id "$target_ocid")
 
-    if [[ "${WAIT_FOR_COMPLETION:-false}" == "true" ]]; then
-        refresh_cmd+=(--wait-for-state SUCCEEDED --wait-for-state FAILED)
-        log_info "[$current/$total] Refreshing: $target_name (waiting for completion...)"
+    if [[ -n "${WAIT_STATE:-}" ]]; then
+        refresh_cmd+=(--wait-for-state "${WAIT_STATE}")
+        log_info "[$current/$total] Refreshing: $target_name (waiting for ${WAIT_STATE}...)"
     else
         log_info "[$current/$total] Refreshing: $target_name (async)"
     fi
@@ -1479,7 +1479,7 @@ ds_refresh_target() {
     [[ -n "${OCI_CLI_PROFILE}" ]] && refresh_cmd+=(--profile "${OCI_CLI_PROFILE}")
     [[ -n "${OCI_CLI_REGION}" ]] && refresh_cmd+=(--region "${OCI_CLI_REGION}")
 
-    log_trace "OCI command: ${refresh_cmd[*]}"
+    log_trace "OCI command: $(printf '%q ' "${refresh_cmd[@]}")"
 
     local output=""
     local exit_code=0

@@ -6,7 +6,7 @@
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
 # Date.......: 2026.03.02
-# Version....: v0.17.4
+# Version....: v0.17.5
 # Purpose....: Delete Oracle Data Safe target databases and their dependencies
 #              for given target names/OCIDs or all targets in a compartment.
 # Requires...: bash (>=4), oci, jq, lib/ds_lib.sh
@@ -29,6 +29,7 @@
 : "${FORCE:=false}"                   # skip confirmation prompts
 : "${DELETE_DEPENDENCIES:=true}"      # delete audit trails, assessments, policies
 : "${CONTINUE_ON_ERROR:=true}"        # continue processing other targets if one fails
+: "${WAIT_STATE:=}"                   # State to wait for; empty = return after submit
 # shellcheck disable=SC2034 # consumed by parse_common_opts in common.sh
 SHOW_USAGE_ON_EMPTY_ARGS=true
 
@@ -98,6 +99,8 @@ Deletion options:
       --no-delete-dependencies  Skip deleting dependencies
       --continue-on-error       Continue with other targets if one fails (default: true)
       --stop-on-error           Stop processing on first failure
+      --wait-state STATE        Wait for delete to reach STATE (e.g. SUCCEEDED).
+                                Default: return after submit (async)
 
 OCI CLI:
       --oci-config <file>       OCI CLI config file (default: ${OCI_CLI_CONFIG_FILE})
@@ -167,6 +170,10 @@ parse_args() {
             --stop-on-error)
                 CONTINUE_ON_ERROR=false
                 shift
+                ;;
+            --wait-state)
+                WAIT_STATE="${2^^}"
+                shift 2
                 ;;
             --oci-config)
                 OCI_CLI_CONFIG_FILE="$2"
@@ -336,13 +343,13 @@ step_delete_targets() {
 
         log_info "Deleting target: ${target_name}"
 
-        if oci data-safe target-database delete \
-            --target-database-id "${target_ocid}" \
-            --config-file "${OCI_CLI_CONFIG_FILE}" \
-            --profile "${OCI_CLI_PROFILE}" \
-            --force \
-            --wait-for-state SUCCEEDED \
-            > /dev/null 2>&1; then
+        local delete_cmd=(oci data-safe target-database delete
+            --target-database-id "${target_ocid}"
+            --config-file "${OCI_CLI_CONFIG_FILE}"
+            --profile "${OCI_CLI_PROFILE}"
+            --force)
+        [[ -n "${WAIT_STATE}" ]] && delete_cmd+=(--wait-for-state "${WAIT_STATE}")
+        if "${delete_cmd[@]}" > /dev/null 2>&1; then
             log_info "  ✓ Successfully deleted: ${target_name}"
             deleted_count=$((deleted_count + 1)) || true
         else

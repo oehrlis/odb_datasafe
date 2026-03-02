@@ -75,7 +75,7 @@ exit 0
 EOF
     chmod +x "${TEST_BIN_DIR}/oci"
 
-    run "${BIN_DIR}/ds_target_refresh.sh" --input-json "$sample_json" --allow-stale-selection --no-wait
+    run "${BIN_DIR}/ds_target_refresh.sh" --input-json "$sample_json" --allow-stale-selection
     [ "$status" -eq 0 ]
     [[ "$output" == *"already in progress"* ]]
 }

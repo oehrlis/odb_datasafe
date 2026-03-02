@@ -5,7 +5,7 @@
 # Script.....: ds_target_update_service.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.03.02
-# Version....: v0.17.4
+# Version....: v0.17.5
 # Purpose....: Update Oracle Data Safe target service names
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
@@ -25,7 +25,7 @@ readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly LIB_DIR="${SCRIPT_DIR}/../lib"
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.17.4')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.17.5')"
 readonly SCRIPT_VERSION
 
 # Defaults
@@ -40,7 +40,7 @@ readonly SCRIPT_VERSION
 : "${MAX_SNAPSHOT_AGE:=24h}"
 : "${DB_DOMAIN:=oradba.ch}"
 : "${APPLY_CHANGES:=false}"
-: "${WAIT_FOR_STATE:=}"
+: "${WAIT_STATE:=}"
 # shellcheck disable=SC2034 # consumed by parse_common_opts in common.sh
 SHOW_USAGE_ON_EMPTY_ARGS=true
 
@@ -101,7 +101,7 @@ Options:
 
   Service Update:
         --domain DOMAIN         Domain for new service names (default: ${DB_DOMAIN})
-        --wait-for-state STATE  Wait for target update to reach state (e.g. ACCEPTED)
+        --wait-state STATE  Wait for target update to reach state (e.g. ACCEPTED)
         --apply                 Apply changes (default: dry-run only)
     -n, --dry-run               Dry-run mode (show what would be done)
 
@@ -217,9 +217,9 @@ parse_args() {
                 DB_DOMAIN="$2"
                 shift 2
                 ;;
-            --wait-for-state)
+            --wait-state)
                 need_val "$1" "${2:-}"
-                WAIT_FOR_STATE="$2"
+                WAIT_STATE="$2"
                 shift 2
                 ;;
             --apply)
@@ -415,8 +415,8 @@ update_target_service() {
             --database-details "{\"serviceName\": \"$new_service\"}"
         )
 
-        if [[ -n "$WAIT_FOR_STATE" ]]; then
-            cmd+=(--wait-for-state "$WAIT_FOR_STATE")
+        if [[ -n "$WAIT_STATE" ]]; then
+            cmd+=(--wait-for-state "$WAIT_STATE")
         fi
 
         if oci_exec "${cmd[@]}" > /dev/null; then

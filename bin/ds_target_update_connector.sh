@@ -5,7 +5,7 @@
 # Script.....: ds_target_update_connector.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.03.02
-# Version....: v0.17.4
+# Version....: v0.17.5
 # Purpose....: Manage Oracle Data Safe on-premises connector assignments
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
@@ -25,7 +25,7 @@ readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly LIB_DIR="${SCRIPT_DIR}/../lib"
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.17.4')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.17.5')"
 readonly SCRIPT_VERSION
 
 # Defaults
@@ -40,7 +40,7 @@ readonly SCRIPT_VERSION
 : "${EXCLUDE_CONNECTORS:=}"
 : "${OPERATION_MODE:=}"
 : "${APPLY_CHANGES:=false}"
-: "${WAIT_FOR_COMPLETION:=false}" # Default to no-wait for speed
+: "${WAIT_STATE:=}"               # State to wait for; empty = return after submit
 : "${EXCLUDE_AUTO:=false}"
 # shellcheck disable=SC2034 # consumed by parse_common_opts in common.sh
 SHOW_USAGE_ON_EMPTY_ARGS=true
@@ -113,8 +113,8 @@ Options:
   Execution:
         --apply                     Apply changes (default: dry-run only)
     -n, --dry-run                   Dry-run mode (show what would be done)
-        --wait                      Wait for each update to complete (slower but shows status)
-        --no-wait                   Don't wait for completion (faster, default)
+        --wait-state STATE          Wait for each update to reach STATE (e.g. SUCCEEDED).
+                                    Default: return after submit (async, faster for bulk)
 
 Mode Details:
 
@@ -252,13 +252,10 @@ parse_args() {
                 EXCLUDE_AUTO=true
                 shift
                 ;;
-            --wait)
-                WAIT_FOR_COMPLETION=true
-                shift
-                ;;
-            --no-wait)
-                WAIT_FOR_COMPLETION=false
-                shift
+            --wait-state)
+                need_val "$1" "${2:-}"
+                WAIT_STATE="${2^^}"
+                shift 2
                 ;;
             --apply)
                 APPLY_CHANGES=true
@@ -574,8 +571,8 @@ update_target_connector() {
         )
 
         # Add wait-for-state if requested
-        if [[ "$WAIT_FOR_COMPLETION" == "true" ]]; then
-            oci_cmd+=(--wait-for-state SUCCEEDED --wait-for-state FAILED)
+        if [[ -n "${WAIT_STATE:-}" ]]; then
+            oci_cmd+=(--wait-for-state "${WAIT_STATE}")
         fi
 
         # Execute update

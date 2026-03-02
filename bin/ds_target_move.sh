@@ -5,7 +5,7 @@
 # Script.....: ds_target_move.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.03.02
-# Version....: v0.17.4
+# Version....: v0.17.5
 # Purpose....: Move Oracle Data Safe targets and their referencing objects
 #              to another compartment for given target names/OCIDs.
 # Requires...: bash (>=4), oci, jq, lib/ds_lib.sh
@@ -26,7 +26,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.17.4')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.17.5')"
 # shellcheck disable=SC2034  # Used by parse_common_opts for --version output
 readonly SCRIPT_NAME SCRIPT_VERSION
 
@@ -52,6 +52,7 @@ source "${LIB_DIR}/ds_lib.sh"
 : "${CONTINUE_ON_ERROR:=true}" # Continue processing other targets if one fails
 : "${FORCE:=false}"            # Skip confirmation prompts
 : "${DRY_RUN:=false}"
+: "${WAIT_STATE:=}"            # State to wait for; empty = return after submit
 # shellcheck disable=SC2034 # consumed by parse_common_opts in common.sh
 SHOW_USAGE_ON_EMPTY_ARGS=true
 
@@ -103,6 +104,8 @@ Move options:
     -f, --force                         Skip confirmation prompts
     --continue-on-error                 Continue with other targets if one fails (default: true)
     --stop-on-error                     Stop processing on first failure
+    --wait-state STATE                  Wait for move to reach STATE (e.g. SUCCEEDED).
+                                        Default: return after submit (async)
 
 OCI CLI:
     --oci-config <file>                 OCI CLI config file (default: ${OCI_CLI_CONFIG_FILE})
@@ -188,6 +191,11 @@ parse_args() {
             --stop-on-error)
                 CONTINUE_ON_ERROR=false
                 shift 1
+                ;;
+            --wait-state)
+                need_val "$1" "${2:-}"
+                WAIT_STATE="${2^^}"
+                shift 2
                 ;;
             --oci-config)
                 need_val "$1" "${2:-}"
@@ -444,10 +452,11 @@ step_move_targets() {
 
         log_info "Moving target: ${target_name}"
 
-        if oci_exec data-safe target-database change-compartment \
-            --target-database-id "${target_ocid}" \
-            --compartment-id "${DEST_COMP_OCID}" \
-            > /dev/null; then
+        local move_cmd=(data-safe target-database change-compartment
+            --target-database-id "${target_ocid}"
+            --compartment-id "${DEST_COMP_OCID}")
+        [[ -n "${WAIT_STATE}" ]] && move_cmd+=(--wait-for-state "${WAIT_STATE}")
+        if oci_exec "${move_cmd[@]}" > /dev/null; then
             log_info "  ✓ Successfully moved: ${target_name}"
             moved_count=$((moved_count + 1))
         else
