@@ -49,8 +49,8 @@ readonly SCRIPT_VERSION
 # Set DS_ENV_COMP_REGEX in datasafe.conf for your compartment naming convention.
 # Example: '^cmp-.*-([^-]+)-projects$' captures "prod" from cmp-lzp-dbso-prod-projects
 : "${ENV_COMP_REGEX:=${DS_ENV_COMP_REGEX:-}}"
-: "${CONTAINER_STAGE_VALUE:=}"  # Explicit override; default: auto-derive as {type}-{env}
-: "${CLASSIFICATION_VALUE:=}"   # Explicit override; default: undef
+: "${CONTAINER_STAGE_VALUE:=}" # Explicit override; default: auto-derive as {type}-{env}
+: "${CLASSIFICATION_VALUE:=}"  # Explicit override; default: undef
 # shellcheck disable=SC2034 # consumed by parse_common_opts in common.sh
 SHOW_USAGE_ON_EMPTY_ARGS=true
 

@@ -1146,7 +1146,7 @@ register_target() {
     local tags_json="{}"
     if [[ "$NO_TAGS" != "true" ]]; then
         tags_json=$(jq -n \
-            --arg ns  "$TAG_NAMESPACE" \
+            --arg ns "$TAG_NAMESPACE" \
             --arg env "$_TAG_ENV" \
             --arg typ "$_TAG_TYPE" \
             --arg stg "$_TAG_STAGE" \
