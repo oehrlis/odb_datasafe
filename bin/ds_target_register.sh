@@ -78,6 +78,7 @@ DISPLAY_NAME=""
 DESCRIPTION=""
 CLUSTER=""
 CHECK_ONLY=false
+WAIT_STATE=""     # State to poll for after submit; empty = return immediately after API call
 # shellcheck disable=SC2034 # consumed by parse_common_opts in common.sh
 SHOW_USAGE_ON_EMPTY_ARGS=true
 
@@ -141,17 +142,25 @@ METADATA:
 MODES:
         --check                         Only check if target already exists
     -n, --dry-run                       Show registration plan without executing
+        --wait-state STATE              Poll until target reaches STATE after submit
+                                        (e.g. ACTIVE, NEEDS_ATTENTION). Default: return
+                                        immediately after submit (background registration)
     -h, --help                          Show this help
 
 EXAMPLES:
-    # Register a PDB
+    # Register a PDB — return immediately, let OCI activate in background
     ds_target_register.sh -H db01 --sid cdb01 --pdb APP1PDB \\
     -c prod-compartment --connector my-connector --ds-secret <secret>
-    
+
+    # Register and wait until target becomes ACTIVE
+    ds_target_register.sh -H db01 --sid cdb01 --pdb APP1PDB \\
+    -c prod-compartment --connector my-connector --ds-secret <secret> \\
+    --wait-state ACTIVE
+
     # Register CDB\$ROOT
     ds_target_register.sh -H db01 --sid cdb01 --root \\
     -c prod-compartment --connector my-connector --ds-secret <secret>
-    
+
     # Check if target exists
     ds_target_register.sh -H db01 --sid cdb01 --pdb APP1PDB \\
     -c prod-compartment --connector my-connector --check
@@ -240,6 +249,11 @@ parse_args() {
             --check)
                 CHECK_ONLY=true
                 shift
+                ;;
+            --wait-state)
+                need_val "$1" "${2:-}"
+                WAIT_STATE="${2^^}"
+                shift 2
                 ;;
             -n | --dry-run)
                 DRY_RUN=true
@@ -1029,7 +1043,13 @@ register_target() {
     }
     rm -f "$json_file"
 
-    log_info "Target registration submitted. Waiting for ACTIVE state..."
+    if [[ -z "$WAIT_STATE" ]]; then
+        log_info "Target registration submitted. Activation continues in background."
+        log_info "Check status: ds_target_list.sh -T $DISPLAY_NAME"
+        return 0
+    fi
+
+    log_info "Target registration submitted. Waiting for ${WAIT_STATE} state..."
     local target_id=""
     local elapsed=0
     local poll_interval=15
@@ -1043,10 +1063,11 @@ register_target() {
 
         target_id=$(echo "$poll_json" | jq -r \
             --arg name "$DISPLAY_NAME" \
-            '.data[] | select(."display-name" == $name and ."lifecycle-state" == "ACTIVE") | .id' \
+            --arg state "$WAIT_STATE" \
+            '.data[] | select(."display-name" == $name and ."lifecycle-state" == $state) | .id' \
             2> /dev/null | head -1 || true)
         if [[ -n "$target_id" ]]; then
-            log_info "Successfully registered target: $DISPLAY_NAME"
+            log_info "Target reached ${WAIT_STATE}: $DISPLAY_NAME"
             log_info "Target OCID: $target_id"
             return 0
         fi
@@ -1060,10 +1081,10 @@ register_target() {
             die "Target registration failed (FAILED state): $DISPLAY_NAME ($failed_id)"
         fi
 
-        log_info "Waiting for target ACTIVE... (${elapsed}/${max_wait}s)"
+        log_info "Waiting for target ${WAIT_STATE}... (${elapsed}/${max_wait}s)"
     done
 
-    log_warn "Target registration submitted but ACTIVE state not confirmed in ${max_wait}s"
+    log_warn "Registration submitted but ${WAIT_STATE} state not reached in ${max_wait}s"
     log_warn "Check status: ds_target_list.sh -T $DISPLAY_NAME"
 }
 

@@ -10,6 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `bin/ds_target_register.sh`: added `--wait-state STATE` option. The default
+  is now to return immediately after the registration API call succeeds
+  (activation continues in the background). Pass `--wait-state ACTIVE` to
+  restore the previous blocking behaviour (polls until the target reaches that
+  lifecycle state or `FAILED`, with a 10-minute timeout). Any valid Data Safe
+  target lifecycle state is accepted (`ACTIVE`, `NEEDS_ATTENTION`, etc.).
+  `WAIT_STATE` is normalised to uppercase at parse time.
+
 - `lib/oci_helpers.sh`: new `oci_resolve_vmcluster_by_name()` — resolves a VM
   cluster display name to OCID **and** `compartment-id` in a single structured-
   search call (tries `VmCluster` then `CloudVmCluster`). Eliminates the previous
