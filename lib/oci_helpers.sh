@@ -298,11 +298,11 @@ oci_exec() {
     [[ -n "${OCI_CLI_REGION}" ]] && cmd+=(--region "${OCI_CLI_REGION}")
 
     # Log command at trace level (raw command detail belongs at trace, not debug)
-    log_trace "OCI command: ${cmd[*]}"
+    log_trace "OCI command: $(printf '%q ' "${cmd[@]}")"
 
     # Dry-run: just show command
     if [[ "${DRY_RUN}" == "true" ]]; then
-        log_info "[DRY-RUN] Would execute: ${cmd[*]}"
+        log_info "[DRY-RUN] Would execute: $(printf '%q ' "${cmd[@]}")"
         return 0
     fi
 
@@ -316,7 +316,7 @@ oci_exec() {
         return 0
     else
         exit_code=$?
-        log_error "OCI command failed (exit ${exit_code}): ${cmd[*]}"
+        log_error "OCI command failed (exit ${exit_code}): $(printf '%q ' "${cmd[@]}")"
         log_trace "Output: $output"
         return $exit_code
     fi
@@ -340,7 +340,7 @@ oci_exec_ro() {
     [[ -n "${OCI_CLI_REGION}" ]] && cmd+=(--region "${OCI_CLI_REGION}")
 
     # Log command at trace level (raw command detail belongs at trace, not debug)
-    log_trace "OCI command: ${cmd[*]}"
+    log_trace "OCI command: $(printf '%q ' "${cmd[@]}")"
 
     # Execute command (always, even in dry-run)
     local output
@@ -352,7 +352,7 @@ oci_exec_ro() {
         return 0
     else
         exit_code=$?
-        log_error "OCI command failed (exit ${exit_code}): ${cmd[*]}"
+        log_error "OCI command failed (exit ${exit_code}): $(printf '%q ' "${cmd[@]}")"
         log_trace "Output: $output"
         return $exit_code
     fi

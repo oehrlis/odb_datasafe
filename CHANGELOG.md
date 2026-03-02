@@ -68,6 +68,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `lib/oci_helpers.sh`: `oci_exec()` and `oci_exec_ro()` now log the OCI command
+  using `$(printf '%q ' "${cmd[@]}")` instead of `${cmd[*]}`. The old form joined
+  array elements with spaces and stripped quoting from multi-word arguments (e.g.
+  `--query-text "query VmCluster …"`), making copy-pasted trace output invalid.
+  The new form shell-escapes each element so the logged command can be run as-is.
 - `bin/ds_target_register.sh`: PDB registration on ExaCC no longer fails when
   `pluggableDatabaseId` cannot be resolved. For ExaCC targets (where
   `CLUSTER_OCID` is set), a failed PDB OCID lookup is now a warning rather than
