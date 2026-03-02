@@ -22,6 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     OCI CLI to prompt for interactive confirmation. Without a tty stdin the
     prompt received "invalid input" and the command exited 1 on every target.
     Fixed: `--force` now always included.
+- `bin/ds_target_update_tags.sh`, `bin/ds_target_register.sh`: `DS_ENV_COMP_REGEX`
+  set in `datasafe.conf` was silently ignored — Environment always resolved to
+  `undef`. Root cause: the `${ENV_COMP_REGEX:=...}` default in the script
+  preamble runs before `init_config` loads `datasafe.conf`, locking
+  `ENV_COMP_REGEX` to an empty string. Fixed: `validate_inputs()` /
+  `derive_tag_values()` now syncs `ENV_COMP_REGEX` from `DS_ENV_COMP_REGEX`
+  after config load. CLI `--env-regex` still takes precedence.
 
 ### Added
 
@@ -41,6 +48,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `--class VALUE`.
 - `etc/datasafe.conf.example`: added commented `DS_ENV_COMP_REGEX` example
   entry with usage notes and the customer pattern as illustration.
+- `bin/ds_target_register.sh`: defined tags are now set on the target at
+  registration time, using the same derivation logic as
+  `ds_target_update_tags.sh`:
+  - `ContainerType` auto-derived from the target display name suffix.
+  - `Environment` derived from the compartment name via `DS_ENV_COMP_REGEX` /
+    `--env-regex PATTERN`.
+  - `ContainerStage` auto-derived as `{type}-{env}`; override with `--stage VALUE`.
+  - `Classification` defaults to `undef`; set with `--class VALUE`.
+  - New `--no-tags` flag skips all tag setting.
 
 ## [0.17.5] - 2026-03-02
 

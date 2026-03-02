@@ -333,6 +333,14 @@ parse_args() {
 validate_inputs() {
     log_debug "Validating inputs..."
 
+    # Sync ENV_COMP_REGEX from config: the defaults block runs before init_config
+    # loads datasafe.conf, so DS_ENV_COMP_REGEX is only available now.
+    # CLI --env-regex takes precedence (ENV_COMP_REGEX already set).
+    if [[ -z "$ENV_COMP_REGEX" ]]; then
+        ENV_COMP_REGEX="${DS_ENV_COMP_REGEX:-}"
+        [[ -n "$ENV_COMP_REGEX" ]] && log_debug "Using DS_ENV_COMP_REGEX from config: $ENV_COMP_REGEX"
+    fi
+
     if [[ -n "$INPUT_JSON" ]]; then
         [[ -r "$INPUT_JSON" ]] || die "Input JSON file not found: $INPUT_JSON"
         ds_validate_input_json_freshness "$INPUT_JSON" "$MAX_SNAPSHOT_AGE" || die "Input JSON snapshot freshness check failed"

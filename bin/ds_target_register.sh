@@ -49,7 +49,7 @@ LIB_DIR="${SCRIPT_DIR}/../lib"
 
 # Script identification
 SCRIPT_NAME="ds_target_register"
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.17.5')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.17.6')"
 
 # Load framework libraries
 if [[ ! -f "${LIB_DIR}/ds_lib.sh" ]]; then
@@ -79,6 +79,26 @@ DESCRIPTION=""
 CLUSTER=""
 CHECK_ONLY=false
 WAIT_STATE="" # State to poll for after submit; empty = return immediately after API call
+
+# Tag configuration (same defaults as ds_target_update_tags.sh)
+TAG_NAMESPACE="${TAG_NAMESPACE:-DBSec}"
+ENVIRONMENT_TAG="${ENVIRONMENT_TAG:-Environment}"
+CONTAINER_STAGE_TAG="${CONTAINER_STAGE_TAG:-ContainerStage}"
+CONTAINER_TYPE_TAG="${CONTAINER_TYPE_TAG:-ContainerType}"
+CLASSIFICATION_TAG="${CLASSIFICATION_TAG:-Classification}"
+# Regex applied to compartment name; capture group 1 is the environment value.
+# Set DS_ENV_COMP_REGEX in datasafe.conf for your compartment naming convention.
+ENV_COMP_REGEX="${ENV_COMP_REGEX:-${DS_ENV_COMP_REGEX:-}}"
+CONTAINER_STAGE_VALUE="" # Explicit override; default: auto-derive as {type}-{env}
+CLASSIFICATION_VALUE=""  # Explicit override; default: undef
+NO_TAGS=false            # Set true via --no-tags to skip all tag setting
+
+# Derived tag values — populated by derive_tag_values() after validate_inputs()
+_TAG_ENV=""
+_TAG_TYPE=""
+_TAG_STAGE=""
+_TAG_CLASS=""
+
 # shellcheck disable=SC2034 # consumed by parse_common_opts in common.sh
 SHOW_USAGE_ON_EMPTY_ARGS=true
 
@@ -147,6 +167,24 @@ MODES:
                                         immediately after submit (background registration)
     -h, --help                          Show this help
 
+TAGS:
+        --no-tags                       Skip setting defined tags on the target
+        --env-regex PATTERN             Regex for Environment derivation from compartment name.
+                                        Capture group 1 is the environment value (e.g. "prod").
+                                        Can also be set via DS_ENV_COMP_REGEX in datasafe.conf.
+                                        Example: '^cmp-.*-([^-]+)-projects\$'
+        --stage VALUE                   Explicit ContainerStage value (overrides auto-derive).
+                                        Default: auto-derive as {type}-{env} (e.g. "pdb-prod").
+        --class VALUE                   Explicit Classification value (default: undef).
+
+TAG DERIVATION:
+    - Environment  : capture group 1 of ENV_COMP_REGEX / DS_ENV_COMP_REGEX applied to
+                     compartment name; "undef" when regex is unset or compartment doesn't match.
+    - ContainerType: "cdbroot" when target name ends in _CDBROOT, otherwise "pdb".
+    - ContainerStage: "{type}-{env}" (e.g. "pdb-prod"); "undef" when Environment is "undef".
+                     Override with --stage VALUE.
+    - Classification: "undef" by default; set with --class VALUE.
+
 EXAMPLES:
     # Register a PDB — return immediately, let OCI activate in background
     ds_target_register.sh -H db01 --sid cdb01 --pdb APP1PDB \\
@@ -164,6 +202,16 @@ EXAMPLES:
     # Check if target exists
     ds_target_register.sh -H db01 --sid cdb01 --pdb APP1PDB \\
     -c prod-compartment --connector my-connector --check
+
+    # Register with inline environment regex (tags auto-derived)
+    ds_target_register.sh -H db01 --sid cdb01 --pdb APP1PDB \\
+    -c prod-compartment --connector my-connector --ds-secret <secret> \\
+    --env-regex '^cmp-.*-([^-]+)-projects\$'
+
+    # Register without tags
+    ds_target_register.sh -H db01 --sid cdb01 --pdb APP1PDB \\
+    -c prod-compartment --connector my-connector --ds-secret <secret> \\
+    --no-tags
 
 EXIT CODES:
     0 = Success
@@ -258,6 +306,25 @@ parse_args() {
             -n | --dry-run)
                 DRY_RUN=true
                 shift
+                ;;
+            --no-tags)
+                NO_TAGS=true
+                shift
+                ;;
+            --env-regex)
+                need_val "$1" "${2:-}"
+                ENV_COMP_REGEX="$2"
+                shift 2
+                ;;
+            --stage)
+                need_val "$1" "${2:-}"
+                CONTAINER_STAGE_VALUE="$2"
+                shift 2
+                ;;
+            --class)
+                need_val "$1" "${2:-}"
+                CLASSIFICATION_VALUE="$2"
+                shift 2
                 ;;
             --oci-config)
                 export OCI_CLI_CONFIG_FILE="$2"
@@ -900,6 +967,82 @@ check_target_exists() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: get_env_from_compartment_name
+# Purpose.: Derive environment value from compartment name using ENV_COMP_REGEX
+# Args....: $1 - Compartment name
+# Returns.: 0 on success
+# Output..: Environment string (capture group 1 of regex, or "undef")
+# Notes...: Set DS_ENV_COMP_REGEX in datasafe.conf to match your compartment
+#           naming convention. Capture group 1 is the environment value.
+#           Example: '^cmp-.*-([^-]+)-projects$' captures "prod" from
+#           "cmp-org-unit-prod-projects".
+# ------------------------------------------------------------------------------
+get_env_from_compartment_name() {
+    local comp_name="$1"
+
+    if [[ -z "$ENV_COMP_REGEX" ]]; then
+        echo "undef"
+        return 0
+    fi
+
+    if [[ "$comp_name" =~ $ENV_COMP_REGEX ]]; then
+        echo "${BASH_REMATCH[1]:-undef}"
+    else
+        echo "undef"
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# Function: get_container_type_from_name
+# Purpose.: Derive container type from Data Safe target name suffix
+# Args....: $1 - Target display name
+# Returns.: 0 on success
+# Output..: "cdbroot" when name ends in _CDBROOT, otherwise "pdb"
+# ------------------------------------------------------------------------------
+get_container_type_from_name() {
+    local target_name="$1"
+    if [[ "$target_name" =~ _CDBROOT$ ]]; then
+        echo "cdbroot"
+    else
+        echo "pdb"
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# Function: derive_tag_values
+# Purpose.: Derive _TAG_ENV, _TAG_TYPE, _TAG_STAGE, _TAG_CLASS from display name
+#           and compartment name. Must be called after validate_inputs() because
+#           DISPLAY_NAME and COMP_NAME are resolved there.
+# Args....: None (reads DISPLAY_NAME, COMP_NAME, ENV_COMP_REGEX globals)
+# Returns.: 0 on success
+# Output..: Sets _TAG_ENV, _TAG_TYPE, _TAG_STAGE, _TAG_CLASS globals
+# ------------------------------------------------------------------------------
+derive_tag_values() {
+    # Sync ENV_COMP_REGEX from config: the defaults block runs before init_config
+    # loads datasafe.conf, so DS_ENV_COMP_REGEX is only available here.
+    # CLI --env-regex takes precedence (ENV_COMP_REGEX already non-empty).
+    if [[ -z "$ENV_COMP_REGEX" ]]; then
+        ENV_COMP_REGEX="${DS_ENV_COMP_REGEX:-}"
+        [[ -n "$ENV_COMP_REGEX" ]] && log_debug "Using DS_ENV_COMP_REGEX from config: $ENV_COMP_REGEX"
+    fi
+
+    _TAG_ENV=$(get_env_from_compartment_name "${COMP_NAME:-}")
+    _TAG_TYPE=$(get_container_type_from_name "${DISPLAY_NAME:-}")
+
+    if [[ -n "$CONTAINER_STAGE_VALUE" ]]; then
+        _TAG_STAGE="$CONTAINER_STAGE_VALUE"
+    elif [[ "$_TAG_ENV" != "undef" ]]; then
+        _TAG_STAGE="${_TAG_TYPE}-${_TAG_ENV}"
+    else
+        _TAG_STAGE="undef"
+    fi
+
+    _TAG_CLASS="${CLASSIFICATION_VALUE:-undef}"
+
+    log_debug "Tag derivation: env=${_TAG_ENV} type=${_TAG_TYPE} stage=${_TAG_STAGE} class=${_TAG_CLASS}"
+}
+
+# ------------------------------------------------------------------------------
 # Function: show_registration_plan
 # Purpose.: Display the registration plan summary
 # Args....: None
@@ -938,6 +1081,16 @@ show_registration_plan() {
 
     if [[ -n "$DESCRIPTION" ]]; then
         log_info "  Description:   $DESCRIPTION"
+    fi
+
+    if [[ "$NO_TAGS" == "true" ]]; then
+        log_info "  Tags:          (disabled via --no-tags)"
+    else
+        log_info "  Tags (${TAG_NAMESPACE}):"
+        log_info "    Environment:    ${_TAG_ENV}"
+        log_info "    ContainerType:  ${_TAG_TYPE}"
+        log_info "    ContainerStage: ${_TAG_STAGE}"
+        log_info "    Classification: ${_TAG_CLASS}"
     fi
 }
 
@@ -989,6 +1142,22 @@ register_target() {
         | if ($runRoot != "true" and $pluggableDatabaseId != "") then . + {pluggableDatabaseId: $pluggableDatabaseId} else . end
     ')
 
+    # Build defined tags JSON (unless --no-tags)
+    local tags_json="{}"
+    if [[ "$NO_TAGS" != "true" ]]; then
+        tags_json=$(jq -n \
+            --arg ns  "$TAG_NAMESPACE" \
+            --arg env "$_TAG_ENV" \
+            --arg typ "$_TAG_TYPE" \
+            --arg stg "$_TAG_STAGE" \
+            --arg cls "$_TAG_CLASS" \
+            --arg envk "$ENVIRONMENT_TAG" \
+            --arg typk "$CONTAINER_TYPE_TAG" \
+            --arg stgk "$CONTAINER_STAGE_TAG" \
+            --arg clsk "$CLASSIFICATION_TAG" \
+            '{($ns): {($envk): $env, ($typk): $typ, ($stgk): $stg, ($clsk): $cls}}')
+    fi
+
     # Create full payload
     jq -n \
         --arg comp "$COMP_OCID" \
@@ -998,6 +1167,7 @@ register_target() {
         --arg pass "$DS_SECRET" \
         --arg conn "$CONNECTOR_OCID" \
         --argjson dbd "$db_details" \
+        --argjson tags "$tags_json" \
         '{
             compartmentId: $comp,
             displayName: $name,
@@ -1011,7 +1181,8 @@ register_target() {
                 onPremConnectorId: $conn
             },
             databaseDetails: $dbd
-        }' > "$json_file"
+        }
+        | if ($tags | length) > 0 then . + {definedTags: $tags} else . end' > "$json_file"
 
     log_debug "JSON payload created: $json_file"
     if [[ "${DEBUG:-false}" == "true" || "${TRACE:-false}" == "true" ]]; then
@@ -1123,6 +1294,9 @@ main() {
 
     # Validate inputs
     validate_inputs
+
+    # Derive tag values (requires DISPLAY_NAME and COMP_NAME from validate_inputs)
+    derive_tag_values
 
     # Show registration plan
     show_registration_plan
