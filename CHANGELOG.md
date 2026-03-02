@@ -79,6 +79,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `lib/oci_helpers.sh`: `check_oci_auth()` now logs the active OCI config file,
+  profile, and region at DEBUG level before the authentication check, making
+  it easy to spot wrong-profile issues in debug output.
+- `bin/ds_target_register.sh`: fixed subshell variable propagation bug in
+  `validate_inputs()` — the cluster-name branch now calls
+  `oci_resolve_vmcluster_by_name()` directly so that `CLUSTER_OCID` and
+  `derived_compartment` are assigned in the parent shell. The previous code
+  called `resolve_vm_cluster_ocid()` inside `$(...)`, making any global set
+  inside that subshell invisible to the parent; `derived_compartment` was
+  always empty, causing the unnecessary host-derivation path to run and
+  potentially overwrite the correct cluster compartment.
+- `bin/ds_target_register.sh`: connector lookup no longer silently falls back
+  to the target database compartment when `DS_ROOT_COMP`/`DS_CONNECTOR_COMP`
+  are not set. The fallback now emits two `[WARN]` lines directing the user to
+  configure the missing variable. The `die` message on connector-not-found now
+  includes the searched compartment OCID for easier diagnosis.
 - `lib/oci_helpers.sh`: `oci_exec()` and `oci_exec_ro()` now log the OCI command
   using `$(printf '%q ' "${cmd[@]}")` instead of `${cmd[*]}`. The old form joined
   array elements with spaces and stripped quoting from multi-word arguments (e.g.

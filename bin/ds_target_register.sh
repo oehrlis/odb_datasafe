@@ -86,7 +86,6 @@ COMP_OCID=""
 CONNECTOR_OCID=""
 CLUSTER_OCID=""
 PLUGGABLE_DB_OCID=""
-_VMCLUSTER_FOUND_COMP=""  # Side-effect set by resolve_vm_cluster_ocid() on Strategy 1 hit
 
 # ------------------------------------------------------------------------------
 # Functions
@@ -391,20 +390,13 @@ resolve_vm_cluster_ocid() {
 
         # ------------------------------------------------------------------
         # Strategy 1: structured search — VmCluster then CloudVmCluster.
-        # Sets _VMCLUSTER_FOUND_COMP as a side-effect so validate_inputs()
-        # can use the compartment without an extra OCI round-trip.
         # ------------------------------------------------------------------
-        _VMCLUSTER_FOUND_COMP=""
         log_debug "Strategy 1: structured search for cluster '${cluster_ref}'"
         local cluster_json=""
         cluster_json=$(oci_resolve_vmcluster_by_name "$cluster_ref" || true)
         if [[ -n "$cluster_json" ]]; then
             resolved_cluster=$(jq -r '.id // empty' <<< "$cluster_json")
             [[ "$resolved_cluster" == "null" ]] && resolved_cluster=""
-            if [[ -n "$resolved_cluster" ]]; then
-                _VMCLUSTER_FOUND_COMP=$(jq -r '."compartment-id" // empty' <<< "$cluster_json")
-                [[ "$_VMCLUSTER_FOUND_COMP" == "null" ]] && _VMCLUSTER_FOUND_COMP=""
-            fi
         fi
         if [[ -n "$resolved_cluster" ]]; then
             log_debug "Found cluster '${cluster_ref}' via structured search: ${resolved_cluster}"
@@ -670,16 +662,26 @@ validate_inputs() {
                     derived_compartment=""
                 fi
             else
-                # Name provided — resolve_vm_cluster_ocid() tries structured search
-                # (Strategy 1: returns OCID + sets _VMCLUSTER_FOUND_COMP) then DB-list
-                # fallback (Strategy 2). Read compartment from the side-effect global
-                # to avoid a second OCI round-trip.
+                # Name provided — call oci_resolve_vmcluster_by_name() directly so
+                # that CLUSTER_OCID and derived_compartment are assigned in the parent
+                # shell. (Setting globals inside $(...) subshells has no effect on the
+                # parent.) Falls back to resolve_vm_cluster_ocid() (Strategy 2: DB-list)
+                # only when the structured search yields no result.
                 log_debug "Resolving cluster by name: ${CLUSTER}"
-                _VMCLUSTER_FOUND_COMP=""
-                if CLUSTER_OCID=$(resolve_vm_cluster_ocid || true); [[ -n "$CLUSTER_OCID" ]]; then
-                    log_debug "Early resolved cluster OCID: ${CLUSTER_OCID}"
-                    derived_compartment="$_VMCLUSTER_FOUND_COMP"
+                local cluster_json=""
+                cluster_json=$(oci_resolve_vmcluster_by_name "$CLUSTER" || true)
+                if [[ -n "$cluster_json" ]]; then
+                    CLUSTER_OCID=$(jq -r '.id // empty' <<< "$cluster_json")
+                    [[ "$CLUSTER_OCID" == "null" ]] && CLUSTER_OCID=""
+                    derived_compartment=$(jq -r '."compartment-id" // empty' <<< "$cluster_json")
+                    [[ "$derived_compartment" == "null" ]] && derived_compartment=""
+                    [[ -n "$CLUSTER_OCID" ]] && log_debug "Early resolved cluster OCID: ${CLUSTER_OCID}"
                     [[ -n "$derived_compartment" ]] && log_info "Using compartment derived from cluster '$CLUSTER': $derived_compartment"
+                fi
+                # Strategy 1 failed (e.g. IAM limits) — try DB-list fallback (Strategy 2)
+                if [[ -z "$CLUSTER_OCID" ]]; then
+                    CLUSTER_OCID=$(resolve_vm_cluster_ocid || true)
+                    [[ -n "$CLUSTER_OCID" ]] && log_debug "Resolved cluster OCID via DB-list fallback: ${CLUSTER_OCID}"
                 fi
             fi
         fi
@@ -801,9 +803,14 @@ validate_inputs() {
             fi
             log_debug "Using explicit connector compartment: $CONNECTOR_COMPARTMENT"
         else
-            # Use helper function (DS_CONNECTOR_COMP -> DS_ROOT_COMP -> target compartment)
-            connector_search_comp=$(get_connector_compartment_ocid 2> /dev/null || echo "$COMP_OCID")
-            log_debug "Using default connector compartment"
+            # DS_CONNECTOR_COMP -> DS_ROOT_COMP; connectors are shared resources and
+            # live in a central compartment, not in the target database compartment.
+            if ! connector_search_comp=$(get_connector_compartment_ocid 2>/dev/null); then
+                log_warn "DS_CONNECTOR_COMP and DS_ROOT_COMP are not set — searching connector in target compartment (likely wrong)"
+                log_warn "Set DS_ROOT_COMP or DS_CONNECTOR_COMP in datasafe.conf to fix connector lookup"
+                connector_search_comp="$COMP_OCID"
+            fi
+            log_debug "Searching connector in compartment: ${connector_search_comp}"
         fi
 
         # Try to find connector by name using read-only operation
@@ -817,7 +824,7 @@ validate_inputs() {
         CONNECTOR_OCID=$(echo "$connectors_json" | jq -r ".data[] | select(.\"display-name\" == \"$CONNECTOR\") | .id" | head -n1)
 
         if [[ -z "$CONNECTOR_OCID" ]]; then
-            die "Connector not found: $CONNECTOR in compartment"
+            die "Connector not found: ${CONNECTOR} in compartment ${connector_search_comp}"
         fi
         log_debug "Resolved connector: ${CONNECTOR} -> ${CONNECTOR_OCID}"
     fi

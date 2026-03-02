@@ -117,6 +117,7 @@ check_oci_cli_auth() {
         [[ "$_OCI_CLI_AUTH_CHECKED" == "success" ]] && return 0 || return 1
     fi
 
+    log_debug "OCI CLI config: file=${OCI_CLI_CONFIG_FILE} profile=${OCI_CLI_PROFILE}${OCI_CLI_REGION:+ region=${OCI_CLI_REGION}}"
     log_debug "Checking OCI CLI authentication..."
 
     # Build test command with OCI config options
