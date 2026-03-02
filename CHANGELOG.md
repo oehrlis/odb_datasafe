@@ -117,6 +117,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `lib/oci_helpers.sh`: **security fix** — `ds_generate_connector_bundle()` passed
+  `--password "$password"` inline to `oci_exec()`, which logged the full command at
+  TRACE level and at ERROR level (always shown on failures), exposing the plaintext
+  bundle encryption password. Added `_oci_redact_cmd()`: a one-pass sanitizer that
+  replaces the value following `--password` in the command array with `****` before
+  formatting for log output. Applied to all six log sites across `oci_exec()`,
+  `oci_exec_ro()`, and `ds_refresh_target()`. The actual execution array is unchanged;
+  only the string used in log messages is sanitised.
+
 - `lib/oci_helpers.sh`: `check_oci_auth()` now logs the active OCI config file,
   profile, and region at DEBUG level before the authentication check, making
   it easy to spot wrong-profile issues in debug output.
