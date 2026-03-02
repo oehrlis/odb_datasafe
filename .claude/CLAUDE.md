@@ -60,11 +60,12 @@
 
 ## Related Repositories (ecosystem context)
 
-| Repo            | Role                                          | Edit policy                              |
-|-----------------|-----------------------------------------------|------------------------------------------|
-| **oradba**      | Base environment; odb_datasafe extends this   | Read-only unless explicitly requested    |
-| **exatoolbox**  | Exadata wrapper orchestrating odb_datasafe    | Only `bin/exa_ds.sh` + `doc/exa_ds.md`   |
-| **datasafe**    | Legacy reference scripts                      | READ ONLY — do not modify                |
+| Repo                | Role                                          | Edit policy                              |
+|---------------------|-----------------------------------------------|------------------------------------------|
+| **oradba**          | Base environment; odb_datasafe extends this   | Read-only unless explicitly requested    |
+| **exatoolbox**      | Exadata wrapper orchestrating odb_datasafe    | Only `bin/exa_ds.sh` + `doc/exa_ds.md`   |
+| **datasafe**        | Customer config + docs for odb_datasafe       | Full edit                                |
+| **datasafe_legacy** | Legacy reference scripts                      | READ ONLY — do not modify                |
 
 ### Path reference
 
@@ -72,6 +73,7 @@
 - **exatoolbox**: `/Users/stefan.oehrli/Library/CloudStorage/OneDrive-Accenture/Customers/VW/10_Arbeitsresultate/exatoolbox`
   (symlink: `/opt/oracle/local/exatoolbox`)
 - **datasafe**: `/Users/stefan.oehrli/Library/CloudStorage/OneDrive-Accenture/Customers/VW/10_Arbeitsresultate/datasafe`
+- **datasafe_legacy**: `/Users/stefan.oehrli/Library/CloudStorage/OneDrive-Accenture/Customers/VW/10_Arbeitsresultate/datasafe_legacy`
 
 ### OneDrive path note
 
