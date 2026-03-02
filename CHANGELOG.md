@@ -8,6 +8,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.6] - 2026-03-02
+
+### Fixed
+
+- `bin/ds_target_update_tags.sh`: fixed two bugs that caused every OCI tag
+  update to fail:
+  - `build_tag_update_json()` wrapped the tag payload in an extra
+    `{"defined-tags": {...}}` envelope. The `--defined-tags` CLI flag already
+    implies that wrapper; the nested key was rejected by OCI CLI. Fixed: output
+    only the namespace map `{"DBSec": {...}}` directly.
+  - Missing `--force` on the `data-safe target-database update` call caused
+    OCI CLI to prompt for interactive confirmation. Without a tty stdin the
+    prompt received "invalid input" and the command exited 1 on every target.
+    Fixed: `--force` now always included.
+
+### Added
+
+- `bin/ds_target_update_tags.sh`: configurable, generic tag derivation:
+  - **`ContainerType`** — auto-derived from target name suffix: `_CDBROOT` →
+    `cdbroot`, otherwise `pdb`. No configuration required.
+  - **`Environment`** — derived via a configurable regex applied to the
+    compartment name. Capture group 1 is the environment value. Set
+    `DS_ENV_COMP_REGEX` in `datasafe.conf` for your naming convention, or
+    pass `--env-regex PATTERN` on the command line.
+    Example: `'^cmp-.*-([^-]+)-projects$'` captures `prod` from
+    `cmp-lzp-dbso-prod-projects`.
+  - **`ContainerStage`** — auto-derived as `{type}-{env}` (e.g. `pdb-prod`,
+    `cdbroot-test`); falls back to `undef` when `Environment` is `undef`.
+    Override with `--stage VALUE`.
+  - **`Classification`** — defaults to `undef`; set explicitly with
+    `--class VALUE`.
+- `etc/datasafe.conf.example`: added commented `DS_ENV_COMP_REGEX` example
+  entry with usage notes and the customer pattern as illustration.
+
 ## [0.17.5] - 2026-03-02
 
 ### Added
@@ -235,7 +269,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `bin/ds_target_export.sh`: `build_connector_map()` now delegates to
   `ds_build_connector_map()` in the library.
 
-### Fixed
+### Fixed (registration and cluster resolution)
 
 - `bin/ds_target_register.sh`: Data Safe registration payload for
   cloud-at-customer now resolves and includes required resource identifiers
@@ -321,7 +355,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   preserving existing long options and `--mode` usage.
 - Aligned the `Delta vs previous run` report section in `bin/ds_target_list.sh`
   using fixed-width labels for cleaner and more consistent terminal output.
-
 
 ## [0.17.0] - 2026-02-23
 
@@ -619,11 +652,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   supported scripts, and examples.
 - Added release note `doc/release_notes/v0.15.0.md`.
 
-
 ---
 
 ## Older Versions (< 0.15.0)
 
 Versions prior to 0.15.0 have been archived.
 See [doc/release_notes/archive/CHANGELOG_archive.md](doc/release_notes/archive/CHANGELOG_archive.md).
-

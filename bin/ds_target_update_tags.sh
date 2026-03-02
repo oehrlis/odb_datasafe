@@ -5,7 +5,7 @@
 # Script.....: ds_target_update_tags.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.03.02
-# Version....: v0.17.5
+# Version....: v0.17.6
 # Purpose....: Update Oracle Data Safe target database tags based on compartment
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
