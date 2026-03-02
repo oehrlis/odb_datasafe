@@ -130,11 +130,11 @@
 # When unset, Environment defaults to "undef".
 # Adapt the pattern to your compartment naming convention.
 #
-#   Pattern                            Compartment example          → Env
-#   ---------------------------------- ---------------------------- ------
-#   '^cmp-.*-([^-]+)-projects$'        cmp-lzp-dbso-prod-projects   → prod
-#   '^.*-(dev|test|qs|prod)$'          my-org-prod                  → prod
-#   '^[^-]+-([^-]+)-.*$'              lzp-prod-dbso-projects        → prod
+#   Pattern                            Compartment example              → Env
+#   ---------------------------------- -------------------------------- ------
+#   '^cmp-.*-([^-]+)-projects$'        cmp-org-unit-prod-projects       → prod
+#   '^.*-(dev|test|qs|prod)$'          acme-prod                       → prod
+#   '^[^-]+-([^-]+)-.*$'              acme-prod-unit-projects          → prod
 #
 #DS_ENV_COMP_REGEX='^cmp-.*-([^-]+)-projects$'
 
