@@ -118,6 +118,8 @@ check_oci_cli_auth() {
     fi
 
     log_debug "OCI CLI config: file=${OCI_CLI_CONFIG_FILE} profile=${OCI_CLI_PROFILE}${OCI_CLI_REGION:+ region=${OCI_CLI_REGION}}"
+    log_debug "Data Safe config: ${_DATASAFE_CONF_FILES:-(none loaded)}"
+    log_debug "DS_ROOT_COMP: ${DS_ROOT_COMP:-(not set)}"
     log_debug "Checking OCI CLI authentication..."
 
     # Build test command with OCI config options

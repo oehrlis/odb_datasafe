@@ -38,6 +38,11 @@ readonly COMMON_SH_LOADED=1
 # Keep initialized for nounset-safe use in callers (set -- "${ARGS[@]-}").
 ARGS=()
 
+# Accumulates paths of config files actually loaded by load_config().
+# Logged in check_oci_auth() (after debug mode is enabled) to show the
+# effective config cascade even when --debug is passed on the CLI.
+_DATASAFE_CONF_FILES=""
+
 # =============================================================================
 # COLOR SETUP
 # =============================================================================
@@ -451,6 +456,7 @@ load_config() {
 
     if [[ -f "$config_file" ]]; then
         log_debug "Loading config from: $config_file"
+        _DATASAFE_CONF_FILES="${_DATASAFE_CONF_FILES:+${_DATASAFE_CONF_FILES} }${config_file}"
         # shellcheck disable=SC1090
         source "$config_file"
     fi
