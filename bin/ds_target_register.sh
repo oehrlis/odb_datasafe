@@ -386,39 +386,23 @@ resolve_vm_cluster_ocid() {
             return 0
         fi
 
-        local cluster_esc="${cluster_ref//\'/\'\\\'}"
         local resolved_cluster=""
-        local search_out
 
         # ------------------------------------------------------------------
-        # Strategy 1: OCI structured search — tenant-wide, no compartment needed.
-        # Note: calls oci_exec_ro directly (not via oci_resolve_ocid_by_name)
-        # so that debug/trace messages are visible in the log output.
+        # Strategy 1: structured search — VmCluster then CloudVmCluster.
+        # oci_resolve_vmcluster_by_name() returns OCID + compartment-id in one
+        # call; we only need the OCID here (compartment is consumed by the
+        # validate_inputs() early-resolution path).
         # ------------------------------------------------------------------
-        log_debug "Strategy 1a: structured search for cluster '${cluster_ref}' (VmCluster type)"
-        search_out=$(oci_exec_ro search resource structured-search \
-            --query-text "query VmCluster resources where displayName = '${cluster_esc}'" \
-            --limit 25 || true)
-        resolved_cluster=$(jq -r \
-            '(.data.items // []) | map(.identifier // .id // empty) | first // empty' \
-            <<< "$search_out" 2> /dev/null || true)
-        [[ "$resolved_cluster" == "null" ]] && resolved_cluster=""
-        if [[ -n "$resolved_cluster" ]]; then
-            log_debug "Found '${cluster_ref}' as VmCluster: ${resolved_cluster}"
-            printf '%s' "$resolved_cluster"
-            return 0
+        log_debug "Strategy 1: structured search for cluster '${cluster_ref}'"
+        local cluster_json=""
+        cluster_json=$(oci_resolve_vmcluster_by_name "$cluster_ref" 2>/dev/null || true)
+        if [[ -n "$cluster_json" ]]; then
+            resolved_cluster=$(jq -r '.id // empty' <<< "$cluster_json")
+            [[ "$resolved_cluster" == "null" ]] && resolved_cluster=""
         fi
-
-        log_debug "Strategy 1b: structured search for cluster '${cluster_ref}' (CloudVmCluster type)"
-        search_out=$(oci_exec_ro search resource structured-search \
-            --query-text "query CloudVmCluster resources where displayName = '${cluster_esc}'" \
-            --limit 25 || true)
-        resolved_cluster=$(jq -r \
-            '(.data.items // []) | map(.identifier // .id // empty) | first // empty' \
-            <<< "$search_out" 2> /dev/null || true)
-        [[ "$resolved_cluster" == "null" ]] && resolved_cluster=""
         if [[ -n "$resolved_cluster" ]]; then
-            log_debug "Found '${cluster_ref}' as CloudVmCluster: ${resolved_cluster}"
+            log_debug "Found cluster '${cluster_ref}' via structured search: ${resolved_cluster}"
             printf '%s' "$resolved_cluster"
             return 0
         fi
@@ -681,19 +665,24 @@ validate_inputs() {
                     derived_compartment=""
                 fi
             else
-                # Name provided - use full resolution (structured search + sub-compartment
-                # enumeration) so debug/trace messages are visible in the log output.
+                # Name provided — structured search returns OCID + compartment-id in one
+                # call; only fall through to resolve_vm_cluster_ocid() (Strategy 2: DB list)
+                # when the structured search yields no result.
                 log_debug "Resolving cluster by name: ${CLUSTER}"
-                local cluster_ocid_candidate=""
-                cluster_ocid_candidate=$(resolve_vm_cluster_ocid || true)
-                if [[ -n "$cluster_ocid_candidate" ]]; then
-                    CLUSTER_OCID="$cluster_ocid_candidate"
-                    log_debug "Early resolved cluster OCID: ${CLUSTER_OCID}"
-                    derived_compartment=$(resolve_vm_cluster_compartment_ocid "$CLUSTER_OCID" 2> /dev/null || true)
+                local cluster_json=""
+                cluster_json=$(oci_resolve_vmcluster_by_name "$CLUSTER" 2>/dev/null || true)
+                if [[ -n "$cluster_json" ]]; then
+                    CLUSTER_OCID=$(jq -r '.id // empty' <<< "$cluster_json")
+                    [[ "$CLUSTER_OCID" == "null" ]] && CLUSTER_OCID=""
+                    derived_compartment=$(jq -r '."compartment-id" // empty' <<< "$cluster_json")
                     [[ "$derived_compartment" == "null" ]] && derived_compartment=""
-                    if [[ -n "$derived_compartment" ]]; then
-                        log_info "Using compartment derived from cluster '$CLUSTER': $derived_compartment"
-                    fi
+                    [[ -n "$CLUSTER_OCID" ]] && log_debug "Early resolved cluster OCID: ${CLUSTER_OCID}"
+                    [[ -n "$derived_compartment" ]] && log_info "Using compartment derived from cluster '$CLUSTER': $derived_compartment"
+                fi
+                # If structured search failed (e.g. IAM limits), fall back to Strategy 2
+                if [[ -z "$CLUSTER_OCID" ]]; then
+                    CLUSTER_OCID=$(resolve_vm_cluster_ocid || true)
+                    [[ -n "$CLUSTER_OCID" ]] && log_debug "Resolved cluster OCID via DB-list fallback: ${CLUSTER_OCID}"
                 fi
             fi
         fi

@@ -10,6 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `lib/oci_helpers.sh`: new `oci_resolve_vmcluster_by_name()` — resolves a VM
+  cluster display name to OCID **and** `compartment-id` in a single structured-
+  search call (tries `VmCluster` then `CloudVmCluster`). Eliminates the previous
+  two-step approach (search for OCID → `db vm-cluster get` for compartment).
+- `bin/ds_target_register.sh`: `validate_inputs()` cluster-name branch now calls
+  `oci_resolve_vmcluster_by_name()` directly, extracting both cluster OCID and
+  compartment-id in one OCI round-trip. Falls back to `resolve_vm_cluster_ocid()`
+  (Strategy 2: DB-list scan) only when structured search yields no result.
+  `resolve_vm_cluster_ocid()` Strategy 1 simplified to use the new function,
+  replacing the separate 1a/1b VmCluster/CloudVmCluster blocks.
+
 - `scripts/build.sh`: added `doc/` to the release tarball; the latest release
   note (`doc/release_notes/v${VERSION}.md`) is staged as `doc/v${VERSION}.md`
   at the `doc/` root for the duration of the build and then removed. The

@@ -522,6 +522,44 @@ oci_resolve_compartment_by_dbnode_name() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: oci_resolve_vmcluster_by_name
+# Purpose.: Resolve VM cluster display name to OCID + compartment-id in a single
+#           structured-search call. Tries VmCluster then CloudVmCluster.
+# Args....: $1 - cluster display name
+# Returns.: 0 if found, 1 if not found; JSON {"id":"...","compartment-id":"..."} on stdout
+# Notes...: Prefer this over a two-step name→OCID + OCID→compartment lookup to
+#           avoid the extra OCI API round-trip. The structured-search response
+#           already contains both .identifier (OCID) and ."compartment-id".
+# ------------------------------------------------------------------------------
+oci_resolve_vmcluster_by_name() {
+    local name="$1"
+    [[ -z "$name" ]] && return 1
+    local esc="${name//\'/\'\\\'}"
+
+    local rtype out ocid comp
+    for rtype in VmCluster CloudVmCluster; do
+        log_debug "Structured search: query ${rtype} displayName='${name}'"
+        out=$(oci_exec_ro search resource structured-search \
+            --query-text "query ${rtype} resources where displayName = '${esc}'" \
+            --limit 10 2>/dev/null || true)
+        [[ -z "$out" ]] && continue
+
+        ocid=$(jq -r '(.data.items // []) | map(.identifier // .id // empty) | first // empty' \
+            <<< "$out" 2>/dev/null || true)
+        [[ -z "$ocid" || "$ocid" == "null" ]] && continue
+
+        comp=$(jq -r '(.data.items // []) | map(."compartment-id" // .compartmentId // empty) | first // empty' \
+            <<< "$out" 2>/dev/null || true)
+        [[ "$comp" == "null" ]] && comp=""
+
+        log_debug "Resolved ${rtype} '${name}': ocid=${ocid} compartment=${comp:-n/a}"
+        printf '{"id":"%s","compartment-id":"%s"}\n' "$ocid" "${comp:-}"
+        return 0
+    done
+    return 1
+}
+
+# ------------------------------------------------------------------------------
 # Function: oci_resolve_vm_cluster_compartment
 # Purpose.: Resolve compartment OCID from VM cluster OCID
 # Args....: $1 - VM cluster OCID (vmcluster or cloudvmcluster)
