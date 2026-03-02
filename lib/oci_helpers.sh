@@ -544,15 +544,15 @@ oci_resolve_vmcluster_by_name() {
         log_debug "Structured search: query ${rtype} displayName='${name}'"
         out=$(oci_exec_ro search resource structured-search \
             --query-text "query ${rtype} resources where displayName = '${esc}'" \
-            --limit 10 2>/dev/null || true)
+            --limit 10 2> /dev/null || true)
         [[ -z "$out" ]] && continue
 
         ocid=$(jq -r '(.data.items // []) | map(.identifier // .id // empty) | first // empty' \
-            <<< "$out" 2>/dev/null || true)
+            <<< "$out" 2> /dev/null || true)
         [[ -z "$ocid" || "$ocid" == "null" ]] && continue
 
         comp=$(jq -r '(.data.items // []) | map(."compartment-id" // .compartmentId // empty) | first // empty' \
-            <<< "$out" 2>/dev/null || true)
+            <<< "$out" 2> /dev/null || true)
         [[ "$comp" == "null" ]] && comp=""
 
         log_debug "Resolved ${rtype} '${name}': ocid=${ocid} compartment=${comp:-n/a}"

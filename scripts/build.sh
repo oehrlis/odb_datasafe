@@ -13,7 +13,7 @@ DRY_RUN=false
 VERSION=""
 EXT_CHECKSUM_FILE=".extension.checksum"
 CLEANUP_CHECKSUM=false
-RELEASE_NOTES_FILE=""       # Staged release note inside doc/ (removed on exit)
+RELEASE_NOTES_FILE="" # Staged release note inside doc/ (removed on exit)
 CLEANUP_RELEASE_NOTE=false
 
 usage() {

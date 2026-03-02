@@ -52,7 +52,7 @@ source "${LIB_DIR}/ds_lib.sh"
 : "${CONTINUE_ON_ERROR:=true}" # Continue processing other targets if one fails
 : "${FORCE:=false}"            # Skip confirmation prompts
 : "${DRY_RUN:=false}"
-: "${WAIT_STATE:=}"            # State to wait for; empty = return after submit
+: "${WAIT_STATE:=}" # State to wait for; empty = return after submit
 # shellcheck disable=SC2034 # consumed by parse_common_opts in common.sh
 SHOW_USAGE_ON_EMPTY_ARGS=true
 

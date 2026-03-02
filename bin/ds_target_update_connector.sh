@@ -40,7 +40,7 @@ readonly SCRIPT_VERSION
 : "${EXCLUDE_CONNECTORS:=}"
 : "${OPERATION_MODE:=}"
 : "${APPLY_CHANGES:=false}"
-: "${WAIT_STATE:=}"               # State to wait for; empty = return after submit
+: "${WAIT_STATE:=}" # State to wait for; empty = return after submit
 : "${EXCLUDE_AUTO:=false}"
 # shellcheck disable=SC2034 # consumed by parse_common_opts in common.sh
 SHOW_USAGE_ON_EMPTY_ARGS=true

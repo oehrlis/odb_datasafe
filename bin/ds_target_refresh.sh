@@ -35,7 +35,7 @@ readonly SCRIPT_VERSION
 : "${TARGET_FILTER:=}"
 : "${LIFECYCLE_STATE:=NEEDS_ATTENTION}" # Default to NEEDS_ATTENTION
 : "${DRY_RUN:=false}"
-: "${WAIT_STATE:=}"               # State to wait for; empty = return after submit
+: "${WAIT_STATE:=}" # State to wait for; empty = return after submit
 : "${INPUT_JSON:=}"
 : "${SAVE_JSON:=}"
 : "${ALLOW_STALE_SELECTION:=false}"

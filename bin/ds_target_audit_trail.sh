@@ -41,7 +41,7 @@ SHOW_USAGE_ON_EMPTY_ARGS=true
 
 # Runtime globals
 RESOLVED_TARGETS=()
-TARGETS_PAYLOAD_JSON=""  # Cached by resolve_targets(); reused by list_audit_trails()
+TARGETS_PAYLOAD_JSON="" # Cached by resolve_targets(); reused by list_audit_trails()
 started_count=0
 failed_count=0
 
@@ -352,8 +352,8 @@ list_audit_trails() {
             local tgt_json
             tgt_json=$(oci_exec_ro data-safe target-database get \
                 --target-database-id "$target_ocid" 2> /dev/null) || tgt_json="{}"
-            [[ -z "$target_name" ]] && \
-                target_name=$(jq -r '.data."display-name" // empty' <<< "$tgt_json")
+            [[ -z "$target_name" ]] \
+                && target_name=$(jq -r '.data."display-name" // empty' <<< "$tgt_json")
             target_compartment=$(jq -r '.data."compartment-id" // empty' <<< "$tgt_json")
         fi
         [[ -z "$target_name" ]] && target_name="$target_ocid"
@@ -366,21 +366,21 @@ list_audit_trails() {
             --target-id "$target_ocid" \
             --all 2> /dev/null) || trails_json='{"data":{"items":[]}}'
 
-        trail_state=$(printf '%s' "$trails_json" | \
-            jq -r '(.data.items // .data)[]?."lifecycle-state" // empty' | head -n1)
+        trail_state=$(printf '%s' "$trails_json" \
+            | jq -r '(.data.items // .data)[]?."lifecycle-state" // empty' | head -n1)
 
         if [[ -z "$trail_state" ]]; then
             trail_state="(no trail)"
             note="missing"
         else
             case "${trail_state^^}" in
-                COLLECTING)               note="ok"               ;;
-                STARTING | RESUMING)      note="starting"         ;;
-                STOPPED)                  note="needs restart"    ;;
-                INACTIVE)                 note="inactive"         ;;
-                NEEDS_ATTENTION | FAILED) note="needs attention"  ;;
-                DELETING | DELETED)       note="deleted"          ;;
-                *)                        note=""                 ;;
+                COLLECTING) note="ok" ;;
+                STARTING | RESUMING) note="starting" ;;
+                STOPPED) note="needs restart" ;;
+                INACTIVE) note="inactive" ;;
+                NEEDS_ATTENTION | FAILED) note="needs attention" ;;
+                DELETING | DELETED) note="deleted" ;;
+                *) note="" ;;
             esac
         fi
 

@@ -78,7 +78,7 @@ DISPLAY_NAME=""
 DESCRIPTION=""
 CLUSTER=""
 CHECK_ONLY=false
-WAIT_STATE=""     # State to poll for after submit; empty = return immediately after API call
+WAIT_STATE="" # State to poll for after submit; empty = return immediately after API call
 # shellcheck disable=SC2034 # consumed by parse_common_opts in common.sh
 SHOW_USAGE_ON_EMPTY_ARGS=true
 
@@ -819,7 +819,7 @@ validate_inputs() {
         else
             # DS_CONNECTOR_COMP -> DS_ROOT_COMP; connectors are shared resources and
             # live in a central compartment, not in the target database compartment.
-            if ! connector_search_comp=$(get_connector_compartment_ocid 2>/dev/null); then
+            if ! connector_search_comp=$(get_connector_compartment_ocid 2> /dev/null); then
                 log_warn "DS_CONNECTOR_COMP and DS_ROOT_COMP are not set — searching connector in target compartment (likely wrong)"
                 log_warn "Set DS_ROOT_COMP or DS_CONNECTOR_COMP in datasafe.conf to fix connector lookup"
                 connector_search_comp="$COMP_OCID"
