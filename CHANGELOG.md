@@ -26,20 +26,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- `bin/ds_target_audit_trail.sh`: fixed `start_audit_trails()` to list audit
-  trails per target first (`audit-trail list --target-database-id`) then start
-  each trail by its own OCID (`audit-trail start --audit-trail-id`). The
-  previous `--target-database-id` parameter is not accepted by `audit-trail
-  start` (OCI exit 2: "No such option"). Removed invalid CLI parameters
+- `bin/ds_target_audit_trail.sh`: fixed `start_audit_trails()` — the correct
+  flow is: list trails via `audit-trail list --compartment-id <ocid> --target-id
+  <ocid> --all` (response is `AuditTrailCollection`: `{"data":{"items":[...]}}`,
+  jq query `(.data.items // .data)[]?.id`), then start each by its OCID via
+  `audit-trail start --audit-trail-id`. Removed invalid CLI parameters
   (`--is-auto-queries-enabled`, `--update-last-archive-timestamp`,
   `--audit-trail-type`, `--collection-frequency`) from the start call; valid
   parameters are `--audit-collection-start-time` and `--is-auto-purge-enabled`.
-- `bin/ds_target_audit_trail.sh`: fixed inverted argument order in `die` call
-  (`die 1 "msg"` → `die "msg" 1`) that caused "numeric argument required"
+- `bin/ds_target_audit_trail.sh`: fixed `--audit-collection-start-time` default
+  value `"now"` (not a valid RFC3339 timestamp); converted at runtime to
+  `date -u +"%Y-%m-%dT%H:%M:%SZ"` when the default is used.
+- `bin/ds_target_audit_trail.sh`: fixed inverted argument order in two `die`
+  calls (`die 1 "msg"` → `die "msg" 1`) that caused "numeric argument required"
   shell errors on failure.
-- `bin/ds_target_audit_trail.sh`: removed `2>&1` redirect on `oci_exec` call
-  so that `log_error` / `log_trace` messages from `oci_exec` on OCI failures
-  are visible in the terminal (previously suppressed to `/dev/null`).
+- `bin/ds_target_audit_trail.sh`: removed `2>&1` redirect on `oci_exec` calls
+  so that `log_error` / `log_trace` messages on OCI failures are visible
+  (previously suppressed to `/dev/null`).
 - `bin/ds_target_delete.sh`: fixed missing `shift` after `--stop-on-error`
   flag, which caused the next argument to be silently consumed.
 - `bin/ds_target_details.sh`: removed dead `list_targets_in_compartment()`

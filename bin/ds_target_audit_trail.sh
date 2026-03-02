@@ -286,26 +286,38 @@ start_audit_trails() {
     started_count=0
     failed_count=0
 
+    # Resolve 'now' to a proper RFC3339 UTC timestamp required by OCI CLI
+    local collection_start_time
+    if [[ "${START_TIME}" == "now" ]]; then
+        collection_start_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    else
+        collection_start_time="${START_TIME}"
+    fi
+    log_debug "  Collection start time: ${collection_start_time}"
+
     for target_ocid in "${RESOLVED_TARGETS[@]}"; do
         log_debug "  Processing: $target_ocid"
 
-        # Fetch target name for logging
-        local target_name
-        target_name=$(oci_exec_ro data-safe target-database get \
-            --target-database-id "$target_ocid" \
-            --query 'data."display-name"' \
-            --raw-output 2> /dev/null || echo "$target_ocid")
+        # Fetch target details (name + compartment-id) for logging and audit-trail list
+        local target_json target_name target_compartment
+        target_json=$(oci_exec_ro data-safe target-database get \
+            --target-database-id "$target_ocid" 2> /dev/null) || target_json="{}"
+        target_name=$(jq -r '.data."display-name" // empty' <<< "$target_json")
+        [[ -z "$target_name" ]] && target_name="$target_ocid"
+        target_compartment=$(jq -r '.data."compartment-id" // empty' <<< "$target_json")
+        [[ -z "$target_compartment" ]] && target_compartment="${COMPARTMENT:-${DS_ROOT_COMP:-}}"
 
-        # List audit trails for this target
+        # List audit trails for this target (requires --compartment-id)
         local trails_json trail_ocids
         trails_json=$(oci_exec_ro data-safe audit-trail list \
-            --target-database-id "$target_ocid" \
-            --all 2> /dev/null) || {
+            --compartment-id "$target_compartment" \
+            --target-id "$target_ocid" \
+            --all) || {
             log_error "Failed to list audit trails for: $target_name"
             failed_count=$((failed_count + 1))
             continue
         }
-        trail_ocids=$(echo "$trails_json" | jq -r '.data[]?.id // empty')
+        trail_ocids=$(echo "$trails_json" | jq -r '(.data.items // .data)[]?.id // empty')
 
         if [[ -z "$trail_ocids" ]]; then
             log_warn "No audit trails found for: $target_name"
@@ -324,7 +336,7 @@ start_audit_trails() {
             [[ -z "$trail_ocid" ]] && continue
             if oci_exec data-safe audit-trail start \
                 --audit-trail-id "$trail_ocid" \
-                --audit-collection-start-time "$START_TIME" \
+                --audit-collection-start-time "$collection_start_time" \
                 --is-auto-purge-enabled "$AUTO_PURGE" > /dev/null; then
                 trail_ok=$((trail_ok + 1))
             else
@@ -387,7 +399,7 @@ main() {
             die "${failed_count} audit trail(s) failed to start" 1
         fi
     else
-        die 1 "No targets available for audit trail start"
+        die "No targets available for audit trail start" 1
     fi
 }
 
