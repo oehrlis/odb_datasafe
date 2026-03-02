@@ -5,8 +5,8 @@
 # Name.......: ds_target_details.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
-# Date.......: 2026.02.23
-# Version....: v0.17.0
+# Date.......: 2026.03.02
+# Version....: v0.17.4
 # Purpose....: Show/export detailed info for Oracle Data Safe target databases
 #              for given target names/OCIDs or all targets in a compartment.
 #              Output formats: table | json | csv.
@@ -24,7 +24,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.7.1')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.17.4')"
 # shellcheck disable=SC2034  # Used by parse_common_opts --version
 readonly SCRIPT_NAME SCRIPT_VERSION
 
