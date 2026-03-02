@@ -13,6 +13,8 @@ DRY_RUN=false
 VERSION=""
 EXT_CHECKSUM_FILE=".extension.checksum"
 CLEANUP_CHECKSUM=false
+RELEASE_NOTES_FILE=""       # Staged release note inside doc/ (removed on exit)
+CLEANUP_RELEASE_NOTE=false
 
 usage() {
     cat << 'USAGE'
@@ -117,6 +119,7 @@ CONTENT_PATHS=(
     LICENSE
     VERSION
     bin
+    doc
     sql
     rcv
     etc
@@ -133,6 +136,25 @@ if [[ ${#FILES[@]} -eq 0 ]]; then
     echo "No content found to package" >&2
     exit 1
 fi
+
+# ------------------------------------------------------------------------------
+# Stage latest release note into doc/ root (removed on exit)
+# doc/release_notes/ is excluded from the tarball; only this file is shipped.
+# ------------------------------------------------------------------------------
+stage_release_note() {
+    local rn_src="${SOURCE_DIR}/doc/release_notes/v${VERSION}.md"
+    local rn_dst="${SOURCE_DIR}/doc/v${VERSION}.md"
+
+    if [[ ! -f "$rn_src" ]]; then
+        echo "Warning: release note not found: doc/release_notes/v${VERSION}.md" >&2
+        return 0
+    fi
+
+    cp "$rn_src" "$rn_dst"
+    RELEASE_NOTES_FILE="doc/v${VERSION}.md"
+    CLEANUP_RELEASE_NOTE=true
+    echo "Staged release note: ${RELEASE_NOTES_FILE}"
+}
 
 # ------------------------------------------------------------------------------
 # Generate checksum file (added to tarball, not kept in source)
@@ -155,7 +177,8 @@ generate_checksum_file() {
                 [[ "$entry" == "$EXT_CHECKSUM_FILE" ]] && continue
                 [[ "$entry" == ".extension" ]] && continue
                 if [[ -d "$entry" ]]; then
-                    find "$entry" -type f
+                    # Exclude doc/release_notes/ — only the staged release note is shipped
+                    find "$entry" -path '*/release_notes' -prune -o -type f -print
                 elif [[ -f "$entry" ]]; then
                     echo "$entry"
                 fi
@@ -172,8 +195,12 @@ generate_checksum_file() {
     echo "Created checksum file ${EXT_CHECKSUM_FILE} with ${count} entries"
 }
 
-trap '[[ "$CLEANUP_CHECKSUM" == true ]] && rm -f "${SOURCE_DIR}/${EXT_CHECKSUM_FILE}"' EXIT
+trap '
+    [[ "$CLEANUP_CHECKSUM" == true ]]      && rm -f "${SOURCE_DIR}/${EXT_CHECKSUM_FILE}"
+    [[ "$CLEANUP_RELEASE_NOTE" == true ]]  && rm -f "${SOURCE_DIR}/${RELEASE_NOTES_FILE}"
+' EXIT
 
+stage_release_note
 generate_checksum_file
 FILES+=("$EXT_CHECKSUM_FILE")
 
@@ -194,7 +221,7 @@ fi
 
 mkdir -p "$DIST_DIR"
 
-tar -czf "$TARBALL" -C "$SOURCE_DIR" "${FILES[@]}"
+tar -czf "$TARBALL" -C "$SOURCE_DIR" --exclude=doc/release_notes "${FILES[@]}"
 echo "Created tarball: $TARBALL"
 
 if [[ "$CHECKSUM" == true ]]; then

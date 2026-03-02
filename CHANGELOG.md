@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `scripts/build.sh`: added `doc/` to the release tarball; the latest release
+  note (`doc/release_notes/v${VERSION}.md`) is staged as `doc/v${VERSION}.md`
+  at the `doc/` root for the duration of the build and then removed. The
+  `doc/release_notes/` subdirectory (including `archive/`) is excluded from
+  both the tarball (`--exclude=doc/release_notes` in `tar`) and the
+  `.extension.checksum` file (pruned by `find … -path '*/release_notes' -prune`).
+
 - `bin/ds_target_audit_trail.sh`: added `--list`/`-l` subcommand for a
   read-only per-target audit trail status view — one row per target showing
   display name, trail lifecycle state (`COLLECTING`, `STOPPED`, `(no trail)`,
