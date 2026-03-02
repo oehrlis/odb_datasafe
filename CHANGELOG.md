@@ -23,6 +23,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `bin/ds_target_delete.sh`: added `-r/--filter REGEX` scope flag; filter
   applied via `ds_filter_targets_json` in the compartment-scan branch of
   `validate_inputs()`.
+- All four `ds_target_*` scripts now fall back to `DS_ROOT_COMP` when no
+  `-T`/`-c`/`--all` is given (consistent with `ds_target_refresh.sh`), so
+  `--filter REGEX` alone is a valid invocation when `DS_ROOT_COMP` is configured.
+- `bin/ds_target_audit_trail.sh`: skip audit trails already in `COLLECTING`,
+  `STARTING`, or `RESUMING` state instead of erroring; reported as skipped in
+  the per-target and overall summary.
+- `bin/ds_target_move.sh`: positional arguments (bare target names/OCIDs) are
+  now appended to `TARGETS` instead of being silently stored in the now-removed
+  `POSITIONAL` array.
+- `tests/script_ds_target_audit_trail.bats`: new test file covering `--help`,
+  mutual-exclusion of `--all`/`-c`/`-T`, and `--filter` regex validation.
+- `tests/script_ds_target_delete.bats`: new test file covering `--help`,
+  `--filter` regex validation, and `--stop-on-error` shift regression.
+- `tests/script_ds_target_move.bats`: new test file covering `--help`,
+  required `-D` flag, mutual-exclusion of `--all`/`-c`/`-T`, and `--filter`
+  regex validation.
+- `tests/script_ds_target_details.bats`: extended with `--all`/`--filter`
+  mutual-exclusion tests and a filter-on-input-json test.
 
 ### Fixed
 

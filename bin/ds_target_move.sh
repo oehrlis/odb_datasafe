@@ -135,7 +135,6 @@ EOF
 parse_args() {
     parse_common_opts "$@"
 
-    POSITIONAL=()
     local -a remaining=()
     set -- "${ARGS[@]-}"
 
@@ -221,7 +220,14 @@ parse_args() {
         esac
     done
 
-    POSITIONAL=("${remaining[@]}")
+    # Treat positional arguments as additional targets
+    if [[ ${#remaining[@]} -gt 0 ]]; then
+        if [[ -z "$TARGETS" ]]; then
+            TARGETS="${remaining[*]}"
+        else
+            TARGETS="${TARGETS},${remaining[*]}"
+        fi
+    fi
 }
 
 # ------------------------------------------------------------------------------
@@ -237,10 +243,8 @@ validate_inputs() {
         usage 1
     fi
 
-    if [[ -z "${TARGETS}" && -z "${COMPARTMENT}" && "${SELECT_ALL}" != "true" && ${#POSITIONAL[@]} -eq 0 ]]; then
-        log_error "Provide targets (-T), a source compartment (-c), or use --all"
-        usage 1
-    fi
+    # Note: implicit DS_ROOT_COMP fallback is handled in preflight_checks()
+    # after ds_resolve_all_targets_scope, consistent with ds_target_refresh.sh
 }
 
 # ------------------------------------------------------------------------------
@@ -260,6 +264,13 @@ preflight_checks() {
     # Resolve --all to DS_ROOT_COMP (errors if combined with -c or -T)
     COMPARTMENT=$(ds_resolve_all_targets_scope "$SELECT_ALL" "$COMPARTMENT" "$TARGETS") \
         || die "Invalid --all usage. --all requires DS_ROOT_COMP and cannot be combined with -c/--compartment or -T/--targets"
+
+    # If no explicit scope, fall back to DS_ROOT_COMP (consistent with ds_target_refresh.sh)
+    if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
+        COMPARTMENT=$(resolve_compartment_for_operation "") \
+            || die "Specify -T/--targets, -c/--compartment, -A/--all, or set DS_ROOT_COMP"
+        log_info "No compartment specified, using DS_ROOT_COMP: $COMPARTMENT"
+    fi
 
     # Validate filter regex
     if ! ds_validate_target_filter_regex "$TARGET_FILTER"; then

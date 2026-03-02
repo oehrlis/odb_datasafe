@@ -209,13 +209,9 @@ validate_inputs() {
 
     require_oci_cli
 
-    # At least one scope must be specified
-    if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
-        die "Either -T/--targets or -c/--compartment must be specified. Use -h for help."
-    fi
-
-    # Resolve compartment using standard pattern: explicit > DS_ROOT_COMP > error
-    COMP_OCID=$(resolve_compartment_for_operation "$COMPARTMENT") || die "Failed to resolve compartment"
+    # Resolve compartment using standard pattern: explicit -c > DS_ROOT_COMP > error
+    COMP_OCID=$(resolve_compartment_for_operation "$COMPARTMENT") \
+        || die "Specify -T/--targets, -c/--compartment, or set DS_ROOT_COMP"
     log_info "Using compartment: $COMP_OCID"
 
     # Validate filter regex

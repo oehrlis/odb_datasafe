@@ -228,9 +228,11 @@ validate_inputs() {
     COMPARTMENT=$(ds_resolve_all_targets_scope "$SELECT_ALL" "$COMPARTMENT" "$TARGETS") \
         || die "Invalid --all usage. --all requires DS_ROOT_COMP and cannot be combined with -c/--compartment or -T/--targets"
 
-    # Must have at least one of: -T, -c, or --all
+    # If no explicit scope, fall back to DS_ROOT_COMP (consistent with ds_target_refresh.sh)
     if [[ -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
-        die "Must specify at least one of -T/--targets, -c/--compartment, or -A/--all"
+        COMPARTMENT=$(resolve_compartment_for_operation "") \
+            || die "Specify -T/--targets, -c/--compartment, -A/--all, or set DS_ROOT_COMP"
+        log_info "No compartment specified, using DS_ROOT_COMP: $COMPARTMENT"
     fi
 
     # Validate filter regex
@@ -308,7 +310,7 @@ start_audit_trails() {
         [[ -z "$target_compartment" ]] && target_compartment="${COMPARTMENT:-${DS_ROOT_COMP:-}}"
 
         # List audit trails for this target (requires --compartment-id)
-        local trails_json trail_ocids
+        local trails_json
         trails_json=$(oci_exec_ro data-safe audit-trail list \
             --compartment-id "$target_compartment" \
             --target-id "$target_ocid" \
@@ -317,9 +319,11 @@ start_audit_trails() {
             failed_count=$((failed_count + 1))
             continue
         }
-        trail_ocids=$(echo "$trails_json" | jq -r '(.data.items // .data)[]?.id // empty')
+        # Extract id + lifecycle-state as TSV for each trail
+        local trail_info
+        trail_info=$(echo "$trails_json" | jq -r '(.data.items // .data)[]? | [.id, (."lifecycle-state" // "UNKNOWN")] | @tsv')
 
-        if [[ -z "$trail_ocids" ]]; then
+        if [[ -z "$trail_info" ]]; then
             log_warn "No audit trails found for: $target_name"
             continue
         fi
@@ -330,10 +334,17 @@ start_audit_trails() {
             continue
         fi
 
-        # Start each audit trail by its OCID
-        local trail_ok=0 trail_fail=0
-        while IFS= read -r trail_ocid; do
+        # Start each audit trail by its OCID; skip already-running trails
+        local trail_ok=0 trail_fail=0 trail_skip=0
+        while IFS=$'\t' read -r trail_ocid trail_state; do
             [[ -z "$trail_ocid" ]] && continue
+            case "${trail_state^^}" in
+                COLLECTING | STARTING | RESUMING)
+                    log_info "Audit trail already ${trail_state} for: $target_name — skipping"
+                    trail_skip=$((trail_skip + 1))
+                    continue
+                    ;;
+            esac
             if oci_exec data-safe audit-trail start \
                 --audit-trail-id "$trail_ocid" \
                 --audit-collection-start-time "$collection_start_time" \
@@ -343,13 +354,13 @@ start_audit_trails() {
                 log_error "Failed to start audit trail $trail_ocid for: $target_name"
                 trail_fail=$((trail_fail + 1))
             fi
-        done <<< "$trail_ocids"
+        done <<< "$trail_info"
 
         if [[ $trail_fail -gt 0 ]]; then
-            log_error "Started $trail_ok, failed $trail_fail audit trail(s) for: $target_name"
+            log_error "Started $trail_ok, skipped $trail_skip, failed $trail_fail audit trail(s) for: $target_name"
             failed_count=$((failed_count + 1))
         else
-            log_info "Started $trail_ok audit trail(s) for: $target_name"
+            log_info "Started $trail_ok, skipped $trail_skip audit trail(s) for: $target_name"
             started_count=$((started_count + 1))
         fi
     done

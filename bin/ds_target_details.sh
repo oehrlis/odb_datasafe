@@ -297,10 +297,11 @@ validate_inputs() {
         die "Invalid --filter regex: $TARGET_FILTER"
     fi
 
-    # Require explicit target selection to avoid surprising full-tenancy scans
+    # If no explicit scope, fall back to DS_ROOT_COMP (consistent with ds_target_refresh.sh)
     if [[ -z "$INPUT_JSON" && -z "$TARGETS" && -z "$COMPARTMENT" ]]; then
-        log_error "Provide targets (-T), a compartment (-c), or use --all"
-        usage 1
+        COMPARTMENT=$(resolve_compartment_for_operation "") \
+            || die "Specify -T/--targets, -c/--compartment, -A/--all, or set DS_ROOT_COMP"
+        log_info "No compartment specified, using DS_ROOT_COMP: $COMPARTMENT"
     fi
 }
 
