@@ -283,6 +283,27 @@ get_connector_compartment_ocid() {
 # =============================================================================
 
 # ------------------------------------------------------------------------------
+# Function: _oci_redact_cmd
+# Purpose.: Return a shell-quoted command string with sensitive flag values masked
+# Args....: $@ - command array elements (same as passed to oci_exec / oci_exec_ro)
+# Returns.: Quoted string safe for log output; values after --password are ****
+# Output..: Single string to stdout
+# Notes...: Only --password is masked; extend the list below for other secrets
+# ------------------------------------------------------------------------------
+_oci_redact_cmd() {
+    local -a out=()
+    local prev=""
+    for arg in "$@"; do
+        case "$prev" in
+            --password) out+=("****") ;;
+            *) out+=("$arg") ;;
+        esac
+        prev="$arg"
+    done
+    printf '%q ' "${out[@]}"
+}
+
+# ------------------------------------------------------------------------------
 # Function: oci_exec
 # Purpose.: Execute OCI CLI with standard options and error handling
 # Args....: $@ - OCI command and arguments
@@ -301,11 +322,11 @@ oci_exec() {
     [[ -n "${OCI_CLI_REGION}" ]] && cmd+=(--region "${OCI_CLI_REGION}")
 
     # Log command at trace level (raw command detail belongs at trace, not debug)
-    log_trace "OCI command: $(printf '%q ' "${cmd[@]}")"
+    log_trace "OCI command: $(_oci_redact_cmd "${cmd[@]}")"
 
     # Dry-run: just show command
     if [[ "${DRY_RUN}" == "true" ]]; then
-        log_info "[DRY-RUN] Would execute: $(printf '%q ' "${cmd[@]}")"
+        log_info "[DRY-RUN] Would execute: $(_oci_redact_cmd "${cmd[@]}")"
         return 0
     fi
 
@@ -319,7 +340,7 @@ oci_exec() {
         return 0
     else
         exit_code=$?
-        log_error "OCI command failed (exit ${exit_code}): $(printf '%q ' "${cmd[@]}")"
+        log_error "OCI command failed (exit ${exit_code}): $(_oci_redact_cmd "${cmd[@]}")"
         log_trace "Output: $output"
         return $exit_code
     fi
@@ -343,7 +364,7 @@ oci_exec_ro() {
     [[ -n "${OCI_CLI_REGION}" ]] && cmd+=(--region "${OCI_CLI_REGION}")
 
     # Log command at trace level (raw command detail belongs at trace, not debug)
-    log_trace "OCI command: $(printf '%q ' "${cmd[@]}")"
+    log_trace "OCI command: $(_oci_redact_cmd "${cmd[@]}")"
 
     # Execute command (always, even in dry-run)
     local output
@@ -355,7 +376,7 @@ oci_exec_ro() {
         return 0
     else
         exit_code=$?
-        log_error "OCI command failed (exit ${exit_code}): $(printf '%q ' "${cmd[@]}")"
+        log_error "OCI command failed (exit ${exit_code}): $(_oci_redact_cmd "${cmd[@]}")"
         log_trace "Output: $output"
         return $exit_code
     fi
@@ -1479,7 +1500,7 @@ ds_refresh_target() {
     [[ -n "${OCI_CLI_PROFILE}" ]] && refresh_cmd+=(--profile "${OCI_CLI_PROFILE}")
     [[ -n "${OCI_CLI_REGION}" ]] && refresh_cmd+=(--region "${OCI_CLI_REGION}")
 
-    log_trace "OCI command: $(printf '%q ' "${refresh_cmd[@]}")"
+    log_trace "OCI command: $(_oci_redact_cmd "${refresh_cmd[@]}")"
 
     local output=""
     local exit_code=0
@@ -1493,7 +1514,7 @@ ds_refresh_target() {
             log_warn "[$current/$total] Skipping refresh for $target_name: operation already in progress"
             return 2
         fi
-        log_error "OCI command failed (exit ${exit_code}): ${refresh_cmd[*]}"
+        log_error "OCI command failed (exit ${exit_code}): $(_oci_redact_cmd "${refresh_cmd[@]}")"
         log_trace "Output: $output"
     fi
 
