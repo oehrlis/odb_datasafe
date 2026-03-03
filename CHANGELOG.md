@@ -34,6 +34,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `bin/ds_connector_update.sh`: removed duplicate `is_valid_bundle_key()` and
   `generate_bundle_key()` functions — now sourced from `lib/oci_helpers.sh`.
 
+### Fixed
+
+- `bin/ds_target_delete.sh`: fixed explicit target OCID resolution to avoid
+  stderr/log noise being captured into the resolved value. The script now
+  validates the resolved value as an OCID before enqueueing deletion, preventing
+  malformed OCI delete calls when target lookup emits mixed output.
+
 ## [0.17.6] - 2026-03-02
 
 ### Fixed

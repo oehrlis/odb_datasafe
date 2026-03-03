@@ -245,7 +245,13 @@ validate_inputs() {
         for target in "${target_inputs[@]}"; do
             [[ -z "$target" ]] && continue
             local resolved
-            if resolved=$(ds_resolve_target_ocid "$target" "$search_comp_ocid" 2>&1); then
+            if resolved=$(ds_resolve_target_ocid "$target" "$search_comp_ocid"); then
+                # Guard against accidental mixed output in debug mode: keep only OCID line
+                resolved=$(printf '%s\n' "$resolved" | awk '/^ocid1\./ {print $0}' | tail -n 1)
+                if [[ -z "$resolved" ]] || ! is_ocid "$resolved"; then
+                    die "Failed to resolve target to valid OCID: $target"
+                fi
+
                 RESOLVED_TARGETS+=("$resolved")
                 log_debug "Resolved target: $target -> $resolved"
             else
