@@ -5,7 +5,7 @@
 # Script.....: ds_connector_create.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.03.03
-# Version....: v0.18.0
+# Version....: v0.18.1
 # Purpose....: Create a new Oracle Data Safe On-Premises Connector:
 #              1. Create the connector object in OCI Data Safe
 #              2. Generate a bundle key and download the installation bundle
@@ -46,6 +46,7 @@ source "${LIB_DIR}/ds_lib.sh"
 : "${WAIT_STATE:=ACTIVE}"          # Poll until connector reaches this state (empty = async)
 : "${DRY_RUN:=false}"              # Show what would be done without making changes
 : "${HA_NODE:=false}"              # Second-node HA install: skip OCI create, reuse existing connector
+: "${CONNECTOR_PORT:=1521}"       # Port the connector service listens on (setup.py install --connector-port)
 # shellcheck disable=SC2034
 SHOW_USAGE_ON_EMPTY_ARGS=true
 
@@ -100,6 +101,9 @@ Options:
 
   Connector:
         --description DESC    Free-text description for the OCI connector object
+        --connector-port PORT Port the connector service listens on
+                              (default: ${CONNECTOR_PORT}; passed as
+                              --connector-port to setup.py install)
         --force-new-bundle-key
                               Always generate a fresh bundle key (never reuse)
         --wait-state STATE    Wait for connector to reach STATE after create
@@ -193,6 +197,11 @@ parse_args() {
             --description)
                 need_val "$1" "${2:-}"
                 DESCRIPTION="$2"
+                shift 2
+                ;;
+            --connector-port)
+                need_val "$1" "${2:-}"
+                CONNECTOR_PORT="$2"
                 shift 2
                 ;;
             --force-new-bundle-key)
@@ -327,6 +336,7 @@ show_plan() {
     log_info "  Display name:    ${DISPLAY_NAME}"
     log_info "  Compartment:     ${COMP_NAME} (${COMP_OCID})"
     log_info "  Connector home:  ${CONNECTOR_HOME}"
+    log_info "  Connector port:  ${CONNECTOR_PORT}"
     if [[ -n "$DESCRIPTION" && "${HA_NODE}" != "true" ]]; then
         log_info "  Description:     ${DESCRIPTION}"
     fi
@@ -462,14 +472,16 @@ run_setup_install() {
     log_info "Running setup.py install..."
 
     if [[ "${DRY_RUN}" == "true" ]]; then
-        log_info "[DRY-RUN] Would run: python3 setup.py install"
+        log_info "[DRY-RUN] Would run: python3 setup.py install --connector-port ${CONNECTOR_PORT}"
         log_info "[DRY-RUN] Working directory: ${CONNECTOR_HOME}"
         return 0
     fi
 
     (
         cd "$CONNECTOR_HOME" || die "Failed to change to directory: ${CONNECTOR_HOME}"
-        BUNDLE_KEY_INPUT="$BUNDLE_KEY" python3 - "$setup_py" << 'PY'
+        BUNDLE_KEY_INPUT="$BUNDLE_KEY" \
+        CONNECTOR_PORT_INPUT="$CONNECTOR_PORT" \
+        python3 - "$setup_py" << 'PY'
 import os
 import runpy
 import sys
@@ -477,17 +489,53 @@ import getpass
 
 setup_path = sys.argv[1]
 bundle_key = os.environ.get("BUNDLE_KEY_INPUT", "")
+connector_port = os.environ.get("CONNECTOR_PORT_INPUT", "1521")
 
 def _bundle_key_prompt(prompt='Enter install bundle key:', stream=None):
     return bundle_key
 
 getpass.getpass = _bundle_key_prompt
-sys.argv = [setup_path, 'install']
+sys.argv = [setup_path, 'install', '--connector-port', connector_port]
 runpy.run_path(setup_path, run_name='__main__')
 PY
     ) || die "setup.py install failed"
 
     log_info "Connector installation completed"
+}
+
+# ------------------------------------------------------------------------------
+# Function: wait_for_connector_not_creating
+# Purpose.: Poll OCI until the connector leaves the CREATING state.
+#           The bundle download API (generate-on-prem-connector-configuration)
+#           returns 404 while the connector is still CREATING. This function
+#           must be called after ds_create_connector() and before download_bundle().
+# Returns.: 0 when connector has left CREATING; warns and returns 0 on timeout.
+# ------------------------------------------------------------------------------
+wait_for_connector_not_creating() {
+    local elapsed=0
+    local poll_interval=10
+    local max_wait=120 # 2 minutes
+
+    log_info "Waiting for connector to become available (leave CREATING state)..."
+
+    while [[ $elapsed -lt $max_wait ]]; do
+        local state
+        state=$(oci_exec_ro data-safe on-prem-connector get \
+            --on-prem-connector-id "$CONNECTOR_OCID" \
+            --query 'data."lifecycle-state"' \
+            --raw-output 2> /dev/null || true)
+
+        if [[ "$state" != "CREATING" && -n "$state" ]]; then
+            log_info "Connector available (state: ${state})"
+            return 0
+        fi
+
+        sleep "$poll_interval"
+        elapsed=$((elapsed + poll_interval))
+        log_info "Connector initializing (state: ${state:-CREATING}, ${elapsed}/${max_wait}s)..."
+    done
+
+    log_warn "Connector still CREATING after ${max_wait}s — proceeding with bundle download"
 }
 
 # ------------------------------------------------------------------------------
@@ -616,6 +664,8 @@ do_work() {
         CONNECTOR_OCID=$(ds_create_connector "$COMP_OCID" "$DISPLAY_NAME" "$DESCRIPTION") \
             || die "Failed to create connector in OCI"
         log_info "Connector OCID: ${CONNECTOR_OCID}"
+        # Wait for connector to leave CREATING before the bundle download API becomes available
+        wait_for_connector_not_creating
     fi
 
     log_info ""

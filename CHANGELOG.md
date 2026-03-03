@@ -8,6 +8,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.1] - 2026-03-03
+
+### Fixed
+
+- `bin/ds_connector_create.sh`: bundle download (`generate-on-prem-connector-configuration`)
+  failed immediately after OCI connector creation with HTTP 404
+  "NotAuthorizedOrNotFound". Root cause: the connector is in `CREATING` state
+  for a short period after the API call returns; the bundle download endpoint
+  is not available until the connector transitions to `INACTIVE`. Fixed: added
+  `wait_for_connector_not_creating()` which polls until the connector leaves
+  `CREATING` (up to 2 minutes, 10 s intervals) before attempting the bundle
+  download. Only runs in normal mode; HA mode skips it (connector already past
+  `CREATING`).
+- `bin/ds_connector_create.sh`: `setup.py install` failed with
+  "the following arguments are required: --connector-port". Added
+  `--connector-port PORT` flag (default: `1521`) and pass it to `setup.py install`
+  via the `CONNECTOR_PORT_INPUT` environment variable in the non-interactive
+  Python wrapper.
+
+### Added
+
+- `bin/ds_connector_create.sh`: `--connector-port PORT` option (default: `1521`)
+  configures the port the connector service will listen on. Visible in the plan
+  log and passed as `--connector-port` to `setup.py install`.
+
 ## [0.18.0] - 2026-03-03
 
 ### Added
