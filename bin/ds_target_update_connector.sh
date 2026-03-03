@@ -132,6 +132,7 @@ Mode Details:
    Distributes targets evenly across all available on-premises connectors.
    No connector options required (discovers available connectors automatically)
    Optional: -c/--compartment (target compartment, defaults to DS_ROOT_COMP)
+   Optional: -T/--targets (distribute only the specified targets, not the whole compartment)
    Optional: --connector-compartment (where to find connectors, defaults to -c)
    Optional: --exclude-connectors (ignore specific connectors)
 
@@ -770,10 +771,15 @@ do_distribute_mode() {
         log_info "  - $name ($ocid)"
     done < <(echo "$connectors_data" | jq -r '.data[] | [.id, ."display-name"] | @tsv')
 
-    # Get all targets that need distribution
-    log_info "Finding targets to distribute..."
+    # Get targets for distribution (specific list or full compartment)
     local targets_data
-    targets_data=$(list_targets_in_compartment "$COMPARTMENT") || die "Failed to list targets"
+    if [[ -n "$TARGETS" ]]; then
+        log_info "Processing specific targets..."
+        targets_data=$(ds_collect_targets "$COMPARTMENT" "$TARGETS" "$LIFECYCLE_STATE" "$TARGET_FILTER") || die "Failed to collect targets"
+    else
+        log_info "Finding targets to distribute..."
+        targets_data=$(list_targets_in_compartment "$COMPARTMENT") || die "Failed to list targets"
+    fi
 
     local total_targets
     total_targets=$(echo "$targets_data" | jq '.data | length')

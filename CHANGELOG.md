@@ -30,6 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `bin/ds_target_connector_summary.sh`: spurious `[WARN] Ignoring unexpected
   arguments:` with empty content — whitespace-only strings from `parse_common_opts`
   are now rejected by stripping whitespace before the non-empty check.
+- `bin/ds_target_update_connector.sh`: `distribute --targets LIST` silently
+  ignored the target list and distributed the entire compartment instead.
+  `do_distribute_mode()` now uses `ds_collect_targets` when `$TARGETS` is set,
+  matching the behaviour of `do_set_mode()`.
 
 ### Added
 
