@@ -23,6 +23,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   6. Optionally polls until the connector reaches `ACTIVE` (configurable via
      `--wait-state`), then optionally registers the connector in
      `oradba_homes.conf` and/or installs it as a systemd service.
+- `bin/ds_connector_create.sh`: added `--ha-node` flag for HA second-node
+  installs. In HA mode the OCI connector create is skipped; the script looks up
+  the existing connector by display name, reads the shared bundle key from
+  `etc/<name>_pwd.b64`, and runs all local installation steps unchanged.
+  `--force-new-bundle-key` is rejected in HA mode (would mismatch the deployed
+  connector). Error messages guide the user when the connector or key file is
+  missing.
 - `lib/oci_helpers.sh`: extracted `is_valid_bundle_key()` and
   `generate_bundle_key()` from `ds_connector_update.sh` into the shared
   library so both update and create scripts use the same implementation.

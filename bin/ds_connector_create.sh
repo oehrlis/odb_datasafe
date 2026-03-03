@@ -317,17 +317,23 @@ validate_inputs() {
 # Output..: Plan details to log
 # ------------------------------------------------------------------------------
 show_plan() {
-    log_info "Connector Creation Plan:"
+    if [[ "${HA_NODE}" == "true" ]]; then
+        log_info "Connector HA Node Install Plan:"
+        log_info "  Mode:            HA (second node — OCI create skipped)"
+        log_info "  Connector OCID:  ${CONNECTOR_OCID}"
+    else
+        log_info "Connector Creation Plan:"
+    fi
     log_info "  Display name:    ${DISPLAY_NAME}"
     log_info "  Compartment:     ${COMP_NAME} (${COMP_OCID})"
     log_info "  Connector home:  ${CONNECTOR_HOME}"
-    if [[ -n "$DESCRIPTION" ]]; then
+    if [[ -n "$DESCRIPTION" && "${HA_NODE}" != "true" ]]; then
         log_info "  Description:     ${DESCRIPTION}"
     fi
     if [[ -n "${WAIT_STATE:-}" ]]; then
         log_info "  Wait state:      ${WAIT_STATE}"
     else
-        log_info "  Wait state:      (async — return immediately after create)"
+        log_info "  Wait state:      (async — return immediately)"
     fi
     if [[ -n "${REGISTER_ORADBA_ENV:-}" ]]; then
         log_info "  OraDBA env:      ${REGISTER_ORADBA_ENV}"
@@ -347,6 +353,20 @@ get_or_create_bundle_key() {
     local pwd_file="${etc_dir}/${DISPLAY_NAME}_pwd.b64"
 
     BUNDLE_KEY_FILE="$pwd_file"
+
+    if [[ "${HA_NODE}" == "true" ]]; then
+        # HA mode: key must already exist — the same key used on node 1 is required
+        if [[ ! -f "$pwd_file" ]]; then
+            die "HA mode: bundle key file not found: ${pwd_file}. Copy etc/${DISPLAY_NAME}_pwd.b64 from the first node (or from the shared etc/ directory) before running --ha-node."
+        fi
+        if BUNDLE_KEY=$(base64 -d < "$pwd_file" 2> /dev/null) \
+            && [[ -n "$BUNDLE_KEY" ]] \
+            && is_valid_bundle_key "$BUNDLE_KEY"; then
+            log_info "HA mode: using existing bundle key from: ${pwd_file}"
+            return 0
+        fi
+        die "HA mode: bundle key file exists but is invalid or unreadable: ${pwd_file}"
+    fi
 
     if [[ -f "$pwd_file" && "$FORCE_NEW_BUNDLE_KEY" != "true" ]]; then
         log_info "Found existing key file: ${pwd_file}"
@@ -587,11 +607,16 @@ do_work() {
     fi
 
     log_info "══════════════════════════════════════════════════════════════"
-    log_info "Step 1/6: Create connector in OCI Data Safe"
+    log_info "Step 1/6: OCI Connector"
     log_info "══════════════════════════════════════════════════════════════"
-    CONNECTOR_OCID=$(ds_create_connector "$COMP_OCID" "$DISPLAY_NAME" "$DESCRIPTION") \
-        || die "Failed to create connector in OCI"
-    log_info "Connector OCID: ${CONNECTOR_OCID}"
+    if [[ "${HA_NODE}" == "true" ]]; then
+        log_info "HA mode: using existing connector (OCI create skipped)"
+        log_info "Connector OCID: ${CONNECTOR_OCID}"
+    else
+        CONNECTOR_OCID=$(ds_create_connector "$COMP_OCID" "$DISPLAY_NAME" "$DESCRIPTION") \
+            || die "Failed to create connector in OCI"
+        log_info "Connector OCID: ${CONNECTOR_OCID}"
+    fi
 
     log_info ""
     log_info "══════════════════════════════════════════════════════════════"
@@ -627,7 +652,11 @@ do_work() {
     optional_install_service
 
     log_info ""
-    log_info "Connector '${DISPLAY_NAME}' created successfully."
+    if [[ "${HA_NODE}" == "true" ]]; then
+        log_info "Connector '${DISPLAY_NAME}' installed on HA node successfully."
+    else
+        log_info "Connector '${DISPLAY_NAME}' created successfully."
+    fi
     log_info "  OCID:  ${CONNECTOR_OCID}"
     log_info "  Home:  ${CONNECTOR_HOME}"
     if [[ -n "$BUNDLE_KEY_FILE" ]]; then
