@@ -36,6 +36,7 @@ readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 : "${SHOW_OCID:=false}"
 : "${INPUT_JSON:=}"
 : "${SAVE_JSON:=}"
+: "${ENRICH_MISSING:=true}"  # Fetch per-target details for no-connector targets
 
 # shellcheck disable=SC1091
 source "${LIB_DIR}/ds_lib.sh" || {
@@ -95,6 +96,9 @@ Options:
     -F, --fields FIELDS         Comma-separated fields for detailed mode
                                 (default: ${FIELDS})
         --show-ocid             Show connector OCIDs (table output)
+        --no-enrich             Skip per-target enrichment; targets missing connector
+                                info in list response appear as 'Cloud / Private Endpoint'
+                                (useful for troubleshooting or faster output)
 
 Examples:
     # Show summary of targets by connector (default)
@@ -146,6 +150,9 @@ parse_args() {
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
+            "")
+                shift
+                ;;
             -c | --compartment)
                 need_val "$1" "${2:-}"
                 COMPARTMENT="$2"
@@ -192,6 +199,10 @@ parse_args() {
                 SHOW_OCID=true
                 shift
                 ;;
+            --no-enrich)
+                ENRICH_MISSING=false
+                shift
+                ;;
             --oci-profile)
                 need_val "$1" "${2:-}"
                 OCI_CLI_PROFILE="$2"
@@ -218,8 +229,13 @@ parse_args() {
     done
 
     # Handle unexpected positional arguments
-    if [[ ${#remaining[@]} -gt 0 ]]; then
-        log_warn "Ignoring unexpected arguments: ${remaining[*]}"
+    local -a unexpected=()
+    local arg
+    for arg in "${remaining[@]}"; do
+        [[ -n "${arg//[[:space:]]/}" ]] && unexpected+=("$arg")
+    done
+    if [[ ${#unexpected[@]} -gt 0 ]]; then
+        log_warn "Ignoring unexpected arguments: ${unexpected[*]}"
     fi
 
     # Validate output format
@@ -227,6 +243,7 @@ parse_args() {
         table | json | csv) : ;;
         *) die "Invalid output format: '${OUTPUT_FORMAT}'. Use table, json, or csv" ;;
     esac
+
 }
 
 # ------------------------------------------------------------------------------
@@ -320,117 +337,44 @@ list_targets_in_compartment() {
 }
 
 # ------------------------------------------------------------------------------
-# Function: enrich_targets_with_connector
-# Purpose.: Fetch per-target details to ensure connector IDs are present
-# Args....: $1 - targets JSON data
-# Returns.: 0 on success
-# Output..: Enriched targets JSON to stdout
-# Notes...: Falls back to per-target get when list output omits connection-option
-# ------------------------------------------------------------------------------
-enrich_targets_with_connector() {
-    local targets_json="$1"
-    local -a target_ids
-
-    mapfile -t target_ids < <(echo "$targets_json" | jq -r '.data[].id')
-    local total=${#target_ids[@]}
-
-    if [[ $total -eq 0 ]]; then
-        printf '%s' "$targets_json"
-        return 0
-    fi
-
-    log_info "No connector IDs found in list output; fetching target details for $total targets (may take a while)"
-
-    local tmp_file
-    tmp_file=$(mktemp)
-
-    echo '{"data":[' > "$tmp_file"
-    local first=true
-    local count=0
-
-    for target_id in "${target_ids[@]}"; do
-        count=$((count + 1))
-
-        local detail
-        detail=$(oci_exec_ro data-safe target-database get \
-            --target-database-id "$target_id" \
-            --query 'data' 2> /dev/null) || {
-            log_warn "Failed to fetch target details: $target_id"
-            continue
-        }
-
-        if [[ "$first" == "true" ]]; then
-            first=false
-        else
-            echo "," >> "$tmp_file"
-        fi
-
-        echo "$detail" >> "$tmp_file"
-
-        if ((count % 200 == 0)); then
-            log_info "Fetched details for $count/$total targets"
-        fi
-    done
-
-    echo ']}' >> "$tmp_file"
-
-    cat "$tmp_file"
-    rm -f "$tmp_file"
-}
-
-# ------------------------------------------------------------------------------
 # Function: group_targets_by_connector
 # Purpose.: Group targets by their on-premises connector
-# Args....: $1 - connectors JSON data
+# Args....: $1 - connector_map JSON {ocid: display-name}
 #           $2 - targets JSON data
 # Returns.: 0 on success
 # Output..: Grouped JSON structure to stdout
-# Notes...: Creates structure with connectors as keys and arrays of targets
+# Notes...: Uses OCID prefix to identify connector resources in
+#           associated-resource-ids; no pre-fetched connector list required.
 # ------------------------------------------------------------------------------
 group_targets_by_connector() {
-    local connectors_json="$1"
+    local connector_map="$1"
     local targets_json="$2"
 
-    # Build connector map (OCID -> display-name)
-    local connector_map
-    connector_map=$(echo "$connectors_json" | jq -r '
-        .data | map({(.id): ."display-name"}) | add // {}
-    ')
-
-    # Build connector id list for matching associated-resource-ids
-    local connector_ids
-    connector_ids=$(echo "$connectors_json" | jq -r '[.data[].id]')
-
-    # Group targets by connector using associated-resource-ids or connection-option
-    echo "$targets_json" | jq --argjson conn_map "$connector_map" --argjson conn_ids "$connector_ids" '
+    echo "$targets_json" | jq --argjson conn_map "$connector_map" '
         .data | group_by(
-            (
-                (."associated-resource-ids" // [] | map(select(. as $id | $conn_ids | index($id))) | .[0]) //
-                (."connection-option"["on-prem-connector-id"] // ."connection-option"["on-premise-connector-id"]) //
-                "no-connector"
-            )
+            (."associated-resource-ids" // [] |
+             map(select(startswith("ocid1.datasafeonpremconnector."))) | .[0]) //
+            (."connection-option"["on-prem-connector-id"] //
+             ."connection-option"["on-premise-connector-id"]) //
+            "no-connector"
         ) |
-        map({
-            connector_id: (
-                (.[0]["associated-resource-ids"] // [] | map(select(. as $id | $conn_ids | index($id))) | .[0]) //
-                (.[0]["connection-option"]["on-prem-connector-id"] // .[0]["connection-option"]["on-premise-connector-id"]) //
-                "no-connector"
-            ),
-            connector_name: (
-                if ((.[0]["associated-resource-ids"] // [] | map(select(. as $id | $conn_ids | index($id))) | .[0]) //
-                    (.[0]["connection-option"]["on-prem-connector-id"] // .[0]["connection-option"]["on-premise-connector-id"] // null)) != null
-                then ($conn_map[
-                    (.[0]["associated-resource-ids"] // [] | map(select(. as $id | $conn_ids | index($id))) | .[0]) //
-                    (.[0]["connection-option"]["on-prem-connector-id"] // .[0]["connection-option"]["on-premise-connector-id"])
-                ] // "Unknown Connector")
-                else "No Connector (Cloud)"
-                end
-            ),
-            assoc_ids: (
-                . | map(."associated-resource-ids" // []) | add | unique
-            ),
-            targets: .
-        })
+        map(
+            . as $group |
+            (($group[0]["associated-resource-ids"] // [] |
+              map(select(startswith("ocid1.datasafeonpremconnector."))) | .[0]) //
+             ($group[0]["connection-option"]["on-prem-connector-id"] //
+              $group[0]["connection-option"]["on-premise-connector-id"]) //
+             "no-connector") as $cid |
+            {
+                connector_id: $cid,
+                connector_name: (
+                    if $cid == "no-connector" then "Cloud / Private Endpoint"
+                    else ($conn_map[$cid] // "Unknown Connector")
+                    end
+                ),
+                targets: $group
+            }
+        )
     '
 }
 
@@ -480,19 +424,6 @@ show_summary_table() {
             printf "%-50s %-20s %10d\n" "$conn_name" "$first_state" "$first_count"
             if [[ "${SHOW_OCID}" == "true" && "$conn_id" != "no-connector" ]]; then
                 printf "%s\n" "  OCID: ${conn_id}"
-            elif [[ "${SHOW_OCID}" == "true" && "$conn_id" == "no-connector" ]]; then
-                local assoc_count
-                assoc_count=$(echo "$grouped_json" | jq -r ".[$i].assoc_ids | length")
-                if [[ $assoc_count -gt 0 ]]; then
-                    local assoc_list
-                    assoc_list=$(echo "$grouped_json" | jq -r ".[$i].assoc_ids[:5] | join(\" \")")
-                    printf "%s\n" "  Associated IDs: ${assoc_list}"
-                    if [[ $assoc_count -gt 5 ]]; then
-                        printf "%s\n" "  Associated IDs: +$((assoc_count - 5)) more"
-                    fi
-                else
-                    printf "%s\n" "  Associated IDs: <none>"
-                fi
             fi
             connector_total=$((connector_total + first_count))
 
@@ -603,25 +534,9 @@ show_detailed_table() {
         target_count=$(echo "$grouped_json" | jq ".[$i].targets | length")
 
         printf "\n%s\n" "$(printf '%0.s=' {1..100})"
+        printf "Connector: %s (%d targets)\n" "$conn_name" "$target_count"
         if [[ "${SHOW_OCID}" == "true" && "$conn_id" != "no-connector" ]]; then
-            printf "Connector: %s (%d targets)\n" "$conn_name" "$target_count"
             printf "OCID: %s\n" "$conn_id"
-        elif [[ "${SHOW_OCID}" == "true" && "$conn_id" == "no-connector" ]]; then
-            printf "Connector: %s (%d targets)\n" "$conn_name" "$target_count"
-            local assoc_count
-            assoc_count=$(echo "$grouped_json" | jq -r ".[$i].assoc_ids | length")
-            if [[ $assoc_count -gt 0 ]]; then
-                local assoc_list
-                assoc_list=$(echo "$grouped_json" | jq -r ".[$i].assoc_ids[:5] | join(\" \")")
-                printf "Associated IDs: %s\n" "$assoc_list"
-                if [[ $assoc_count -gt 5 ]]; then
-                    printf "Associated IDs: +%d more\n" "$((assoc_count - 5))"
-                fi
-            else
-                printf "Associated IDs: <none>\n"
-            fi
-        else
-            printf "Connector: %s (%d targets)\n" "$conn_name" "$target_count"
         fi
         printf "%s\n" "$(printf '%0.s=' {1..100})"
 
@@ -742,77 +657,145 @@ show_detailed_csv() {
 # Output..: Target and connector information based on selected format
 # ------------------------------------------------------------------------------
 do_work() {
-    local connectors_json targets_json grouped_json
+    local targets_json connectors_json
 
+    # --- Fetch / load targets ---
     if [[ -n "$INPUT_JSON" ]]; then
-        connectors_json='{"data":[]}'
-
-        if [[ -n "$COMPARTMENT" ]]; then
-            log_info "Fetching on-premises connectors for label mapping..."
-            connectors_json=$(list_connectors_in_compartment "$COMPARTMENT") || {
-                log_warn "Failed to list connectors; continuing with Unknown Connector labels"
-                connectors_json='{"data":[]}'
-            }
-        fi
-
         log_info "Loading target databases from input JSON..."
         targets_json=$(ds_collect_targets_source "" "" "$LIFECYCLE_STATE" "" "$INPUT_JSON" "$SAVE_JSON") \
             || die "Failed to load targets from input JSON"
     else
-        # Get compartment name for display
         local comp_name
         comp_name=$(oci_get_compartment_name "$COMPARTMENT") || comp_name="$COMPARTMENT"
         log_info "Processing compartment: $comp_name (includes sub-compartments)"
-
-        # Fetch connectors
-        log_info "Fetching on-premises connectors..."
-        connectors_json=$(list_connectors_in_compartment "$COMPARTMENT") \
-            || die "Failed to list connectors"
-
-        # Fetch targets
         log_info "Fetching target databases..."
         targets_json=$(ds_collect_targets_source "$COMPARTMENT" "" "$LIFECYCLE_STATE" "" "" "$SAVE_JSON") \
             || die "Failed to list targets"
     fi
 
-    local connector_count
-    connector_count=$(echo "$connectors_json" | jq '.data | length')
-
-    local targets_with_connector
-    targets_with_connector=$(echo "$targets_json" | jq '[.data[] | select((."associated-resource-ids" // [] | length) > 0 or (."connection-option"["on-prem-connector-id"] // ."connection-option"["on-premise-connector-id"] // "") != "")] | length')
-
-    if [[ $connector_count -gt 0 && $targets_with_connector -eq 0 ]]; then
-        targets_json=$(enrich_targets_with_connector "$targets_json")
+    # --- Fetch connector list for name mapping ---
+    connectors_json='{"data":[]}'
+    if [[ -n "$COMPARTMENT" ]]; then
+        log_info "Fetching on-premises connectors..."
+        connectors_json=$(list_connectors_in_compartment "$COMPARTMENT") || {
+            log_warn "Failed to list connectors; connector names may appear as Unknown Connector"
+            connectors_json='{"data":[]}'
+        }
     fi
 
-    # Group targets by connector
-    log_debug "Grouping targets by connector..."
-    grouped_json=$(group_targets_by_connector "$connectors_json" "$targets_json")
+    # --- Build connector name map {ocid: display-name} ---
+    local connector_map
+    connector_map=$(echo "$connectors_json" | jq '[.data[] | {(.id): ."display-name"}] | add // {}')
 
-    # Display results based on mode
+    # --- Per-connector get for any connector OCIDs found in targets but not in the listing ---
+    # (e.g. connectors from a different compartment scope)
+    local -a unknown_ocids=()
+    mapfile -t unknown_ocids < <(echo "$targets_json" | jq -r --argjson cmap "$connector_map" '
+        [.data[] |
+            (."associated-resource-ids" // [] |
+             map(select(startswith("ocid1.datasafeonpremconnector."))) | .[0]) //
+            (."connection-option"["on-prem-connector-id"] //
+             ."connection-option"["on-premise-connector-id"]) //
+            empty
+        ] | unique | .[] | select($cmap[.] == null)
+    ')
+
+    if [[ ${#unknown_ocids[@]} -gt 0 ]]; then
+        log_info "Looking up ${#unknown_ocids[@]} connector(s) not in compartment listing..."
+        local ocid conn_name
+        for ocid in "${unknown_ocids[@]}"; do
+            conn_name=$(oci_exec_ro data-safe on-prem-connector get \
+                --on-prem-connector-id "$ocid" \
+                --query 'data."display-name"' --raw-output 2>/dev/null) || conn_name=""
+            [[ -n "$conn_name" ]] && \
+                connector_map=$(echo "$connector_map" | jq --arg k "$ocid" --arg v "$conn_name" '.[$k] = $v')
+        done
+    fi
+
+    # --- Initial grouping ---
+    log_debug "Grouping targets by connector..."
+    local grouped_json
+    grouped_json=$(group_targets_by_connector "$connector_map" "$targets_json")
+
+    # --- Post-grouping enrichment for non-DELETED targets missing connector info ---
+    # The OCI target-database list API may omit connection-option for some targets.
+    # Fetch individual target details only for non-DELETED targets in the no-connector group.
+    # Skip when --no-enrich is set (useful for troubleshooting or faster output).
+    if [[ "$ENRICH_MISSING" == "true" && -z "$INPUT_JSON" ]]; then
+        local -a no_conn_active_ids=()
+        mapfile -t no_conn_active_ids < <(echo "$grouped_json" | jq -r '
+            .[] | select(.connector_id == "no-connector") |
+            .targets[] | select(."lifecycle-state" != "DELETED") | .id
+        ')
+
+        if [[ ${#no_conn_active_ids[@]} -gt 0 ]]; then
+            log_info "Enriching ${#no_conn_active_ids[@]} non-DELETED target(s) missing connector info..."
+
+            # Build enrichment map {target-id: {connection-option, associated-resource-ids}}
+            local enrichment_map='{}'
+            local target_id target_detail
+            local enrich_idx=0
+            for target_id in "${no_conn_active_ids[@]}"; do
+                enrich_idx=$((enrich_idx + 1))
+                log_debug "  Fetching connector info (${enrich_idx}/${#no_conn_active_ids[@]}): ${target_id}"
+                target_detail=$(oci_exec_ro data-safe target-database get \
+                    --target-database-id "$target_id" 2>/dev/null \
+                    | jq -c '{"connection-option": (.data["connection-option"] // null), "associated-resource-ids": (.data["associated-resource-ids"] // [])}' \
+                    2>/dev/null) || target_detail='{}'
+                [[ -z "$target_detail" ]] && target_detail='{}'
+                enrichment_map=$(echo "$enrichment_map" | jq \
+                    --arg id "$target_id" \
+                    --argjson detail "$target_detail" \
+                    '.[$id] = $detail')
+            done
+
+            # Merge enriched connection data back into targets_json
+            targets_json=$(echo "$targets_json" | jq --argjson em "$enrichment_map" '
+                .data |= map(if $em[.id] != null then . + $em[.id] else . end)
+            ')
+
+            # Look up names for any newly discovered connector OCIDs not in the map
+            local -a new_conn_ocids=()
+            mapfile -t new_conn_ocids < <(echo "$targets_json" | jq -r --argjson cmap "$connector_map" '
+                [.data[] |
+                    (."associated-resource-ids" // [] |
+                     map(select(startswith("ocid1.datasafeonpremconnector."))) | .[0]) //
+                    (."connection-option"["on-prem-connector-id"] //
+                     ."connection-option"["on-premise-connector-id"]) //
+                    empty
+                ] | unique | .[] | select($cmap[.] == null)
+            ')
+
+            if [[ ${#new_conn_ocids[@]} -gt 0 ]]; then
+                log_info "Looking up ${#new_conn_ocids[@]} additional connector name(s)..."
+                local new_ocid new_conn_name
+                for new_ocid in "${new_conn_ocids[@]}"; do
+                    new_conn_name=$(oci_exec_ro data-safe on-prem-connector get \
+                        --on-prem-connector-id "$new_ocid" \
+                        --query 'data."display-name"' --raw-output 2>/dev/null) || new_conn_name=""
+                    [[ -n "$new_conn_name" ]] && \
+                        connector_map=$(echo "$connector_map" | jq --arg k "$new_ocid" --arg v "$new_conn_name" '.[$k] = $v')
+                done
+            fi
+
+            # Re-group with enriched data
+            log_debug "Re-grouping targets with enriched connector data..."
+            grouped_json=$(group_targets_by_connector "$connector_map" "$targets_json")
+        fi
+    fi
+
+    # --- Display ---
     if [[ "$SHOW_DETAILED" == "true" ]]; then
         case "$OUTPUT_FORMAT" in
-            table)
-                show_detailed_table "$grouped_json" "$FIELDS"
-                ;;
-            json)
-                show_detailed_json "$grouped_json" "$FIELDS"
-                ;;
-            csv)
-                show_detailed_csv "$grouped_json" "$FIELDS"
-                ;;
+            table) show_detailed_table "$grouped_json" "$FIELDS" ;;
+            json)  show_detailed_json  "$grouped_json" "$FIELDS" ;;
+            csv)   show_detailed_csv   "$grouped_json" "$FIELDS" ;;
         esac
     else
         case "$OUTPUT_FORMAT" in
-            table)
-                show_summary_table "$grouped_json"
-                ;;
-            json)
-                show_summary_json "$grouped_json"
-                ;;
-            csv)
-                show_summary_csv "$grouped_json"
-                ;;
+            table) show_summary_table "$grouped_json" ;;
+            json)  show_summary_json  "$grouped_json" ;;
+            csv)   show_summary_csv   "$grouped_json" ;;
         esac
     fi
 }

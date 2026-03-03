@@ -596,14 +596,39 @@ optional_register_oradba() {
     log_info "Registering connector in oradba_homes.conf as: ${env_name}"
 
     if [[ "${DRY_RUN}" == "true" ]]; then
-        log_info "[DRY-RUN] Would run: ds_connector_register_oradba.sh --datasafe-home ${env_name} --connector ${DISPLAY_NAME} --connector-home ${CONNECTOR_HOME}"
+        log_info "[DRY-RUN] Would run: oradba_homes.sh add --name ${env_name} --path ${CONNECTOR_HOME} --type datasafe --desc '${DISPLAY_NAME}' (if entry missing)"
+        log_info "[DRY-RUN] Would run: ds_connector_register_oradba.sh --datasafe-home ${env_name} --connector ${CONNECTOR_OCID}"
         return 0
+    fi
+
+    # Ensure the entry exists in oradba_homes.conf; create it via oradba_homes.sh if missing
+    if [[ -n "${ORADBA_BASE:-}" ]]; then
+        local config_file="${ORADBA_BASE}/etc/oradba_homes.conf"
+        if [[ ! -f "$config_file" ]] || ! grep -q "^${env_name}:" "$config_file"; then
+            local oradba_homes_cmd=""
+            if command -v oradba_homes.sh &>/dev/null; then
+                oradba_homes_cmd="oradba_homes.sh"
+            elif [[ -x "${ORADBA_BASE}/bin/oradba_homes.sh" ]]; then
+                oradba_homes_cmd="${ORADBA_BASE}/bin/oradba_homes.sh"
+            fi
+
+            if [[ -n "$oradba_homes_cmd" ]]; then
+                log_info "Creating oradba_homes.conf entry: ${env_name} → ${CONNECTOR_HOME}"
+                "$oradba_homes_cmd" add \
+                    --name "$env_name" \
+                    --path "$CONNECTOR_HOME" \
+                    --type datasafe \
+                    --desc "$DISPLAY_NAME" \
+                    || log_warn "Failed to add oradba_homes entry — attempting registration anyway"
+            else
+                log_warn "oradba_homes.sh not found — entry must exist in oradba_homes.conf already"
+            fi
+        fi
     fi
 
     "$register_script" \
         --datasafe-home "$env_name" \
         --connector "$CONNECTOR_OCID" \
-        --connector-home "$CONNECTOR_HOME" \
         || log_warn "OraDBA registration failed (non-fatal)"
 }
 

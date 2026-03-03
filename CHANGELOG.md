@@ -8,6 +8,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.2] - 2026-03-03
+
+### Fixed
+
+- `bin/ds_connector_create.sh`: `--register-oradba` passed `--connector-home`
+  to `ds_connector_register_oradba.sh` which does not accept that option,
+  causing `[ERROR] Unknown option: --connector-home`. Argument removed.
+- `bin/ds_connector_create.sh`: `--register-oradba` failed when the target
+  environment was not yet present in `oradba_homes.conf`. `optional_register_oradba()`
+  now checks for the entry and calls `oradba_homes.sh add --name ENV --path PATH
+  --type datasafe --desc DISPLAY_NAME` to create it automatically before
+  invoking `ds_connector_register_oradba.sh`.
+- `bin/ds_target_connector_summary.sh`: on-premises connector targets were
+  misclassified as "Cloud / Private Endpoint" because the OCI
+  `target-database list` API omits `connection-option` for some targets. Added
+  targeted post-grouping enrichment: after initial grouping, non-DELETED targets
+  in the no-connector group are enriched via individual `target-database get`
+  calls, the results are merged back, and targets are re-grouped. DELETED targets
+  correctly remain in "Cloud / Private Endpoint".
+- `bin/ds_target_connector_summary.sh`: spurious `[WARN] Ignoring unexpected
+  arguments:` with empty content — whitespace-only strings from `parse_common_opts`
+  are now rejected by stripping whitespace before the non-empty check.
+
+### Added
+
+- `bin/ds_target_connector_summary.sh`: `--no-enrich` flag skips the
+  post-grouping per-target enrichment pass. Targets missing connector info in
+  the list response appear as "Cloud / Private Endpoint". Useful for
+  troubleshooting (identify affected targets fast) or when speed matters more
+  than complete accuracy.
+
+### Changed
+
+- `bin/ds_target_connector_summary.sh`: connector grouping uses OCID prefix
+  filter (`startswith("ocid1.datasafeonpremconnector.")`) instead of membership
+  in a pre-fetched connector list; also checks both `on-prem-connector-id` and
+  `on-premise-connector-id` field name variants in `connection-option`.
+- `bin/ds_target_connector_summary.sh`: no-connector group label changed from
+  `"No Connector (Cloud)"` to `"Cloud / Private Endpoint"`.
+- `bin/ds_target_connector_summary.sh`: removed `--enrich-connectors` and
+  `--max-enrich-lookups` options (replaced by the targeted post-grouping
+  enrichment approach).
+
 ## [0.18.1] - 2026-03-03
 
 ### Fixed
