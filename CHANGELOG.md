@@ -42,6 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the list response appear as "Cloud / Private Endpoint". Useful for
   troubleshooting (identify affected targets fast) or when speed matters more
   than complete accuracy.
+- `bin/ds_target_connector_summary.sh`: connector groups are now sorted
+  alphabetically by connector name in all output formats (table, JSON, CSV).
 
 ### Changed
 

@@ -374,7 +374,8 @@ group_targets_by_connector() {
                 ),
                 targets: $group
             }
-        )
+        ) |
+        sort_by(.connector_name)
     '
 }
 
