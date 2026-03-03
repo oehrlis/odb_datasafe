@@ -5,7 +5,7 @@
 # Script.....: ds_database_prereqs.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.03.02
-# Version....: v0.17.4
+# Version....: v0.18.2
 # Purpose....: Run Data Safe prereqs locally for one database scope
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
@@ -25,7 +25,7 @@ readonly SCRIPT_DIR
 SCRIPT_PATH="${SCRIPT_DIR}/${SCRIPT_NAME}"
 readonly SCRIPT_PATH
 
-SCRIPT_VERSION="0.9.1"
+SCRIPT_VERSION="0.18.2"
 readonly SCRIPT_VERSION
 
 # =============================================================================

@@ -35,7 +35,7 @@
 
 # Script identification
 SCRIPT_NAME="ds_target_export"
-SCRIPT_VERSION="0.3.1"
+SCRIPT_VERSION="$(grep '^version:' "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.18.0')"
 
 # Bootstrap - locate library files
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
