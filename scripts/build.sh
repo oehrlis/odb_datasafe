@@ -143,7 +143,7 @@ fi
 # ------------------------------------------------------------------------------
 stage_release_note() {
     local rn_src="${SOURCE_DIR}/doc/release_notes/v${VERSION}.md"
-    local rn_dst="${SOURCE_DIR}/doc/v${VERSION}.md"
+    local rn_dst="${SOURCE_DIR}/doc/RELEASE_NOTES.md"
 
     if [[ ! -f "$rn_src" ]]; then
         echo "Warning: release note not found: doc/release_notes/v${VERSION}.md" >&2
@@ -151,7 +151,7 @@ stage_release_note() {
     fi
 
     cp "$rn_src" "$rn_dst"
-    RELEASE_NOTES_FILE="doc/v${VERSION}.md"
+    RELEASE_NOTES_FILE="doc/RELEASE_NOTES.md"
     CLEANUP_RELEASE_NOTE=true
     echo "Staged release note: ${RELEASE_NOTES_FILE}"
 }

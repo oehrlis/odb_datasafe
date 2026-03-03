@@ -40,6 +40,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stderr/log noise being captured into the resolved value. The script now
   validates the resolved value as an OCID before enqueueing deletion, preventing
   malformed OCI delete calls when target lookup emits mixed output.
+- `scripts/build.sh`: fixed stale release-note accumulation on upgrade — the
+  staged release note is now written as `doc/RELEASE_NOTES.md` (fixed name)
+  instead of `doc/v${VERSION}.md`. With the old scheme each version added a new
+  versioned file; after an upgrade both the old and new file were present, causing
+  the `.extension.checksum` verification to fail on the unexpected file.
 
 ## [0.17.6] - 2026-03-02
 
