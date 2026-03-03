@@ -279,8 +279,8 @@ validate_inputs() {
 
     if [[ "${HA_NODE}" == "true" ]]; then
         # HA mode: connector must already exist in OCI — look up its OCID
-        [[ "${FORCE_NEW_BUNDLE_KEY}" == "true" ]] && \
-            die "--force-new-bundle-key cannot be used with --ha-node (would mismatch the deployed connector)"
+        [[ "${FORCE_NEW_BUNDLE_KEY}" == "true" ]] \
+            && die "--force-new-bundle-key cannot be used with --ha-node (would mismatch the deployed connector)"
         log_debug "HA mode: looking up existing connector '${DISPLAY_NAME}' in OCI..."
         local found
         found=$(oci_exec_ro data-safe on-prem-connector list \
