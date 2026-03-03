@@ -38,13 +38,14 @@ source "${LIB_DIR}/ds_lib.sh"
 # CONFIGURATION
 # =============================================================================
 
-: "${COMPARTMENT:=}"          # Compartment name or OCID (required)
-: "${DISPLAY_NAME:=}"         # Connector display name in OCI (required)
-: "${DESCRIPTION:=}"          # Optional free-text description
-: "${CONNECTOR_HOME:=}"       # Local installation directory (required)
+: "${COMPARTMENT:=}"               # Compartment name or OCID (required)
+: "${DISPLAY_NAME:=}"              # Connector display name in OCI (required)
+: "${DESCRIPTION:=}"               # Optional free-text description
+: "${CONNECTOR_HOME:=}"            # Local installation directory (required)
 : "${FORCE_NEW_BUNDLE_KEY:=false}" # Always generate a fresh bundle key
-: "${WAIT_STATE:=ACTIVE}"     # Poll until connector reaches this state (empty = async)
-: "${DRY_RUN:=false}"         # Show what would be done without making changes
+: "${WAIT_STATE:=ACTIVE}"          # Poll until connector reaches this state (empty = async)
+: "${DRY_RUN:=false}"              # Show what would be done without making changes
+: "${HA_NODE:=false}"              # Second-node HA install: skip OCI create, reuse existing connector
 # shellcheck disable=SC2034
 SHOW_USAGE_ON_EMPTY_ARGS=true
 
@@ -103,6 +104,12 @@ Options:
                               Always generate a fresh bundle key (never reuse)
         --wait-state STATE    Wait for connector to reach STATE after create
                               (default: ACTIVE; empty string = return immediately)
+        --ha-node             Second-node HA install: look up the existing OCI
+                              connector by display name (skip OCI create), reuse
+                              the bundle key from etc/<name>_pwd.b64, and run
+                              all local installation steps. The bundle key file
+                              must already be present (shared etc/ or copied
+                              from the first node).
 
   Registration (optional post-install steps):
         --register-oradba ENV Register the new connector in oradba_homes.conf
@@ -128,6 +135,10 @@ Examples:
   # Create with all post-install steps
   ${SCRIPT_NAME} -c my-compartment -N my-connector --connector-home /u01/datasafe/my-connector \\
       --register-oradba dscon5 --install-service
+
+  # HA: install on second node (connector already in OCI, key in shared etc/)
+  ${SCRIPT_NAME} -c my-compartment -N my-connector --connector-home /u01/datasafe/my-connector \\
+      --ha-node --install-service
 
 EOF
     exit 0
@@ -202,6 +213,10 @@ parse_args() {
                 INSTALL_SERVICE=true
                 shift
                 ;;
+            --ha-node)
+                HA_NODE=true
+                shift
+                ;;
             --oci-profile)
                 need_val "$1" "${2:-}"
                 OCI_CLI_PROFILE="$2"
@@ -214,7 +229,7 @@ parse_args() {
                 ;;
             --oci-config)
                 need_val "$1" "${2:-}"
-                OCI_CLI_CONFIG_FILE="$2"
+                export OCI_CLI_CONFIG_FILE="$2"
                 shift 2
                 ;;
             -*)
@@ -262,19 +277,37 @@ validate_inputs() {
         die "Connector home already exists: ${CONNECTOR_HOME}. Choose a different path or remove it first."
     fi
 
-    # Safety: check connector name not already in OCI
-    log_debug "Checking if connector '${DISPLAY_NAME}' already exists in OCI..."
-    local existing
-    existing=$(oci_exec_ro data-safe on-prem-connector list \
-        --compartment-id "$COMP_OCID" \
-        --all 2> /dev/null \
-        | jq -r ".data[]? | select(.\"display-name\" == \"${DISPLAY_NAME}\") | .id" \
-        | head -1 || true)
-    if [[ -n "$existing" ]]; then
-        die "A connector named '${DISPLAY_NAME}' already exists in compartment ${COMP_NAME}: ${existing}"
+    if [[ "${HA_NODE}" == "true" ]]; then
+        # HA mode: connector must already exist in OCI — look up its OCID
+        [[ "${FORCE_NEW_BUNDLE_KEY}" == "true" ]] && \
+            die "--force-new-bundle-key cannot be used with --ha-node (would mismatch the deployed connector)"
+        log_debug "HA mode: looking up existing connector '${DISPLAY_NAME}' in OCI..."
+        local found
+        found=$(oci_exec_ro data-safe on-prem-connector list \
+            --compartment-id "$COMP_OCID" \
+            --all 2> /dev/null \
+            | jq -r ".data[]? | select(.\"display-name\" == \"${DISPLAY_NAME}\") | .id" \
+            | head -1 || true)
+        if [[ -z "$found" ]]; then
+            die "HA mode: connector '${DISPLAY_NAME}' not found in compartment ${COMP_NAME}. Run without --ha-node on the first node first."
+        fi
+        CONNECTOR_OCID="$found"
+        log_info "HA mode: found existing connector ${CONNECTOR_OCID}"
+    else
+        # Normal mode: connector must NOT exist yet
+        log_debug "Checking if connector '${DISPLAY_NAME}' already exists in OCI..."
+        local existing
+        existing=$(oci_exec_ro data-safe on-prem-connector list \
+            --compartment-id "$COMP_OCID" \
+            --all 2> /dev/null \
+            | jq -r ".data[]? | select(.\"display-name\" == \"${DISPLAY_NAME}\") | .id" \
+            | head -1 || true)
+        if [[ -n "$existing" ]]; then
+            die "A connector named '${DISPLAY_NAME}' already exists in compartment ${COMP_NAME}: ${existing}. Use --ha-node to install on an additional node."
+        fi
     fi
 
-    log_info "Inputs validated. No conflicts found."
+    log_info "Inputs validated."
 }
 
 # ------------------------------------------------------------------------------
