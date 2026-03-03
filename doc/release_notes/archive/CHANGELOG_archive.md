@@ -1,9 +1,92 @@
 <!-- markdownlint-disable MD013 -->
 <!-- markdownlint-disable MD024 -->
-# Changelog Archive — versions prior to 0.15.0
+# Changelog Archive — versions prior to 0.16.0
 
-This file contains the changelog history for all versions prior to **0.15.0**.
+This file contains the changelog history for all versions prior to **0.16.0**.
 For current and recent changes see the main [CHANGELOG.md](../../../CHANGELOG.md).
+
+---
+
+## [0.15.3] - 2026-02-19
+
+### Changed
+
+- `bin/ds_target_update_credentials.sh` now enables force mode by default in
+  apply mode, so OCI credential updates run non-interactively without requiring
+  explicit `--force`.
+- Added `--no-force` to allow opting out of force mode when interactive
+  confirmation behavior is desired.
+
+## [0.15.2] - 2026-02-19
+
+### Fixed
+
+- `bin/ds_target_update_credentials.sh` now re-syncs `DS_USER`/`DS_SECRET`
+  defaults after `init_config`, so values loaded from `datasafe.conf`
+  (for example `DATASAFE_USER=DS_ADMIN`) are honored when
+  `-U/--ds-user` is not explicitly provided.
+- `bin/ds_target_update_credentials.sh` now supports `--force` to pass OCI
+  update confirmation non-interactively for bulk credential updates.
+- `bin/ds_target_update_credentials.sh` no longer sends inline credentials JSON
+  in the CLI command; it uses `--credentials file://...`, preventing plaintext
+  secret exposure in debug/error command logging.
+
+## [0.15.1] - 2026-02-19
+
+### Fixed
+
+- `bin/ds_version.sh` no longer relies on bash nameref (`local -n`) in
+  `dedupe_array`, preventing failures on older bash variants and mixed shell
+  invocation paths.
+- `lib/oci_helpers.sh` array checks/expansions were hardened for strict
+  `set -u` handling using bash 4.2-compatible patterns.
+- Addressed shellcheck findings from the compatibility work:
+  - array existence checks updated to avoid false-positive/unsafe patterns,
+  - `SC2154` handling in `bin/ds_version.sh` aligned with function-local usage.
+
+### Added
+
+- Added compatibility regression tests in `tests/bash42_compatibility.bats`
+  covering:
+  - absence of `local -n` in scripts,
+  - `dedupe_array` behavior and ordering,
+  - strict-mode-safe array handling in `lib/oci_helpers.sh`.
+
+## [0.15.0] - 2026-02-19
+
+### Added
+
+- Added `-r/--filter <regex>` target-name filtering to:
+  - `bin/ds_target_activate.sh`
+  - `bin/ds_target_update_service.sh`
+- Added `-A/--all` all-target selection (from `DS_ROOT_COMP`) to:
+  - `bin/ds_target_list.sh`
+  - `bin/ds_target_refresh.sh`
+  - `bin/ds_target_activate.sh`
+  - `bin/ds_target_update_credentials.sh`
+  - `bin/ds_target_update_connector.sh`
+  - `bin/ds_target_update_service.sh`
+  - `bin/ds_target_update_tags.sh`
+- Added shared helper `ds_resolve_all_targets_scope` in `lib/oci_helpers.sh`
+  for reusable all-target scope validation and resolution.
+
+### Changed
+
+- `bin/ds_target_activate.sh` now uses shared target discovery via
+  `ds_collect_targets`, aligning explicit targets, compartment+lifecycle, and
+  regex-filter behavior with the other consolidated target scripts.
+- `bin/ds_target_update_service.sh` now uses the same shared target discovery
+  flow (`ds_collect_targets`) instead of script-local target resolution logic.
+- Mutating no-match behavior is now consistent for these scripts when
+  `-r/--filter` is used (exit code `1` if no targets match).
+
+### Documentation
+
+- Updated `doc/index.md` and `doc/quickref.md` with `activate` and
+  `update_service` regex-filter coverage and examples.
+- Updated `doc/index.md` and `doc/quickref.md` with `-A/--all` behavior,
+  supported scripts, and examples.
+- Added release note `doc/release_notes/v0.15.0.md`.
 
 ---
 
