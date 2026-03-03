@@ -608,48 +608,7 @@ check_all_connectors() {
     return 0
 }
 
-# ------------------------------------------------------------------------------
-# Function: is_valid_bundle_key
-# Purpose.: Validate bundle key against OCI requirements
-# Args....: $1 - Key candidate
-# Returns.: 0 if valid, 1 if invalid
-# Output..: None
-# Notes...: OCI requires 12-30 chars with at least one uppercase, lowercase,
-#           numeric, and special character.
-# ------------------------------------------------------------------------------
-is_valid_bundle_key() {
-    local bundle_key="$1"
-
-    [[ ${#bundle_key} -ge 12 ]] || return 1
-    [[ ${#bundle_key} -le 30 ]] || return 1
-    [[ "$bundle_key" =~ [[:upper:]] ]] || return 1
-    [[ "$bundle_key" =~ [[:lower:]] ]] || return 1
-    [[ "$bundle_key" =~ [[:digit:]] ]] || return 1
-    [[ "$bundle_key" =~ [^[:alnum:]] ]] || return 1
-
-    return 0
-}
-
-# ------------------------------------------------------------------------------
-# Function: generate_bundle_key
-# Purpose.: Generate a random bundle key
-# Returns.: Bundle key on stdout
-# Output..: Random OCI-compliant bundle key
-# ------------------------------------------------------------------------------
-generate_bundle_key() {
-    # Generate a secure random key (20 chars) and ensure OCI complexity.
-    # Allowed special chars are intentionally shell-safe.
-    local candidate
-    local special_set='!@#%^*_+=:,.?-'
-
-    while true; do
-        candidate="$(openssl rand -base64 64 | tr -dc "A-Za-z0-9${special_set}" | head -c 20)"
-        if is_valid_bundle_key "$candidate"; then
-            echo "$candidate"
-            return 0
-        fi
-    done
-}
+# is_valid_bundle_key() and generate_bundle_key() are provided by lib/oci_helpers.sh
 
 # ------------------------------------------------------------------------------
 # Function: get_or_create_bundle_key

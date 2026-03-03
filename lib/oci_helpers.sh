@@ -2016,3 +2016,94 @@ ds_download_connector_bundle() {
         --on-prem-connector-id "$connector_ocid" \
         --file "$output_file"
 }
+
+# ------------------------------------------------------------------------------
+# Function: is_valid_bundle_key
+# Purpose.: Validate bundle key against OCI complexity requirements
+# Args....: $1 - Key candidate
+# Returns.: 0 if valid, 1 if invalid
+# Notes...: OCI requires 12-30 chars with at least one uppercase, lowercase,
+#           numeric, and special character.
+# ------------------------------------------------------------------------------
+is_valid_bundle_key() {
+    local bundle_key="$1"
+
+    [[ ${#bundle_key} -ge 12 ]] || return 1
+    [[ ${#bundle_key} -le 30 ]] || return 1
+    [[ "$bundle_key" =~ [[:upper:]] ]] || return 1
+    [[ "$bundle_key" =~ [[:lower:]] ]] || return 1
+    [[ "$bundle_key" =~ [[:digit:]] ]] || return 1
+    [[ "$bundle_key" =~ [^[:alnum:]] ]] || return 1
+
+    return 0
+}
+
+# ------------------------------------------------------------------------------
+# Function: generate_bundle_key
+# Purpose.: Generate a random OCI-compliant connector bundle key
+# Args....: None
+# Returns.: 0 on success
+# Output..: 20-character random bundle key to stdout
+# Notes...: OCI requires 12-30 chars with upper, lower, digit, special char.
+#           Allowed specials are intentionally shell-safe.
+# ------------------------------------------------------------------------------
+generate_bundle_key() {
+    local candidate
+    local special_set='!@#%^*_+=:,.?-'
+
+    while true; do
+        candidate="$(openssl rand -base64 64 | tr -dc "A-Za-z0-9${special_set}" | head -c 20)"
+        if is_valid_bundle_key "$candidate"; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+}
+
+# ------------------------------------------------------------------------------
+# Function: ds_create_connector
+# Purpose.: Create a new Data Safe on-premises connector in OCI
+# Args....: $1 - Compartment OCID
+#           $2 - Display name
+#           $3 - Description (optional; pass "" to omit)
+# Returns.: 0 on success (connector OCID to stdout), 1 on error
+# Output..: Connector OCID
+# ------------------------------------------------------------------------------
+ds_create_connector() {
+    local comp_ocid="$1"
+    local display_name="$2"
+    local description="${3:-}"
+
+    if ! is_ocid "$comp_ocid"; then
+        die "Invalid compartment OCID: $comp_ocid"
+    fi
+
+    if [[ -z "$display_name" ]]; then
+        die "Connector display name is required"
+    fi
+
+    if [[ "${DRY_RUN}" == "true" ]]; then
+        log_info "[DRY-RUN] Would create connector: $display_name in $comp_ocid"
+        echo "ocid1.datasafeonpremconnector.oc1..DRY_RUN"
+        return 0
+    fi
+
+    local -a cmd=(data-safe on-prem-connector create
+        --compartment-id "$comp_ocid"
+        --display-name "$display_name")
+
+    [[ -n "$description" ]] && cmd+=(--description "$description")
+
+    local result
+    result=$(oci_exec "${cmd[@]}") || die "Failed to create connector: $display_name"
+
+    local connector_ocid
+    connector_ocid=$(echo "$result" | jq -r '.data.id // empty')
+
+    if [[ -z "$connector_ocid" || "$connector_ocid" == "null" ]]; then
+        die "Connector created but OCID not found in response"
+    fi
+
+    log_info "Connector created: $display_name ($connector_ocid)"
+    echo "$connector_ocid"
+}

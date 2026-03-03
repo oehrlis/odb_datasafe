@@ -8,6 +8,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-03-03
+
+### Added
+
+- `bin/ds_connector_create.sh`: new script for end-to-end creation of an OCI
+  Data Safe On-Premises Connector:
+  1. Creates the connector object in OCI Data Safe
+  2. Generates a bundle key (or reuses an existing one) and downloads the
+     installation bundle
+  3. Creates the local connector home directory
+  4. Extracts the installation bundle
+  5. Runs `setup.py install` with the bundle key to activate the connector
+  6. Optionally polls until the connector reaches `ACTIVE` (configurable via
+     `--wait-state`), then optionally registers the connector in
+     `oradba_homes.conf` and/or installs it as a systemd service.
+- `lib/oci_helpers.sh`: extracted `is_valid_bundle_key()` and
+  `generate_bundle_key()` from `ds_connector_update.sh` into the shared
+  library so both update and create scripts use the same implementation.
+  Added new `ds_create_connector()` wrapper for
+  `oci data-safe on-prem-connector create`.
+
+### Changed
+
+- `bin/ds_connector_update.sh`: removed duplicate `is_valid_bundle_key()` and
+  `generate_bundle_key()` functions — now sourced from `lib/oci_helpers.sh`.
+
 ## [0.17.6] - 2026-03-02
 
 ### Fixed
