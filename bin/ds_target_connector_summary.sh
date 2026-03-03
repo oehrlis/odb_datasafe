@@ -36,7 +36,7 @@ readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 : "${SHOW_OCID:=false}"
 : "${INPUT_JSON:=}"
 : "${SAVE_JSON:=}"
-: "${ENRICH_MISSING:=true}"  # Fetch per-target details for no-connector targets
+: "${ENRICH_MISSING:=true}" # Fetch per-target details for no-connector targets
 
 # shellcheck disable=SC1091
 source "${LIB_DIR}/ds_lib.sh" || {
@@ -706,9 +706,9 @@ do_work() {
         for ocid in "${unknown_ocids[@]}"; do
             conn_name=$(oci_exec_ro data-safe on-prem-connector get \
                 --on-prem-connector-id "$ocid" \
-                --query 'data."display-name"' --raw-output 2>/dev/null) || conn_name=""
-            [[ -n "$conn_name" ]] && \
-                connector_map=$(echo "$connector_map" | jq --arg k "$ocid" --arg v "$conn_name" '.[$k] = $v')
+                --query 'data."display-name"' --raw-output 2> /dev/null) || conn_name=""
+            [[ -n "$conn_name" ]] \
+                && connector_map=$(echo "$connector_map" | jq --arg k "$ocid" --arg v "$conn_name" '.[$k] = $v')
         done
     fi
 
@@ -739,9 +739,9 @@ do_work() {
                 enrich_idx=$((enrich_idx + 1))
                 log_debug "  Fetching connector info (${enrich_idx}/${#no_conn_active_ids[@]}): ${target_id}"
                 target_detail=$(oci_exec_ro data-safe target-database get \
-                    --target-database-id "$target_id" 2>/dev/null \
+                    --target-database-id "$target_id" 2> /dev/null \
                     | jq -c '{"connection-option": (.data["connection-option"] // null), "associated-resource-ids": (.data["associated-resource-ids"] // [])}' \
-                    2>/dev/null) || target_detail='{}'
+                        2> /dev/null) || target_detail='{}'
                 [[ -z "$target_detail" ]] && target_detail='{}'
                 enrichment_map=$(echo "$enrichment_map" | jq \
                     --arg id "$target_id" \
@@ -772,9 +772,9 @@ do_work() {
                 for new_ocid in "${new_conn_ocids[@]}"; do
                     new_conn_name=$(oci_exec_ro data-safe on-prem-connector get \
                         --on-prem-connector-id "$new_ocid" \
-                        --query 'data."display-name"' --raw-output 2>/dev/null) || new_conn_name=""
-                    [[ -n "$new_conn_name" ]] && \
-                        connector_map=$(echo "$connector_map" | jq --arg k "$new_ocid" --arg v "$new_conn_name" '.[$k] = $v')
+                        --query 'data."display-name"' --raw-output 2> /dev/null) || new_conn_name=""
+                    [[ -n "$new_conn_name" ]] \
+                        && connector_map=$(echo "$connector_map" | jq --arg k "$new_ocid" --arg v "$new_conn_name" '.[$k] = $v')
                 done
             fi
 
@@ -788,14 +788,14 @@ do_work() {
     if [[ "$SHOW_DETAILED" == "true" ]]; then
         case "$OUTPUT_FORMAT" in
             table) show_detailed_table "$grouped_json" "$FIELDS" ;;
-            json)  show_detailed_json  "$grouped_json" "$FIELDS" ;;
-            csv)   show_detailed_csv   "$grouped_json" "$FIELDS" ;;
+            json) show_detailed_json "$grouped_json" "$FIELDS" ;;
+            csv) show_detailed_csv "$grouped_json" "$FIELDS" ;;
         esac
     else
         case "$OUTPUT_FORMAT" in
             table) show_summary_table "$grouped_json" ;;
-            json)  show_summary_json  "$grouped_json" ;;
-            csv)   show_summary_csv   "$grouped_json" ;;
+            json) show_summary_json "$grouped_json" ;;
+            csv) show_summary_csv "$grouped_json" ;;
         esac
     fi
 }

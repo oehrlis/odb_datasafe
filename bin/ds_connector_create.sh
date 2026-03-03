@@ -46,7 +46,7 @@ source "${LIB_DIR}/ds_lib.sh"
 : "${WAIT_STATE:=ACTIVE}"          # Poll until connector reaches this state (empty = async)
 : "${DRY_RUN:=false}"              # Show what would be done without making changes
 : "${HA_NODE:=false}"              # Second-node HA install: skip OCI create, reuse existing connector
-: "${CONNECTOR_PORT:=1521}"       # Port the connector service listens on (setup.py install --connector-port)
+: "${CONNECTOR_PORT:=1521}"        # Port the connector service listens on (setup.py install --connector-port)
 # shellcheck disable=SC2034
 SHOW_USAGE_ON_EMPTY_ARGS=true
 
@@ -480,8 +480,8 @@ run_setup_install() {
     (
         cd "$CONNECTOR_HOME" || die "Failed to change to directory: ${CONNECTOR_HOME}"
         BUNDLE_KEY_INPUT="$BUNDLE_KEY" \
-        CONNECTOR_PORT_INPUT="$CONNECTOR_PORT" \
-        python3 - "$setup_py" << 'PY'
+            CONNECTOR_PORT_INPUT="$CONNECTOR_PORT" \
+            python3 - "$setup_py" << 'PY'
 import os
 import runpy
 import sys
@@ -606,7 +606,7 @@ optional_register_oradba() {
         local config_file="${ORADBA_BASE}/etc/oradba_homes.conf"
         if [[ ! -f "$config_file" ]] || ! grep -q "^${env_name}:" "$config_file"; then
             local oradba_homes_cmd=""
-            if command -v oradba_homes.sh &>/dev/null; then
+            if command -v oradba_homes.sh &> /dev/null; then
                 oradba_homes_cmd="oradba_homes.sh"
             elif [[ -x "${ORADBA_BASE}/bin/oradba_homes.sh" ]]; then
                 oradba_homes_cmd="${ORADBA_BASE}/bin/oradba_homes.sh"
