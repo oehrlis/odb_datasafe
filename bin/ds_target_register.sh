@@ -955,7 +955,7 @@ check_target_exists() {
     targets_json=$(ds_list_targets "$COMP_OCID") || die "Failed to list targets"
 
     local existing_target
-    existing_target=$(echo "$targets_json" | jq -r ".data[] | select(.\"display-name\" == \"$DISPLAY_NAME\") | .id" | head -n1)
+    existing_target=$(echo "$targets_json" | jq -r ".data[] | select(.\"display-name\" == \"$DISPLAY_NAME\" and .\"lifecycle-state\" != \"DELETED\") | .id" | head -n1)
 
     if [[ -n "$existing_target" ]]; then
         log_info "Target already exists: $DISPLAY_NAME ($existing_target)"
