@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.3] - 2026-03-04
+
+### Fixed
+
+- `bin/ds_target_list.sh`: targets in DELETED or DELETING state were reported
+  as `TARGET_UNEXPECTED_STATE` / `MEDIUM`. They are now reported as
+  `TARGET_DELETING` / `LOW` with "No action required" — these targets are
+  removed by OCI automatically and require no operator intervention.
+- `bin/ds_target_register.sh`: registering a target whose display name matched
+  an existing DELETED target was blocked with "Target already exists".
+  `check_target_exists()` now ignores DELETED targets, allowing re-registration
+  with the same name once the previous entry has been deleted.
+
 ## [0.18.2] - 2026-03-03
 
 ### Fixed
