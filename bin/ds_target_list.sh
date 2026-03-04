@@ -1488,6 +1488,17 @@ evaluate_health_issues() {
                     "Target is inactive" \
                     "Use ds_target_activate.sh for this scope/target"
                 ;;
+            DELETED | DELETING)
+                printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+                    "TARGET_DELETING" \
+                    "LOW" \
+                    "$(sanitize_tsv_field "$cluster")" \
+                    "$(sanitize_tsv_field "$sid")" \
+                    "$(sanitize_tsv_field "$target_name")" \
+                    "$(sanitize_tsv_field "$lifecycle_state")" \
+                    "Target deletion in progress or complete; will be removed by OCI" \
+                    "No action required"
+                ;;
             *)
                 if ! is_health_normal_state "$lifecycle_state"; then
                     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
