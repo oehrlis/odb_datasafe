@@ -48,6 +48,19 @@
 # Default listener port
 #LISTENER_PORT="1521"
 
+# Service name template for ds_target_update_service.sh (non-root/PDB targets).
+# Brace-style placeholders derived from the target display name:
+#   {pdb}/{PDB}       PDB name lower/uppercase
+#   {cdb}/{CDB}       CDB name lower/uppercase
+#   {cluster}/{CLUSTER} Cluster name lower/uppercase
+#   {sid}/{SID}       Oracle SID lower/uppercase (alias for cdb)
+#   {domain}          DB_DOMAIN value
+#SERVICE_TEMPLATE="{pdb}_exa.{domain}"
+
+# Service name template for CDB$ROOT targets in ds_target_update_service.sh.
+# When unset, root targets are skipped with a warning.
+#ROOT_SERVICE_TEMPLATE="{cdb}.{domain}"
+
 # Default service protocol
 #SERVICE_PROTOCOL="TCP"
 

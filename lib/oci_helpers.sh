@@ -855,6 +855,64 @@ ds_filter_targets_by_tags() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: oci_lookup_pdb_connection
+# Purpose.: Look up an OCI PDB by name and return its service name and port
+#           parsed from the pdb-default connection string.
+# Args....: $1 - PDB name (as in pdb-name field, case-sensitive)
+#           $2 - Compartment OCID to search in
+# Returns.: 0 on success, 1 if PDB not found or no connection string
+# Output..: "<service>|<port>" to stdout (e.g. "pdb01_PAAS.example.com|1521")
+# Notes...: Uses oci_exec_ro so honours DRY_RUN flag transparently.
+#           Skips TERMINATED PDBs. Returns first match when multiple exist.
+# ------------------------------------------------------------------------------
+oci_lookup_pdb_connection() {
+    local pdb_name="$1"
+    local compartment_ocid="$2"
+
+    [[ -z "$pdb_name" || -z "$compartment_ocid" ]] && {
+        log_error "oci_lookup_pdb_connection: pdb_name and compartment_ocid are required"
+        return 1
+    }
+
+    log_debug "Looking up OCI PDB connection: name='$pdb_name' compartment='$compartment_ocid'"
+
+    local pdbs_json
+    pdbs_json=$(oci_exec_ro db pluggable-database list \
+        --compartment-id "$compartment_ocid" --all 2>/dev/null) || {
+        log_debug "  PDB list call failed or returned empty"
+        return 1
+    }
+
+    # Find PDB by name (exclude TERMINATED), extract pdb-default connection string
+    local conn_str
+    conn_str=$(printf '%s' "$pdbs_json" | jq -r \
+        --arg name "$pdb_name" \
+        '.data[] | select(."pdb-name" == $name and ."lifecycle-state" != "TERMINATED")
+                 | ."connection-strings"."pdb-default" // empty' \
+        | head -n1)
+
+    if [[ -z "$conn_str" ]]; then
+        log_debug "  No connection string found for PDB '$pdb_name'"
+        return 1
+    fi
+
+    log_debug "  PDB connection string: $conn_str"
+
+    # Parse "host:port/service" format
+    local host_port service port
+    host_port="${conn_str%%/*}"
+    service="${conn_str#*/}"
+    port="${host_port#*:}"
+
+    [[ -z "$service" || -z "$port" ]] && {
+        log_debug "  Failed to parse connection string: $conn_str"
+        return 1
+    }
+
+    printf '%s|%s' "$service" "$port"
+}
+
+# ------------------------------------------------------------------------------
 # Function: ds_load_targets_json_file
 # Purpose.: Load targets JSON from file and normalize to object with .data array
 # Args....: $1 - input JSON file path
