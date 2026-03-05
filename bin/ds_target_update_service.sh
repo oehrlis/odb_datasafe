@@ -614,7 +614,6 @@ update_target_service() {
         local -a cmd=(
             data-safe target-database update
             --target-database-id "$target_ocid"
-            --connection-option '{"connectionType": "PRIVATE_ENDPOINT", "datasafePrivateEndpointId": null}'
             --database-details "$db_details"
         )
 
