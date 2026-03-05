@@ -36,6 +36,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `etc/datasafe.conf.example`: documented `SERVICE_TEMPLATE` and
   `ROOT_SERVICE_TEMPLATE` configuration variables.
 
+### Fixed
+
+- `bin/ds_target_update_service.sh`: OCI interactive prompt bypass — added
+  `--force` to `target-database update` to prevent y/N hang.
+- `bin/ds_target_update_service.sh`: `--wait-for-state` default changed from
+  `SUBMITTED` (invalid) to `ACCEPTED` (first valid OCI work request state).
+
 ## [0.19.0] - 2026-03-05
 
 ### Added

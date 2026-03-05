@@ -52,7 +52,7 @@ readonly SCRIPT_VERSION
 
 # Defaults — Execution
 : "${APPLY_CHANGES:=false}"
-: "${WAIT_STATE:=SUBMITTED}"
+: "${WAIT_STATE:=ACCEPTED}"
 # shellcheck disable=SC2034 # consumed by parse_common_opts in common.sh
 SHOW_USAGE_ON_EMPTY_ARGS=true
 
@@ -125,7 +125,7 @@ Options:
         --from-oci              Derive service name and port from OCI PDB connection string
                                 (overrides --service-template; requires OCI access)
         --pdb-compartment COMP  Compartment for OCI PDB lookup (default: same as --compartment)
-        --wait-state STATE      Wait for update to reach state (default: SUBMITTED)
+        --wait-state STATE      Wait for update to reach state (default: ACCEPTED)
         --apply                 Apply changes (default: dry-run only)
     -n, --dry-run               Dry-run mode (show what would be done)
 
