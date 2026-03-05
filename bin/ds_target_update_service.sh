@@ -611,6 +611,16 @@ update_target_service() {
     if [[ "$APPLY_CHANGES" == "true" ]]; then
         log_info "  Updating..."
 
+        # OCI target-database update uses PUT semantics — merge changes into the
+        # full current database-details so required fields are preserved
+        local full_db_details
+        if full_db_details=$(oci_exec_ro data-safe target-database get \
+                --target-database-id "$target_ocid" \
+                --query 'data."database-details"' 2>/dev/null) && \
+                [[ -n "$full_db_details" && "$full_db_details" != "null" ]]; then
+            db_details=$(printf '%s' "$full_db_details" | jq --argjson patch "$db_details" '. + $patch')
+        fi
+
         local -a cmd=(
             data-safe target-database update
             --target-database-id "$target_ocid"

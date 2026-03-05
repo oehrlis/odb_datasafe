@@ -42,6 +42,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--force` to `target-database update` to prevent y/N hang.
 - `bin/ds_target_update_service.sh`: `--wait-for-state` default changed from
   `SUBMITTED` (invalid) to `ACCEPTED` (first valid OCI work request state).
+- `bin/ds_target_update_service.sh`: OCI `target-database update` uses PUT
+  semantics — now fetches current `database-details` and merges changes into
+  it before submitting, preserving required fields (`databaseType`,
+  `infrastructureType`, `vmClusterId`, etc.).
 
 ## [0.19.0] - 2026-03-05
 
