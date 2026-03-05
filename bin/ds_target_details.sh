@@ -36,6 +36,7 @@ readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 : "${TARGETS:=}"
 : "${SELECT_ALL:=false}"
 : "${TARGET_FILTER:=}"
+: "${TAG_FILTER:=}"
 : "${LIFECYCLE_STATE:=ACTIVE,NEEDS_ATTENTION}"
 : "${FORMAT:=table}"
 : "${OUTPUT_FOLDER:=${SCRIPT_DIR}/../log}"
@@ -84,6 +85,7 @@ Options:
     -c, --compartment ID        Compartment OCID or name (default: DS_ROOT_COMP)
     -A, --all                   Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
     -r, --filter REGEX          Filter target names by regex (substring match)
+        --tag-filter EXPR       Filter by OCI tag (key=val, key, ns/key=val, ns/key); repeatable (AND)
     -L, --lifecycle STATE       Filter by lifecycle state (default: ${LIFECYCLE_STATE})
                                 Comma-separated: ACTIVE,NEEDS_ATTENTION,DELETED
                 --input-json FILE       Read targets from local JSON (array or {data:[...]})
@@ -182,6 +184,11 @@ parse_arguments() {
             -r | --filter)
                 need_val "$1" "${2:-}"
                 TARGET_FILTER="$2"
+                shift 2
+                ;;
+            --tag-filter)
+                need_val "$1" "${2:-}"
+                TAG_FILTER="${TAG_FILTER:+${TAG_FILTER}$'\n'}$2"
                 shift 2
                 ;;
             -L | --lifecycle)
@@ -678,7 +685,7 @@ do_work() {
         log_info "Loading target details from input JSON payload"
 
         local targets_payload
-        targets_payload=$(ds_collect_targets_source "" "" "$LIFECYCLE_STATE" "$TARGET_FILTER" "$INPUT_JSON" "$SAVE_JSON") || die "Failed to load targets from input JSON"
+        targets_payload=$(ds_collect_targets_source "" "" "$LIFECYCLE_STATE" "$TARGET_FILTER" "$INPUT_JSON" "$SAVE_JSON" "$TAG_FILTER") || die "Failed to load targets from input JSON"
 
         local payload_count
         payload_count=$(echo "$targets_payload" | jq '.data | length')
@@ -700,7 +707,7 @@ do_work() {
     # Collect target OCIDs via unified helper
     log_info "Collecting targets (lifecycle: $LIFECYCLE_STATE)"
     local targets_data
-    targets_data=$(ds_collect_targets_source "$COMPARTMENT" "$TARGETS" "$LIFECYCLE_STATE" "$TARGET_FILTER") \
+    targets_data=$(ds_collect_targets_source "$COMPARTMENT" "$TARGETS" "$LIFECYCLE_STATE" "$TARGET_FILTER" "" "" "$TAG_FILTER") \
         || die "Failed to collect targets"
 
     # Resolve compartment OCID for connector map (best-effort)

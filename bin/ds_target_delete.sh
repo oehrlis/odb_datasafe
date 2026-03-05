@@ -25,6 +25,7 @@
 : "${COMPARTMENT:=}"                  # name or OCID
 : "${TARGETS:=}"                      # CSV names/OCIDs (overrides compartment mode)
 : "${TARGET_FILTER:=}"                # Regex filter on target display names
+: "${TAG_FILTER:=}"                   # OCI tag filter expressions (newline-separated)
 : "${STATE_FILTERS:=NEEDS_ATTENTION}" # CSV lifecycle states when scanning compartment
 : "${FORCE:=false}"                   # skip confirmation prompts
 : "${DELETE_DEPENDENCIES:=true}"      # delete audit trails, assessments, policies
@@ -88,6 +89,7 @@ Target selection:
   -T, --targets <LIST>          Comma-separated target names or OCIDs
   -c, --compartment <OCID|NAME> Compartment OCID or name (env: COMPARTMENT/COMP_OCID)
   -r, --filter <REGEX>          Filter target names by regex (substring match)
+      --tag-filter <EXPR>       Filter by OCI tag (key=val, key, ns/key=val, ns/key); repeatable (AND)
                                 (or) use lifecycle-state filtering:
   -s, --lifecycle <LIST>        Comma-separated states (default: ${STATE_FILTERS})
 
@@ -161,6 +163,10 @@ parse_args() {
                 ;;
             -r | --filter)
                 TARGET_FILTER="$2"
+                shift 2
+                ;;
+            --tag-filter)
+                TAG_FILTER="${TAG_FILTER:+${TAG_FILTER}$'\n'}$2"
                 shift 2
                 ;;
             --continue-on-error)
@@ -265,6 +271,9 @@ validate_inputs() {
         targets_json=$(ds_list_targets "$COMP_OCID" "$STATE_FILTERS") || die "Failed to list targets in compartment"
         if [[ -n "$TARGET_FILTER" ]]; then
             targets_json=$(ds_filter_targets_json "$targets_json" "$TARGET_FILTER")
+        fi
+        if [[ -n "$TAG_FILTER" ]]; then
+            targets_json=$(ds_filter_targets_by_tags "$targets_json" "$TAG_FILTER")
         fi
 
         mapfile -t RESOLVED_TARGETS < <(echo "$targets_json" | jq -r '.data[]?.id // empty')

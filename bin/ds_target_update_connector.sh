@@ -34,6 +34,7 @@ readonly SCRIPT_VERSION
 : "${TARGETS:=}"
 : "${SELECT_ALL:=false}"
 : "${TARGET_FILTER:=}"
+: "${TAG_FILTER:=}"
 : "${LIFECYCLE_STATE:=ACTIVE}"
 : "${SOURCE_CONNECTOR:=}"
 : "${TARGET_CONNECTOR:=}"
@@ -98,6 +99,7 @@ Options:
     -A, --all                       Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
     -T, --targets LIST              Comma-separated target names or OCIDs
     -r, --filter REGEX              Filter target names by regex (substring match)
+        --tag-filter EXPR           Filter by OCI tag (key=val, key, ns/key=val, ns/key); repeatable (AND)
     -L, --lifecycle STATE           Filter by lifecycle state (default: ${LIFECYCLE_STATE})
                                     Supports: ACTIVE, NEEDS_ATTENTION, CREATING, UPDATING, DELETING
                                     Use comma-separated for multiple: ACTIVE,NEEDS_ATTENTION
@@ -218,6 +220,11 @@ parse_args() {
             -r | --filter)
                 need_val "$1" "${2:-}"
                 TARGET_FILTER="$2"
+                shift 2
+                ;;
+            --tag-filter)
+                need_val "$1" "${2:-}"
+                TAG_FILTER="${TAG_FILTER:+${TAG_FILTER}$'\n'}$2"
                 shift 2
                 ;;
             -L | --lifecycle)
@@ -601,7 +608,7 @@ list_targets_in_compartment() {
     local compartment="$1"
     local json_data
 
-    json_data=$(ds_collect_targets "$compartment" "" "$LIFECYCLE_STATE" "$TARGET_FILTER") || return 1
+    json_data=$(ds_collect_targets "$compartment" "" "$LIFECYCLE_STATE" "$TARGET_FILTER" "$TAG_FILTER") || return 1
 
     # Apply additional filtering if needed
     if [[ "$EXCLUDE_AUTO" == "true" ]]; then
@@ -632,7 +639,7 @@ do_set_mode() {
     local json_data
     if [[ -n "$TARGETS" ]]; then
         log_info "Processing specific targets..."
-        json_data=$(ds_collect_targets "$COMPARTMENT" "$TARGETS" "$LIFECYCLE_STATE" "$TARGET_FILTER") || die "Failed to collect targets"
+        json_data=$(ds_collect_targets "$COMPARTMENT" "$TARGETS" "$LIFECYCLE_STATE" "$TARGET_FILTER" "$TAG_FILTER") || die "Failed to collect targets"
     else
         log_info "Processing targets from compartment..."
         json_data=$(list_targets_in_compartment "$COMPARTMENT") || die "Failed to list targets"
@@ -775,7 +782,7 @@ do_distribute_mode() {
     local targets_data
     if [[ -n "$TARGETS" ]]; then
         log_info "Processing specific targets..."
-        targets_data=$(ds_collect_targets "$COMPARTMENT" "$TARGETS" "$LIFECYCLE_STATE" "$TARGET_FILTER") || die "Failed to collect targets"
+        targets_data=$(ds_collect_targets "$COMPARTMENT" "$TARGETS" "$LIFECYCLE_STATE" "$TARGET_FILTER" "$TAG_FILTER") || die "Failed to collect targets"
     else
         log_info "Finding targets to distribute..."
         targets_data=$(list_targets_in_compartment "$COMPARTMENT") || die "Failed to list targets"

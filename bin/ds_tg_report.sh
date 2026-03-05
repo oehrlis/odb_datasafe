@@ -30,6 +30,7 @@ readonly SCRIPT_VERSION
 
 # Defaults
 : "${COMPARTMENT:=}"
+: "${TAG_FILTER:=}"
 : "${REPORT_TYPE:=all}"
 : "${OUTPUT_FORMAT:=table}" # table|json|csv
 : "${TAG_NAMESPACE:=DBSec}"
@@ -79,6 +80,7 @@ Options:
 
   Selection:
     -c, --compartment ID        Compartment OCID or name (default: DS_ROOT_COMP from \$ODB_DATASAFE_BASE/.env)
+        --tag-filter EXPR       Filter by OCI tag (key=val, key, ns/key=val, ns/key); repeatable (AND)
                 --input-json FILE       Read targets from local JSON (array or {data:[...]})
                 --save-json FILE        Save selected target JSON payload
 
@@ -160,6 +162,11 @@ parse_args() {
                 TAG_NAMESPACE="$2"
                 shift 2
                 ;;
+            --tag-filter)
+                need_val "$1" "${2:-}"
+                TAG_FILTER="${TAG_FILTER:+${TAG_FILTER}$'\n'}$2"
+                shift 2
+                ;;
             --oci-profile)
                 need_val "$1" "${2:-}"
                 export OCI_CLI_PROFILE="$2"
@@ -238,12 +245,12 @@ get_targets_with_tags() {
     local targets_json
     if [[ -n "$INPUT_JSON" ]]; then
         log_debug "Loading targets from input JSON: $INPUT_JSON"
-        targets_json=$(ds_collect_targets_source "" "" "" "" "$INPUT_JSON" "$SAVE_JSON") || return 1
+        targets_json=$(ds_collect_targets_source "" "" "" "" "$INPUT_JSON" "$SAVE_JSON" "$TAG_FILTER") || return 1
     else
         local comp_ocid
         comp_ocid=$(oci_resolve_compartment_ocid "$COMPARTMENT") || return 1
         log_debug "Fetching targets with tags from compartment: $comp_ocid"
-        targets_json=$(ds_collect_targets_source "$comp_ocid" "" "" "" "" "$SAVE_JSON") || return 1
+        targets_json=$(ds_collect_targets_source "$comp_ocid" "" "" "" "" "$SAVE_JSON" "$TAG_FILTER") || return 1
     fi
 
     TARGETS_JSON_CACHE="$targets_json"

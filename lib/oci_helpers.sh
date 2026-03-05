@@ -794,6 +794,67 @@ ds_filter_targets_json() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: ds_filter_targets_by_tags
+# Purpose.: Filter a targets JSON blob by one or more OCI tag expressions.
+#           Each expression is applied as an AND condition.
+# Args....: $1 - targets JSON object {"data": [...]}
+#           $2 - tag filter string (newline-separated expressions)
+# Expression formats:
+#   key=value       freeform tag key equals value
+#   key             freeform tag key is present (any value)
+#   ns/key=value    defined tag namespace ns, key equals value
+#   ns/key          defined tag namespace ns, key is present
+# Returns.: 0 on success
+# Output..: filtered {"data": [...]} blob
+# ------------------------------------------------------------------------------
+ds_filter_targets_by_tags() {
+    local targets_json="$1"
+    local tag_filter="${2:-}"
+
+    if [[ -z "$tag_filter" ]]; then
+        printf '%s' "$targets_json"
+        return 0
+    fi
+
+    local result="$targets_json"
+    local expr=""
+    while IFS= read -r expr; do
+        [[ -z "$expr" ]] && continue
+
+        if [[ "$expr" == *"/"* ]]; then
+            # Defined tag: namespace/key=value or namespace/key
+            local ns="${expr%%/*}"
+            local rest="${expr#*/}"
+            if [[ "$rest" == *"="* ]]; then
+                local dk="${rest%%=*}"
+                local dv="${rest#*=}"
+                result=$(printf '%s' "$result" | \
+                    jq --arg ns "$ns" --arg k "$dk" --arg v "$dv" \
+                    '.data = (.data | map(select(."defined-tags"[$ns][$k] == $v)))')
+            else
+                result=$(printf '%s' "$result" | \
+                    jq --arg ns "$ns" --arg k "$rest" \
+                    '.data = (.data | map(select(."defined-tags"[$ns] | type == "object" and has($k))))')
+            fi
+        elif [[ "$expr" == *"="* ]]; then
+            # Freeform tag: key=value
+            local fk="${expr%%=*}"
+            local fv="${expr#*=}"
+            result=$(printf '%s' "$result" | \
+                jq --arg k "$fk" --arg v "$fv" \
+                '.data = (.data | map(select(."freeform-tags"[$k] == $v)))')
+        else
+            # Freeform tag presence: key
+            result=$(printf '%s' "$result" | \
+                jq --arg k "$expr" \
+                '.data = (.data | map(select(."freeform-tags" | type == "object" and has($k))))')
+        fi
+    done <<< "$tag_filter"
+
+    printf '%s' "$result"
+}
+
+# ------------------------------------------------------------------------------
 # Function: ds_load_targets_json_file
 # Purpose.: Load targets JSON from file and normalize to object with .data array
 # Args....: $1 - input JSON file path
@@ -870,6 +931,7 @@ ds_save_targets_json_file() {
 #           $4 - target display-name regex filter (optional)
 #           $5 - input JSON file path (optional)
 #           $6 - save JSON output file path (optional)
+#           $7 - tag filter string (optional; newline-separated expressions)
 # Returns.: 0 on success, 1 on error
 # Output..: JSON object with .data array
 # ------------------------------------------------------------------------------
@@ -880,6 +942,7 @@ ds_collect_targets_source() {
     local target_filter="${4:-}"
     local input_json="${5:-}"
     local save_json="${6:-}"
+    local tag_filter="${7:-}"
     local targets_json=""
 
     if [[ -n "$input_json" ]]; then
@@ -900,8 +963,9 @@ ds_collect_targets_source() {
         fi
 
         targets_json=$(ds_filter_targets_json "$targets_json" "$target_filter") || return 1
+        targets_json=$(ds_filter_targets_by_tags "$targets_json" "$tag_filter") || return 1
     else
-        targets_json=$(ds_collect_targets "$compartment_input" "$targets_input" "$lifecycle_input" "$target_filter") || return 1
+        targets_json=$(ds_collect_targets "$compartment_input" "$targets_input" "$lifecycle_input" "$target_filter" "$tag_filter") || return 1
     fi
 
     if [[ -n "$save_json" ]]; then
@@ -1021,6 +1085,7 @@ ds_collect_targets() {
     local targets_input="${2:-}"
     local lifecycle_input="${3:-}"
     local target_filter="${4:-}"
+    local tag_filter="${5:-}"
     local targets_json=""
 
     if ! ds_validate_target_filter_regex "$target_filter"; then
@@ -1077,7 +1142,8 @@ ds_collect_targets() {
         targets_json=$(ds_list_targets "$resolved_compartment" "$lifecycle_input") || return 1
     fi
 
-    ds_filter_targets_json "$targets_json" "$target_filter"
+    targets_json=$(ds_filter_targets_json "$targets_json" "$target_filter") || return 1
+    ds_filter_targets_by_tags "$targets_json" "$tag_filter"
 }
 
 # ------------------------------------------------------------------------------

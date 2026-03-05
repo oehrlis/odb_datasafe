@@ -29,6 +29,7 @@ readonly SCRIPT_VERSION
 : "${TARGETS:=}"
 : "${SELECT_ALL:=false}"
 : "${TARGET_FILTER:=}"
+: "${TAG_FILTER:=}"
 : "${LIFECYCLE:=ACTIVE}"
 : "${START_TIME:=now}"
 : "${AUTO_PURGE:=true}"
@@ -91,6 +92,7 @@ Options:
     -c, --compartment COMP          Compartment OCID or name (default: DS_ROOT_COMP)
     -A, --all                       Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
     -r, --filter REGEX              Filter target names by regex (substring match)
+        --tag-filter EXPR           Filter by OCI tag (key=val, key, ns/key=val, ns/key); repeatable (AND)
     -L, --lifecycle STATES          Lifecycle state filter (default: ACTIVE)
                                     Use comma-separated values: ACTIVE,NEEDS_ATTENTION
         --input-json FILE           Read targets from local JSON (from ds_target_list.sh --save-json)
@@ -178,6 +180,11 @@ parse_args() {
             -r | --filter)
                 need_val "$1" "${2:-}"
                 TARGET_FILTER="$2"
+                shift 2
+                ;;
+            --tag-filter)
+                need_val "$1" "${2:-}"
+                TAG_FILTER="${TAG_FILTER:+${TAG_FILTER}$'\n'}$2"
                 shift 2
                 ;;
             -L | --lifecycle)
@@ -309,7 +316,7 @@ resolve_targets() {
     local targets_json
     targets_json=$(ds_collect_targets_source \
         "$COMPARTMENT" "$TARGETS" "$LIFECYCLE" "$TARGET_FILTER" \
-        "$INPUT_JSON" "$SAVE_JSON") || return 1
+        "$INPUT_JSON" "$SAVE_JSON" "$TAG_FILTER") || return 1
     TARGETS_PAYLOAD_JSON="$targets_json"
 
     while IFS= read -r target_id; do

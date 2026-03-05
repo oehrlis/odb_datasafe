@@ -33,6 +33,7 @@ readonly SCRIPT_VERSION
 : "${TARGETS:=}"
 : "${SELECT_ALL:=false}"
 : "${TARGET_FILTER:=}"
+: "${TAG_FILTER:=}"
 : "${LIFECYCLE_STATE:=NEEDS_ATTENTION}" # Default to NEEDS_ATTENTION
 : "${DRY_RUN:=false}"
 : "${WAIT_STATE:=}" # State to wait for; empty = return after submit
@@ -87,6 +88,7 @@ Options:
     -A, --all                   Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
     -T, --targets LIST          Comma-separated target names or OCIDs
     -r, --filter REGEX          Filter target names by regex (substring match)
+        --tag-filter EXPR       Filter by OCI tag (key=val, key, ns/key=val, ns/key); repeatable (AND)
     -L, --lifecycle STATE       Filter by lifecycle state (default: NEEDS_ATTENTION)
                                 Use ACTIVE, NEEDS_ATTENTION, etc.
         --input-json FILE       Read targets from local JSON (array or {data:[...]})
@@ -178,6 +180,11 @@ parse_args() {
             -r | --filter)
                 need_val "$1" "${2:-}"
                 TARGET_FILTER="$2"
+                shift 2
+                ;;
+            --tag-filter)
+                need_val "$1" "${2:-}"
+                TAG_FILTER="${TAG_FILTER:+${TAG_FILTER}$'\n'}$2"
                 shift 2
                 ;;
             -L | --lifecycle)
@@ -347,7 +354,7 @@ do_work() {
 
     log_info "Discovering targets (lifecycle: $LIFECYCLE_STATE)"
     local targets_json
-    targets_json=$(ds_collect_targets_source "$COMPARTMENT" "$TARGETS" "$LIFECYCLE_STATE" "$TARGET_FILTER" "$INPUT_JSON" "$SAVE_JSON") || die "Failed to collect targets"
+    targets_json=$(ds_collect_targets_source "$COMPARTMENT" "$TARGETS" "$LIFECYCLE_STATE" "$TARGET_FILTER" "$INPUT_JSON" "$SAVE_JSON" "$TAG_FILTER") || die "Failed to collect targets"
 
     mapfile -t target_rows < <(echo "$targets_json" | jq -r '.data[] | [(.id // ""), (."display-name" // "")] | @tsv')
 

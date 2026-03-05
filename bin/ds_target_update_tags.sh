@@ -33,6 +33,7 @@ readonly SCRIPT_VERSION
 : "${TARGETS:=}"
 : "${SELECT_ALL:=false}"
 : "${TARGET_FILTER:=}"
+: "${TAG_FILTER:=}"
 : "${APPLY_CHANGES:=false}"
 : "${INPUT_JSON:=}"
 : "${SAVE_JSON:=}"
@@ -101,6 +102,7 @@ Options:
     -A, --all                   Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
     -T, --targets LIST          Comma-separated target names or OCIDs
     -r, --filter REGEX          Filter target names by regex (substring match)
+        --tag-filter EXPR       Filter by OCI tag (key=val, key, ns/key=val, ns/key); repeatable (AND)
         --input-json FILE       Read targets from local JSON (array or {data:[...]})
         --save-json FILE        Save selected target JSON payload
         --allow-stale-selection Allow --apply with --input-json
@@ -211,6 +213,11 @@ parse_args() {
             -r | --filter)
                 need_val "$1" "${2:-}"
                 TARGET_FILTER="$2"
+                shift 2
+                ;;
+            --tag-filter)
+                need_val "$1" "${2:-}"
+                TAG_FILTER="${TAG_FILTER:+${TAG_FILTER}$'\n'}$2"
                 shift 2
                 ;;
             --input-json)
@@ -450,7 +457,7 @@ normalize_target_payload() {
 # Output..: JSON object with .data array
 # ------------------------------------------------------------------------------
 collect_targets_for_tagging() {
-    ds_collect_targets_source "$COMPARTMENT" "$TARGETS" "$LIFECYCLE_STATE" "$TARGET_FILTER" "$INPUT_JSON" "$SAVE_JSON"
+    ds_collect_targets_source "$COMPARTMENT" "$TARGETS" "$LIFECYCLE_STATE" "$TARGET_FILTER" "$INPUT_JSON" "$SAVE_JSON" "$TAG_FILTER"
 }
 
 # ------------------------------------------------------------------------------

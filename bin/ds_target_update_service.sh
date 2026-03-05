@@ -33,6 +33,7 @@ readonly SCRIPT_VERSION
 : "${TARGETS:=}"
 : "${SELECT_ALL:=false}"
 : "${TARGET_FILTER:=}"
+: "${TAG_FILTER:=}"
 : "${LIFECYCLE_STATE:=ACTIVE}"
 : "${INPUT_JSON:=}"
 : "${SAVE_JSON:=}"
@@ -91,6 +92,7 @@ Options:
     -A, --all                   Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
     -T, --targets LIST          Comma-separated target names or OCIDs
     -r, --filter REGEX          Filter target names by regex (substring match)
+        --tag-filter EXPR       Filter by OCI tag (key=val, key, ns/key=val, ns/key); repeatable (AND)
     -L, --lifecycle STATE       Filter by lifecycle state (default: ${LIFECYCLE_STATE})
         --input-json FILE       Read targets from local JSON (array or {data:[...]})
         --save-json FILE        Save selected target JSON payload
@@ -186,6 +188,11 @@ parse_args() {
             -r | --filter)
                 need_val "$1" "${2:-}"
                 TARGET_FILTER="$2"
+                shift 2
+                ;;
+            --tag-filter)
+                need_val "$1" "${2:-}"
+                TAG_FILTER="${TAG_FILTER:+${TAG_FILTER}$'\n'}$2"
                 shift 2
                 ;;
             -L | --lifecycle)
@@ -483,7 +490,7 @@ do_work() {
     log_info "Discovering targets (lifecycle: $LIFECYCLE_STATE)"
 
     local json_data
-    json_data=$(ds_collect_targets_source "$COMPARTMENT" "$TARGETS" "$LIFECYCLE_STATE" "$TARGET_FILTER" "$INPUT_JSON" "$SAVE_JSON") || die "Failed to collect targets"
+    json_data=$(ds_collect_targets_source "$COMPARTMENT" "$TARGETS" "$LIFECYCLE_STATE" "$TARGET_FILTER" "$INPUT_JSON" "$SAVE_JSON" "$TAG_FILTER") || die "Failed to collect targets"
 
     mapfile -t target_rows < <(echo "$json_data" | jq -r '.data[] | [(.id // ""), (."display-name" // ""), (.databaseDetails.serviceName // ."database-details"."service-name" // "")] | @tsv')
 

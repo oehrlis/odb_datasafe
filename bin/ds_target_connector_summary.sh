@@ -30,6 +30,7 @@ readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 # Defaults
 : "${COMPARTMENT:=}"
 : "${LIFECYCLE_STATE:=}"
+: "${TAG_FILTER:=}"
 : "${OUTPUT_FORMAT:=table}" # table|json|csv
 : "${SHOW_DETAILED:=false}" # Summary by default
 : "${FIELDS:=display-name,lifecycle-state,infrastructure-type}"
@@ -86,6 +87,7 @@ Options:
     -c, --compartment ID        Compartment OCID or name (default: DS_ROOT_COMP)
                                 Configure in: .env or datasafe.conf
     -L, --lifecycle STATE       Filter by lifecycle state (ACTIVE, NEEDS_ATTENTION, etc.)
+        --tag-filter EXPR       Filter by OCI tag (key=val, key, ns/key=val, ns/key); repeatable (AND)
                 --input-json FILE       Read targets from local JSON (array or {data:[...]})
                 --save-json FILE        Save selected target JSON payload
 
@@ -202,6 +204,11 @@ parse_args() {
             --no-enrich)
                 ENRICH_MISSING=false
                 shift
+                ;;
+            --tag-filter)
+                need_val "$1" "${2:-}"
+                TAG_FILTER="${TAG_FILTER:+${TAG_FILTER}$'\n'}$2"
+                shift 2
                 ;;
             --oci-profile)
                 need_val "$1" "${2:-}"
@@ -663,14 +670,14 @@ do_work() {
     # --- Fetch / load targets ---
     if [[ -n "$INPUT_JSON" ]]; then
         log_info "Loading target databases from input JSON..."
-        targets_json=$(ds_collect_targets_source "" "" "$LIFECYCLE_STATE" "" "$INPUT_JSON" "$SAVE_JSON") \
+        targets_json=$(ds_collect_targets_source "" "" "$LIFECYCLE_STATE" "" "$INPUT_JSON" "$SAVE_JSON" "$TAG_FILTER") \
             || die "Failed to load targets from input JSON"
     else
         local comp_name
         comp_name=$(oci_get_compartment_name "$COMPARTMENT") || comp_name="$COMPARTMENT"
         log_info "Processing compartment: $comp_name (includes sub-compartments)"
         log_info "Fetching target databases..."
-        targets_json=$(ds_collect_targets_source "$COMPARTMENT" "" "$LIFECYCLE_STATE" "" "" "$SAVE_JSON") \
+        targets_json=$(ds_collect_targets_source "$COMPARTMENT" "" "$LIFECYCLE_STATE" "" "" "$SAVE_JSON" "$TAG_FILTER") \
             || die "Failed to list targets"
     fi
 

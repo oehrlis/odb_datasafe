@@ -46,6 +46,7 @@ source "${LIB_DIR}/ds_lib.sh"
 : "${TARGETS:=}"               # CSV names/OCIDs (overrides compartment mode)
 : "${SELECT_ALL:=false}"       # Select all targets from DS_ROOT_COMP
 : "${TARGET_FILTER:=}"         # Regex filter on target display names
+: "${TAG_FILTER:=}"            # OCI tag filter expressions (newline-separated)
 : "${STATE_FILTERS:=ACTIVE}"   # CSV lifecycle states when scanning compartment
 : "${DEST_COMPARTMENT:=}"      # Destination compartment name or OCID (required)
 : "${MOVE_DEPENDENCIES:=true}" # Move audit trails, assessments, policies
@@ -92,6 +93,7 @@ Target selection:
     -c, --compartment <OCID|NAME>       Source compartment OCID or name (env: COMPARTMENT/COMP_OCID)
     -A, --all                           Select all targets from DS_ROOT_COMP (requires DS_ROOT_COMP)
     -r, --filter <REGEX>                Filter target names by regex (substring match)
+        --tag-filter <EXPR>             Filter by OCI tag (key=val, key, ns/key=val, ns/key); repeatable (AND)
                                         (or) use lifecycle-state filtering:
     -s, --lifecycle <LIST>              Comma-separated states (default: ${STATE_FILTERS})
 
@@ -165,6 +167,11 @@ parse_args() {
             -r | --filter)
                 need_val "$1" "${2:-}"
                 TARGET_FILTER="$2"
+                shift 2
+                ;;
+            --tag-filter)
+                need_val "$1" "${2:-}"
+                TAG_FILTER="${TAG_FILTER:+${TAG_FILTER}$'\n'}$2"
                 shift 2
                 ;;
             -D | --dest-compartment)
@@ -349,6 +356,9 @@ preflight_checks() {
         targets_json=$(ds_list_targets "$compartment_ocid" "$STATE_FILTERS") || die "Failed to list targets in compartment"
         if [[ -n "$TARGET_FILTER" ]]; then
             targets_json=$(ds_filter_targets_json "$targets_json" "$TARGET_FILTER")
+        fi
+        if [[ -n "$TAG_FILTER" ]]; then
+            targets_json=$(ds_filter_targets_by_tags "$targets_json" "$TAG_FILTER")
         fi
         while IFS=$'\t' read -r ocid; do
             [[ -n "$ocid" ]] && target_ocids+=("$ocid")

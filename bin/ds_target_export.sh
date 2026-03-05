@@ -58,6 +58,7 @@ FORMAT="csv"
 OUTPUT_FILE=""
 INPUT_JSON=""
 SAVE_JSON=""
+TAG_FILTER=""
 
 # Runtime
 COMP_OCID=""
@@ -88,6 +89,7 @@ DESCRIPTION:
 OPTIONS:
   -c, --compartment COMP    Compartment name or OCID (required)
   -L, --lifecycle STATE     Filter by lifecycle state (ACTIVE,NEEDS_ATTENTION, etc.)
+      --tag-filter EXPR     Filter by OCI tag (key=val, key, ns/key=val, ns/key); repeatable (AND)
   -D, --since-date DATE     Only export targets created >= date
                             Accepts: 2025-01-01, -2d, -1w, -3m, RFC3339
   -F, --format FORMAT       Export format: csv, json (default: csv)
@@ -163,6 +165,10 @@ parse_args() {
                 ;;
             --save-json)
                 SAVE_JSON="$2"
+                shift 2
+                ;;
+            --tag-filter)
+                TAG_FILTER="${TAG_FILTER:+${TAG_FILTER}$'\n'}$2"
                 shift 2
                 ;;
             --oci-config)
@@ -319,7 +325,7 @@ export_targets() {
     fi
 
     local targets_json
-    targets_json=$(ds_collect_targets_source "$COMP_OCID" "" "$LIFECYCLE" "" "$INPUT_JSON" "$SAVE_JSON") || die "Failed to collect targets"
+    targets_json=$(ds_collect_targets_source "$COMP_OCID" "" "$LIFECYCLE" "" "$INPUT_JSON" "$SAVE_JSON" "$TAG_FILTER") || die "Failed to collect targets"
 
     local total_count
     total_count=$(echo "$targets_json" | jq '.data | length')
