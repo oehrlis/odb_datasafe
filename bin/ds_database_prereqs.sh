@@ -1087,6 +1087,38 @@ SQL
 }
 
 # ------------------------------------------------------------------------------
+# Function: check_database_vault
+# Purpose.: Detect whether Database Vault is configured and enabled for the
+#           current scope (ROOT or a specific PDB). Uses DBA_DV_STATUS; if the
+#           view is absent (DV not installed) the query is silently skipped via
+#           WHENEVER SQLERROR CONTINUE and the function returns 1 (not active).
+# Args....: $1 - Scope label ("ROOT" or "PDB=<name>")
+# Returns.: 0 if Database Vault is configured AND enabled, 1 otherwise
+# Output..: None (log messages on detection)
+# ------------------------------------------------------------------------------
+check_database_vault() {
+    local scope_label="$1"
+
+    local container_switch=""
+    if [[ "$scope_label" != "ROOT" && -n "$PDB" ]]; then
+        container_switch="alter session set container=${PDB};"
+    fi
+
+    local dv_count
+    dv_count=$(sqlplus -s -L / as sysdba 2>/dev/null << SQL
+set pages 0 feedback off heading off verify off echo off termout off
+whenever sqlerror continue
+${container_switch}
+select count(*) from dba_dv_status where name in ('DV_CONFIGURE_STATUS','DV_ENABLE_STATUS') and status = 'TRUE';
+exit;
+SQL
+    )
+    dv_count="$(printf '%s' "$dv_count" | tr -d '[:space:]')"
+
+    [[ "$dv_count" == "2" ]]
+}
+
+# ------------------------------------------------------------------------------
 # Function: resolve_ds_user
 # Purpose.: Resolve Data Safe username for scope
 # Args....: $1 - Scope label
@@ -1162,6 +1194,16 @@ run_prereqs_scope() {
     ds_profile="$(resolve_ds_profile "$scope_label")"
 
     log_info "Running Data Safe prerequisites for ${scope_label} (user action: ${USER_ACTION})"
+
+    if check_database_vault "$scope_label"; then
+        log_warn "Database Vault is configured and enabled on ${scope_label}."
+        log_warn "SYSDBA cannot create users or grant system privileges when Database Vault is active."
+        log_warn "Manual steps are required for this scope:"
+        log_warn "  1. Connect as DV_ACCMGR (or account manager role) to create user: ${ds_user}"
+        log_warn "  2. Connect as DV_OWNER or SYS to grant the required Data Safe privileges"
+        log_warn "  Skipping automated prerequisites for scope: ${scope_label}"
+        return 0
+    fi
 
     run_sql_local "${SQL_DIR%/}/${PREREQ_SQL}" "${ds_profile}"
     run_sql_local "${SQL_DIR%/}/${USER_SQL}" "${ds_user}" "${DATASAFE_PASS}" "${ds_profile}" "${force_arg}" "${update_arg}"

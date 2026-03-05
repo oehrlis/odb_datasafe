@@ -1443,10 +1443,15 @@ evaluate_health_issues() {
             local sid_key="${cluster}|${sid}"
             sid_cluster["$sid_key"]="$cluster"
 
-            if is_cdbroot_name "$db_token"; then
-                sid_root_count["$sid_key"]=$((${sid_root_count["$sid_key"]:-0} + 1))
-            else
-                sid_pdb_count["$sid_key"]=$((${sid_pdb_count["$sid_key"]:-0} + 1))
+            # Exclude DELETED/DELETING from root/PDB counts — they do not
+            # represent active registrations and would cause spurious
+            # SID_DUPLICATE_ROOT or SID_MISSING_ROOT issues.
+            if [[ "$lifecycle_state" != "DELETED" && "$lifecycle_state" != "DELETING" ]]; then
+                if is_cdbroot_name "$db_token"; then
+                    sid_root_count["$sid_key"]=$((${sid_root_count["$sid_key"]:-0} + 1))
+                else
+                    sid_pdb_count["$sid_key"]=$((${sid_pdb_count["$sid_key"]:-0} + 1))
+                fi
             fi
         else
             printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \

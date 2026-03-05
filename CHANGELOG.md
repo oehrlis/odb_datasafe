@@ -16,10 +16,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   as `TARGET_UNEXPECTED_STATE` / `MEDIUM`. They are now reported as
   `TARGET_DELETING` / `LOW` with "No action required" — these targets are
   removed by OCI automatically and require no operator intervention.
+- `bin/ds_target_list.sh`: DELETED and DELETING targets were counted in the
+  per-SID root/PDB tallies used for `SID_DUPLICATE_ROOT` and `SID_MISSING_ROOT`
+  checks. A SID with one active root and one deleted root was incorrectly
+  flagged `SID_DUPLICATE_ROOT` / `HIGH`. DELETED and DELETING targets are now
+  excluded from these counts.
 - `bin/ds_target_register.sh`: registering a target whose display name matched
   an existing DELETED target was blocked with "Target already exists".
   `check_target_exists()` now ignores DELETED targets, allowing re-registration
   with the same name once the previous entry has been deleted.
+
+### Added
+
+- `bin/ds_database_prereqs.sh`: Database Vault detection per scope. Before
+  running any DDL, the script queries `DBA_DV_STATUS` for the current container
+  (ROOT or PDB). If DV is configured and enabled, a `WARN` is emitted with
+  manual steps (DV_ACCMGR to create the user, DV_OWNER/SYS to grant privileges)
+  and the scope is skipped. Other scopes in the same run are unaffected.
 
 ## [0.18.2] - 2026-03-03
 
