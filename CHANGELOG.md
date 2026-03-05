@@ -12,6 +12,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `lib/oci_helpers.sh`: new `ds_filter_targets_by_tags()` function. Accepts a
+  `{"data": [...]}` blob and a newline-separated list of tag expressions;
+  returns only targets satisfying every expression (AND semantics). Wired into
+  `ds_collect_targets_source()` (param 7) and `ds_collect_targets()` (param 5).
+- `--tag-filter EXPR` flag added to all fourteen target operation scripts
+  (`ds_target_list.sh`, `ds_target_activate.sh`, `ds_target_audit_trail.sh`,
+  `ds_target_refresh.sh`, `ds_target_update_tags.sh`,
+  `ds_target_update_connector.sh`, `ds_target_update_credentials.sh`,
+  `ds_target_update_service.sh`, `ds_target_details.sh`, `ds_target_delete.sh`,
+  `ds_target_move.sh`, `ds_tg_report.sh`, `ds_target_connector_summary.sh`,
+  `ds_target_export.sh`). Multiple flags are AND-combined.
+  Supports `key=value` (freeform), `key` (freeform presence),
+  `namespace/key=value` (defined), `namespace/key` (defined presence).
 - `lib/oci_helpers.sh`: new `oci_lookup_pdb_connection()` function. Queries
   `oci db pluggable-database list`, finds a PDB by name (excluding TERMINATED),
   and parses the `pdb-default` connection string into `service|port`.
@@ -46,24 +59,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   semantics — now fetches current `database-details` and merges changes into
   it before submitting, preserving required fields (`databaseType`,
   `infrastructureType`, `vmClusterId`, etc.).
-
-## [0.19.0] - 2026-03-05
-
-### Added
-
-- `lib/oci_helpers.sh`: new `ds_filter_targets_by_tags()` function. Accepts a
-  `{"data": [...]}` blob and a newline-separated list of tag expressions;
-  returns only targets satisfying every expression (AND semantics). Wired into
-  `ds_collect_targets_source()` (param 7) and `ds_collect_targets()` (param 5).
-- `--tag-filter EXPR` flag added to all fourteen target operation scripts
-  (`ds_target_list.sh`, `ds_target_activate.sh`, `ds_target_audit_trail.sh`,
-  `ds_target_refresh.sh`, `ds_target_update_tags.sh`,
-  `ds_target_update_connector.sh`, `ds_target_update_credentials.sh`,
-  `ds_target_update_service.sh`, `ds_target_details.sh`, `ds_target_delete.sh`,
-  `ds_target_move.sh`, `ds_tg_report.sh`, `ds_target_connector_summary.sh`,
-  `ds_target_export.sh`). Multiple flags are AND-combined.
-  Supports `key=value` (freeform), `key` (freeform presence),
-  `namespace/key=value` (defined), `namespace/key` (defined presence).
 
 ## [0.18.3] - 2026-03-04
 
