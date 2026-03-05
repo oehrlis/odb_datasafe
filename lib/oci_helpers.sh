@@ -828,26 +828,26 @@ ds_filter_targets_by_tags() {
             if [[ "$rest" == *"="* ]]; then
                 local dk="${rest%%=*}"
                 local dv="${rest#*=}"
-                result=$(printf '%s' "$result" | \
-                    jq --arg ns "$ns" --arg k "$dk" --arg v "$dv" \
-                    '.data = (.data | map(select(."defined-tags"[$ns][$k] == $v)))')
+                result=$(printf '%s' "$result" \
+                    | jq --arg ns "$ns" --arg k "$dk" --arg v "$dv" \
+                        '.data = (.data | map(select(."defined-tags"[$ns][$k] == $v)))')
             else
-                result=$(printf '%s' "$result" | \
-                    jq --arg ns "$ns" --arg k "$rest" \
-                    '.data = (.data | map(select(."defined-tags"[$ns] | type == "object" and has($k))))')
+                result=$(printf '%s' "$result" \
+                    | jq --arg ns "$ns" --arg k "$rest" \
+                        '.data = (.data | map(select(."defined-tags"[$ns] | type == "object" and has($k))))')
             fi
         elif [[ "$expr" == *"="* ]]; then
             # Freeform tag: key=value
             local fk="${expr%%=*}"
             local fv="${expr#*=}"
-            result=$(printf '%s' "$result" | \
-                jq --arg k "$fk" --arg v "$fv" \
-                '.data = (.data | map(select(."freeform-tags"[$k] == $v)))')
+            result=$(printf '%s' "$result" \
+                | jq --arg k "$fk" --arg v "$fv" \
+                    '.data = (.data | map(select(."freeform-tags"[$k] == $v)))')
         else
             # Freeform tag presence: key
-            result=$(printf '%s' "$result" | \
-                jq --arg k "$expr" \
-                '.data = (.data | map(select(."freeform-tags" | type == "object" and has($k))))')
+            result=$(printf '%s' "$result" \
+                | jq --arg k "$expr" \
+                    '.data = (.data | map(select(."freeform-tags" | type == "object" and has($k))))')
         fi
     done <<< "$tag_filter"
 
