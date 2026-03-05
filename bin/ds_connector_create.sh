@@ -5,7 +5,7 @@
 # Script.....: ds_connector_create.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.03.03
-# Version....: v0.19.0
+# Version....: v0.19.1
 # Purpose....: Create a new Oracle Data Safe On-Premises Connector:
 #              1. Create the connector object in OCI Data Safe
 #              2. Generate a bundle key and download the installation bundle
@@ -24,7 +24,7 @@ LIB_DIR="${SCRIPT_DIR}/../lib"
 
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_NAME
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.19.0')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.19.1')"
 readonly SCRIPT_VERSION
 
 if [[ ! -f "${LIB_DIR}/ds_lib.sh" ]]; then

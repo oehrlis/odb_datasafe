@@ -5,7 +5,7 @@
 # Script.....: ds_target_connect_details.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.03.02
-# Version....: v0.19.0
+# Version....: v0.19.1
 # Purpose....: Display connection details for Oracle Data Safe target database.
 #              Shows target info, listener port, service name, connection strings,
 #              VM cluster hosts, and credentials.
@@ -22,7 +22,7 @@ readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly LIB_DIR="${SCRIPT_DIR}/../lib"
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.19.0')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.19.1')"
 readonly SCRIPT_VERSION
 
 # Defaults

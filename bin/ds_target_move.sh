@@ -5,7 +5,7 @@
 # Script.....: ds_target_move.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.03.02
-# Version....: v0.19.0
+# Version....: v0.19.1
 # Purpose....: Move Oracle Data Safe targets and their referencing objects
 #              to another compartment for given target names/OCIDs.
 # Requires...: bash (>=4), oci, jq, lib/ds_lib.sh
@@ -26,7 +26,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.19.0')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.19.1')"
 # shellcheck disable=SC2034  # Used by parse_common_opts for --version output
 readonly SCRIPT_NAME SCRIPT_VERSION
 

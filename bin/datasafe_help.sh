@@ -5,7 +5,7 @@
 # Script.....: datasafe_help.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.03.02
-# Version....: v0.19.0
+# Version....: v0.19.1
 # Purpose....: Wrapper for odb_datasafe_help.sh
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------

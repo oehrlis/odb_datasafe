@@ -5,7 +5,7 @@
 # Script.....: ds_version.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.03.02
-# Version....: v0.19.0
+# Version....: v0.19.1
 # Purpose....: Show odb_datasafe version, metadata, and checksum-based changes
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------

@@ -8,6 +8,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.1] - 2026-03-05
+
+### Added
+
+- `lib/oci_helpers.sh`: new `oci_lookup_pdb_connection()` function. Queries
+  `oci db pluggable-database list`, finds a PDB by name (excluding TERMINATED),
+  and parses the `pdb-default` connection string into `service|port`.
+
+### Enhanced
+
+- `bin/ds_target_update_service.sh`: template-based service naming via
+  configurable brace-style placeholders (`{pdb}`, `{PDB}`, `{cdb}`, `{CDB}`,
+  `{cluster}`, `{CLUSTER}`, `{sid}`, `{SID}`, `{domain}`) derived from the
+  target display name. Default template `{pdb}_exa.{domain}` preserves
+  backward-compatible output.
+- `bin/ds_target_update_service.sh`: listener port update via `--port PORT`
+  or `--update-port` (uses `LISTENER_PORT` from config). Off by default; opt-in.
+- `bin/ds_target_update_service.sh`: root target (CDB$ROOT) handling — a
+  separate `--root-service-template` is required; root targets are skipped
+  with a warning when no template is configured.
+- `bin/ds_target_update_service.sh`: `--from-oci` mode — automatically derives
+  service name and listener port from the OCI PDB object's `pdb-default`
+  connection string via `oci_lookup_pdb_connection()`.
+- `bin/ds_target_update_service.sh`: `--no-service-update` flag to update
+  port only; `--pdb-compartment COMP` for cross-compartment PDB lookup.
+- `etc/datasafe.conf.example`: documented `SERVICE_TEMPLATE` and
+  `ROOT_SERVICE_TEMPLATE` configuration variables.
+
 ## [0.19.0] - 2026-03-05
 
 ### Added
