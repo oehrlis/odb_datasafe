@@ -424,3 +424,88 @@ teardown() {
     run grep -E 'log_trace "OCI command:' "${LIB_DIR}/oci_helpers.sh"
     [ "$status" -eq 0 ]
 }
+
+# =============================================================================
+# ds_filter_targets_by_tags tests
+# Libraries are sourced in setup() — call functions directly (no bash -c)
+# =============================================================================
+
+@test "ds_filter_targets_by_tags: empty filter returns all targets" {
+    local json='{"data":[{"id":"t1","freeform-tags":{"Env":"prod"},"defined-tags":{}},{"id":"t2","freeform-tags":{},"defined-tags":{}}]}'
+    local result count
+    result=$(ds_filter_targets_by_tags "$json" "")
+    count=$(printf '%s' "$result" | jq '.data | length')
+    [ "$count" -eq 2 ]
+}
+
+@test "ds_filter_targets_by_tags: freeform key=value matches exact value" {
+    local json='{"data":[{"id":"t1","freeform-tags":{"Environment":"Production","Owner":"alice"},"defined-tags":{"DBSec":{"Classification":"internal","Level":"High"}}},{"id":"t2","freeform-tags":{"Environment":"Staging"},"defined-tags":{"DBSec":{"Classification":"public"}}},{"id":"t3","freeform-tags":{},"defined-tags":{}}]}'
+    local result ids
+    result=$(ds_filter_targets_by_tags "$json" "Environment=Production")
+    ids=$(printf '%s' "$result" | jq -r '.data[].id')
+    [ "$ids" = "t1" ]
+}
+
+@test "ds_filter_targets_by_tags: freeform key presence filters correctly" {
+    local json='{"data":[{"id":"t1","freeform-tags":{"Environment":"Production","Owner":"alice"},"defined-tags":{"DBSec":{"Classification":"internal","Level":"High"}}},{"id":"t2","freeform-tags":{"Environment":"Staging"},"defined-tags":{"DBSec":{"Classification":"public"}}},{"id":"t3","freeform-tags":{},"defined-tags":{}}]}'
+    local result ids
+    result=$(ds_filter_targets_by_tags "$json" "Owner")
+    ids=$(printf '%s' "$result" | jq -r '.data[].id')
+    [ "$ids" = "t1" ]
+}
+
+@test "ds_filter_targets_by_tags: defined tag ns/key=value matches" {
+    local json='{"data":[{"id":"t1","freeform-tags":{"Environment":"Production","Owner":"alice"},"defined-tags":{"DBSec":{"Classification":"internal","Level":"High"}}},{"id":"t2","freeform-tags":{"Environment":"Staging"},"defined-tags":{"DBSec":{"Classification":"public"}}},{"id":"t3","freeform-tags":{},"defined-tags":{}}]}'
+    local result ids
+    result=$(ds_filter_targets_by_tags "$json" "DBSec/Classification=internal")
+    ids=$(printf '%s' "$result" | jq -r '.data[].id')
+    [ "$ids" = "t1" ]
+}
+
+@test "ds_filter_targets_by_tags: defined tag ns/key presence filters correctly" {
+    local json='{"data":[{"id":"t1","freeform-tags":{"Environment":"Production","Owner":"alice"},"defined-tags":{"DBSec":{"Classification":"internal","Level":"High"}}},{"id":"t2","freeform-tags":{"Environment":"Staging"},"defined-tags":{"DBSec":{"Classification":"public"}}},{"id":"t3","freeform-tags":{},"defined-tags":{}}]}'
+    local result ids
+    result=$(ds_filter_targets_by_tags "$json" "DBSec/Level")
+    ids=$(printf '%s' "$result" | jq -r '.data[].id')
+    [ "$ids" = "t1" ]
+}
+
+@test "ds_filter_targets_by_tags: AND combination of two filters" {
+    local json='{"data":[{"id":"t1","freeform-tags":{"Environment":"Production","Owner":"alice"},"defined-tags":{"DBSec":{"Classification":"internal","Level":"High"}}},{"id":"t2","freeform-tags":{"Environment":"Staging"},"defined-tags":{"DBSec":{"Classification":"public"}}},{"id":"t3","freeform-tags":{},"defined-tags":{}}]}'
+    local filter result ids
+    filter=$'Environment=Production\nDBSec/Level=High'
+    result=$(ds_filter_targets_by_tags "$json" "$filter")
+    ids=$(printf '%s' "$result" | jq -r '.data[].id')
+    [ "$ids" = "t1" ]
+}
+
+@test "ds_filter_targets_by_tags: AND combination yields empty when no match" {
+    local json='{"data":[{"id":"t1","freeform-tags":{"Environment":"Production","Owner":"alice"},"defined-tags":{"DBSec":{"Classification":"internal","Level":"High"}}},{"id":"t2","freeform-tags":{"Environment":"Staging"},"defined-tags":{"DBSec":{"Classification":"public"}}},{"id":"t3","freeform-tags":{},"defined-tags":{}}]}'
+    local filter result count
+    filter=$'Environment=Production\nEnvironment=Staging'
+    result=$(ds_filter_targets_by_tags "$json" "$filter")
+    count=$(printf '%s' "$result" | jq '.data | length')
+    [ "$count" -eq 0 ]
+}
+
+@test "ds_filter_targets_by_tags: non-matching filter returns empty data" {
+    local json='{"data":[{"id":"t1","freeform-tags":{"Environment":"Production","Owner":"alice"},"defined-tags":{"DBSec":{"Classification":"internal","Level":"High"}}},{"id":"t2","freeform-tags":{"Environment":"Staging"},"defined-tags":{"DBSec":{"Classification":"public"}}},{"id":"t3","freeform-tags":{},"defined-tags":{}}]}'
+    local result count
+    result=$(ds_filter_targets_by_tags "$json" "Environment=NoSuchEnv")
+    count=$(printf '%s' "$result" | jq '.data | length')
+    [ "$count" -eq 0 ]
+}
+
+@test "ds_filter_targets_by_tags: target with no tags excluded by key presence filter" {
+    local json='{"data":[{"id":"t1","freeform-tags":{"Environment":"Production","Owner":"alice"},"defined-tags":{"DBSec":{"Classification":"internal","Level":"High"}}},{"id":"t2","freeform-tags":{"Environment":"Staging"},"defined-tags":{"DBSec":{"Classification":"public"}}},{"id":"t3","freeform-tags":{},"defined-tags":{}}]}'
+    local result count
+    result=$(ds_filter_targets_by_tags "$json" "Environment")
+    count=$(printf '%s' "$result" | jq '.data | length')
+    # t1 and t2 have Environment tag; t3 does not
+    [ "$count" -eq 2 ]
+}
+
+@test "ds_filter_targets_by_tags function exists in oci_helpers.sh" {
+    run bash -c "source '${LIB_DIR}/common.sh' && source '${LIB_DIR}/oci_helpers.sh' && declare -F ds_filter_targets_by_tags"
+    [ "$status" -eq 0 ]
+}
