@@ -5,7 +5,7 @@
 # Script.....: ds_target_export.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.03.02
-# Version....: v0.17.4
+# Version....: v0.19.0
 # Purpose....: Export Oracle Data Safe target databases to CSV or JSON
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
@@ -35,7 +35,7 @@
 
 # Script identification
 SCRIPT_NAME="ds_target_export"
-SCRIPT_VERSION="$(grep '^version:' "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.18.0')"
+SCRIPT_VERSION="$(grep '^version:' "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.19.0')"
 
 # Bootstrap - locate library files
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

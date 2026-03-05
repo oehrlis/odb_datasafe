@@ -5,7 +5,7 @@
 # Module.....: ssh_helpers.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.03.02
-# Version....: v0.17.4
+# Version....: v0.19.0
 # Purpose.: SSH/SCP helper functions for remote execution and file transfer
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------

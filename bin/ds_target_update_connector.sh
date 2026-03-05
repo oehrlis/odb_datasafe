@@ -5,7 +5,7 @@
 # Script.....: ds_target_update_connector.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.03.02
-# Version....: v0.17.5
+# Version....: v0.19.0
 # Purpose....: Manage Oracle Data Safe on-premises connector assignments
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
@@ -25,7 +25,7 @@ readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly LIB_DIR="${SCRIPT_DIR}/../lib"
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.18.0')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.19.0')"
 readonly SCRIPT_VERSION
 
 # Defaults

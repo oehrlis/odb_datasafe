@@ -5,7 +5,7 @@
 # Module.....: oci_helpers.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.03.02
-# Version....: v0.17.4
+# Version....: v0.19.0
 # Purpose.: OCI CLI wrapper functions for Oracle Data Safe operations
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
