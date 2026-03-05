@@ -1087,6 +1087,27 @@ SQL
 }
 
 # ------------------------------------------------------------------------------
+# Function: check_pdb_exists
+# Purpose.: Verify that a named PDB exists in v$pdbs on the current CDB
+# Args....: $1 - PDB name (case-insensitive)
+# Returns.: 0 if the PDB exists, 1 if not found or on error
+# Output..: None
+# ------------------------------------------------------------------------------
+check_pdb_exists() {
+    local pdb_name="$1"
+    local count
+    count=$(sqlplus -s -L / as sysdba 2>/dev/null << SQL
+set pages 0 feedback off heading off verify off echo off termout off
+whenever sqlerror exit failure
+select count(*) from v\$pdbs where name=upper('${pdb_name}') and name <> 'PDB\$SEED';
+exit;
+SQL
+    ) || return 1
+    count="$(printf '%s' "$count" | tr -d '[:space:]')"
+    [[ "${count:-0}" -gt 0 ]] 2>/dev/null
+}
+
+# ------------------------------------------------------------------------------
 # Function: check_database_vault
 # Purpose.: Detect whether Database Vault is configured and enabled for the
 #           current scope (ROOT or a specific PDB). Uses DBA_DV_STATUS; if the
@@ -1346,6 +1367,10 @@ main() {
             for pdb in "${pdb_list[@]}"; do
                 pdb="${pdb//[[:space:]]/}"
                 [[ -z "$pdb" ]] && continue
+                if ! check_pdb_exists "$pdb"; then
+                    log_error "PDB ${pdb} does not exist on ${ORACLE_SID}"
+                    return 1
+                fi
                 PDB="$pdb"
                 run_drop_user_scope "PDB=${pdb}"
             done
@@ -1395,6 +1420,10 @@ main() {
         for pdb in "${pdb_list[@]}"; do
             pdb="${pdb//[[:space:]]/}"
             [[ -z "$pdb" ]] && continue
+            if ! check_pdb_exists "$pdb"; then
+                log_error "PDB ${pdb} does not exist on ${ORACLE_SID}"
+                return 1
+            fi
             PDB="$pdb"
             if [[ "$CHECK_ONLY" == "true" ]]; then
                 run_checks_scope "PDB=${pdb}"
