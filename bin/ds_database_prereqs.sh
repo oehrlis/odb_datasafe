@@ -1105,7 +1105,8 @@ check_database_vault() {
     fi
 
     local dv_count
-    dv_count=$(sqlplus -s -L / as sysdba 2>/dev/null << SQL
+    dv_count=$(
+        sqlplus -s -L / as sysdba 2> /dev/null << SQL
 set pages 0 feedback off heading off verify off echo off termout off
 whenever sqlerror continue
 ${container_switch}
