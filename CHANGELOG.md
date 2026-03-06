@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.2] - 2026-03-06
+
+### Fixed
+
+- `bin/ds_target_delete.sh`: `SCRIPT_VERSION` referenced `${SCRIPT_DIR}` before
+  `SCRIPT_DIR` was defined, causing a spurious `SCRIPT_DIR: unbound variable`
+  error on every invocation under `set -euo pipefail`. Moved `SCRIPT_DIR` and
+  `readonly SCRIPT_DIR` above the `SCRIPT_VERSION` assignment.
+
 ## [0.19.1] - 2026-03-05
 
 ### Added
