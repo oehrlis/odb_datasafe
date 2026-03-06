@@ -406,8 +406,8 @@ validate_inputs() {
 
     # Validate listener port when updating
     if [[ "$UPDATE_PORT" == "true" ]]; then
-        [[ "$LISTENER_PORT" =~ ^[0-9]+$ && "$LISTENER_PORT" -ge 1 && "$LISTENER_PORT" -le 65535 ]] ||
-            die "Invalid listener port: $LISTENER_PORT (must be 1-65535)"
+        [[ "$LISTENER_PORT" =~ ^[0-9]+$ && "$LISTENER_PORT" -ge 1 && "$LISTENER_PORT" -le 65535 ]] \
+            || die "Invalid listener port: $LISTENER_PORT (must be 1-65535)"
         log_info "Listener port update enabled: $LISTENER_PORT"
     fi
 
@@ -421,8 +421,8 @@ validate_inputs() {
             if is_ocid "$PDB_COMPARTMENT"; then
                 PDB_COMPARTMENT_OCID="$PDB_COMPARTMENT"
             else
-                PDB_COMPARTMENT_OCID=$(oci_resolve_compartment_ocid "$PDB_COMPARTMENT") ||
-                    die "Cannot resolve --pdb-compartment: $PDB_COMPARTMENT"
+                PDB_COMPARTMENT_OCID=$(oci_resolve_compartment_ocid "$PDB_COMPARTMENT") \
+                    || die "Cannot resolve --pdb-compartment: $PDB_COMPARTMENT"
             fi
             log_info "PDB lookup compartment: $PDB_COMPARTMENT ($PDB_COMPARTMENT_OCID)"
         elif [[ -n "${COMPARTMENT_OCID:-}" ]]; then
@@ -581,7 +581,7 @@ update_target_service() {
 
     # Detect what changed
     [[ "$UPDATE_SERVICE" != "false" && "$new_service" != "$current_service" ]] && service_changed=true
-    [[ ( "$UPDATE_PORT" == "true" || "$FROM_OCI" == "true" ) && "$new_port" != "$current_port" ]] && port_changed=true
+    [[ ("$UPDATE_PORT" == "true" || "$FROM_OCI" == "true") && "$new_port" != "$current_port" ]] && port_changed=true
 
     # Log planned action
     log_info "Target: $display_name"
@@ -615,9 +615,9 @@ update_target_service() {
         # full current database-details so required fields are preserved
         local full_db_details
         if full_db_details=$(oci_exec_ro data-safe target-database get \
-                --target-database-id "$target_ocid" \
-                --query 'data."database-details"' 2>/dev/null) && \
-                [[ -n "$full_db_details" && "$full_db_details" != "null" ]]; then
+            --target-database-id "$target_ocid" \
+            --query 'data."database-details"' 2> /dev/null) \
+            && [[ -n "$full_db_details" && "$full_db_details" != "null" ]]; then
             db_details=$(printf '%s' "$full_db_details" | jq --argjson patch "$db_details" '. + $patch')
         fi
 

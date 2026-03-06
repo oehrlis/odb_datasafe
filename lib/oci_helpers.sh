@@ -878,7 +878,7 @@ oci_lookup_pdb_connection() {
 
     local pdbs_json
     pdbs_json=$(oci_exec_ro db pluggable-database list \
-        --compartment-id "$compartment_ocid" --all 2>/dev/null) || {
+        --compartment-id "$compartment_ocid" --all 2> /dev/null) || {
         log_debug "  PDB list call failed or returned empty"
         return 1
     }

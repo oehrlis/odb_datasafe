@@ -1096,7 +1096,8 @@ SQL
 check_pdb_exists() {
     local pdb_name="$1"
     local count
-    count=$(sqlplus -s -L / as sysdba 2>/dev/null << SQL
+    count=$(
+        sqlplus -s -L / as sysdba 2> /dev/null << SQL
 set pages 0 feedback off heading off verify off echo off termout off
 whenever sqlerror exit failure
 select count(*) from v\$pdbs where name=upper('${pdb_name}') and name <> 'PDB\$SEED';
@@ -1104,7 +1105,7 @@ exit;
 SQL
     ) || return 1
     count="$(printf '%s' "$count" | tr -d '[:space:]')"
-    [[ "${count:-0}" -gt 0 ]] 2>/dev/null
+    [[ "${count:-0}" -gt 0 ]] 2> /dev/null
 }
 
 # ------------------------------------------------------------------------------
