@@ -54,6 +54,7 @@ SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 readonly SCRIPT_NAME
 # shellcheck disable=SC2034  # SCRIPT_VERSION used by framework
 SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.19.1')"
+readonly SCRIPT_VERSION
 
 # Load library
 readonly LIB_DIR="${SCRIPT_DIR}/../lib"
