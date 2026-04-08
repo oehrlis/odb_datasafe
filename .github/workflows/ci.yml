@@ -1,10 +1,24 @@
+# ------------------------------------------------------------------------------
+# OraDBA - Oracle Database Infrastructure and Security, 5630 Muri, Switzerland
+# ------------------------------------------------------------------------------
+# Name.......: ci.yml
+# Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
+# Editor.....: Stefan Oehrli
+# Date.......: 2026.04.08
+# Version....: 0.2.0
+# Purpose....: CI workflow - lint and test on push/PR to main and develop
+# Notes......: -
+# Reference..: https://github.com/oehrlis/odb_datasafe
+# License....: Apache License Version 2.0, January 2004 as shown
+#              at http://www.apache.org/licenses/
+# ------------------------------------------------------------------------------
 name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
   workflow_dispatch:
 
 jobs:
@@ -18,6 +32,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y shellcheck
+
+      - name: Check version format
+        run: make check-version
 
       - name: Lint shell scripts
         run: make lint-shell

@@ -8,7 +8,9 @@ built on top of OCI CLI. Scripts live in `bin/`, shared libraries in `lib/`.
 ## Quick Reference
 
 - Test: `make test` or `bats tests/`
-- Lint: `make lint` (shellcheck + markdownlint)
+- Lint: `make lint` (shellcheck + markdownlint + check-version)
+- Build: `make build` (tarball to `dist/`)
+- Release: `make release` (bump patch -> commit -> tag), then `git push origin main && git push origin v<VERSION>`
 - Help: `make help` or `./bin/odb_datasafe_help.sh`
 - Secrets: 1Password via `op read "op://vault/item/field"`
 
