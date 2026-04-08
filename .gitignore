@@ -53,6 +53,11 @@ etc/datasafe.conf
 # ignore secrets and local configs
 etc/*_pwd.b64
 
+# Claude Code - local-only (symlinks to ai-toolkit, personal permissions)
+.claude/settings.local.json
+.claude/skills/
+.claude/commands/
+
 # --- EOF ----------------------------------------------------------------------
 bin/exa_ds.sh
 log/*.json
