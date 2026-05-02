@@ -84,18 +84,35 @@ extract_purpose() {
     header=$(head -30 "$script_file")
 
     # Format 1: "Purpose....:" (standard OraDBA format) - single line with content
-    purpose=$(echo "$header" | grep -E "^# Purpose\.+:\s*.+" | head -1 | sed -E 's/^# Purpose\.+:\s*//' || echo "")
+    while IFS= read -r _hl; do
+        if [[ "$_hl" =~ ^"# Purpose"\.+:[[:space:]]*(.+)$ ]]; then
+            purpose="${BASH_REMATCH[1]}"
+            break
+        fi
+    done <<< "$header"
 
     # Format 2: "Description :" (alternative format) - single line with content
     if [[ -z "$purpose" ]]; then
-        purpose=$(echo "$header" | grep -E "^# Description\s*:\s*.+" | head -1 | sed -E 's/^# Description\s*:\s*//' || echo "")
+        while IFS= read -r _hl; do
+            if [[ "$_hl" =~ ^"# Description"[[:space:]]*:[[:space:]]*(.+)$ ]]; then
+                purpose="${BASH_REMATCH[1]}"
+                break
+            fi
+        done <<< "$header"
     fi
 
     # Format 3: Multi-line purpose section (look for "# Purpose:" with no content on same line)
     if [[ -z "$purpose" ]]; then
         # Find "# Purpose:" line (with nothing or only whitespace after colon)
-        local line_num
-        line_num=$(echo "$header" | grep -n "^# Purpose:\s*$" | head -1 | cut -d: -f1 || echo "0")
+        local line_num=0
+        local -i _ln=0
+        while IFS= read -r _hl; do
+            ((_ln++))
+            if [[ "$_hl" =~ ^"# Purpose:"[[:space:]]*$ ]]; then
+                line_num=$_ln
+                break
+            fi
+        done <<< "$header"
 
         if [[ "$line_num" -gt 0 ]]; then
             # Read lines after "# Purpose:" until we hit a non-comment or section header
@@ -107,7 +124,7 @@ extract_purpose() {
 
                 # Extract text after "#   " or "# "
                 local text
-                text=$(echo "$line" | sed -E 's/^#\s*//')
+                [[ "$line" =~ ^#[[:space:]]*(.*) ]] && text="${BASH_REMATCH[1]}" || text=""
 
                 # Skip empty lines
                 [[ -z "$text" ]] && continue
@@ -350,13 +367,13 @@ main() {
 
     for script in "$SCRIPT_DIR"/*.sh; do
         # Skip this help script itself
-        [[ "$(basename "$script")" == "$SCRIPT_NAME" ]] && continue
+        [[ "${script##*/}" == "$SCRIPT_NAME" ]] && continue
 
         # Skip if not readable
         [[ ! -r "$script" ]] && continue
 
         local script_name
-        script_name="$(basename "$script")"
+        script_name="${script##*/}"
 
         local purpose
         purpose=$(extract_purpose "$script")

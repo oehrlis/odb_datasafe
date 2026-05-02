@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.3] - 2026-05-02
+
+### Changed
+
+- `bin/ds_target_details.sh`: replace in-loop `tr` subshells with
+  `jq ascii_upcase` and replace `$(echo | cut)` chains for connection-string
+  parsing with bash parameter expansion (`${%%:*}`, `${#*:}`, `${%%/*}`,
+  `${#*/}`). Eliminates up to 8 process spawns per target iteration.
+- `bin/odb_datasafe_help.sh`: replace in-loop `$(echo | grep | sed)` chains in
+  `extract_purpose()` with `while`/`[[ =~ ]]`/`BASH_REMATCH`; replace
+  `$(basename "$script")` with `${script##*/}` in the outer script loop.
+  Eliminates ~13 process spawns per script (~377 total for 29 scripts).
+
 ## [0.19.2] - 2026-03-06
 
 ### Fixed

@@ -350,7 +350,7 @@ collect_target_details() {
 
     local disp lcst created infra ttype host port svc compid
     disp=$(echo "$data" | jq -r '."display-name" // ""')
-    lcst=$(echo "$data" | jq -r '."lifecycle-state" // ""' | tr '[:lower:]' '[:upper:]')
+    lcst=$(echo "$data" | jq -r '."lifecycle-state" // "" | ascii_upcase')
     created=$(echo "$data" | jq -r '."time-created" // ""')
     infra=$(echo "$data" | jq -r '."infrastructure-type" // ""')
     ttype=$(echo "$data" | jq -r '."database-type" // ""')
@@ -365,9 +365,10 @@ collect_target_details() {
 
     if [[ -n "$conn_string" ]]; then
         # Parse connection string format: host:port/service
-        host=$(echo "$conn_string" | cut -d: -f1)
-        port=$(echo "$conn_string" | cut -d: -f2 | cut -d/ -f1)
-        svc=$(echo "$conn_string" | cut -d/ -f2-)
+        host="${conn_string%%:*}"
+        local _rest="${conn_string#*:}"
+        port="${_rest%%/*}"
+        svc="${conn_string#*/}"
     else
         host=""
         port=""
@@ -457,7 +458,7 @@ collect_target_details_from_payload() {
     local target_ocid disp lcst created infra ttype host port svc compid conn_ocid conn_name
     target_ocid=$(echo "$target_data" | jq -r '.id // ""')
     disp=$(echo "$target_data" | jq -r '."display-name" // ""')
-    lcst=$(echo "$target_data" | jq -r '."lifecycle-state" // ""' | tr '[:lower:]' '[:upper:]')
+    lcst=$(echo "$target_data" | jq -r '."lifecycle-state" // "" | ascii_upcase')
     created=$(echo "$target_data" | jq -r '."time-created" // ""')
     infra=$(echo "$target_data" | jq -r '."infrastructure-type" // ."database-details"."infrastructure-type" // ""')
     ttype=$(echo "$target_data" | jq -r '."database-type" // ."database-details"."database-type" // ""')
