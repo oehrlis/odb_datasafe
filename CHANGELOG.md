@@ -8,6 +8,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.4] - 2026-05-03
+
+### Added
+
+- Claude Code project configuration: `CLAUDE.md`, `.claude/settings.json` with
+  markdownlint auto-fix hook, and `.claude/rules/` (shell-scripts, markdown-lint,
+  oci-naming) as portable real files (no `ai-toolkit` checkout required).
+
+### Changed
+
+- `Makefile`: align with OraDBA standard preamble — `SHELL := /bin/bash`,
+  `.SHELLFLAGS := -eu -o pipefail -c`, `MAKEFLAGS += --no-builtin-rules`,
+  `PATH="$(PATH)"` prefix on all tool-detection calls, `V`/`Q` verbosity
+  control. Add `release` target (version-bump-patch → commit → tag), `tag`
+  target with dirty-tree and existing-tag guards, and `check-version` target
+  (wired into `lint`). Use `perl -pi -e` instead of `sed -i` for cross-platform
+  compatibility.
+- `Makefile`: raise `TEST_TIMEOUT` from `800` to `1800` seconds.
+- `.github/workflows/ci.yml`: add OraDBA header, insert `check-version` step
+  before `lint-shell`.
+- `.github/workflows/release.yml`: add OraDBA header and validate-version-format
+  step; remove stray `make install`.
+- `.github/copilot-instructions.md`: convert from 420-line generated symlink to
+  a focused 58-line real file with project-specific Copilot guidance.
+
+### Fixed
+
+- `bin/ds_target_delete.sh`: add missing `readonly SCRIPT_VERSION` for
+  consistency with all other scripts in `bin/`.
+- `.claude/settings.json`: quote `$CLAUDE_TOOL_OUTPUT_PATH` in hook command.
+
 ## [0.19.3] - 2026-05-02
 
 ### Changed

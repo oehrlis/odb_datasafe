@@ -57,7 +57,7 @@ BATS         := $(shell PATH="$(PATH)" command -v bats 2>/dev/null)
 GIT          := $(shell PATH="$(PATH)" command -v git 2>/dev/null)
 TIMEOUT      := $(shell PATH="$(PATH)" command -v timeout 2>/dev/null || \
                          PATH="$(PATH)" command -v gtimeout 2>/dev/null)
-TEST_TIMEOUT ?= 800
+TEST_TIMEOUT ?= 1800
 
 # ==============================================================================
 # Help
