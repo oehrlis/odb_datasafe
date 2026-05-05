@@ -10,6 +10,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.19.5] - 2026-05-05
 
+### Added
+
+- `ds_target_reregister.sh`: new script to re-register a Data Safe target after a
+  PDB relocation (new ExaCC cluster, host, SID, or PDB name). Updates `displayName`,
+  `description`, and full `databaseDetails` (vmClusterId, pluggableDatabaseId,
+  serviceName, listenerPort) using OCI PUT semantics (current state loaded and
+  patched). Optionally updates credentials in the same run when `--ds-secret` is
+  provided. Supports `--from-oci` to derive service name and port from the OCI PDB
+  connection string. Dry-run by default; use `--apply` to execute.
+
 ### Fixed
 
 - `ds_target_activate.sh`: missing error guard in activation loop caused the ERR
