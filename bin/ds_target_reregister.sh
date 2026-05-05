@@ -909,7 +909,7 @@ main() {
 
 # Parse arguments, then run
 if [[ $# -eq 0 ]]; then
-    usage
+    usage 0
 fi
 
 parse_args "$@"
