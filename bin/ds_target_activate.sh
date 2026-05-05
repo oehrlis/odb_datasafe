@@ -524,7 +524,9 @@ do_work() {
 
     for target_ocid in "${target_ocids[@]}"; do
         current=$((current + 1))
-        activate_single_target "$target_ocid" "$current" "$total"
+        if ! activate_single_target "$target_ocid" "$current" "$total"; then
+            :
+        fi
     done
 
     # Print summary

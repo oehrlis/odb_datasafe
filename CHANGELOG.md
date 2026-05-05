@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.5] - 2026-05-05
+
+### Fixed
+
+- `ds_target_activate.sh`: missing error guard in activation loop caused the ERR
+  trap to abort the entire run on the first failing target. Wrap the
+  `activate_single_target` call in `if ! ...; then : fi`, consistent with the
+  pattern already used in `ds_target_refresh.sh`.
+
 ## [0.19.4] - 2026-05-03
 
 ### Added
