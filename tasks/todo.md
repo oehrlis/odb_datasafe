@@ -8,16 +8,16 @@ im Plan-Output generieren.
 
 ## Entscheidungen
 
-| Punkt | Entscheidung |
-|-------|-------------|
-| Validierung | PDB-Token-Match + Bestätigung via `dat/pdbs.json` |
-| CDBROOT | Ausgeschlossen von Move-Erkennung |
-| Mehrdeutigkeit | Alle Kandidaten auflisten, trotzdem aus Missing/Orphan entfernen |
-| Plan-Output | Option B: immer aktiv, `--plan-reregister` Flag und automatisch in `--plan-script` |
-| Missing/Orphan | Erkannte Moves werden aus beiden Listen entfernt |
-| Credentials | `--from-oci` standardmässig, Secret analog Register-Action |
-| Exit-Code | `RC_FAILURE` bleibt auch bei erkannten Moves |
-| Script-Pfad | Via `DATASAFE_BASE` aufgelöst wie andere DS-Scripts |
+| Punkt          | Entscheidung                                                                       |
+|----------------|------------------------------------------------------------------------------------|
+| Validierung    | PDB-Token-Match + Bestätigung via `dat/pdbs.json`                                  |
+| CDBROOT        | Ausgeschlossen von Move-Erkennung                                                  |
+| Mehrdeutigkeit | Alle Kandidaten auflisten, trotzdem aus Missing/Orphan entfernen                   |
+| Plan-Output    | Option B: immer aktiv, `--plan-reregister` Flag und automatisch in `--plan-script` |
+| Missing/Orphan | Erkannte Moves werden aus beiden Listen entfernt                                   |
+| Credentials    | `--from-oci` standardmässig, Secret analog Register-Action                         |
+| Exit-Code      | `RC_FAILURE` bleibt auch bei erkannten Moves                                       |
+| Script-Pfad    | Via `DATASAFE_BASE` aufgelöst wie andere DS-Scripts                                |
 
 ---
 
@@ -47,10 +47,13 @@ ReregisterScript="ds_target_reregister.sh"   # Pfad via InitScriptPaths aufgelö
 **Wo**: Funktion `InitScriptPaths`
 
 Analog zu `RegisterScript`:
+
 ```bash
 ReregisterScript="${DATASAFE_BASE}/bin/${ReregisterScript}"
 ```
+
 Und in der Verifikations-Schleife hinzufügen:
+
 ```bash
 for Script in "$PrereqsScript" ... "$ReregisterScript"; do
 ```
@@ -64,6 +67,7 @@ for Script in "$PrereqsScript" ... "$ReregisterScript"; do
 **Wo**: `case "$1" in` Block in `ParseParameters`
 
 Neues Flag nach `--plan-delete`:
+
 ```bash
 --plan-reregister)     ReconcilePlanReregister=true; shift ;;
 ```
@@ -77,6 +81,7 @@ Neues Flag nach `--plan-delete`:
 **Wo**: Funktion `ValidateReconcilePlanFlags`
 
 Analog zu `--plan-register` und `--plan-delete`:
+
 ```bash
 if [[ "$ReconcilePlanReregister" == "true" ]]; then
     LogMessage -s "$MESSAGE_SEVERITY_INFO" -m "Ignoring --plan-reregister for action $Action"
@@ -91,7 +96,7 @@ fi
 
 **Wo**: `ShowHelp` Funktion, nach `--plan-delete` Zeile
 
-```
+```text
     --plan-reregister       (reconcile) print suggested reregister commands for detected moves
 ```
 
@@ -145,9 +150,11 @@ function ValidatePdbMoveInMetadata {
 **Zweck**: Erkennt Orphan/Missing-Paare die auf einen PDB-Move hinweisen.
 
 **Signatur**:
-```
+
+```text
 DetectMovedTargets "$MissingFile" "$OrphanFile" "$MovedFile"
 ```
+
 - liest `$MissingFile` und `$OrphanFile` (sorted, non-empty lines)
 - schreibt erkannte Moves nach `$MovedFile` (Format: `ORPHAN|MISSING|STATUS`)
   - STATUS = `confirmed` (1:1 Match + Metadata-Validierung)
@@ -180,15 +187,18 @@ DetectMovedTargets "$MissingFile" "$OrphanFile" "$MovedFile"
 **Signatur**: `PrintReconcilePlanReregister "$MovedFile"`
 
 Für jede Zeile `ORPHAN|MISSING|STATUS` in `$MovedFile`:
+
 - Parse `ORPHAN` → alter Target-Name (wird als `--target` übergeben)
 - Parse `MISSING` → neue Token: `new_cluster`, `new_sid`, `new_pdb`
   - Aus Target-Format: `<new_cluster>_<new_sid>_<new_pdb>`
 - Baue Befehl:
-  ```
+
+  ```bash
   $SCRIPT_NAME --action reregister \
     --target "ORPHAN" --cluster "new_cluster" --sid "new_sid" \
     --from-oci [secret-flags]
   ```
+
   - Wenn `DSSecretFile` gesetzt: `--secret-file "$DSSecretFile"`
   - Sonst kein Secret-Flag (muss separat angegeben werden)
 - Bei STATUS=`ambiguous`: Kommentar-Zeile mit Warnung voranstellen
@@ -196,6 +206,7 @@ Für jede Zeile `ORPHAN|MISSING|STATUS` in `$MovedFile`:
 **Hinweis**: Die `reregister`-Action ist noch nicht in `exa_ds.sh` implementiert.
 Die generierten Befehle rufen `ds_target_reregister.sh` direkt auf (nicht via `exa_ds.sh`).
 Befehlsformat:
+
 ```bash
 "$DATASAFE_BASE/bin/ds_target_reregister.sh" \
   --target "ORPHAN" --cluster "new_cluster" --sid "new_sid" --from-oci --apply
@@ -210,9 +221,11 @@ Befehlsformat:
 **Signatur neu**: `WritePlanScript "$MissingFile" "$OrphanFile" "$MovedFile"`
 
 Abschnitt vor den Register-Commands einfügen:
+
 ```bash
 # --- Reregister commands for moved targets ---
 ```
+
 - Analog zu `PrintReconcilePlanReregister` aber direkt in die Datei schreiben
 - Reihenfolge: Reregister → Register → Delete
 
@@ -226,12 +239,14 @@ Abschnitt vor den Register-Commands einfügen:
 
 1. Neues Temp-File: `MovedFile="${TmpDir}/moved.pairs"`
 2. Nach `comm` für Missing/Orphan:
+
    ```bash
    LogMessage ... "Reconcile phase: detecting PDB moves"
    local MoveCount
    MoveCount=$(DetectMovedTargets "$MissingFile" "$OrphanFile" "$MovedFile")
    # MissingFile + OrphanFile sind jetzt bereinigt
    ```
+
 3. Counts neu berechnen nach Move-Detection
 4. Summary erweitern: `moved=$MoveCount`
 5. Move-Ausgabe: Liste der erkannten Moves
@@ -249,6 +264,7 @@ shellcheck --shell=bash exa_ds.sh
 ```
 
 Testfälle:
+
 - `--action reconcile --filter .` ohne Moves → kein moved-Output
 - `--action reconcile --filter .` mit simuliertem Move-Paar → moved-Output, aus missing/orphan entfernt
 - `--action reconcile --plan-reregister` → reregister-Befehle ausgegeben
@@ -262,7 +278,7 @@ Testfälle:
 
 Nach Implementierung gibt Reconcile folgende Sektionen aus:
 
-```
+```text
 Reconcile summary: expected=150 current=148 missing=1 orphan=1 moved=1
 Suspected Moves:
   exa001_cdb01a01_MYAPP  →  exa002_cdb02a01_MYAPP  [confirmed]
