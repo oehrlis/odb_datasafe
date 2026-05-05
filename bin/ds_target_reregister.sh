@@ -5,7 +5,7 @@
 # Script.....: ds_target_reregister.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Date.......: 2026.05.05
-# Version....: v0.19.5
+# Version....: v0.20.0
 # Purpose....: Re-register a Data Safe target after a PDB move (new cluster/host/SID)
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
@@ -32,7 +32,7 @@ readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly LIB_DIR="${SCRIPT_DIR}/../lib"
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.19.5')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.20.0')"
 readonly SCRIPT_VERSION
 
 # =============================================================================
