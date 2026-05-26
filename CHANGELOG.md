@@ -30,6 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (respecting pre-set values), so OCI CLI invocations across the repo are
   shielded from import-time deprecation noise even if a future call site
   reintroduces a `2>&1` capture.
+- `etc/datasafe.conf.example`: drop a stray blank line for cleaner section
+  separation; cosmetic only, no semantic change.
+- `bin/ds_target_reregister.sh`: apply `shfmt` formatting (`2>/dev/null`
+  spacing, brace-block expansion) caught by the pre-commit hook; behaviour
+  unchanged.
 
 ### Known
 

@@ -32,7 +32,7 @@ readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly LIB_DIR="${SCRIPT_DIR}/../lib"
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '0.20.0')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '0.20.0')"
 readonly SCRIPT_VERSION
 
 # =============================================================================
@@ -73,7 +73,10 @@ SHOW_USAGE_ON_EMPTY_ARGS=true
 
 # Load framework
 # shellcheck disable=SC1091
-source "${LIB_DIR}/ds_lib.sh" || { echo "ERROR: Failed to load ds_lib.sh" >&2; exit 1; }
+source "${LIB_DIR}/ds_lib.sh" || {
+    echo "ERROR: Failed to load ds_lib.sh" >&2
+    exit 1
+}
 
 init_config
 
@@ -441,7 +444,7 @@ resolve_new_pdb_ocid() {
     local databases_json
     databases_json=$(oci_exec_ro db database list \
         --compartment-id "$COMP_OCID" \
-        --all 2>/dev/null || true)
+        --all 2> /dev/null || true)
     [[ -n "$databases_json" ]] || return 1
 
     local database_id
@@ -465,7 +468,7 @@ resolve_new_pdb_ocid() {
     local pdbs_json
     pdbs_json=$(oci_exec_ro db pluggable-database list \
         --database-id "$database_id" \
-        --all 2>/dev/null || true)
+        --all 2> /dev/null || true)
     [[ -n "$pdbs_json" ]] || return 1
 
     PLUGGABLE_DB_OCID=$(printf '%s' "$pdbs_json" | jq -r --arg pdb "$pdb" '
@@ -558,9 +561,9 @@ validate_inputs() {
     [[ -n "$TARGET" ]] || die "Missing required option: --target"
 
     # Check at least one change is requested
-    if [[ -z "$NEW_CLUSTER" && -z "$NEW_HOST" && -z "$NEW_PDB" && -z "$NEW_SID" \
-        && -z "$NEW_PORT" && -z "$NEW_SERVICE" && -z "$NEW_DISPLAY_NAME" \
-        && -z "$NEW_DESCRIPTION" && "$FROM_OCI" == "false" ]]; then
+    if [[ -z "$NEW_CLUSTER" && -z "$NEW_HOST" && -z "$NEW_PDB" && -z "$NEW_SID" &&
+        -z "$NEW_PORT" && -z "$NEW_SERVICE" && -z "$NEW_DISPLAY_NAME" &&
+        -z "$NEW_DESCRIPTION" && "$FROM_OCI" == "false" ]]; then
         die "Nothing to update. Specify at least one of: --cluster, --host, --pdb, --sid, --port, --service, --from-oci, --display-name, --description"
     fi
 
@@ -756,14 +759,14 @@ show_reregister_plan() {
     cur_pdb_ocid=$(printf '%s' "$CUR_DB_DETAILS" | jq -r '."pluggable-database-id" // .pluggableDatabaseId // "(none)"')
     new_pdb_ocid=$(printf '%s' "$new_db_details" | jq -r '."pluggable-database-id" // .pluggableDatabaseId // "(none)"')
 
-    [[ "$cur_vm_cluster" != "$new_vm_cluster" ]] && \
-        log_info "  VM Cluster:    '$cur_vm_cluster' → '$new_vm_cluster'"
-    [[ "$cur_pdb_ocid" != "$new_pdb_ocid" ]] && \
-        log_info "  PDB OCID:      '$cur_pdb_ocid' → '$new_pdb_ocid'"
-    [[ "$cur_service" != "$new_service_v" ]] && \
-        log_info "  Service:       '$cur_service' → '$new_service_v'"
-    [[ "$cur_port" != "$new_port_v" ]] && \
-        log_info "  Port:          $cur_port → $new_port_v"
+    [[ "$cur_vm_cluster" != "$new_vm_cluster" ]] \
+        && log_info "  VM Cluster:    '$cur_vm_cluster' → '$new_vm_cluster'"
+    [[ "$cur_pdb_ocid" != "$new_pdb_ocid" ]] \
+        && log_info "  PDB OCID:      '$cur_pdb_ocid' → '$new_pdb_ocid'"
+    [[ "$cur_service" != "$new_service_v" ]] \
+        && log_info "  Service:       '$cur_service' → '$new_service_v'"
+    [[ "$cur_port" != "$new_port_v" ]] \
+        && log_info "  Port:          $cur_port → $new_port_v"
 
     if [[ -n "$DS_SECRET" ]]; then
         local ds_user_for_target
