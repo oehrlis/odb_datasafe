@@ -8,6 +8,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.1] - 2026-05-26
+
+### Fixed
+
+- `lib/oci_helpers.sh`: `oci_exec` and `oci_exec_ro` no longer merge stderr
+  into stdout (`2>&1`). Python warnings emitted by the OCI CLI dependencies
+  (e.g. `urllib3` `FutureWarning` under oci-cli 3.83 + Python 3.14) were
+  bleeding into JSON/OCID payloads parsed by callers. Concretely
+  `ds_target_list.sh -C -v` failed because the compartment name resolver
+  returned the warning text concatenated with the OCID, which then broke a
+  downstream `--query data[?name=='...']` lookup. The wrappers now capture
+  both streams independently via a shared `_oci_run_capture` helper; stderr
+  is surfaced only on failure or at TRACE level.
+- All 17 `bin/ds_*.sh` scripts inherit the fix through the shared library.
+
+### Changed
+
+- `lib/common.sh`: export `PYTHONWARNINGS=ignore` and
+  `OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=True` once at library load time
+  (respecting pre-set values), so OCI CLI invocations across the repo are
+  shielded from import-time deprecation noise even if a future call site
+  reintroduces a `2>&1` capture.
+
+### Known
+
+- `check_oci_auth` (lib/oci_helpers.sh:135) and `refresh_target`
+  (lib/oci_helpers.sh:1660) still use `2>&1` because they pattern-match on
+  error text rather than parse data. The new `PYTHONWARNINGS=ignore` default
+  keeps them safe; a follow-up refactor onto `_oci_run_capture` is
+  recommended for consistency.
+
 ## [0.20.0] - 2026-05-05
 
 ### Added

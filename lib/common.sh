@@ -16,6 +16,21 @@
 readonly COMMON_SH_LOADED=1
 
 # =============================================================================
+# PYTHON / OCI CLI ENVIRONMENT
+# =============================================================================
+
+# Silence Python warnings emitted to stderr by OCI CLI dependencies
+# (e.g. urllib3 FutureWarning under oci-cli 3.83 + Python 3.14). Otherwise
+# any `oci ... 2>&1`-style capture would interleave the warning text with
+# the JSON/OCID payload and corrupt downstream parsing. Respect a value the
+# user has explicitly set (e.g. for debugging Python deprecations).
+export PYTHONWARNINGS="${PYTHONWARNINGS:-ignore}"
+
+# Suppress the OCI config file permissions warning when umask is loose; the
+# message is informational and similarly leaks into stderr captures.
+export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING="${OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING:-True}"
+
+# =============================================================================
 # CONFIGURATION
 # =============================================================================
 

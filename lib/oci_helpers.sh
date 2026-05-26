@@ -304,13 +304,61 @@ _oci_redact_cmd() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: _oci_run_capture
+# Purpose.: Run an OCI CLI invocation with stdout and stderr captured into
+#           independent streams. Echoes stdout for the caller and logs stderr
+#           (with the redacted command) only on failure or at trace level.
+# Args....: $1 - Redacted command label (for log messages)
+#           $@ - Full command and arguments (oci ...)
+# Returns.: OCI CLI exit code
+# Notes...: Never merge stderr with stdout via 2>&1 - the OCI CLI emits
+#           Python warnings (urllib3 FutureWarning, deprecation notices,
+#           file-permission warnings) on stderr and they would otherwise
+#           contaminate JSON/OCID payloads parsed by callers.
+# ------------------------------------------------------------------------------
+_oci_run_capture() {
+    local redacted="$1"
+    shift
+
+    local stderr_file
+    stderr_file=$(mktemp 2> /dev/null) || {
+        log_error "Failed to allocate temp file for OCI stderr capture"
+        return 1
+    }
+
+    local stdout exit_code=0
+    stdout=$("$@" 2> "$stderr_file") || exit_code=$?
+
+    local stderr=""
+    [[ -s "$stderr_file" ]] && stderr=$(< "$stderr_file")
+    rm -f "$stderr_file"
+
+    if [[ $exit_code -eq 0 ]]; then
+        log_trace "OCI command successful"
+        [[ -n "$stderr" ]] && log_trace "OCI stderr (non-fatal): $stderr"
+        # `$()` already strips trailing newlines from $stdout; `echo` restores
+        # the single terminating newline that callers (and the original
+        # implementation) expect.
+        echo "$stdout"
+        return 0
+    fi
+
+    log_error "OCI command failed (exit ${exit_code}): ${redacted}"
+    [[ -n "$stdout" ]] && log_trace "OCI stdout: $stdout"
+    [[ -n "$stderr" ]] && log_trace "OCI stderr: $stderr"
+    return "$exit_code"
+}
+
+# ------------------------------------------------------------------------------
 # Function: oci_exec
 # Purpose.: Execute OCI CLI with standard options and error handling
 # Args....: $@ - OCI command and arguments
 # Returns.: 0 on success, non-zero on error
 # Output..: Command output to stdout
-# Notes...: Handles profile, region, config file, dry-run, and error logging
-#           For read-only operations in dry-run mode, use oci_exec_ro
+# Notes...: Handles profile, region, config file, dry-run, and error logging.
+#           stderr is captured separately so Python warnings emitted by the
+#           OCI CLI never bleed into the data stream returned to the caller.
+#           For read-only operations in dry-run mode, use oci_exec_ro.
 # ------------------------------------------------------------------------------
 oci_exec() {
     # Build command with subcommand first, global options afterwards (matches user expectation)
@@ -322,28 +370,17 @@ oci_exec() {
     [[ -n "${OCI_CLI_REGION}" ]] && cmd+=(--region "${OCI_CLI_REGION}")
 
     # Log command at trace level (raw command detail belongs at trace, not debug)
-    log_trace "OCI command: $(_oci_redact_cmd "${cmd[@]}")"
+    local redacted
+    redacted=$(_oci_redact_cmd "${cmd[@]}")
+    log_trace "OCI command: ${redacted}"
 
     # Dry-run: just show command
     if [[ "${DRY_RUN}" == "true" ]]; then
-        log_info "[DRY-RUN] Would execute: $(_oci_redact_cmd "${cmd[@]}")"
+        log_info "[DRY-RUN] Would execute: ${redacted}"
         return 0
     fi
 
-    # Execute command
-    local output
-    local exit_code=0
-
-    if output=$("${cmd[@]}" 2>&1); then
-        log_trace "OCI command successful"
-        echo "$output"
-        return 0
-    else
-        exit_code=$?
-        log_error "OCI command failed (exit ${exit_code}): $(_oci_redact_cmd "${cmd[@]}")"
-        log_trace "Output: $output"
-        return $exit_code
-    fi
+    _oci_run_capture "${redacted}" "${cmd[@]}"
 }
 
 # ------------------------------------------------------------------------------
@@ -352,7 +389,8 @@ oci_exec() {
 # Args....: $@ - OCI command and arguments
 # Returns.: 0 on success, non-zero on error
 # Output..: Command output to stdout
-# Notes...: Use for lookups/queries that don't modify resources
+# Notes...: Use for lookups/queries that don't modify resources. stderr is
+#           captured separately (see oci_exec for rationale).
 # ------------------------------------------------------------------------------
 oci_exec_ro() {
     # Build command with subcommand first, global options afterwards (matches user expectation)
@@ -364,22 +402,12 @@ oci_exec_ro() {
     [[ -n "${OCI_CLI_REGION}" ]] && cmd+=(--region "${OCI_CLI_REGION}")
 
     # Log command at trace level (raw command detail belongs at trace, not debug)
-    log_trace "OCI command: $(_oci_redact_cmd "${cmd[@]}")"
+    local redacted
+    redacted=$(_oci_redact_cmd "${cmd[@]}")
+    log_trace "OCI command: ${redacted}"
 
     # Execute command (always, even in dry-run)
-    local output
-    local exit_code=0
-
-    if output=$("${cmd[@]}" 2>&1); then
-        log_trace "OCI command successful"
-        echo "$output"
-        return 0
-    else
-        exit_code=$?
-        log_error "OCI command failed (exit ${exit_code}): $(_oci_redact_cmd "${cmd[@]}")"
-        log_trace "Output: $output"
-        return $exit_code
-    fi
+    _oci_run_capture "${redacted}" "${cmd[@]}"
 }
 
 # ------------------------------------------------------------------------------
