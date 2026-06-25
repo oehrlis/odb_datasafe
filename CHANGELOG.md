@@ -35,6 +35,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `bin/uninstall_all_datasafe_services.sh`: `ORADBA_BASE` follows the same
   convention; `CONNECTOR_BASE` promoted to a global variable (was local
   inside `list_services`).
+- `.extension`: version synced to `0.20.2`; scripts read their `--version`
+  output from this file, so the manual VERSION bump left `--version` reporting
+  `0.20.1` and broke the BATS test suite.
 
 ## [0.20.1] - 2026-05-26
 
