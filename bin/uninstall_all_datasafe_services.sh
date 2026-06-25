@@ -5,14 +5,15 @@
 # Name.......: uninstall_all_datasafe_services.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
-# Date.......: 2026.03.02
-# Version....: v0.19.1
+# Date.......: 2026.06.25
+# Version....: v0.20.2
 # Purpose....: Uninstall all Oracle Data Safe On-Premises Connector systemd services
 # Notes......: Works as regular user for listing. Root only for uninstall operations.
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
 # Modified...:
 # 2026.01.21 oehrli - refactored to allow non-root listing and checking
+# 2026.06.25 oehrli - add stop_service with oradba_dsctl.sh integration
 # ------------------------------------------------------------------------------
 
 set -euo pipefail
@@ -20,6 +21,10 @@ set -euo pipefail
 SCRIPT_NAME="$(basename "$0")"
 # shellcheck disable=SC2034
 SCRIPT_VERSION="v1.1.0"
+
+# Default paths
+CONNECTOR_BASE="${CONNECTOR_BASE:-${ORACLE_BASE:-/u01/app/oracle}/product}"
+ORADBA_BASE="${ORADBA_BASE:-${ORADBA_PREFIX:-/opt/oradba}}"
 
 # Mode flags
 LIST_ONLY=false
@@ -167,6 +172,72 @@ check_root() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: lookup_registry_alias
+# Purpose.: Look up registry alias for a connector directory name
+# Args....: $1 - Connector directory name (e.g. exacc-wob-vwg-ha1)
+#           $2 - ORADBA_BASE path
+# Returns.: 0 on success (alias found), 1 on error
+# Output..: Registry alias to stdout
+# ------------------------------------------------------------------------------
+lookup_registry_alias() {
+    local connector_dir="$1"
+    local oradba_base="$2"
+    local homes_conf="${oradba_base}/etc/oradba_homes.conf"
+    local connector_home="${CONNECTOR_BASE}/${connector_dir}"
+
+    if [[ ! -f "${homes_conf}" ]]; then
+        return 1
+    fi
+
+    local alias
+    alias=$(grep -v '^#' "${homes_conf}" | awk -F: -v home="${connector_home}" '$2 == home {print $1}' | head -1)
+
+    if [[ -z "${alias}" ]]; then
+        return 1
+    fi
+
+    echo "${alias}"
+    return 0
+}
+
+# ------------------------------------------------------------------------------
+# Function: stop_service
+# Purpose.: Stop a connector service, preferring oradba_dsctl.sh over cmctl
+# Args....: $1 - systemd service name (e.g. oracle_datasafe_exacc-wob-vwg-ha1.service)
+# Returns.: 0 always (errors are non-fatal)
+# Output..: Log messages
+# ------------------------------------------------------------------------------
+stop_service() {
+    local service="$1"
+    local connector_name="${service#oracle_datasafe_}"
+    connector_name="${connector_name%.service}"
+
+    local dsctl="${ORADBA_BASE}/bin/oradba_dsctl.sh"
+    if [[ -x "${dsctl}" ]]; then
+        local alias
+        if alias=$(lookup_registry_alias "${connector_name}" "${ORADBA_BASE}"); then
+            print_message INFO "Stopping via oradba_dsctl.sh stop ${alias}"
+            "${dsctl}" stop "${alias}" 2>/dev/null || true
+            return 0
+        fi
+    fi
+
+    # Fallback: systemctl stop + force-kill remaining CMAN processes
+    print_message INFO "Stopping via systemctl (cmctl fallback)"
+    systemctl stop "${service}" 2>/dev/null || true
+
+    local cman_bin="${CONNECTOR_BASE}/${connector_name}/oracle_cman_home/bin"
+    if [[ -d "${cman_bin}" ]]; then
+        if pgrep -f "${cman_bin}" > /dev/null 2>&1; then
+            print_message INFO "Force-killing remaining CMAN processes"
+            pkill -f "${cman_bin}" 2>/dev/null || true
+        fi
+    fi
+
+    return 0
+}
+
+# ------------------------------------------------------------------------------
 # Function: discover_services
 # Purpose.: Discover installed Data Safe services
 # Args....: None
@@ -253,8 +324,7 @@ list_services() {
         [[ -f "$service_file" ]] && echo "    System service: $service_file"
 
         # Check for local config
-        local connector_base="${CONNECTOR_BASE:-${ORACLE_BASE:-/u01/app/oracle}/product}"
-        local local_config="$connector_base/${connector_name}/etc/systemd/$service"
+        local local_config="$CONNECTOR_BASE/${connector_name}/etc/systemd/$service"
         [[ -f "$local_config" ]] && echo "    Local config:   $local_config"
 
         local sudoers_file="/etc/sudoers.d/oracle-datasafe-${connector_name}"
@@ -342,14 +412,9 @@ remove_all_services() {
         connector_name="${connector_name%.service}"
 
         # Stop service
-        if systemctl is-active "$service" &> /dev/null; then
-            print_message INFO "Stopping service"
-            if systemctl stop "$service" 2> /dev/null; then
-                print_message SUCCESS "Service stopped"
-            else
-                print_message WARNING "Failed to stop service"
-            fi
-        fi
+        print_message INFO "Stopping service"
+        stop_service "${service}"
+        print_message SUCCESS "Service stopped"
 
         # Disable service
         if systemctl is-enabled "$service" &> /dev/null; then

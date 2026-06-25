@@ -8,6 +8,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.2] - 2026-06-25
+
+### Fixed
+
+- `bin/uninstall_all_datasafe_services.sh`: `systemctl stop` called `cmctl shutdown`
+  which exits 0 without stopping the CMAN process. The new `stop_service` helper
+  prefers `oradba_dsctl.sh stop <alias>` (via `oradba_homes.conf` lookup) and falls
+  back to `systemctl stop` followed by `pkill -f <cman_bin>` to force-kill any
+  remaining processes. Enables clean service removal before reinstalling with the
+  updated service files.
+- `bin/install_datasafe_service.sh`: `ExecStop` via direct `cmctl shutdown`
+  exited with code 0 but left the CMAN process running. The generated service
+  files now use `oradba_dsctl.sh start|stop|restart <alias>` when a registry
+  alias can be resolved from `${ORADBA_BASE}/etc/oradba_homes.conf`. The
+  `plugin_stop` logic inside `oradba_dsctl.sh` performs the required
+  force-kill after `cmctl shutdown`. Service `Type` is switched from
+  `forking` to `oneshot` with `RemainAfterExit=yes` when dsctl is used.
+  Falls back to direct `cmctl` calls if the alias cannot be resolved.
+
+### Changed
+
+- `bin/install_datasafe_service.sh`: `ORADBA_BASE` default changed to
+  `${ORADBA_PREFIX:-/opt/oradba}` to align with `oradba_core.conf` convention
+  instead of a customer-specific hardcoded path.
+- `bin/uninstall_all_datasafe_services.sh`: `ORADBA_BASE` follows the same
+  convention; `CONNECTOR_BASE` promoted to a global variable (was local
+  inside `list_services`).
+
 ## [0.20.1] - 2026-05-26
 
 ### Fixed

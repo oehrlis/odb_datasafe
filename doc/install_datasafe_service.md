@@ -248,12 +248,21 @@ Override defaults using environment variables:
 
 ```bash
 export CONNECTOR_BASE="/custom/path/to/connectors"
+export ORADBA_BASE="/opt/oradba"   # default: ${ORADBA_PREFIX:-/opt/oradba}
 export OS_USER="oracle"
 export OS_GROUP="dba"
 export JAVA_HOME="/opt/java/jdk"
 
 sudo -E install_datasafe_service.sh
 ```
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `CONNECTOR_BASE` | `${ORACLE_BASE:-/u01/app/oracle}/product` | Base directory containing connector subdirectories |
+| `ORADBA_BASE` | `${ORADBA_PREFIX:-/opt/oradba}` | OraDBA installation root; used to locate `oradba_dsctl.sh` and `oradba_homes.conf` |
+| `OS_USER` | `oracle` | OS user that owns the service |
+| `OS_GROUP` | `dba` | OS group for the service |
+| `JAVA_HOME` | `${ORACLE_BASE:-/u01/app/oracle}/product/jdk` | Java installation for the connector |
 
 ## What Gets Installed
 
@@ -491,6 +500,34 @@ The generated service includes:
 - `NoNewPrivileges=true`: Prevent privilege escalation
 - Runs as specified non-root user
 - Proper file ownership and permissions
+
+## oradba_dsctl.sh Integration
+
+When `${ORADBA_BASE}/etc/oradba_homes.conf` exists and contains an entry for the
+connector, the generated service file uses `oradba_dsctl.sh` instead of calling
+`cmctl` directly:
+
+```ini
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/oradba/bin/oradba_dsctl.sh start <alias>
+ExecStop=/opt/oradba/bin/oradba_dsctl.sh stop <alias>
+ExecReload=/opt/oradba/bin/oradba_dsctl.sh restart <alias>
+```
+
+`oradba_homes.conf` format (field 1 = alias, field 2 = connector home):
+
+```text
+dscon1:/appl/oracle/product/exacc-wob-vwg-ha1:datasafe:...
+```
+
+Without `oradba_homes.conf` (or when no matching entry is found), the script falls
+back to direct `cmctl` calls with `Type=forking` — the previous behaviour.
+
+**Why this matters**: `cmctl shutdown` exits 0 immediately without waiting for the
+process to stop. `oradba_dsctl.sh stop` includes the necessary force-kill of
+remaining CMAN (`cmgw`) processes, ensuring `systemctl stop` actually terminates
+the connector.
 
 ## Migration from Old Scripts
 

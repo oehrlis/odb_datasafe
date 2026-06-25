@@ -5,8 +5,8 @@
 # Name.......: install_datasafe_service.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
-# Date.......: 2026.03.02
-# Version....: v0.19.1
+# Date.......: 2026.06.25
+# Version....: v0.20.2
 # Purpose....: Install and manage Oracle Data Safe On-Premises Connector as systemd service
 #              Generic solution for any connector with automatic discovery and configuration
 # Notes......: Works as regular user for config preparation. Root only for system installation.
@@ -15,6 +15,7 @@
 # Modified...:
 # 2026.01.11 oehrli - initial version with auto-discovery and interactive mode
 # 2026.01.21 oehrli - refactored to allow non-root config generation
+# 2026.06.25 oehrli - integrate oradba_dsctl.sh for ExecStart/Stop/Reload
 # ------------------------------------------------------------------------------
 
 set -euo pipefail
@@ -30,6 +31,7 @@ DEFAULT_CONNECTOR_BASE="${ORACLE_BASE:-/u01/app/oracle}/product"
 DEFAULT_USER="oracle"
 DEFAULT_GROUP="dba"
 DEFAULT_JAVA_HOME="${ORACLE_BASE:-/u01/app/oracle}/product/jdk"
+ORADBA_BASE="${ORADBA_BASE:-${ORADBA_PREFIX:-/opt/oradba}}"
 
 # Runtime variables
 CONNECTOR_BASE="${CONNECTOR_BASE:-$DEFAULT_CONNECTOR_BASE}"
@@ -39,6 +41,7 @@ CONNECTOR_ETC=""
 CMAN_NAME=""
 CMAN_HOME=""
 CMAN_CTL=""
+REGISTRY_ALIAS=""
 OS_USER="${OS_USER:-$DEFAULT_USER}"
 OS_GROUP="${OS_GROUP:-$DEFAULT_GROUP}"
 JAVA_HOME="${JAVA_HOME:-$DEFAULT_JAVA_HOME}"
@@ -409,6 +412,37 @@ validate_connector() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: lookup_registry_alias
+# Purpose.: Look up registry alias for a connector directory name
+# Args....: $1 - Connector directory name (e.g. exacc-wob-vwg-ha1)
+#           $2 - ORADBA_BASE path
+# Returns.: 0 on success (alias found), 1 on error
+# Output..: Registry alias to stdout
+# ------------------------------------------------------------------------------
+lookup_registry_alias() {
+    local connector_dir="$1"
+    local oradba_base="$2"
+    local homes_conf="${oradba_base}/etc/oradba_homes.conf"
+    local connector_home="${CONNECTOR_BASE}/${connector_dir}"
+
+    if [[ ! -f "${homes_conf}" ]]; then
+        print_message WARNING "oradba_homes.conf not found: ${homes_conf}"
+        return 1
+    fi
+
+    local alias
+    alias=$(grep -v '^#' "${homes_conf}" | awk -F: -v home="${connector_home}" '$2 == home {print $1}' | head -1)
+
+    if [[ -z "${alias}" ]]; then
+        print_message WARNING "No registry alias found for ${connector_home} in ${homes_conf}"
+        return 1
+    fi
+
+    echo "${alias}"
+    return 0
+}
+
+# ------------------------------------------------------------------------------
 # Function: select_connector_interactive
 # Purpose.: Prompt for connector selection interactively
 # Args....: None
@@ -481,7 +515,16 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-Type=forking
+EOF
+
+    if [[ -n "${REGISTRY_ALIAS:-}" ]]; then
+        printf 'Type=oneshot\n'
+        printf 'RemainAfterExit=yes\n'
+    else
+        printf 'Type=forking\n'
+    fi
+
+    cat << EOF
 User=$OS_USER
 Group=$OS_GROUP
 
@@ -494,9 +537,24 @@ Environment="PATH=$JAVA_HOME/bin:$CMAN_HOME/bin:/usr/local/sbin:/usr/local/bin:/
 WorkingDirectory=$CONNECTOR_HOME
 
 # Service management
+EOF
+
+    if [[ -n "${REGISTRY_ALIAS:-}" ]]; then
+        local dsctl="${ORADBA_BASE}/bin/oradba_dsctl.sh"
+        cat << EOF
+ExecStart=${dsctl} start ${REGISTRY_ALIAS}
+ExecStop=${dsctl} stop ${REGISTRY_ALIAS}
+ExecReload=${dsctl} restart ${REGISTRY_ALIAS}
+EOF
+    else
+        cat << EOF
 ExecStart=$CMAN_CTL startup -c $CMAN_NAME
 ExecStop=$CMAN_CTL shutdown -c $CMAN_NAME
 ExecReload=$CMAN_CTL restart -c $CMAN_NAME
+EOF
+    fi
+
+    cat << EOF
 
 # Restart behavior
 Restart=on-failure
@@ -720,6 +778,14 @@ prepare_service() {
             print_message ERROR "Cannot create directory: $CONNECTOR_ETC"
             return 1
         }
+    fi
+
+    # Look up registry alias for oradba_dsctl.sh integration
+    REGISTRY_ALIAS=""
+    if REGISTRY_ALIAS=$(lookup_registry_alias "${CONNECTOR_NAME}" "${ORADBA_BASE}"); then
+        print_message INFO "Registry alias resolved: ${REGISTRY_ALIAS} -> ${CONNECTOR_NAME}"
+    else
+        print_message WARNING "Falling back to direct cmctl calls (no registry alias found)"
     fi
 
     # Display configuration
