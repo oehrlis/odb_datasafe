@@ -892,8 +892,28 @@ install_service() {
     # Check if configs exist
     if [[ ! -f "$local_service" ]]; then
         print_message ERROR "Service file not found: $local_service"
-        print_message INFO "Run: $SCRIPT_NAME --prepare -n $CONNECTOR_NAME"
+        print_message INFO "Run: $SCRIPT_NAME --prepare -n $CONNECTOR_NAME --user $OS_USER --group $OS_GROUP"
         return 1
+    fi
+
+    # Validate User= in prepared file matches --user argument
+    local file_user
+    file_user=$(grep -E '^User=' "${local_service}" | head -1 | cut -d= -f2- | tr -d ' ')
+    if [[ -n "${file_user}" ]] && [[ "${file_user}" != "${OS_USER}" ]]; then
+        print_message ERROR "Service file specifies User=${file_user} but --user ${OS_USER} was given"
+        print_message INFO "Re-prepare with the correct user, then re-install:"
+        print_message INFO "  $SCRIPT_NAME --prepare -n $CONNECTOR_NAME --user $OS_USER --group $OS_GROUP"
+        print_message INFO "  sudo $SCRIPT_NAME --install -n $CONNECTOR_NAME --user $OS_USER --group $OS_GROUP"
+        return 1
+    fi
+
+    # Validate ExecStart executable exists (catches wrong ORADBA_BASE paths)
+    local exec_bin
+    exec_bin=$(grep -E '^ExecStart=' "${local_service}" | head -1 | cut -d= -f2- | awk '{print $1}')
+    if [[ -n "${exec_bin}" ]] && [[ ! -x "${exec_bin}" ]]; then
+        print_message WARNING "ExecStart binary not found or not executable: ${exec_bin}"
+        print_message INFO "If using oradba_dsctl.sh: set ORADBA_BASE and re-run --prepare"
+        print_message INFO "  ORADBA_BASE=/correct/path $SCRIPT_NAME --prepare -n $CONNECTOR_NAME --user $OS_USER"
     fi
 
     # Display what will be installed
@@ -901,9 +921,16 @@ install_service() {
     echo "  Source........: $CONNECTOR_ETC"
     echo "  Service file..: $local_service"
     echo "               -> $system_service"
+    echo "  Service User..: ${file_user:-<not set>}"
+    if [[ -n "${exec_bin}" ]]; then
+        echo "  ExecStart.....: ${exec_bin}"
+    fi
     if [[ -f "$local_sudoers" ]]; then
         echo "  Sudo config...: $local_sudoers"
         echo "               -> $system_sudoers"
+    elif ! $SKIP_SUDO; then
+        print_message WARNING "Sudoers file not found: $local_sudoers"
+        print_message INFO "Re-prepare to generate it: $SCRIPT_NAME --prepare -n $CONNECTOR_NAME --user $OS_USER --group $OS_GROUP"
     fi
     echo
 

@@ -8,6 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.3] - 2026-06-25
+
+### Fixed
+
+- `bin/install_datasafe_service.sh`: `--install` silently copied a service file
+  whose `User=` field did not match `--user`. This caused systemd error
+  `217/USER` ("Failed to determine user credentials") at service start when
+  `--prepare` was run with a different (or default) user than `--install`.
+  `install_service()` now reads `User=` from the prepared file, compares it to
+  `OS_USER`, and aborts with a clear error and re-prepare instructions if they
+  differ.
+- `bin/install_datasafe_service.sh`: when `--install` is run with `--user X`
+  but the sudoers file was prepared under a different user name, the file was
+  silently skipped. A warning is now printed when the expected sudoers file is
+  absent and `--skip-sudo` was not set.
+- `bin/install_datasafe_service.sh`: `ExecStart` binary existence is checked
+  before installation; a warning is printed when the binary is not found or not
+  executable (e.g. wrong `ORADBA_BASE` path used during `--prepare`).
+
 ## [0.20.2] - 2026-06-25
 
 ### Fixed
