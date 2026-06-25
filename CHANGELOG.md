@@ -8,6 +8,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.4] - 2026-06-25
+
+### Fixed
+
+- `bin/install_datasafe_service.sh`: `ORACLE_BASE` not auto-detected when running
+  as root or in environments where the default path does not contain the connector.
+  `find_connector_base()` now probes candidate paths
+  (`/appl/oracle/product`, `/u01/app/oracle/product`, `/u01/oracle/product`,
+  `/opt/oracle/product`) and uses the first match.
+- `bin/install_datasafe_service.sh`: `--install` aborted with an error when `User=`
+  in the prepared service file did not match `--user`. The script now auto-regenerates
+  the service files via `prepare_service()` and `chown`s the result, so the correct
+  user is embedded without requiring a manual re-prepare step.
+- `bin/install_datasafe_service.sh`: generated service files using `oradba_dsctl.sh`
+  now include `Environment="ORADBA_LOG=${CONNECTOR_HOME}/log"` so the log directory
+  is always within the connector's home tree. The log directory is created during
+  `--install` if it does not exist.
+- `bin/oradba_dsctl.sh` (`oradba` repo): if the log directory (default
+  `/var/log/oracle`) does not exist and cannot be created, the script fell back to
+  failing under `set -euo pipefail`. The script now falls back to `/tmp` for the
+  log file when the configured directory is missing and `mkdir -p` fails.
+
 ## [0.20.3] - 2026-06-25
 
 ### Fixed

@@ -6,7 +6,7 @@
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
 # Date.......: 2026.06.25
-# Version....: v0.20.2
+# Version....: v0.20.4
 # Purpose....: Install and manage Oracle Data Safe On-Premises Connector as systemd service
 #              Generic solution for any connector with automatic discovery and configuration
 # Notes......: Works as regular user for config preparation. Root only for system installation.
@@ -270,6 +270,33 @@ discover_connectors() {
     done < <(find "$base" -mindepth 1 -maxdepth 1 -type d -print0 2> /dev/null)
 
     printf '%s\n' "${connectors[@]}"
+}
+
+# ------------------------------------------------------------------------------
+# Function: find_connector_base
+# Purpose.: Discover connector base path when ORACLE_BASE is not set
+# Args....: $1 - Connector name
+# Returns.: 0 on success (prints base path), 1 if not found
+# Output..: Connector base path to stdout
+# ------------------------------------------------------------------------------
+find_connector_base() {
+    local connector="$1"
+    local base
+    local -a candidates=(
+        "${ORACLE_BASE:+${ORACLE_BASE}/product}"
+        "/appl/oracle/product"
+        "/u01/app/oracle/product"
+        "/u01/oracle/product"
+        "/opt/oracle/product"
+    )
+    for base in "${candidates[@]+"${candidates[@]}"}"; do
+        [[ -z "${base}" ]] && continue
+        if [[ -d "${base}/${connector}/oracle_cman_home" ]]; then
+            echo "${base}"
+            return 0
+        fi
+    done
+    return 1
 }
 
 # ------------------------------------------------------------------------------
@@ -542,6 +569,7 @@ EOF
     if [[ -n "${REGISTRY_ALIAS:-}" ]]; then
         local dsctl="${ORADBA_BASE}/bin/oradba_dsctl.sh"
         cat << EOF
+Environment="ORADBA_LOG=${CONNECTOR_HOME}/log"
 ExecStart=${dsctl} start ${REGISTRY_ALIAS}
 ExecStop=${dsctl} stop ${REGISTRY_ALIAS}
 ExecReload=${dsctl} restart ${REGISTRY_ALIAS}
@@ -896,15 +924,16 @@ install_service() {
         return 1
     fi
 
-    # Validate User= in prepared file matches --user argument
+    # Validate User= in prepared file matches --user argument; auto-regenerate if needed
     local file_user
     file_user=$(grep -E '^User=' "${local_service}" | head -1 | cut -d= -f2- | tr -d ' ')
     if [[ -n "${file_user}" ]] && [[ "${file_user}" != "${OS_USER}" ]]; then
-        print_message ERROR "Service file specifies User=${file_user} but --user ${OS_USER} was given"
-        print_message INFO "Re-prepare with the correct user, then re-install:"
-        print_message INFO "  $SCRIPT_NAME --prepare -n $CONNECTOR_NAME --user $OS_USER --group $OS_GROUP"
-        print_message INFO "  sudo $SCRIPT_NAME --install -n $CONNECTOR_NAME --user $OS_USER --group $OS_GROUP"
-        return 1
+        print_message WARNING "Service file specifies User=${file_user} but --user ${OS_USER} was given"
+        print_message INFO "Auto-regenerating service files for user ${OS_USER}"
+        prepare_service
+        chown "${OS_USER}:${OS_GROUP}" "${CONNECTOR_ETC}"/*  2>/dev/null || true
+        file_user="${OS_USER}"
+        print_message SUCCESS "Service files regenerated for ${OS_USER}"
     fi
 
     # Validate ExecStart executable exists (catches wrong ORADBA_BASE paths)
@@ -963,6 +992,14 @@ install_service() {
         # Stop existing service
         print_message INFO "Stopping existing service"
         systemctl stop "$SERVICE_NAME" 2> /dev/null || true
+    fi
+
+    # Ensure connector log directory exists (required by oradba_dsctl.sh)
+    local log_dir="${CONNECTOR_HOME}/log"
+    if [[ ! -d "${log_dir}" ]]; then
+        print_message INFO "Creating connector log directory: ${log_dir}"
+        mkdir -p "${log_dir}"
+        chown "${OS_USER}:${OS_GROUP}" "${log_dir}" 2>/dev/null || true
     fi
 
     # Copy service file
@@ -1296,6 +1333,15 @@ main() {
             print_message ERROR "Connector name required in non-interactive mode"
             echo "Use --connector <name> or run without --yes for interactive mode"
             exit 1
+        fi
+    fi
+
+    # Auto-discover connector base if the default was not overridden and ORACLE_BASE is unset
+    if [[ "${CONNECTOR_BASE}" == "${DEFAULT_CONNECTOR_BASE}" ]] && [[ ! -d "${CONNECTOR_BASE}/${CONNECTOR_NAME}" ]]; then
+        local discovered_base
+        if discovered_base=$(find_connector_base "${CONNECTOR_NAME}"); then
+            print_message INFO "Auto-discovered connector base: ${discovered_base}"
+            CONNECTOR_BASE="${discovered_base}"
         fi
     fi
 
