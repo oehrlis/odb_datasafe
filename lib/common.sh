@@ -15,6 +15,12 @@
 [[ -n "${COMMON_SH_LOADED:-}" ]] && return 0
 readonly COMMON_SH_LOADED=1
 
+# Require bash 4.0+ (uses mapfile, declare -A, ${var^^})
+if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
+    echo "ERROR: bash 4.0+ required (found ${BASH_VERSION}). On macOS install via: brew install bash" >&2
+    exit 1
+fi
+
 # =============================================================================
 # PYTHON / OCI CLI ENVIRONMENT
 # =============================================================================

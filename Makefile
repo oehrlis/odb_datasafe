@@ -121,12 +121,18 @@ test: ## Run BATS tests (excluding integration tests)
 		elif [ $$rc -eq 124 ]; then \
 			echo -e "$(COLOR_YELLOW)⚠️  Tests timed out after $(TEST_TIMEOUT)s (increase TEST_TIMEOUT or set TEST_TIMEOUT=0)$(COLOR_RESET)"; \
 		else \
-			echo -e "$(COLOR_YELLOW)⚠️  Some tests failed or require OCI CLI$(COLOR_RESET)"; \
+			echo -e "$(COLOR_RED)✗ Tests failed$(COLOR_RESET)"; \
 		fi; \
+		exit $$rc; \
 	else \
-		$(BATS) --no-tempdir-cleanup -j 1 $$(ls tests/*.bats | grep -v integration_tests.bats) && \
-			echo -e "$(COLOR_GREEN)✓ Tests passed$(COLOR_RESET)" || \
-			echo -e "$(COLOR_YELLOW)⚠️  Some tests failed or require OCI CLI$(COLOR_RESET)"; \
+		rc=0; \
+		$(BATS) --no-tempdir-cleanup -j 1 $$(ls tests/*.bats | grep -v integration_tests.bats) || rc=$$?; \
+		if [ $$rc -eq 0 ]; then \
+			echo -e "$(COLOR_GREEN)✓ Tests passed$(COLOR_RESET)"; \
+		else \
+			echo -e "$(COLOR_RED)✗ Tests failed$(COLOR_RESET)"; \
+		fi; \
+		exit $$rc; \
 	fi
 
 .PHONY: test-all
@@ -139,7 +145,7 @@ test-all: ## Run all tests including integration tests
 	@$(BATS) --no-tempdir-cleanup -j 1 tests || echo -e "$(COLOR_YELLOW)⚠️  Some tests failed$(COLOR_RESET)"
 
 .PHONY: check
-check: lint test ## Run all checks (lint + test)
+check: lint format-check test ## Run all checks (lint + format-check + test)
 	@echo -e "$(COLOR_GREEN)✓ All checks passed$(COLOR_RESET)"
 
 # ==============================================================================
@@ -183,7 +189,8 @@ lint-markdown: ## Lint Markdown files with markdownlint
 		exit 1; \
 	fi
 	@$(MARKDOWNLINT) --config .markdownlint.yaml '**/*.md' \
-		--ignore node_modules --ignore dist --ignore build --ignore CHANGELOG.md || exit 1; \
+		--ignore node_modules --ignore dist --ignore build --ignore CHANGELOG.md \
+		--ignore tasks --ignore doc/review || exit 1; \
 	echo -e "$(COLOR_GREEN)✓ Markdown files passed linting$(COLOR_RESET)"
 
 .PHONY: lint-md
@@ -328,7 +335,7 @@ tag: ## Create git tag from VERSION (guards: clean tree + VERSION committed)
 	echo "     git push origin $$tag"
 
 .PHONY: release
-release: ## Full patch release: bump patch -> commit -> tag
+release: check ## Full patch release: lint+test gate -> bump patch -> commit -> tag
 	@echo -e "$(COLOR_BLUE)🚀 Starting patch release...$(COLOR_RESET)"
 	@$(MAKE) --no-print-directory version-bump-patch
 	@$(MAKE) --no-print-directory tag
@@ -344,7 +351,7 @@ release: ## Full patch release: bump patch -> commit -> tag
 # ==============================================================================
 
 .PHONY: ci
-ci: clean lint test build ## Run full CI pipeline locally
+ci: clean lint format-check test build ## Run full CI pipeline locally
 	@echo -e "$(COLOR_GREEN)✓ CI pipeline completed successfully$(COLOR_RESET)"
 
 .PHONY: pre-commit

@@ -8,6 +8,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-06-28
+
+### Added
+
+- `doc/milestone-v1.0.0.md`: v1.0.0 readiness checklist with explicit pass/fail criteria (REL-010)
+- `lib/common.sh`: bash 4.0+ version guard at source time; exits with clear error on bash < 4 (DEP-001/D-2)
+
+### Changed
+
+- `Makefile`: `make test` now propagates BATS exit code — failing tests exit non-zero (REL-001/TEST-001)
+- `Makefile`: `check` and `ci` targets include `format-check` (shfmt) as a hard gate (REL-003)
+- `Makefile`: `release` target requires passing `check` (lint + format-check + test) before bumping version (REL-007)
+- `.github/workflows/ci.yml`: removed `continue-on-error: true` from test step; added `format-check` step (REL-002/REL-003)
+- `bin/ds_connector_register_oradba.sh`: added `set -euo pipefail` and `setup_error_handling` (BASH-002)
+- `bin/ds_connector_update.sh`: added `set -euo pipefail` and `setup_error_handling` (BASH-002)
+- `bin/install_datasafe_service.sh`, `bin/uninstall_all_datasafe_services.sh`: applied shfmt formatting
+- `README.md`, `doc/index.md`: updated "Latest Release" to v0.20.4
+
+### Fixed
+
+- `sql/create_ds_admin_user.sql`: removed hardcoded default password `DS_Admin.2025`; script now fails fast with an explicit error when no password is provided (ORA-001/C-1)
+
+### Security
+
+- Removed publicly known default password `DS_Admin.2025` from SQL template; deployments using the default must rotate the `DS_ADMIN` account (ORA-001)
+
 ## [0.20.4] - 2026-06-25
 
 ### Fixed

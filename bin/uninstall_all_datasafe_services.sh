@@ -217,20 +217,20 @@ stop_service() {
         local alias
         if alias=$(lookup_registry_alias "${connector_name}" "${ORADBA_BASE}"); then
             print_message INFO "Stopping via oradba_dsctl.sh stop ${alias}"
-            "${dsctl}" stop "${alias}" 2>/dev/null || true
+            "${dsctl}" stop "${alias}" 2> /dev/null || true
             return 0
         fi
     fi
 
     # Fallback: systemctl stop + force-kill remaining CMAN processes
     print_message INFO "Stopping via systemctl (cmctl fallback)"
-    systemctl stop "${service}" 2>/dev/null || true
+    systemctl stop "${service}" 2> /dev/null || true
 
     local cman_bin="${CONNECTOR_BASE}/${connector_name}/oracle_cman_home/bin"
     if [[ -d "${cman_bin}" ]]; then
         if pgrep -f "${cman_bin}" > /dev/null 2>&1; then
             print_message INFO "Force-killing remaining CMAN processes"
-            pkill -f "${cman_bin}" 2>/dev/null || true
+            pkill -f "${cman_bin}" 2> /dev/null || true
         fi
     fi
 

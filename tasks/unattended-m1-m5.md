@@ -1,11 +1,3 @@
-# Unattended Execution Prompt — odb_datasafe M1 → v1.0.0
-
-> Copy this entire file content as the opening prompt in a new Claude Code session.
-> The agent runs M1 through M5 autonomously. Human approval is required only at
-> the three predefined gates (marked GATE below).
-
----
-
 ## Mission
 
 Implement the odb_datasafe v0.20.4 → v1.0.0 roadmap. Execute milestones M1 through M5

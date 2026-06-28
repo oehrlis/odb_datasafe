@@ -10,6 +10,7 @@
 # Usage......: ds_connector_register_oradba.sh [OPTIONS]
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
+set -euo pipefail
 
 # =============================================================================
 # BOOTSTRAP (must be before version check)
@@ -267,6 +268,8 @@ register_connector() {
 # =============================================================================
 
 main() {
+    setup_error_handling
+
     # Display banner
     log_info "OraDBA Data Safe Connector Registration (v${SCRIPT_VERSION})"
     log_info "================================================================"

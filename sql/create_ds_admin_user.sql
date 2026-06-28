@@ -37,7 +37,7 @@
 --------------------------------------------------------------------------------
 -- Default parameter values ----------------------------------------------------
 DEFINE _ds_user    = 'DS_ADMIN'
-DEFINE _ds_passwd  = 'DS_Admin.2025'
+DEFINE _ds_passwd  = ''
 DEFINE _ds_profile = 'DEFAULT'
 DEFINE _ds_force   = 'FALSE'
 DEFINE _ds_update_secret = 'FALSE'
@@ -60,6 +60,18 @@ DEFINE ds_passwd    = &2 &_ds_passwd
 DEFINE ds_profile   = &3 &_ds_profile
 DEFINE ds_force     = &4 &_ds_force
 DEFINE ds_update_secret = &5 &_ds_update_secret
+
+-- Fail fast when no password was supplied ------------------------------------
+WHENEVER SQLERROR EXIT 1
+BEGIN
+    IF '&ds_passwd' IS NULL OR LENGTH(TRIM('&ds_passwd')) = 0 THEN
+        RAISE_APPLICATION_ERROR(-20001,
+            'ERROR: Password must be supplied as parameter 2. '
+            || 'No default password is configured (ORA-001 hardening).');
+    END IF;
+END;
+/
+WHENEVER SQLERROR CONTINUE
 
 -- Configure SQLPlus -----------------------------------------------------------
 SPOOL create_ds_admin_user.log

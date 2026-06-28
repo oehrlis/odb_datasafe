@@ -10,6 +10,7 @@
 # Usage......: ds_connector_update.sh [OPTIONS]
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
+set -euo pipefail
 
 # =============================================================================
 # BOOTSTRAP (must be before version check)
@@ -1047,6 +1048,8 @@ do_work() {
 # Output..: Execution status and results
 # ------------------------------------------------------------------------------
 main() {
+    setup_error_handling
+
     # Show usage if no arguments provided
     if [[ $# -eq 0 ]]; then
         usage
