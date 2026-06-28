@@ -41,6 +41,9 @@ _DS_TARGET_CACHE_FILE=""
 # Global cache for OCI CLI authentication check
 _OCI_CLI_AUTH_CHECKED=""
 
+# In-memory cache for compartment name/OCID resolution (PERF-003)
+declare -A _COMP_OCID_CACHE
+
 # ----------------------------------------------------------------------------
 # Function: _ds_target_cache_file_path
 # Purpose.: Deterministic cache path for target lists
@@ -295,7 +298,7 @@ _oci_redact_cmd() {
     local prev=""
     for arg in "$@"; do
         case "$prev" in
-            --password) _redacted+=("****") ;;
+            --password | --credentials | --secret | --auth-token) _redacted+=("****") ;;
             *) _redacted+=("$arg") ;;
         esac
         prev="$arg"
@@ -655,6 +658,12 @@ oci_resolve_vm_cluster_compartment() {
 oci_resolve_compartment_ocid() {
     local input="$1"
 
+    # Return cached value if available
+    if [[ -n "${_COMP_OCID_CACHE[$input]+_}" ]]; then
+        echo "${_COMP_OCID_CACHE[$input]}"
+        return 0
+    fi
+
     # Already an OCID?
     if is_ocid "$input"; then
         echo "$input"
@@ -677,6 +686,7 @@ oci_resolve_compartment_ocid() {
     fi
 
     log_debug "Resolved compartment: $input -> $result"
+    _COMP_OCID_CACHE["$input"]="$result"
     echo "$result"
 }
 
@@ -1422,6 +1432,12 @@ ds_resolve_target_ocid() {
 ds_resolve_target_name() {
     local ocid="$1"
 
+    # If target name is pre-resolved, return it directly without OCI call
+    if [[ -n "${2:-}" ]]; then
+        echo "$2"
+        return 0
+    fi
+
     if ! is_ocid "$ocid"; then
         log_error "Invalid target OCID: $ocid" >&2
         return 1
@@ -1496,6 +1512,7 @@ ds_is_updatable_lifecycle_state() {
 ds_is_cdb_root_target() {
     local target_name="$1"
     local target_ocid="$2"
+    local prefetched_json="${3:-}"
 
     # Fast path: name ends with _CDBROOT
     if [[ "$target_name" =~ _CDBROOT$ ]]; then
@@ -1506,12 +1523,16 @@ ds_is_cdb_root_target() {
     # Slow path: check freeform tag DBSec.Container
     log_debug "Checking tags for CDB\$ROOT detection: $target_name"
     local target_json
-    target_json=$(oci_exec_ro data-safe target-database get \
-        --target-database-id "$target_ocid" \
-        --query 'data' 2> /dev/null) || {
-        log_debug "Failed to get target details for tag check"
-        return 1
-    }
+    if [[ -n "$prefetched_json" ]]; then
+        target_json="$prefetched_json"
+    else
+        target_json=$(oci_exec_ro data-safe target-database get \
+            --target-database-id "$target_ocid" \
+            --query 'data' 2> /dev/null) || {
+            log_debug "Failed to get target details for tag check"
+            return 1
+        }
+    fi
     local container_tag
     container_tag=$(printf '%s' "$target_json" | jq -r '."freeform-tags"."DBSec.Container" // ""')
     if [[ "${container_tag^^}" == "CDBROOT" ]]; then
@@ -1552,8 +1573,8 @@ resolve_compartment_to_vars() {
         # User provided OCID, resolve to name
         local resolved_comp_name
         resolved_comp_name=$(oci_get_compartment_name "$input" 2> /dev/null) || resolved_comp_name="$input"
-        eval "${prefix}_OCID=\"$input\""
-        eval "${prefix}_NAME=\"$resolved_comp_name\""
+        printf -v "${prefix}_OCID" '%s' "$input"
+        printf -v "${prefix}_NAME" '%s' "$resolved_comp_name"
         log_debug "Resolved compartment OCID to name: $resolved_comp_name"
     else
         # User provided name, resolve to OCID
@@ -1562,8 +1583,8 @@ resolve_compartment_to_vars() {
             log_error "Cannot resolve compartment name '$input' to OCID"
             return 1
         }
-        eval "${prefix}_NAME=\"$input\""
-        eval "${prefix}_OCID=\"$comp_ocid\""
+        printf -v "${prefix}_NAME" '%s' "$input"
+        printf -v "${prefix}_OCID" '%s' "$comp_ocid"
         log_debug "Resolved compartment name to OCID: $comp_ocid"
     fi
 
@@ -1588,8 +1609,8 @@ resolve_target_to_vars() {
         # User provided OCID, resolve to name
         local target_name
         target_name=$(ds_resolve_target_name "$input" 2> /dev/null) || target_name="$input"
-        eval "${prefix}_OCID=\"$input\""
-        eval "${prefix}_NAME=\"$target_name\""
+        printf -v "${prefix}_OCID" '%s' "$input"
+        printf -v "${prefix}_NAME" '%s' "$target_name"
         log_debug "Resolved target OCID to name: $target_name"
     else
         # User provided name, need compartment to resolve
@@ -1603,8 +1624,8 @@ resolve_target_to_vars() {
             log_error "Cannot resolve target name '$input' to OCID"
             return 1
         }
-        eval "${prefix}_NAME=\"$input\""
-        eval "${prefix}_OCID=\"$target_ocid\""
+        printf -v "${prefix}_NAME" '%s' "$input"
+        printf -v "${prefix}_OCID" '%s' "$target_ocid"
         log_debug "Resolved target name to OCID: $target_ocid"
     fi
 
@@ -1654,36 +1675,48 @@ ds_refresh_target() {
 
     log_trace "OCI command: $(_oci_redact_cmd "${refresh_cmd[@]}")"
 
-    local output=""
-    local exit_code=0
-    local output_lc=""
-    if output=$("${refresh_cmd[@]}" 2>&1); then
-        exit_code=0
-    else
-        exit_code=$?
-        output_lc=$(printf '%s' "$output" | tr '[:upper:]' '[:lower:]')
-        if [[ "$output_lc" == *"conflict"* ]] && [[ "$output_lc" == *"already in progress"* ]]; then
+    local stderr_file
+    stderr_file=$(mktemp) || {
+        log_error "Failed to allocate temp file"
+        return 1
+    }
+
+    local stdout exit_code=0
+    stdout=$("${refresh_cmd[@]}" 2> "$stderr_file") || exit_code=$?
+
+    local stderr=""
+    [[ -s "$stderr_file" ]] && stderr=$(< "$stderr_file")
+    rm -f "$stderr_file"
+
+    if [[ $exit_code -ne 0 ]]; then
+        local combined_lc
+        combined_lc="${stdout}${stderr}"
+        combined_lc="${combined_lc,,}"
+        if [[ "$combined_lc" == *"conflict"* ]] && [[ "$combined_lc" == *"already in progress"* ]]; then
             log_warn "[$current/$total] Skipping refresh for $target_name: operation already in progress"
             return 2
         fi
         log_error "OCI command failed (exit ${exit_code}): $(_oci_redact_cmd "${refresh_cmd[@]}")"
-        log_trace "Output: $output"
+        [[ -n "$stdout" ]] && log_trace "OCI stdout: $stdout"
+        [[ -n "$stderr" ]] && log_trace "OCI stderr: $stderr"
+        return "$exit_code"
     fi
 
+    [[ -n "$stderr" ]] && log_trace "OCI stderr (non-fatal): $stderr"
+
     # Handle output based on log level and log file
-    if [[ -n "$output" ]]; then
+    if [[ -n "$stdout" ]]; then
         if [[ -n "${LOG_FILE:-}" ]]; then
-            # Send to log file if configured
-            echo "$output" >> "${LOG_FILE}"
+            echo "$stdout" >> "${LOG_FILE}"
         fi
 
         # Show on stdout only in debug mode
         if [[ $(_log_level_num "${LOG_LEVEL:-INFO}") -le 1 ]]; then
-            echo "$output"
+            echo "$stdout"
         fi
     fi
 
-    return $exit_code
+    return 0
 }
 
 # ------------------------------------------------------------------------------
@@ -2214,13 +2247,18 @@ generate_bundle_key() {
     local candidate
     local special_set='!@#%^*_+=:,.?-'
 
-    while true; do
+    local max_attempts=50
+    local attempt=0
+    while [[ $attempt -lt $max_attempts ]]; do
+        attempt=$((attempt + 1))
         candidate="$(openssl rand -base64 64 | tr -dc "A-Za-z0-9${special_set}" | head -c 20)"
         if is_valid_bundle_key "$candidate"; then
             echo "$candidate"
             return 0
         fi
     done
+    log_error "generate_bundle_key: failed to generate a unique key after ${max_attempts} attempts"
+    return 1
 }
 
 # ------------------------------------------------------------------------------

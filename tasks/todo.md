@@ -60,33 +60,66 @@
 - [x] CHANGELOG + release notes v0.22.0
 - [x] make ci passes → commit 35b9767 + tag v0.22.0
 
-## M3 — Installer Hardening (tag: v0.23.0)
+## M3 — Installer Hardening (tag: v0.23.0) ✓ DONE
 
-**Goal:** Harden the installer to production deployment standards.
-
-### Tasks
-
-- [x] Read M3 findings (architecture.md ARCH-001/007/008, bash.md BASH-006/016/023, deps.md DEP-002/007, testing.md REG-001..006)
-- [x] Write REG-001..REG-006 regression tests in tests/install_datasafe_service.bats
-  - REG-001 PASS: auto-discovers connector via ORACLE_BASE
-  - REG-002 PASS: exits non-zero when connector not found
-  - REG-003 SKIP: auto-regen chown fails in test env (M3 fix: respect DRY_RUN in chown - ARCH-008)
-  - REG-004 PASS: warns when sudoers file missing
-  - REG-005 PASS: warns when ExecStart binary missing
-  - REG-006 SKIP: log dir creation unreachable via dry-run (M3 fix: move into plan section - BASH-016)
-- [ ] ARCH-007/DEP-002: centralize layout discovery; resolve systemctl/visudo/getent via command -v; OS detection uname -s (Linux vs Darwin)
-- [ ] BASH-016: add ERR + EXIT traps to installer (standalone, no lib/common.sh)
-- [ ] BASH-006: route non-ERROR output to stderr consistently; structured output to stdout
-- [ ] ARCH-008: --prepare → --install contract; --install must not regenerate --prepare artifacts except via explicit logged path; fix DRY_RUN chown skip (unblocks REG-003)
-- [ ] DEP-007: missing oradba_dsctl.sh is a hard pre-install validation error (unblocks existing WARNING)
-- [ ] Move log dir creation into dry-run plan section (unblocks REG-006)
-- [ ] Remove REG-003 and REG-006 skip markers after above fixes
-- [ ] CHANGELOG + release notes v0.23.0
-- [ ] make ci passes → commit + tag v0.23.0
+- [x] Write REG-001..REG-006 regression tests (all 6 green after M3)
+- [x] BASH-016: ERR + EXIT traps added to installer
+- [x] BASH-006: all print_message levels routed to stderr
+- [x] ARCH-007 (partial): systemctl/journalctl resolved via command -v
+- [x] ARCH-008: --install auto-regen chown skipped in DRY_RUN mode
+- [x] DEP-007: missing oradba_dsctl.sh aborts --prepare with clear error
+- [x] Log dir creation reported in dry-run plan section
+- [x] CHANGELOG + release notes v0.23.0
+- [x] make ci passes → commit aa3a570 + tag v0.23.0
 
 ## M4 — Test Coverage & Robustness (tag: v0.24.0)
 
-*Pending M3 completion*
+### Agent A — tests/ (REG-007..012 + zero-signal fixes + lib_ssh_helpers.bats)
+
+- [-] TEST-012: fix zero-signal assertions in lib_oci_helpers.bats (lines 171, 203, 225, 234, 244, 349)
+- [-] TEST-012: fix zero-signal assertions in uninstall_all_datasafe_services.bats (lines 35, 42, 51)
+- [-] REG-007: oci_exec stderr isolation test (lib_oci_helpers.bats)
+- [-] REG-008: DELETED lifecycle-state target registration test (lib_oci_helpers.bats)
+- [-] REG-009: ds_target_update_service.sh PUT semantics test
+- [-] REG-010: ds_target_activate.sh multi-target partial-success test
+- [-] REG-011: normalize_secret_value path input test (lib_common.bats)
+- [-] REG-012: normalize_secret_value literal input test (lib_common.bats)
+- [-] Create tests/lib_ssh_helpers.bats
+
+### Agent B — lib/oci_helpers.sh
+
+- [-] ARCH-005/BASH-014: ds_refresh_target → route through oci_exec (line ~1660)
+- [-] ARCH-011: eval → printf -v in resolve_compartment_to_vars + resolve_target_to_vars
+- [-] BASH-013: add iteration limit to generate_bundle_key unbounded loop
+- [-] PERF-002: ds_resolve_target_name accept optional pre-resolved name
+- [-] PERF-003: oci_resolve_compartment_ocid in-memory cache
+- [-] PERF-004: ds_is_cdb_root_target accept pre-fetched JSON param
+- [-] SEC-010: broaden _oci_redact_cmd to mask --credentials, --secret, --auth-token
+
+### Agent C — bin scripts (register + prereqs + move + summary)
+
+- [-] BASH-008: jq --arg in ds_target_register.sh
+- [-] BASH-007: compartment name validation in ds_target_register.sh
+- [-] ORA-015: Oracle identifier whitelist in ds_database_prereqs.sh
+- [-] DEP-006: ORACLE_HOME validation in ds_database_prereqs.sh
+- [-] BASH-004: ((count++)) → $(( count + 1 )) in ds_target_move.sh
+- [-] DEP-005: require_oci_cli call in ds_target_move.sh
+- [-] PERF-001: ENRICH_MISSING=false default in ds_target_connector_summary.sh
+
+### Agent E — PERF-012 bounded parallelism
+
+- [-] PERF-012: bounded parallelism for --mode async in ds_target_refresh.sh
+- [-] PERF-012: bounded parallelism for --mode async in ds_target_activate.sh
+
+### Post-agent manual pass
+
+- [ ] BASH-001: move setup_error_handling before init_config in all 21 scripts
+- [ ] BASH-001: add setup_error_handling to ds_target_move.sh, ds_version.sh, template.sh
+- [ ] BASH-024: empty array nounset-safe expansion pattern at remaining sites
+- [ ] make ci passes (all agents merged)
+- [ ] CHANGELOG + release notes v0.24.0
+- [ ] Bump VERSION to 0.24.0
+- [ ] Commit + tag v0.24.0
 
 ## M5 — Documentation & Polish (tag: v1.0.0)
 

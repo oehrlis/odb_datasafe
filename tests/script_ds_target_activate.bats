@@ -11,9 +11,11 @@
 
 # Test setup
 setup() {
-    export REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/.." && pwd)"
+    REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/.." && pwd)"
+    export REPO_ROOT
     export BIN_DIR="${REPO_ROOT}/bin"
-    export SCRIPT_VERSION="$(tr -d '\n' < "${REPO_ROOT}/VERSION" 2>/dev/null || echo '0.0.0')"
+    SCRIPT_VERSION="$(tr -d '\n' < "${REPO_ROOT}/VERSION" 2>/dev/null || echo '0.0.0')"
+    export SCRIPT_VERSION
 }
 
 teardown() {
@@ -77,4 +79,63 @@ teardown() {
 @test "ds_target_activate.sh accepts all-target option" {
     run "${BIN_DIR}/ds_target_activate.sh" --help
     [[ "$output" == *"-A"* ]] || [[ "$output" == *"--all"* ]]
+}
+
+# =============================================================================
+# REG-010: ds_target_activate.sh multi-target — does not abort on partial failure
+# Regression: when target-1 fails and target-2 succeeds, script must process
+# both targets and exit 10 (partial failure), not crash early
+# =============================================================================
+
+@test "REG-010: multi-target activation processes all targets even when one fails" {
+    local mock_bin="${BATS_TEST_TMPDIR}/reg010/bin"
+    mkdir -p "$mock_bin"
+
+    # Mock oci: target list returns two targets; update for target1 fails, target2 succeeds
+    cat > "${mock_bin}/oci" << 'MOCK'
+#!/usr/bin/env bash
+case "$*" in
+    *"data-safe target-database list"*)
+        printf '%s\n' '{"data":[{"id":"ocid1.datasafetarget.oc1..target1","display-name":"db-target1","lifecycle-state":"INACTIVE","connection-option":{"on-premise-connector-id":null},"freeform-tags":{},"defined-tags":{}},{"id":"ocid1.datasafetarget.oc1..target2","display-name":"db-target2","lifecycle-state":"INACTIVE","connection-option":{"on-premise-connector-id":null},"freeform-tags":{},"defined-tags":{}}]}'
+        ;;
+    *"data-safe target-database get"*"target1"*)
+        printf '%s\n' '{"data":{"id":"ocid1.datasafetarget.oc1..target1","display-name":"db-target1","lifecycle-state":"INACTIVE"}}'
+        ;;
+    *"data-safe target-database get"*"target2"*)
+        printf '%s\n' '{"data":{"id":"ocid1.datasafetarget.oc1..target2","display-name":"db-target2","lifecycle-state":"INACTIVE"}}'
+        ;;
+    *"data-safe target-database update"*"target1"*)
+        echo "ServiceError: Failed to update target1" >&2
+        exit 1
+        ;;
+    *"data-safe target-database update"*"target2"*)
+        printf '%s\n' '{"data":{"id":"ocid1.datasafetarget.oc1..target2","lifecycle-state":"ACTIVE"}}'
+        ;;
+    *"--version"*)
+        echo "3.45.0"
+        ;;
+    *)
+        printf '%s\n' '{"data":[]}'
+        ;;
+esac
+MOCK
+    chmod +x "${mock_bin}/oci"
+
+    # Export PATH so the subprocess inherits the mock oci
+    export PATH="${mock_bin}:${PATH}"
+    run "${BIN_DIR}/ds_target_activate.sh" \
+        --compartment "ocid1.compartment.oc1..testcomp" \
+        --apply \
+        --ds-secret "testpassword"
+
+    # Script must NOT crash (signal kill = status > 128) — partial failure exits 10
+    [ "$status" -lt 128 ]
+    # Partial-failure exit code is 10
+    [ "$status" -eq 10 ]
+    # Output must confirm both targets were processed (target OCIDs appear in progress messages)
+    [[ "$output" == *"target1"* ]]
+    [[ "$output" == *"target2"* ]]
+    # Summary must report 2 total targets
+    [[ "$output" == *"Total targets"* ]]
+    [[ "$output" == *"Failed"* ]]
 }

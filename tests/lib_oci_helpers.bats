@@ -11,7 +11,8 @@
 
 # Test setup
 setup() {
-    export REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/.." && pwd)"
+    REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/.." && pwd)"
+    export REPO_ROOT
     export LIB_DIR="${REPO_ROOT}/lib"
     export TEST_TEMP_DIR="${BATS_TEST_TMPDIR}"
     
@@ -153,11 +154,13 @@ teardown() {
 
 # Test compartment functions
 @test "oci_resolve_compartment_ocid function resolves compartment names" {
-    source "${LIB_DIR}/common.sh"
-    source "${LIB_DIR}/oci_helpers.sh"
-    
-    # Test with OCID (should return as-is)
-    run oci_resolve_compartment_ocid "ocid1.compartment.oc1..test"
+    # Use bash -c so libraries are sourced in a fresh context where declare -A
+    # _COMP_OCID_CACHE is at global scope (not trapped in a setup() function local)
+    run bash -c "
+        source '${LIB_DIR}/common.sh'
+        source '${LIB_DIR}/oci_helpers.sh'
+        oci_resolve_compartment_ocid 'ocid1.compartment.oc1..test'
+    "
     [ "$status" -eq 0 ]
     [[ "$output" == "ocid1.compartment.oc1..test" ]]
 }
@@ -168,17 +171,20 @@ teardown() {
     
     export DS_ROOT_COMP="ocid1.compartment.oc1..root"
     run oci_resolve_compartment_ocid "test-compartment"
-    [ "$status" -eq 0 ] || [ "$status" -eq 1 ]  # May fail in mock environment
+    # Mock handles "name=='test-compartment'" case and returns OCID
+    [ "$status" -eq 0 ]
 }
 
 # Test Data Safe specific functions
 @test "ds_resolve_target_ocid function resolves target names" {
-    export LOG_LEVEL=ERROR
-    source "${LIB_DIR}/common.sh"
-    source "${LIB_DIR}/oci_helpers.sh"
-    
-    # Test resolving target name to OCID
-    run ds_resolve_target_ocid "test-target-1" "ocid1.compartment.oc1..root"
+    # Use bash -c so libraries are sourced in a fresh context where declare -A
+    # _COMP_OCID_CACHE is at global scope (not trapped in a setup() function local)
+    run bash -c "
+        export LOG_LEVEL=ERROR
+        source '${LIB_DIR}/common.sh'
+        source '${LIB_DIR}/oci_helpers.sh'
+        ds_resolve_target_ocid 'test-target-1' 'ocid1.compartment.oc1..root'
+    "
     [ "$status" -eq 0 ]
     # Should contain the OCID
     [[ "$output" == *"ocid1.datasafetarget"* ]]
@@ -200,7 +206,8 @@ teardown() {
     source "${LIB_DIR}/oci_helpers.sh"
     
     run ds_get_target "ocid1.datasafetarget.oc1..target123"
-    [ "$status" -eq 0 ] || [ "$status" -eq 1 ]  # May fail in mock environment
+    # Mock handles target-database get and returns JSON
+    [ "$status" -eq 0 ]
 }
 
 # Test error handling
@@ -219,10 +226,11 @@ teardown() {
     source "${LIB_DIR}/common.sh"
     source "${LIB_DIR}/oci_helpers.sh"
     
-    # With valid profile
+    # DS_ROOT_COMP is not set, so function returns error
+    unset DS_ROOT_COMP
     export OCI_TENANCY="ocid1.tenancy.oc1..test"
     run get_root_compartment_ocid
-    [ "$status" -eq 0 ] || [ "$status" -eq 1 ]  # May fail without real OCI config
+    [ "$status" -eq 1 ]
 }
 
 # Test target name resolution
@@ -231,7 +239,8 @@ teardown() {
     source "${LIB_DIR}/oci_helpers.sh"
     
     run ds_resolve_target_name "ocid1.datasafetarget.oc1..target123"
-    [ "$status" -eq 0 ] || [ "$status" -eq 1 ]  # May fail in mock environment
+    # Mock handles target-database get; result is non-empty so function returns 0
+    [ "$status" -eq 0 ]
 }
 
 # Test target compartment resolution
@@ -239,9 +248,9 @@ teardown() {
     source "${LIB_DIR}/common.sh" 
     source "${LIB_DIR}/oci_helpers.sh"
     
-    # Test with target OCID
+    # Test with target OCID — mock returns JSON (non-empty) so function succeeds
     run ds_get_target_compartment "ocid1.datasafetarget.oc1..target123"
-    [ "$status" -eq 0 ] || [ "$status" -eq 1 ]  # May fail in mock environment
+    [ "$status" -eq 0 ]
 }
 
 # Test lifecycle counting
@@ -336,23 +345,24 @@ teardown() {
 }
 
 @test "resolve_target_to_vars resolves name input" {
-    export LOG_LEVEL=ERROR
-    export DS_ROOT_COMP="ocid1.compartment.oc1..root"
-    source "${LIB_DIR}/common.sh"
-    source "${LIB_DIR}/oci_helpers.sh"
-    
-    # Test with name
-    resolve_target_to_vars "test-target-1" "TEST_TARGET" "ocid1.compartment.oc1..root"
-    status=$?
-    
-    # Should succeed and populate both variables
-    [ "$status" -eq 0 ] || [ "$status" -eq 1 ]  # May fail in mock environment
-    # If successful, both should be set
-    if [ "$status" -eq 0 ]; then
-        [ "$TEST_TARGET_NAME" = "test-target" ] || [ -n "$TEST_TARGET_NAME" ]
-        [ -n "$TEST_TARGET_OCID" ]
-        [[ "$TEST_TARGET_OCID" == ocid1.datasafetarget.* ]] || [[ "$TEST_TARGET_OCID" == "ocid1."* ]]
-    fi
+    # Run in a fresh bash subprocess to avoid _COMP_OCID_CACHE declare-A scoping issue
+    # (lib/oci_helpers.sh uses declare -A inside function scope; bash -c gets a clean slate)
+    run bash -c "
+        export LOG_LEVEL=ERROR
+        export DS_ROOT_COMP='ocid1.compartment.oc1..root'
+        source '${LIB_DIR}/common.sh'
+        source '${LIB_DIR}/oci_helpers.sh'
+        resolve_target_to_vars 'test-target-1' 'TEST_TARGET' 'ocid1.compartment.oc1..root'
+        rc=\$?
+        echo \"STATUS=\$rc\"
+        echo \"NAME=\$TEST_TARGET_NAME\"
+        echo \"OCID=\$TEST_TARGET_OCID\"
+        exit \$rc
+    "
+    # Mock provides target list with test-target-1, resolution should succeed
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"NAME=test-target-1"* ]]
+    [[ "$output" == *"OCID=ocid1.datasafetarget."* ]]
 }
 
 @test "oci_exec_ro function exists and executes in dry-run mode" {
@@ -507,5 +517,62 @@ teardown() {
 
 @test "ds_filter_targets_by_tags function exists in oci_helpers.sh" {
     run bash -c "source '${LIB_DIR}/common.sh' && source '${LIB_DIR}/oci_helpers.sh' && declare -F ds_filter_targets_by_tags"
+    [ "$status" -eq 0 ]
+}
+
+# =============================================================================
+# REG-007: oci_exec stderr isolation
+# Regression: Python FutureWarning on stderr must not bleed into stdout JSON
+# =============================================================================
+
+@test "REG-007: oci_exec returns only JSON when mock emits warning to stderr" {
+    export LOG_LEVEL=ERROR
+
+    # Override the mock oci with one that emits a FutureWarning to stderr
+    cat > "${TEST_TEMP_DIR}/bin/oci" << 'EOF'
+#!/usr/bin/env bash
+echo "FutureWarning: urllib3 v2 only supports OpenSSL 1.1.1+" >&2
+echo '{"data": []}'
+EOF
+    chmod +x "${TEST_TEMP_DIR}/bin/oci"
+
+    source "${LIB_DIR}/common.sh"
+    source "${LIB_DIR}/oci_helpers.sh"
+
+    run oci_exec data-safe target-database list --compartment-id ocid1.comp.oc1..test
+    [ "$status" -eq 0 ]
+    # stdout must contain the JSON payload
+    [[ "$output" == *'"data"'* ]]
+    # stdout must NOT contain the FutureWarning
+    [[ "$output" != *"FutureWarning"* ]]
+}
+
+# =============================================================================
+# REG-008: DELETED lifecycle state allows registration check
+# Regression: ds_is_updatable_lifecycle_state must not allow DELETED state
+# =============================================================================
+
+@test "REG-008: ds_is_updatable_lifecycle_state rejects DELETED state" {
+    source "${LIB_DIR}/common.sh"
+    source "${LIB_DIR}/oci_helpers.sh"
+
+    # DELETED state should NOT be updatable
+    run ds_is_updatable_lifecycle_state "DELETED"
+    [ "$status" -eq 1 ]
+}
+
+@test "REG-008: ds_is_updatable_lifecycle_state accepts ACTIVE state" {
+    source "${LIB_DIR}/common.sh"
+    source "${LIB_DIR}/oci_helpers.sh"
+
+    run ds_is_updatable_lifecycle_state "ACTIVE"
+    [ "$status" -eq 0 ]
+}
+
+@test "REG-008: ds_is_updatable_lifecycle_state accepts NEEDS_ATTENTION state" {
+    source "${LIB_DIR}/common.sh"
+    source "${LIB_DIR}/oci_helpers.sh"
+
+    run ds_is_updatable_lifecycle_state "NEEDS_ATTENTION"
     [ "$status" -eq 0 ]
 }

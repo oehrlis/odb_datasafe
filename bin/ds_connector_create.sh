@@ -762,6 +762,7 @@ do_work() {
 # =============================================================================
 
 main() {
+    setup_error_handling
     init_config
     local has_explicit_log_flag="false"
     local arg
@@ -782,7 +783,6 @@ main() {
     parse_args "$@"
 
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
-    setup_error_handling
 
     validate_inputs
     show_plan

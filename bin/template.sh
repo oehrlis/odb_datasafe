@@ -323,6 +323,7 @@ cleanup() {
 # Output..: Execution status and results
 # ------------------------------------------------------------------------------
 main() {
+    setup_error_handling
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
 
     # Initialize configuration cascade

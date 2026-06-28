@@ -321,14 +321,12 @@ find_untagged_targets() {
 # ------------------------------------------------------------------------------
 main() {
     # Initialize framework and parse arguments
+    setup_error_handling
     init_config
     parse_common_opts "$@"
     parse_args "$@"
 
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
-
-    # Setup error handling
-    setup_error_handling
 
     # Validate inputs
     validate_inputs

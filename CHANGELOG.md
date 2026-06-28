@@ -8,6 +8,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-06-28
+
+### Added
+
+- `tests/lib_oci_helpers.bats`: REG-007 (`oci_exec` stderr isolation — FutureWarning
+  stripped from stdout), REG-008 (`ds_is_updatable_lifecycle_state` DELETED/ACTIVE/
+  NEEDS_ATTENTION coverage)
+- `tests/script_ds_target_update_service.bats`: REG-009 (PUT semantics — `target-database
+  get` before `target-database update` in `--apply` mode)
+- `tests/script_ds_target_activate.bats`: REG-010 (multi-target partial failure — script
+  continues after one target fails, exits 10)
+- `tests/lib_common.bats`: REG-011/REG-012 (`normalize_secret_value` path and literal
+  input coverage)
+- `tests/lib_ssh_helpers.bats`: new test suite with 17 tests covering all four functions
+  in `lib/ssh_helpers.sh`
+- `bin/ds_target_refresh.sh` and `bin/ds_target_activate.sh`: `--mode async` now runs
+  up to `MAX_PARALLEL` (default 4) background jobs concurrently; `--max-parallel N`
+  option added (PERF-012)
+- `bin/ds_database_prereqs.sh`: Oracle identifier whitelist validation for `--ds-user`
+  and `--pdb` before embedding in SQL; `ORACLE_HOME` existence and `sqlplus` executable
+  check (ORA-015, DEP-006)
+- `lib/oci_helpers.sh`: in-memory associative-array cache for `oci_resolve_compartment_ocid`
+  (PERF-003); optional pre-resolved name parameter in `ds_resolve_target_name` (PERF-002);
+  optional pre-fetched JSON parameter in `ds_is_cdb_root_target` (PERF-004)
+
+### Changed
+
+- `bin/ds_target_register.sh`: `jq` filters now use `--arg` for all shell variable
+  interpolations (BASH-008); compartment name validated before OCI `--query` embedding
+  (BASH-007); `setup_error_handling` moved before `init_config` (BASH-001)
+- `bin/ds_target_connector_summary.sh`: `ENRICH_MISSING` defaults to `false`; new
+  `--enrich` flag opts in to per-target OCI GET enrichment (PERF-001)
+- `bin/ds_target_move.sh`: `((count++))` replaced with `count=$((count + 1))` to avoid
+  `set -e` exit when count is 0 (BASH-004); `require_oci_cli` added (DEP-005);
+  `setup_error_handling` added (BASH-001)
+- All 21 scripts with `setup_error_handling`: call moved to before `init_config` so
+  error traps are active during config loading (BASH-001); `ds_version.sh` and
+  `template.sh` also receive `setup_error_handling` for the first time
+- `lib/oci_helpers.sh`: `eval` replaced with `printf -v` in `resolve_compartment_to_vars`
+  and `resolve_target_to_vars` (ARCH-011); `generate_bundle_key` loop bounded to 50
+  iterations (BASH-013); `_oci_redact_cmd` now masks `--credentials`, `--secret`,
+  `--auth-token` in addition to `--password` (SEC-010)
+- `lib/oci_helpers.sh` `ds_refresh_target`: stderr captured via temp file instead of
+  `2>&1` merge to prevent Python FutureWarnings corrupting JSON output (ARCH-005/
+  BASH-014)
+
+### Fixed
+
+- `tests/lib_oci_helpers.bats`: 6 zero-signal `[ "$status" -eq 0 ] || [ "$status" -eq 1 ]`
+  assertions replaced with meaningful status checks (TEST-012); tests 4 and 6 rewritten
+  to use `bash -c` subshell so `declare -A` cache is properly scoped
+- `tests/uninstall_all_datasafe_services.bats`: 3 zero-signal assertions fixed (TEST-012)
+
 ## [0.23.0] - 2026-06-28
 
 ### Added

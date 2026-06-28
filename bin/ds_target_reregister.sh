@@ -78,6 +78,7 @@ source "${LIB_DIR}/ds_lib.sh" || {
     exit 1
 }
 
+setup_error_handling
 init_config
 
 # Re-sync credentials after config loading

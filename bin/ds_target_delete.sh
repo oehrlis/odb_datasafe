@@ -65,6 +65,7 @@ source "${LIB_DIR}/ds_lib.sh" || {
     exit 1
 }
 
+setup_error_handling
 # Initialize configuration
 init_config
 

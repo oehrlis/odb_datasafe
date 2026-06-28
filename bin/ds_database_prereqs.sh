@@ -796,6 +796,25 @@ pass_file_path() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: _validate_oracle_ident
+# Purpose.: Validate an Oracle identifier (letters, digits, underscore, dollar, hash)
+# Args....: $1 - Identifier value
+#           $2 - Label for error messages
+# Returns.: 0 on success, exits on error
+# Output..: None
+# ------------------------------------------------------------------------------
+_validate_oracle_ident() {
+    local name="$1" label="$2"
+    if [[ -z "$name" ]]; then return 0; fi
+    if [[ ${#name} -gt 128 ]]; then
+        die "$label exceeds 128 characters: $name"
+    fi
+    if ! [[ "$name" =~ ^[A-Za-z][A-Za-z0-9_\$#]*$ ]]; then
+        die "$label contains invalid characters (Oracle identifier: letters/digits/_/\$/# only): $name"
+    fi
+}
+
+# ------------------------------------------------------------------------------
 # Function: resolve_pass
 # Purpose.: Load or generate the Data Safe secret
 # Args....: None
@@ -851,9 +870,23 @@ validate_inputs() {
     log_debug "DS user=${DATASAFE_USER} profile=${DS_PROFILE} force=${DS_FORCE} update_secret=${DS_UPDATE_SECRET}"
     log_debug "Modes: check_only=${CHECK_ONLY} drop_user=${DROP_USER}"
 
-    require_cmd sqlplus mktemp base64
+    if [[ -z "${ORACLE_HOME:-}" ]]; then
+        die "ORACLE_HOME is not set. Set ORACLE_HOME to the Oracle database home directory."
+    fi
+    if [[ ! -d "${ORACLE_HOME}" ]]; then
+        die "ORACLE_HOME directory does not exist: ${ORACLE_HOME}"
+    fi
+    local sqlplus_bin="${ORACLE_HOME}/bin/sqlplus"
+    if [[ ! -x "${sqlplus_bin}" ]]; then
+        die "sqlplus not found or not executable: ${sqlplus_bin}"
+    fi
+    require_cmd mktemp base64
     require_var ORACLE_SID
     log_debug "ORACLE_SID=${ORACLE_SID}"
+
+    # Validate Oracle identifiers to prevent SQL injection
+    _validate_oracle_ident "${DATASAFE_USER:-}" "--ds-user"
+    _validate_oracle_ident "${PDB:-}" "--pdb"
 
     if [[ "$RUN_ALL" == "true" ]]; then
         if [[ -n "$PDBS" || "$RUN_ROOT" == "true" ]]; then

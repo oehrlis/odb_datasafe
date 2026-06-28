@@ -447,6 +447,7 @@ print_changes() {
 }
 
 main() {
+    setup_error_handling
     parse_args "$@"
     init_config "${SCRIPT_NAME%.sh}.conf"
     collect_runtime_configs

@@ -37,7 +37,7 @@ readonly LIB_DIR="${SCRIPT_DIR}/../lib"
 : "${SHOW_OCID:=false}"
 : "${INPUT_JSON:=}"
 : "${SAVE_JSON:=}"
-: "${ENRICH_MISSING:=true}" # Fetch per-target details for no-connector targets
+: "${ENRICH_MISSING:=false}" # Fetch per-target details for no-connector targets (opt-in via --enrich)
 
 # shellcheck disable=SC1091
 source "${LIB_DIR}/ds_lib.sh" || {
@@ -45,6 +45,7 @@ source "${LIB_DIR}/ds_lib.sh" || {
     exit 1
 }
 
+setup_error_handling
 # Initialize configuration
 init_config
 
@@ -98,9 +99,9 @@ Options:
     -F, --fields FIELDS         Comma-separated fields for detailed mode
                                 (default: ${FIELDS})
         --show-ocid             Show connector OCIDs (table output)
-        --no-enrich             Skip per-target enrichment; targets missing connector
-                                info in list response appear as 'Cloud / Private Endpoint'
-                                (useful for troubleshooting or faster output)
+        --enrich                Enable per-target detail enrichment for targets missing
+                                connector info (slower; makes one OCI GET per target)
+        --no-enrich             Explicitly disable per-target enrichment (default)
 
 Examples:
     # Show summary of targets by connector (default)
@@ -199,6 +200,10 @@ parse_args() {
                 ;;
             --show-ocid)
                 SHOW_OCID=true
+                shift
+                ;;
+            --enrich)
+                ENRICH_MISSING=true
                 shift
                 ;;
             --no-enrich)

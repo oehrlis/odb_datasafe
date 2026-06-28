@@ -12,7 +12,8 @@
 # Test setup
 setup() {
     # Set up test environment
-    export REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/.." && pwd)"
+    REPO_ROOT="$(cd "$(dirname "${BATS_TEST_FILENAME}")/.." && pwd)"
+    export REPO_ROOT
     export LIB_DIR="${REPO_ROOT}/lib"
     export TEST_TEMP_DIR="${BATS_TEST_TMPDIR}"
     
@@ -253,4 +254,34 @@ teardown() {
     # Just test that the function exists
     declare -f confirm >/dev/null
     [ "$?" -eq 0 ]
+}
+
+# =============================================================================
+# REG-011: normalize_secret_value — base64 input is decoded
+# Regression: base64-encoded password must be decoded, not returned verbatim
+# =============================================================================
+
+@test "REG-011: normalize_secret_value decodes valid base64 input" {
+    source "${LIB_DIR}/common.sh"
+
+    # "mypassword" base64-encoded = bXlwYXNzd29yZA==
+    local b64_input="bXlwYXNzd29yZA=="
+    run normalize_secret_value "$b64_input"
+    [ "$status" -eq 0 ]
+    [ "$output" = "mypassword" ]
+}
+
+# =============================================================================
+# REG-012: normalize_secret_value — literal string is returned unchanged
+# Regression: a plain password string that is not base64 must pass through intact
+# =============================================================================
+
+@test "REG-012: normalize_secret_value returns literal string unchanged" {
+    source "${LIB_DIR}/common.sh"
+
+    # "my-secret#pw!" contains characters invalid for base64, so passes through
+    local literal="my-secret#pw!"
+    run normalize_secret_value "$literal"
+    [ "$status" -eq 0 ]
+    [ "$output" = "my-secret#pw!" ]
 }

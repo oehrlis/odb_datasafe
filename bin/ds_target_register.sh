@@ -681,6 +681,11 @@ validate_inputs() {
     [[ -z "$HOST" && -z "$CLUSTER" ]] && die "Missing resource identifier. Specify --host or --cluster"
     [[ -z "$SID" ]] && die "Missing required option: --sid"
 
+    # Validate compartment name (allow only safe characters for OCI --query JMESPath)
+    if [[ -n "${COMPARTMENT:-}" ]] && ! [[ "$COMPARTMENT" =~ ^[a-zA-Z0-9_:@./\ -]+$ ]]; then
+        die "Invalid compartment name (contains unsafe characters for OCI query): $COMPARTMENT"
+    fi
+
     # Scope validation (done early, before OCI calls and DS_USER/secret resolution)
     if [[ -z "$PDB" && "$RUN_ROOT" != "true" ]]; then
         die "Specify scope: --pdb <name> OR --root"
@@ -903,7 +908,7 @@ validate_inputs() {
             --compartment-id-in-subtree true \
             --all) || die "Failed to list connectors"
 
-        CONNECTOR_OCID=$(echo "$connectors_json" | jq -r ".data[] | select(.\"display-name\" == \"$CONNECTOR\") | .id" | head -n1)
+        CONNECTOR_OCID=$(echo "$connectors_json" | jq -r --arg conn "$CONNECTOR" '.data[] | select(."display-name" == $conn) | .id' | head -n1)
 
         if [[ -z "$CONNECTOR_OCID" ]]; then
             die "Connector not found: ${CONNECTOR} in compartment ${connector_search_comp}"
@@ -956,7 +961,7 @@ check_target_exists() {
     targets_json=$(ds_list_targets "$COMP_OCID") || die "Failed to list targets"
 
     local existing_target
-    existing_target=$(echo "$targets_json" | jq -r ".data[] | select(.\"display-name\" == \"$DISPLAY_NAME\" and .\"lifecycle-state\" != \"DELETED\") | .id" | head -n1)
+    existing_target=$(echo "$targets_json" | jq -r --arg name "$DISPLAY_NAME" '.data[] | select(."display-name" == $name and ."lifecycle-state" != "DELETED") | .id' | head -n1)
 
     if [[ -n "$existing_target" ]]; then
         log_info "Target already exists: $DISPLAY_NAME ($existing_target)"
@@ -1279,6 +1284,7 @@ register_target() {
 # ------------------------------------------------------------------------------
 main() {
     # Initialize framework and parse arguments
+    setup_error_handling
     init_config
     local has_explicit_log_flag="false"
     local arg
@@ -1299,9 +1305,6 @@ main() {
     parse_args "$@"
 
     log_info "Starting ${SCRIPT_NAME} v${SCRIPT_VERSION}"
-
-    # Setup error handling
-    setup_error_handling
 
     # Validate inputs
     validate_inputs

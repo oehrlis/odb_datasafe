@@ -68,6 +68,7 @@ RESOLVED_TARGETS=()
 moved_count=0
 failed_count=0
 
+setup_error_handling
 # Load configuration (env, defaults, config files)
 init_config
 
@@ -253,6 +254,8 @@ parse_args() {
 # Output..: Log messages for validation steps
 # ------------------------------------------------------------------------------
 validate_inputs() {
+    require_oci_cli
+
     if [[ -z "${DEST_COMPARTMENT}" ]]; then
         log_error "Destination compartment (-D) is required"
         usage 1
@@ -515,7 +518,7 @@ move_audit_trails() {
             --audit-trail-id "${trail_ocid}" \
             --compartment-id "${DEST_COMP_OCID}" \
             > /dev/null; then
-            ((count++))
+            count=$((count + 1))
         else
             log_error "    Failed to move audit trail: ${trail_ocid}"
         fi
@@ -561,7 +564,7 @@ move_assessments() {
             --security-assessment-id "${assessment_ocid}" \
             --compartment-id "${DEST_COMP_OCID}" \
             > /dev/null; then
-            ((count++))
+            count=$((count + 1))
         else
             log_error "    Failed to move assessment: ${assessment_ocid}"
         fi
@@ -607,7 +610,7 @@ move_security_policies() {
             --security-policy-id "${policy_ocid}" \
             --compartment-id "${DEST_COMP_OCID}" \
             > /dev/null; then
-            ((count++))
+            count=$((count + 1))
         else
             log_error "    Failed to move security policy: ${policy_ocid}"
         fi

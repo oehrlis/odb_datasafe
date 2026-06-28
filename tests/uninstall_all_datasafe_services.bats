@@ -29,26 +29,25 @@ setup() {
 
 @test "uninstall_all_datasafe_services.sh list mode works without root" {
     run "$SCRIPT_PATH" --list
-    
-    # Should work without root in list mode
-    # May have 0 or 1 exit status depending on whether services are found
-    [ "$status" -eq 0 ] || [ "$status" -eq 1 ]
+
+    # Script always exits 0 in list mode — when no services found,
+    # list_services returns 1 but main() calls exit 0 on that path
+    [ "$status" -eq 0 ]
 }
 
 @test "uninstall_all_datasafe_services.sh default mode is list (no root needed)" {
     run "$SCRIPT_PATH"
-    
-    # Default behavior is list mode
-    [ "$status" -eq 0 ] || [ "$status" -eq 1 ]
+
+    # Default behavior is list mode; script exits 0 regardless of service count
+    [ "$status" -eq 0 ]
     [[ "$output" != *"requires root"* ]]
 }
 
 @test "uninstall_all_datasafe_services.sh dry-run mode works without root" {
     run "$SCRIPT_PATH" --list --dry-run
-    
-    # Should work without root in dry-run mode
-    # May have 0 or 1 exit status depending on whether services are found
-    [ "$status" -eq 0 ] || [ "$status" -eq 1 ]
+
+    # List + dry-run: script exits 0 (same exit-0 path as plain --list)
+    [ "$status" -eq 0 ]
 }
 
 @test "uninstall_all_datasafe_services.sh handles no services gracefully" {

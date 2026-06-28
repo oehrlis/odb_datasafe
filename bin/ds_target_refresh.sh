@@ -41,6 +41,8 @@ readonly SCRIPT_VERSION
 : "${SAVE_JSON:=}"
 : "${ALLOW_STALE_SELECTION:=false}"
 : "${MAX_SNAPSHOT_AGE:=24h}"
+: "${MODE:=sync}"      # Execution mode: sync (serial) or async (parallel)
+: "${MAX_PARALLEL:=4}" # Max concurrent background jobs (async mode only)
 
 # Counters
 SUCCESS_COUNT=0
@@ -100,6 +102,11 @@ Options:
         --wait-state STATE      Wait for each refresh to reach STATE (e.g. SUCCEEDED).
                                 Default: return after submit (async, faster for bulk)
 
+  Execution:
+        --mode MODE             Execution mode: sync (serial, default) or async (parallel)
+        --max-parallel N        Max concurrent jobs in async mode (default: ${MAX_PARALLEL})
+                                Also configurable via MAX_PARALLEL env var
+
 Examples:
     # Refresh all NEEDS_ATTENTION targets in DS_ROOT_COMP (fast, async)
     ${SCRIPT_NAME}
@@ -127,6 +134,12 @@ Examples:
 
     # Apply refresh from saved JSON (requires explicit stale-selection override)
     ${SCRIPT_NAME} --input-json ./target_selection.json --allow-stale-selection
+
+    # Refresh all targets in parallel (up to 4 concurrent)
+    ${SCRIPT_NAME} --all --mode async
+
+    # Refresh with custom parallelism limit
+    ${SCRIPT_NAME} --all --mode async --max-parallel 8
 
 EOF
     exit 0
@@ -216,6 +229,16 @@ parse_args() {
                 WAIT_STATE="${2^^}"
                 shift 2
                 ;;
+            --mode)
+                need_val "$1" "${2:-}"
+                MODE="$2"
+                shift 2
+                ;;
+            --max-parallel)
+                need_val "$1" "${2:-}"
+                MAX_PARALLEL="$2"
+                shift 2
+                ;;
             --oci-profile)
                 need_val "$1" "${2:-}"
                 OCI_CLI_PROFILE="$2"
@@ -294,6 +317,17 @@ validate_inputs() {
 
     if ! ds_validate_target_filter_regex "$TARGET_FILTER"; then
         die "Invalid filter regex: $TARGET_FILTER"
+    fi
+
+    # Validate MODE
+    case "$MODE" in
+        sync | async) ;;
+        *) die "Invalid --mode value: $MODE (use sync or async)" ;;
+    esac
+
+    # Validate MAX_PARALLEL is a positive integer
+    if [[ ! "$MAX_PARALLEL" =~ ^[1-9][0-9]*$ ]]; then
+        die "Invalid --max-parallel value: $MAX_PARALLEL (must be a positive integer)"
     fi
 }
 
@@ -374,14 +408,64 @@ do_work() {
     local current=0
     local target_ocid target_name
 
-    for target_row in "${target_rows[@]}"; do
-        IFS=$'\t' read -r target_ocid target_name <<< "$target_row"
-        [[ -z "$target_ocid" ]] && continue
-        current=$((current + 1))
-        if ! refresh_single_target "$target_ocid" "$target_name" "$current" "$total"; then
-            :
-        fi
-    done
+    if [[ "$MODE" == "async" ]]; then
+        log_info "Async mode: up to ${MAX_PARALLEL} concurrent jobs"
+        local -a pids=()
+        local -a pid_targets=()
+        local failed=0
+
+        for target_row in "${target_rows[@]}"; do
+            IFS=$'\t' read -r target_ocid target_name <<< "$target_row"
+            [[ -z "$target_ocid" ]] && continue
+            current=$((current + 1))
+
+            # Wait if at capacity
+            while [[ ${#pids[@]} -ge ${MAX_PARALLEL} ]]; do
+                local -a remaining_pids=()
+                local -a remaining_targets=()
+                local i
+                for i in "${!pids[@]}"; do
+                    if kill -0 "${pids[$i]}" 2> /dev/null; then
+                        remaining_pids+=("${pids[$i]}")
+                        remaining_targets+=("${pid_targets[$i]}")
+                    else
+                        wait "${pids[$i]}" || {
+                            log_warn "Failed for target: ${pid_targets[$i]}"
+                            failed=$((failed + 1))
+                        }
+                    fi
+                done
+                pids=("${remaining_pids[@]+"${remaining_pids[@]}"}")
+                pid_targets=("${remaining_targets[@]+"${remaining_targets[@]}"}")
+                [[ ${#pids[@]} -ge ${MAX_PARALLEL} ]] && sleep 0.5
+            done
+
+            # Spawn background job
+            refresh_single_target "$target_ocid" "$target_name" "$current" "$total" &
+            pids+=($!)
+            pid_targets+=("$target_ocid")
+        done
+
+        # Wait for remaining jobs
+        for i in "${!pids[@]}"; do
+            wait "${pids[$i]}" || {
+                log_warn "Failed for target: ${pid_targets[$i]}"
+                failed=$((failed + 1))
+            }
+        done
+
+        FAILED_COUNT=$((FAILED_COUNT + failed))
+    else
+        # Serial mode (original behavior)
+        for target_row in "${target_rows[@]}"; do
+            IFS=$'\t' read -r target_ocid target_name <<< "$target_row"
+            [[ -z "$target_ocid" ]] && continue
+            current=$((current + 1))
+            if ! refresh_single_target "$target_ocid" "$target_name" "$current" "$total"; then
+                :
+            fi
+        done
+    fi
 
     # Print summary
     echo ""
