@@ -44,6 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `tests/edge_case_tests.bats`: 3 permanently skipped test blocks removed
   (TEST-016); test count corrected from 349 to 346
+- `.github/workflows/ci.yml` and `release.yml`: `shfmt` added to `apt-get install`
+  so `make format-check` no longer fails with "shfmt not found" on GitHub-hosted runners
 
 ## [0.24.0] - 2026-06-28
 
