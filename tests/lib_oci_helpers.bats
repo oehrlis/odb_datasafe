@@ -114,7 +114,7 @@ EOF
     
     # Load libraries
     source "${LIB_DIR}/common.sh"
-    source "${LIB_DIR}/oci_helpers.sh"
+    source "${LIB_DIR}/ds_lib.sh"
 }
 
 teardown() {
@@ -124,7 +124,7 @@ teardown() {
 
 # Test basic library loading
 @test "oci_helpers.sh can be loaded without errors" {
-    run bash -c "source '${LIB_DIR}/common.sh' && source '${LIB_DIR}/oci_helpers.sh' && echo 'loaded'"
+    run bash -c "source '${LIB_DIR}/common.sh' && source '${LIB_DIR}/ds_lib.sh' && echo 'loaded'"
     [ "$status" -eq 0 ]
     [[ "$output" == *"loaded"* ]]
 }
@@ -133,7 +133,7 @@ teardown() {
 @test "oci_exec function executes OCI commands" {
     export LOG_LEVEL=ERROR  # Suppress debug output
     source "${LIB_DIR}/common.sh"
-    source "${LIB_DIR}/oci_helpers.sh"
+    source "${LIB_DIR}/ds_lib.sh"
     
     run oci_exec --version
     [ "$status" -eq 0 ]
@@ -143,7 +143,7 @@ teardown() {
 
 @test "is_ocid function works correctly" {
     source "${LIB_DIR}/common.sh"
-    source "${LIB_DIR}/oci_helpers.sh"
+    source "${LIB_DIR}/ds_lib.sh"
     
     run is_ocid "ocid1.compartment.oc1..test"
     [ "$status" -eq 0 ]
@@ -158,7 +158,7 @@ teardown() {
     # _COMP_OCID_CACHE is at global scope (not trapped in a setup() function local)
     run bash -c "
         source '${LIB_DIR}/common.sh'
-        source '${LIB_DIR}/oci_helpers.sh'
+        source '${LIB_DIR}/ds_lib.sh'
         oci_resolve_compartment_ocid 'ocid1.compartment.oc1..test'
     "
     [ "$status" -eq 0 ]
@@ -167,7 +167,7 @@ teardown() {
 
 @test "oci_resolve_compartment_ocid function works with valid names" {
     source "${LIB_DIR}/common.sh"
-    source "${LIB_DIR}/oci_helpers.sh"
+    source "${LIB_DIR}/ds_lib.sh"
     
     export DS_ROOT_COMP="ocid1.compartment.oc1..root"
     run oci_resolve_compartment_ocid "test-compartment"
@@ -182,7 +182,7 @@ teardown() {
     run bash -c "
         export LOG_LEVEL=ERROR
         source '${LIB_DIR}/common.sh'
-        source '${LIB_DIR}/oci_helpers.sh'
+        source '${LIB_DIR}/ds_lib.sh'
         ds_resolve_target_ocid 'test-target-1' 'ocid1.compartment.oc1..root'
     "
     [ "$status" -eq 0 ]
@@ -193,7 +193,7 @@ teardown() {
 @test "ds_list_targets function lists Data Safe targets" {
     export LOG_LEVEL=ERROR
     source "${LIB_DIR}/common.sh"
-    source "${LIB_DIR}/oci_helpers.sh"
+    source "${LIB_DIR}/ds_lib.sh"
     
     run ds_list_targets "ocid1.compartment.oc1..root"
     [ "$status" -eq 0 ]
@@ -203,7 +203,7 @@ teardown() {
 
 @test "ds_get_target function gets target information" {
     source "${LIB_DIR}/common.sh"
-    source "${LIB_DIR}/oci_helpers.sh"
+    source "${LIB_DIR}/ds_lib.sh"
     
     run ds_get_target "ocid1.datasafetarget.oc1..target123"
     # Mock handles target-database get and returns JSON
@@ -213,7 +213,7 @@ teardown() {
 # Test error handling
 @test "oci_exec function handles OCI errors gracefully" {
     source "${LIB_DIR}/common.sh"
-    source "${LIB_DIR}/oci_helpers.sh"
+    source "${LIB_DIR}/ds_lib.sh"
     
     # Test with invalid command
     run oci_exec invalid-command
@@ -224,7 +224,7 @@ teardown() {
 # Test root compartment resolution
 @test "get_root_compartment_ocid function works" {
     source "${LIB_DIR}/common.sh"
-    source "${LIB_DIR}/oci_helpers.sh"
+    source "${LIB_DIR}/ds_lib.sh"
     
     # DS_ROOT_COMP is not set, so function returns error
     unset DS_ROOT_COMP
@@ -236,7 +236,7 @@ teardown() {
 # Test target name resolution
 @test "ds_resolve_target_name function works with OCIDs" {
     source "${LIB_DIR}/common.sh"
-    source "${LIB_DIR}/oci_helpers.sh"
+    source "${LIB_DIR}/ds_lib.sh"
     
     run ds_resolve_target_name "ocid1.datasafetarget.oc1..target123"
     # Mock handles target-database get; result is non-empty so function returns 0
@@ -246,7 +246,7 @@ teardown() {
 # Test target compartment resolution
 @test "ds_get_target_compartment function works" {
     source "${LIB_DIR}/common.sh" 
-    source "${LIB_DIR}/oci_helpers.sh"
+    source "${LIB_DIR}/ds_lib.sh"
     
     # Test with target OCID — mock returns JSON (non-empty) so function succeeds
     run ds_get_target_compartment "ocid1.datasafetarget.oc1..target123"
@@ -257,7 +257,7 @@ teardown() {
 @test "ds_count_by_lifecycle function works" {
     export LOG_LEVEL=ERROR
     source "${LIB_DIR}/common.sh"
-    source "${LIB_DIR}/oci_helpers.sh"
+    source "${LIB_DIR}/ds_lib.sh"
     
     # Get targets first, then count
     targets=$(ds_list_targets "ocid1.compartment.oc1..root")
@@ -269,17 +269,17 @@ teardown() {
 # Test new resolution helper functions (added 2026-01-22)
 @test "resolve_compartment_to_vars helper function exists" {
     source "${LIB_DIR}/common.sh"
-    source "${LIB_DIR}/oci_helpers.sh"
+    source "${LIB_DIR}/ds_lib.sh"
     
     # Check function is defined using declare
-    run bash -c "source '${LIB_DIR}/common.sh' && source '${LIB_DIR}/oci_helpers.sh' && declare -F resolve_compartment_to_vars"
+    run bash -c "source '${LIB_DIR}/common.sh' && source '${LIB_DIR}/ds_lib.sh' && declare -F resolve_compartment_to_vars"
     [ "$status" -eq 0 ]
 }
 
 @test "resolve_compartment_to_vars resolves OCID input" {
     export LOG_LEVEL=ERROR
     source "${LIB_DIR}/common.sh"
-    source "${LIB_DIR}/oci_helpers.sh"
+    source "${LIB_DIR}/ds_lib.sh"
     
     # Test with OCID - should return OCID for both name and OCID using prefix
     resolve_compartment_to_vars "ocid1.compartment.oc1..test123" "TEST_COMP"
@@ -294,7 +294,7 @@ teardown() {
     export LOG_LEVEL=ERROR
     export DS_ROOT_COMP="ocid1.compartment.oc1..root"
     source "${LIB_DIR}/common.sh"
-    source "${LIB_DIR}/oci_helpers.sh"
+    source "${LIB_DIR}/ds_lib.sh"
     
     # Test with name
     resolve_compartment_to_vars "test-compartment" "TEST_COMP"
@@ -311,7 +311,7 @@ teardown() {
     export LOG_LEVEL=ERROR
     export DS_ROOT_COMP="ocid1.compartment.oc1..root"
     source "${LIB_DIR}/common.sh"
-    source "${LIB_DIR}/oci_helpers.sh"
+    source "${LIB_DIR}/ds_lib.sh"
     
     # Test with invalid compartment name
     run resolve_compartment_to_vars "non-existent-compartment" "TEST_COMP"
@@ -322,17 +322,17 @@ teardown() {
 
 @test "resolve_target_to_vars helper function exists" {
     source "${LIB_DIR}/common.sh"
-    source "${LIB_DIR}/oci_helpers.sh"
+    source "${LIB_DIR}/ds_lib.sh"
     
     # Check function is defined using declare
-    run bash -c "source '${LIB_DIR}/common.sh' && source '${LIB_DIR}/oci_helpers.sh' && declare -F resolve_target_to_vars"
+    run bash -c "source '${LIB_DIR}/common.sh' && source '${LIB_DIR}/ds_lib.sh' && declare -F resolve_target_to_vars"
     [ "$status" -eq 0 ]
 }
 
 @test "resolve_target_to_vars resolves OCID input" {
     export LOG_LEVEL=ERROR
     source "${LIB_DIR}/common.sh"
-    source "${LIB_DIR}/oci_helpers.sh"
+    source "${LIB_DIR}/ds_lib.sh"
     
     # Test with OCID using prefix
     resolve_target_to_vars "ocid1.datasafetarget.oc1..target123" "TEST_TARGET"
@@ -351,7 +351,7 @@ teardown() {
         export LOG_LEVEL=ERROR
         export DS_ROOT_COMP='ocid1.compartment.oc1..root'
         source '${LIB_DIR}/common.sh'
-        source '${LIB_DIR}/oci_helpers.sh'
+        source '${LIB_DIR}/ds_lib.sh'
         resolve_target_to_vars 'test-target-1' 'TEST_TARGET' 'ocid1.compartment.oc1..root'
         rc=\$?
         echo \"STATUS=\$rc\"
@@ -369,7 +369,7 @@ teardown() {
     export LOG_LEVEL=ERROR
     export DRY_RUN=true
     source "${LIB_DIR}/common.sh"
-    source "${LIB_DIR}/oci_helpers.sh"
+    source "${LIB_DIR}/ds_lib.sh"
     
     # oci_exec_ro should execute even in dry-run mode
     run oci_exec_ro --version
@@ -379,10 +379,10 @@ teardown() {
 
 @test "oci_exec_ro is different from oci_exec" {
     source "${LIB_DIR}/common.sh"
-    source "${LIB_DIR}/oci_helpers.sh"
+    source "${LIB_DIR}/ds_lib.sh"
     
     # Check both functions exist using declare
-    run bash -c "source '${LIB_DIR}/common.sh' && source '${LIB_DIR}/oci_helpers.sh' && declare -F oci_exec && declare -F oci_exec_ro"
+    run bash -c "source '${LIB_DIR}/common.sh' && source '${LIB_DIR}/ds_lib.sh' && declare -F oci_exec && declare -F oci_exec_ro"
     [ "$status" -eq 0 ]
 }
 
@@ -390,7 +390,7 @@ teardown() {
     export LOG_LEVEL=ERROR
     export DS_ROOT_COMP="ocid1.compartment.oc1..root"
     source "${LIB_DIR}/common.sh"
-    source "${LIB_DIR}/oci_helpers.sh"
+    source "${LIB_DIR}/ds_lib.sh"
     
     # Test with non-existent compartment (should return 1, not call die)
     run oci_resolve_compartment_ocid "definitely-does-not-exist-compartment-name"
@@ -403,7 +403,7 @@ teardown() {
     export LOG_LEVEL=ERROR
     export DS_ROOT_COMP="ocid1.compartment.oc1..root"
     source "${LIB_DIR}/common.sh"
-    source "${LIB_DIR}/oci_helpers.sh"
+    source "${LIB_DIR}/ds_lib.sh"
 
     # Test with non-existent target (should return 1, not call die)
     run ds_resolve_target_ocid "definitely-does-not-exist-target-name" "ocid1.compartment.oc1..root"
@@ -413,17 +413,17 @@ teardown() {
 }
 
 @test "oci_resolve_dbnode_by_host function exists in oci_helpers.sh" {
-    run bash -c "source '${LIB_DIR}/common.sh' && source '${LIB_DIR}/oci_helpers.sh' && declare -F oci_resolve_dbnode_by_host"
+    run bash -c "source '${LIB_DIR}/common.sh' && source '${LIB_DIR}/ds_lib.sh' && declare -F oci_resolve_dbnode_by_host"
     [ "$status" -eq 0 ]
 }
 
 @test "oci_resolve_compartment_by_dbnode_name function exists in oci_helpers.sh" {
-    run bash -c "source '${LIB_DIR}/common.sh' && source '${LIB_DIR}/oci_helpers.sh' && declare -F oci_resolve_compartment_by_dbnode_name"
+    run bash -c "source '${LIB_DIR}/common.sh' && source '${LIB_DIR}/ds_lib.sh' && declare -F oci_resolve_compartment_by_dbnode_name"
     [ "$status" -eq 0 ]
 }
 
 @test "oci_resolve_vm_cluster_compartment function exists in oci_helpers.sh" {
-    run bash -c "source '${LIB_DIR}/common.sh' && source '${LIB_DIR}/oci_helpers.sh' && declare -F oci_resolve_vm_cluster_compartment"
+    run bash -c "source '${LIB_DIR}/common.sh' && source '${LIB_DIR}/ds_lib.sh' && declare -F oci_resolve_vm_cluster_compartment"
     [ "$status" -eq 0 ]
 }
 
@@ -516,7 +516,7 @@ teardown() {
 }
 
 @test "ds_filter_targets_by_tags function exists in oci_helpers.sh" {
-    run bash -c "source '${LIB_DIR}/common.sh' && source '${LIB_DIR}/oci_helpers.sh' && declare -F ds_filter_targets_by_tags"
+    run bash -c "source '${LIB_DIR}/common.sh' && source '${LIB_DIR}/ds_lib.sh' && declare -F ds_filter_targets_by_tags"
     [ "$status" -eq 0 ]
 }
 
@@ -537,7 +537,7 @@ EOF
     chmod +x "${TEST_TEMP_DIR}/bin/oci"
 
     source "${LIB_DIR}/common.sh"
-    source "${LIB_DIR}/oci_helpers.sh"
+    source "${LIB_DIR}/ds_lib.sh"
 
     run oci_exec data-safe target-database list --compartment-id ocid1.comp.oc1..test
     [ "$status" -eq 0 ]
@@ -554,7 +554,7 @@ EOF
 
 @test "REG-008: ds_is_updatable_lifecycle_state rejects DELETED state" {
     source "${LIB_DIR}/common.sh"
-    source "${LIB_DIR}/oci_helpers.sh"
+    source "${LIB_DIR}/ds_lib.sh"
 
     # DELETED state should NOT be updatable
     run ds_is_updatable_lifecycle_state "DELETED"
@@ -563,7 +563,7 @@ EOF
 
 @test "REG-008: ds_is_updatable_lifecycle_state accepts ACTIVE state" {
     source "${LIB_DIR}/common.sh"
-    source "${LIB_DIR}/oci_helpers.sh"
+    source "${LIB_DIR}/ds_lib.sh"
 
     run ds_is_updatable_lifecycle_state "ACTIVE"
     [ "$status" -eq 0 ]
@@ -571,7 +571,7 @@ EOF
 
 @test "REG-008: ds_is_updatable_lifecycle_state accepts NEEDS_ATTENTION state" {
     source "${LIB_DIR}/common.sh"
-    source "${LIB_DIR}/oci_helpers.sh"
+    source "${LIB_DIR}/ds_lib.sh"
 
     run ds_is_updatable_lifecycle_state "NEEDS_ATTENTION"
     [ "$status" -eq 0 ]

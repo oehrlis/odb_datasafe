@@ -1,10 +1,10 @@
-# Data Safe v4.0.0 Library Documentation
+# Library Documentation
 
 ## Overview
 
-The v4.0.0 library is a **radical simplification** of the v3.0.0 framework,
+The library provides a **simplified framework** for Oracle Data Safe management,
 focusing on maintainability, clarity, and practical utility. It reduces
-complexity by 70% while retaining all essential functionality.
+complexity while retaining all essential functionality.
 
 ## Philosophy
 
@@ -24,24 +24,29 @@ complexity by 70% while retaining all essential functionality.
 
 ## Library Structure
 
-```txt
+```text
 lib/
-├── common.sh         # Generic utilities (~350 lines)
+├── common.sh         # Generic utilities (~760 lines)
 │   ├── Logging system with levels and colors
 │   ├── Error handling and cleanup
 │   ├── Argument parsing helpers
 │   ├── Configuration loading
 │   └── Common utilities
 │
-├── oci_helpers.sh    # OCI-specific functions (~450 lines)
+├── oci_helpers.sh    # OCI-specific functions (~2310 lines)
 │   ├── OCI CLI wrapper
 │   ├── Compartment operations
 │   ├── Data Safe target operations
 │   ├── Target modifications
 │   └── Utilities
 │
-└── ds_lib.sh         # Convenience loader (~30 lines)
-    └── Sources both modules in order
+├── ssh_helpers.sh    # SSH remote execution helpers (~126 lines)
+│   ├── Remote command execution
+│   ├── File transfer helpers
+│   └── SSH connectivity checks
+│
+└── ds_lib.sh         # Convenience loader (~39 lines)
+    └── Sources all modules in order
 ```
 
 ## Quick Start
@@ -454,18 +459,6 @@ for target in "${targets[@]}"; do
 done
 ```
 
-## Comparison: v3 vs v4
-
-| Aspect             | v3.0.0        | v4.0.0       |
-|--------------------|---------------|--------------|
-| **Library Files**  | 10+ modules   | 3 files      |
-| **Total Lines**    | ~5000+        | ~850         |
-| **Dependencies**   | Complex chain | Simple       |
-| **Learning Curve** | High          | Low          |
-| **Debuggability**  | Difficult     | Easy         |
-| **Extensibility**  | Framework     | Direct       |
-| **Script Length**  | 200-500 lines | 80-150 lines |
-
 ## Migration Guide
 
 ### Step 1: New Script from Scratch
@@ -478,26 +471,19 @@ done
 
 1. Create new script in bin/
 2. Copy business logic from old script
-3. Replace v3 functions with v4 equivalents:
+3. Replace legacy functions with current equivalents:
 
-| v3 Function                    | v4 Equivalent            |
-|--------------------------------|--------------------------|
-| `core_log_message INFO`        | `log_info`               |
-| `core_exit_script`             | `die`                    |
-| `oci_run`                      | `oci_exec`               |
-| `core_parse_common_flags`      | `parse_common_opts`      |
-| `core_target_preflight_select` | Manual list + filter     |
-| `oci_ds_resolve_target_ocid`   | `ds_resolve_target_ocid` |
+   | Legacy Function                | Current Equivalent       |
+   |--------------------------------|--------------------------|
+   | `core_log_message INFO`        | `log_info`               |
+   | `core_exit_script`             | `die`                    |
+   | `oci_run`                      | `oci_exec`               |
+   | `core_parse_common_flags`      | `parse_common_opts`      |
+   | `core_target_preflight_select` | Manual list + filter     |
+   | `oci_ds_resolve_target_ocid`   | `ds_resolve_target_ocid` |
 
-1. Test thoroughly
-2. Keep old script until confident
-
-### Step 3: Gradual Rollout
-
-- Both v3 and v4 coexist
-- Migrate scripts one at a time
-- No breaking changes to existing workflows
-- Eventually deprecate v3
+4. Test thoroughly
+5. Keep old script until confident
 
 ## Best Practices
 

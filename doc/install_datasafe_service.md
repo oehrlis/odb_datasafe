@@ -171,7 +171,7 @@ sudo install_datasafe_service.sh \
 ```bash
 sudo install_datasafe_service.sh \
   --connector my-connector \
-  --remove
+  --uninstall
 ```
 
 ## Configure On-Premises Databases for Data Safe
@@ -234,7 +234,9 @@ ${DATASAFE_BASE}/ds_database_prereqs.sh --all -P "<password>"
 
 -l, --list                List all available connectors
 -c, --check               Check if service is installed for connector
--r, --remove              Remove service and sudo configuration
+    --prepare             Prepare service files as oracle user (first phase)
+    --install             Install prepared service files as root (second phase)
+    --uninstall           Uninstall service and clean up files
 
 -y, --yes                 Non-interactive mode (use defaults/provided values)
 -d, --dry-run             Show what would be done without making changes
@@ -263,6 +265,10 @@ sudo -E install_datasafe_service.sh
 | `OS_USER` | `oracle` | OS user that owns the service |
 | `OS_GROUP` | `dba` | OS group for the service |
 | `JAVA_HOME` | `${ORACLE_BASE:-/u01/app/oracle}/product/jdk` | Java installation for the connector |
+
+**Note:** When the connector is not found at `CONNECTOR_BASE`, the installer probes
+candidate paths (`/appl/oracle/product`, `/u01/app/oracle/product`, etc.) automatically
+via `find_connector_base()`.
 
 ## What Gets Installed
 

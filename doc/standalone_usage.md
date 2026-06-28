@@ -30,9 +30,9 @@ command -v jq >/dev/null && jq --version
 
 ```bash
 cd /path/to/datasafe
-cp etc/.env.example .env
-vim .env
-source .env
+cp etc/datasafe.conf.example etc/datasafe.conf
+vim etc/datasafe.conf
+source etc/datasafe.conf
 
 # Load Data Safe standalone shell environment
 source bin/datasafe_env.sh

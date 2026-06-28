@@ -537,10 +537,10 @@ echo "All tests passed!"
 
 ### Current Coverage
 
-As of v0.7.1, the test suite includes:
+As of v0.24.0, the test suite includes:
 
-- **227+ tests** covering all major functionality
-- **23 executable scripts** with comprehensive tests
+- **346 tests** covering all major functionality
+- **30 executable scripts** with comprehensive tests
 - **Multiple test categories** (unit, integration, edge cases)
 - **~3,000+ lines** of test code
 
@@ -702,18 +702,18 @@ comm -23 <(ls bin/*.sh | sort) <(grep -l "script_" tests/*.bats | sed 's/.*scrip
 
 - ✅ **All tests complete in <5 minutes** - Current: ~2-3 minutes for full suite
 - ✅ **Clear test output for debugging** - Verbose and descriptive test names
-- ✅ **Good coverage of main scripts** - 163+ tests covering 23 scripts
+- ✅ **Good coverage of main scripts** - 346 tests covering 30 scripts
 
 ### Test Execution Times
 
 | Test Suite        | Time      | Tests    |
 |-------------------|-----------|----------|
 | Quick validation  | <30s      | ~10      |
-| Library tests     | <1min     | ~30      |
-| Script tests      | <2min     | ~80      |
-| Integration tests | <1min     | ~30      |
+| Library tests     | <1min     | ~50      |
+| Script tests      | <2min     | ~200     |
+| Integration tests | <1min     | ~50      |
 | Edge case tests   | <1min     | ~40      |
-| **Total**         | **<5min** | **163+** |
+| **Total**         | **<5min** | **346**  |
 
 ## Additional Resources
 
@@ -746,5 +746,5 @@ For questions about testing:
 
 ---
 
-**Last Updated:** 2026-02-11  
-**Version:** 0.7.1
+**Last Updated:** 2026-06-28
+**Version:** v0.24.0

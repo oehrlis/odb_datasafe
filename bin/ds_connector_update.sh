@@ -813,7 +813,7 @@ get_local_connector_version() {
     fi
 
     # Alternative: Run setup.py version command
-    version=$(cd "$CONNECTOR_HOME" && python3 setup.py version 2> /dev/null | grep -oP '(?<=version : )[0-9.]+' | head -1)
+    version=$(cd "$CONNECTOR_HOME" && python3 setup.py version 2> /dev/null | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1)
 
     if [[ -n "$version" ]]; then
         echo "$version"

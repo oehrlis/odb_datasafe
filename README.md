@@ -12,7 +12,7 @@ The `odb_datasafe` extension provides comprehensive tools for managing Oracle OC
 - **Service Installer** - Install Data Safe On-Premises Connectors as systemd services  
 - **Connector Management** - List, configure, and manage connectors
 - **OCI Integration** - Built on OCI CLI with helper functions
-- **Comprehensive Testing** - 227+ BATS tests with full coverage
+- **Comprehensive Testing** - 346 BATS tests with full coverage
 
 ## Quick Start
 
@@ -74,7 +74,7 @@ sudo ./bin/uninstall_all_datasafe_services.sh --uninstall
 # List connectors
 ./bin/ds_target_list_connector.sh
 
-# Show targets grouped by connector (new in v0.6.1)
+# Show targets grouped by connector
 ./bin/ds_target_connector_summary.sh
 
 # Refresh target database
@@ -131,7 +131,7 @@ export DS_ROOT_COMP="ocid1.compartment.oc1....."
   authentication with cached checks and helpful errors.
 - ✅ **Standardized compartment handling** — Consistent `-c` and `DS_ROOT_COMP` pattern across scripts.
 - ✅ **Safe dry-runs and debugging** — Uniform `--dry-run`, `--debug`, and logging behaviors.
-- ✅ **Comprehensive testing** — 127+ BATS tests for reliability.
+- ✅ **Comprehensive testing** — 346 BATS tests for reliability.
 
 ## Requirements
 
@@ -149,10 +149,10 @@ export DS_ROOT_COMP="ocid1.compartment.oc1....."
 
 ```text
 odb_datasafe/
-├── bin/              # 16+ executable scripts
+├── bin/              # 30 executable scripts
 ├── lib/              # Shared libraries (common.sh, ds_lib.sh, oci_helpers.sh)
 ├── doc/              # Documentation
-├── tests/            # BATS test suite (127+ tests)
+├── tests/            # BATS test suite (346 tests)
 ├── etc/              # Configuration templates
 ├── sql/              # SQL utility scripts
 └── Makefile         # Build and test automation

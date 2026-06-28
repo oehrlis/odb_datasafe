@@ -21,6 +21,9 @@ if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
     exit 1
 fi
 
+# Ensure ASCII collation for tr, sort, and other locale-sensitive operations
+export LC_ALL=C
+
 # =============================================================================
 # PYTHON / OCI CLI ENVIRONMENT
 # =============================================================================
@@ -257,7 +260,7 @@ stacktrace() {
     local frame=0
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] Stack trace:" >&2
     while caller $frame; do
-        ((frame++))
+        ((frame++)) || true
     done | while read -r line func file; do
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR]   at ${func}() in ${file}:${line}" >&2
     done

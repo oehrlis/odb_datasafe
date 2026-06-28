@@ -20,7 +20,7 @@ set -euo pipefail
 
 SCRIPT_NAME="$(basename "$0")"
 # shellcheck disable=SC2034
-SCRIPT_VERSION="v1.1.0"
+SCRIPT_VERSION="v1.0.0"
 
 # Default paths
 CONNECTOR_BASE="${CONNECTOR_BASE:-${ORACLE_BASE:-/u01/app/oracle}/product}"

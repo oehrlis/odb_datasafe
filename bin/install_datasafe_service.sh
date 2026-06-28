@@ -33,7 +33,7 @@ trap 'exit $?' EXIT
 # Default Configuration
 # ------------------------------------------------------------------------------
 SCRIPT_NAME="$(basename "$0")"
-SCRIPT_VERSION="v1.1.0"
+SCRIPT_VERSION="v1.0.0"
 
 # Default paths (can be overridden)
 DEFAULT_CONNECTOR_BASE="${ORACLE_BASE:-/u01/app/oracle}/product"

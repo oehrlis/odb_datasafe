@@ -18,7 +18,7 @@ setup() {
     # Even with strict mode enabled
     run bash -euo pipefail -c "
         source '${LIB_DIR}/common.sh'
-        source '${LIB_DIR}/oci_helpers.sh'
+        source '${LIB_DIR}/ds_lib.sh'
         # Function should be defined
         declare -F ds_list_targets > /dev/null
     "
@@ -106,9 +106,9 @@ setup() {
     run bash -c "
         cd '${REPO_ROOT}'
         # Check that lifecycle_opts expansion uses safe pattern
-        grep '_ds_get_target_list_cached' lib/oci_helpers.sh | grep -q '\${lifecycle_opts\[@\]+' && echo 'SAFE_EXPANSION' || true
+        grep '_ds_get_target_list_cached' lib/ds_lib.sh | grep -q '\${lifecycle_opts\[@\]+' && echo 'SAFE_EXPANSION' || true
         # Check that array length check uses safe pattern (either [*]+ or [@]+)
-        grep -A 2 'if \[\[.*lifecycle_opts' lib/oci_helpers.sh | grep -qE '\[\*\]\+|\[@\]\+' && echo 'SAFE_LENGTH' || true
+        grep -A 2 'if \[\[.*lifecycle_opts' lib/ds_lib.sh | grep -qE '\[\*\]\+|\[@\]\+' && echo 'SAFE_LENGTH' || true
         echo 'DONE'
     "
     [ "$status" -eq 0 ]

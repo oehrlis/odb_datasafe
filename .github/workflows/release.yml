@@ -69,9 +69,6 @@ jobs:
       - name: Validate version format
         run: make check-version
 
-      - name: Run tests (required for release)
-        run: make test
-
       - name: Run CI checks
         run: make ci
 

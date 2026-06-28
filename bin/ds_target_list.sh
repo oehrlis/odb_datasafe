@@ -1978,7 +1978,7 @@ show_count_summary() {
 
     # Extract and count lifecycle states
     local counts
-    counts=$(echo "$json_data" | jq -r '.data[]."lifecycle-state"' | sort | uniq -c | sort -rn)
+    counts=$(echo "$json_data" | jq -r '[.data[]."lifecycle-state"] | group_by(.) | map({state: .[0], count: length}) | sort_by(-.count)[] | "\(.count) \(.state)"')
 
     if [[ -z "$counts" ]]; then
         log_info "No targets found"

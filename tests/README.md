@@ -1,7 +1,7 @@
 # Test Suite for odb_datasafe
 
 This directory contains a comprehensive test suite for the OraDBA Data Safe
-Extension v0.9.0, built using the [BATS (Bash Automated Testing System)](https://github.com/bats-core/bats-core) framework.
+Extension v0.24.0, built using the [BATS (Bash Automated Testing System)](https://github.com/bats-core/bats-core) framework.
 
 ## 📋 Test Structure
 
@@ -9,29 +9,50 @@ Extension v0.9.0, built using the [BATS (Bash Automated Testing System)](https:/
 
 1. **Library Tests** (`lib_*.bats`)
    - `lib_common.bats` - Tests for `lib/common.sh` utility functions
+   - `lib_oci_cli_auth.bats` - Tests for OCI CLI authentication helpers
    - `lib_oci_helpers.bats` - Tests for `lib/oci_helpers.sh` OCI integration functions
      - Resolution helper functions (`resolve_compartment_to_vars`, `resolve_target_to_vars`)
      - `oci_exec_ro()` function for read-only operations
      - Error handling (functions return error codes instead of die)
+   - `lib_ssh_helpers.bats` - Tests for `lib/ssh_helpers.sh` SSH remote execution
 
 2. **Script Tests** (`script_*.bats`)
+   - `script_ds_connector_update.bats` - Tests for connector update functionality
+   - `script_ds_find_untagged_targets.bats` - Tests for untagged target discovery
+   - `script_ds_target_activate.bats` - Tests for target activation
+   - `script_ds_target_audit_trail.bats` - Tests for audit trail management
+   - `script_ds_target_connect_details.bats` - Tests for connection detail display
+   - `script_ds_target_connector_summary.bats` - Tests for connector summary reporting
+   - `script_ds_target_delete.bats` - Tests for target deletion
+   - `script_ds_target_details.bats` - Tests for target detail display
+   - `script_ds_target_export.bats` - Tests for target export functionality
    - `script_ds_target_list.bats` - Tests for target listing functionality
    - `script_ds_target_list_connector.bats` - Tests for connector-based target listing
-   - `script_ds_target_update_tags.bats` - Tests for tag management
-   - `script_ds_target_update_credentials.bats` - Tests for credential updates
+   - `script_ds_target_move.bats` - Tests for target compartment move
+   - `script_ds_target_refresh.bats` - Tests for target credential refresh
+   - `script_ds_target_register.bats` - Tests for target registration
    - `script_ds_target_update_connector.bats` - Tests for connector management
-   - `script_ds_target_register.bats` - Tests for target registration (new 2026-01-22)
-   - `script_ds_find_untagged_targets.bats` - Tests for untagged target discovery (new 2026-01-22)
-   - `script_template.bats` - Tests for TEMPLATE.sh standardization compliance (new 2026-01-22)
+   - `script_ds_target_update_credentials.bats` - Tests for credential updates
+   - `script_ds_target_update_service.bats` - Tests for service configuration update
+   - `script_ds_target_update_tags.bats` - Tests for tag management
+   - `script_ds_tg_report.bats` - Tests for target group reporting
+   - `script_template.bats` - Tests for TEMPLATE.sh standardization compliance
 
 3. **Integration Tests** (`integration_*.bats`)
    - `integration_tests.bats` - End-to-end workflow and cross-component tests
-   - `integration_param_combinations.bats` - Parameter combinations and error handling tests (new 2026-02-11)
+   - `integration_param_combinations.bats` - Parameter combinations and error handling tests
 
-4. **Edge Case Tests** (new 2026-02-11)
+4. **Edge Case Tests**
    - `edge_case_tests.bats` - Edge cases, boundary conditions, and unusual inputs
 
-5. **Utility Tests** (`*_helpers.bats`)
+5. **Installer Tests**
+   - `install_datasafe_service.bats` - Installer regression tests (REG-001..REG-006)
+   - `uninstall_all_datasafe_services.bats` - Uninstaller tests
+
+6. **Compatibility Tests**
+   - `bash42_compatibility.bats` - Bash 4.2+ compatibility checks
+
+7. **Utility Tests**
    - `template_helpers.bats` - Build and framework validation tests
    - `basic_functionality.bats` - Core functionality and smoke tests
    - `quick_validation.bats` - Fast validation tests for CI/CD
@@ -93,13 +114,13 @@ make test
 
 The test suite provides comprehensive coverage across multiple dimensions:
 
-### Test Statistics (v0.9.0)
+### Test Statistics (v0.24.0)
 
-- **Total Tests**: 227+
-- **Test Files**: 23
+- **Total Tests**: 346
+- **Test Files**: 33
 - **Test Execution Time**: ~17 seconds
-- **Scripts Covered**: 23
-- **Library Functions**: ~50+
+- **Scripts Covered**: 30
+- **Library Functions**: ~80+
 
 ### Functional Coverage
 
@@ -118,6 +139,7 @@ The test suite provides comprehensive coverage across multiple dimensions:
 
 - ✅ **common.sh functions**: `log_*`, `is_ocid`, `require_cmd`, `init_config`, etc.
 - ✅ **oci_helpers.sh functions**: `oci_exec`, `oci_exec_ro`, `oci_resolve_*`, `ds_*`, etc.
+- ✅ **ssh_helpers.sh functions**: remote execution, file transfer, and connectivity checks
 - ✅ **Resolution helpers**:
   - `resolve_compartment_to_vars()` - Resolves compartment name or OCID to both NAME and OCID
   - `resolve_target_to_vars()` - Resolves target name or OCID to both NAME and OCID

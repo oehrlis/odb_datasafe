@@ -149,11 +149,6 @@ teardown() {
 # Edge Case Tests: Error Handling Paths
 # ==============================================================================
 
-@test "Edge: Script behavior when jq is not available" {
-    skip "Requires special test environment - jq is globally available"
-    # Note: This test would need to completely isolate PATH which affects test framework
-}
-
 @test "Edge: Script behavior when OCI CLI returns malformed JSON" {
     # Create mock OCI that returns invalid JSON
     cat > "${TEST_TEMP_DIR}/bin/oci" << 'EOF'
@@ -203,14 +198,6 @@ EOF
     run "${BIN_DIR}/ds_target_list.sh" --log-file "/nonexistent/dir/test.log" -c "test" 2>&1 || true
     # Should handle invalid log path gracefully without crashing
     [ "$status" -ge 0 ]
-}
-
-@test "Edge: Script behavior with read-only temp directory" {
-    skip "Skipping read-only test - requires special setup"
-}
-
-@test "Edge: Script behavior with permission denied on library" {
-    skip "Skipping permission test - requires special setup"
 }
 
 # ==============================================================================

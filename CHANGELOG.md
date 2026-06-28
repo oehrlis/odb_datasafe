@@ -6,7 +6,44 @@ All notable changes to the OraDBA Data Safe Extension will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2026-06-28
+
+### Added
+
+- `lib/ds_lib.sh`: new library module containing all 34 `ds_*` domain functions
+  migrated from `lib/oci_helpers.sh` (ARCH-013); guards against double-sourcing
+  via `DS_LIB_SH_LOADED`; sources `common.sh`, `oci_helpers.sh`, `ssh_helpers.sh`
+- `tests/lib_oci_helpers.bats` and `tests/bash42_compatibility.bats`: updated to
+  source `lib/ds_lib.sh` where `ds_*` functions are required
+
+### Changed
+
+- `lib/oci_helpers.sh`: `ds_*` domain functions removed (726 lines, down from
+  2310); now contains OCI primitives only (ARCH-013)
+- `lib/oci_helpers.sh`: duplicate `is_ocid` function removed (ARCH-003); stale
+  `_ds_cache_mtime` function deleted, callers updated to `_ds_file_mtime` (ARCH-004)
+- `lib/common.sh`: `export LC_ALL=C` added at module level for deterministic
+  locale handling (BASH-018); `((frame++))` replaced with `((frame++)) || true`
+  to avoid `set -e` exit when frame is 0 (BASH-005)
+- `bin/ds_connector_update.sh`: `grep -oP` (PCRE) replaced with `grep -oE`
+  for BSD/macOS portability (DEP-003)
+- `bin/ds_target_list.sh`: `sort | uniq -c | sort -rn` replaced with `jq`
+  grouping for correct state-count aggregation (PERF-007)
+- `.github/workflows/release.yml`: redundant `make test` step removed from
+  release workflow; `make ci` in the preceding CI run is sufficient (REL-008)
+- `scripts/build.sh`: timestamp removed from `.extension.checksum` to allow
+  reproducible builds (REL-009)
+- `bin/install_datasafe_service.sh`: `SCRIPT_VERSION` updated to `v1.0.0`
+- `bin/uninstall_all_datasafe_services.sh`: `SCRIPT_VERSION` updated to `v1.0.0`
+- All documentation: test count unified at 346; script count corrected to 30;
+  stale version strings (`v0.6.1`, `v0.7.1`, `v0.9.0`, `v4.0.0`) removed;
+  broken link `v0.19.0.md` → `v0.19.1.md` fixed; `.env.example` →
+  `datasafe.conf.example` corrected; `--remove` → `--uninstall` corrected
+
+### Fixed
+
+- `tests/edge_case_tests.bats`: 3 permanently skipped test blocks removed
+  (TEST-016); test count corrected from 349 to 346
 
 ## [0.24.0] - 2026-06-28
 
@@ -156,11 +193,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- `sql/create_ds_admin_user.sql`: removed hardcoded default password `DS_Admin.2025`; script now fails fast with an explicit error when no password is provided (ORA-001/C-1)
+- `sql/create_ds_admin_user.sql`: removed hardcoded default password `DS_Admin.2025`; script now fails fast
+  with an explicit error when no password is provided (ORA-001/C-1)
 
 ### Security
 
-- Removed publicly known default password `DS_Admin.2025` from SQL template; deployments using the default must rotate the `DS_ADMIN` account (ORA-001)
+- Removed publicly known default password `DS_Admin.2025` from SQL template; deployments using the default
+  must rotate the `DS_ADMIN` account (ORA-001)
 
 ## [0.20.4] - 2026-06-25
 

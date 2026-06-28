@@ -165,7 +165,6 @@ generate_checksum_file() {
 
     {
         echo "# OraDBA Extension Checksums"
-        echo "# Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
         echo "# Version: ${VERSION}"
         echo "#"
 

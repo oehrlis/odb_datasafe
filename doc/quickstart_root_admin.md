@@ -158,7 +158,7 @@ sudo journalctl -u oracle_datasafe_my-connector.service --since "10 minutes ago"
 
 ```bash
 # Remove and reinstall
-sudo install_datasafe_service.sh -n my-connector --remove
+sudo install_datasafe_service.sh -n my-connector --uninstall
 sudo install_datasafe_service.sh -n my-connector --yes
 ```
 
@@ -229,7 +229,7 @@ cat <connector-home>/SERVICE_README.md
 **Install**: `sudo install_datasafe_service.sh`
 **Status**: `sudo systemctl status oracle_datasafe_<name>.service`
 **Logs**: `sudo journalctl -u oracle_datasafe_<name>.service -f`
-**Remove**: `sudo install_datasafe_service.sh -n <name> --remove`
+**Remove**: `sudo install_datasafe_service.sh -n <name> --uninstall`
 
 That's it! Simple, automated, and production-ready.
 

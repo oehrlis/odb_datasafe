@@ -15,7 +15,7 @@ The `odb_datasafe` extension provides a complete framework for working with Orac
 - **OCI Integration** - Helper functions for OCI CLI operations
 - **Library Framework** - Reusable shell libraries for Data Safe operations
 - **Tag-based Filtering** - Scope any bulk operation by OCI freeform or defined tags
-- **Comprehensive Testing** - BATS test suite with 287+ tests
+- **Comprehensive Testing** - BATS test suite with 346 tests
 
 ## Documentation
 
@@ -29,7 +29,7 @@ The `odb_datasafe` extension provides a complete framework for working with Orac
 - **[Release Notes](release_notes/)** - Version history and changes
 - **[v0.20.4 Release Note](release_notes/v0.20.4.md)** - auto-discover base, auto-regen user mismatch, fix log dir
 - **[v0.19.1 Release Note](release_notes/v0.19.1.md)** - `ds_target_update_service.sh` template engine, port update, `--from-oci`
-- **[v0.19.0 Release Note](release_notes/v0.19.0.md)** - `--tag-filter` across all target scripts
+- **[v0.19.1 Release Note](release_notes/v0.19.1.md)** - `--tag-filter` across all target scripts
 - **[CHANGELOG](../CHANGELOG.md)** - Complete version history
 
 ## Quick Start
@@ -54,8 +54,8 @@ The extension is automatically discovered and loaded.
 
    ```bash
    cd ${ORADBA_LOCAL_BASE}/odb_datasafe
-   cp etc/.env.example .env
-   vim .env
+   cp etc/datasafe.conf.example etc/datasafe.conf
+   vim etc/datasafe.conf
    ```
 
 2. **Set required environment variables**:
@@ -99,35 +99,49 @@ bin/ds_target_refresh.sh -T mydb01 --dry-run
 
 ## Available Scripts
 
-| Script                               | Purpose                                |
-|--------------------------------------|----------------------------------------|
-| `ds_target_list.sh`                  | List Data Safe targets with filtering  |
-| `ds_target_list_connector.sh`        | List Data Safe on-premises connectors  |
-| `ds_target_details.sh`               | Show detailed target information       |
-| `ds_target_refresh.sh`               | Refresh target database credentials    |
-| `ds_target_register.sh`              | Register new Data Safe target          |
-| `ds_target_update_connector.sh`      | Update target connector                |
-| `ds_target_update_credentials.sh`    | Update target credentials              |
-| `ds_target_update_service.sh`        | Update connector service configuration |
-| `ds_target_update_tags.sh`           | Update target tags                     |
-| `ds_target_delete.sh`                | Remove Data Safe target                |
-| `ds_target_audit_trail.sh`           | Start or list audit trail status       |
-| `ds_target_export.sh`                | Export target information              |
-| `ds_target_move.sh`                  | Move target to different compartment   |
-| `ds_target_connect_details.sh`       | Show connection details                |
-| `ds_find_untagged_targets.sh`        | Find targets without tags              |
-| `ds_tg_report.sh`                    | Generate target group report           |
-| `install_datasafe_service.sh`        | Install connector as systemd service   |
-| `uninstall_all_datasafe_services.sh` | Remove all connector services          |
+<!-- markdownlint-disable MD013 MD060 -->
+| Script                               | Purpose                                                                          |
+|--------------------------------------|----------------------------------------------------------------------------------|
+| `datasafe_env.sh`                    | Source Data Safe shell environment (PATH, aliases, variables)                    |
+| `datasafe_help.sh`                   | Show help overview and config/OCI config summaries                               |
+| `ds_connector_create.sh`             | End-to-end OCI connector creation, bundle download, and setup (--ha-node mode)  |
+| `ds_connector_register_oradba.sh`    | Register connector in OraDBA configuration for --datasafe-home usage             |
+| `ds_connector_update.sh`             | Update connector bundle with download, password management, and setup.py         |
+| `ds_database_prereqs.sh`             | Create or update Data Safe profile, user, and grants on an on-premises DB host   |
+| `ds_find_untagged_targets.sh`        | Find targets without tags                                                        |
+| `ds_target_activate.sh`              | Activate Data Safe targets                                                       |
+| `ds_target_audit_trail.sh`           | Start or list audit trail status                                                 |
+| `ds_target_connect_details.sh`       | Show connection details                                                          |
+| `ds_target_connector_summary.sh`     | Show targets grouped by connector with lifecycle breakdowns                      |
+| `ds_target_delete.sh`                | Remove Data Safe target                                                          |
+| `ds_target_details.sh`               | Show detailed target information                                                 |
+| `ds_target_export.sh`                | Export target information                                                        |
+| `ds_target_list.sh`                  | List Data Safe targets with filtering                                            |
+| `ds_target_list_connector.sh`        | List Data Safe on-premises connectors                                            |
+| `ds_target_move.sh`                  | Move target to different compartment                                             |
+| `ds_target_refresh.sh`               | Refresh target database credentials                                              |
+| `ds_target_register.sh`              | Register new Data Safe target                                                    |
+| `ds_target_reregister.sh`            | Re-register target after PDB relocation (new host, SID, or PDB name)            |
+| `ds_target_update_connector.sh`      | Update target connector                                                          |
+| `ds_target_update_credentials.sh`    | Update target credentials                                                        |
+| `ds_target_update_service.sh`        | Update connector service configuration                                           |
+| `ds_target_update_tags.sh`           | Update target tags                                                               |
+| `ds_tg_report.sh`                    | Generate target group report                                                     |
+| `ds_version.sh`                      | Show extension version information                                               |
+| `install_datasafe_service.sh`        | Install connector as systemd service                                             |
+| `odb_datasafe_help.sh`               | List all available scripts and their purposes                                    |
+| `template.sh`                        | Script template for creating new tools                                           |
+| `uninstall_all_datasafe_services.sh` | Remove all connector services                                                    |
+<!-- markdownlint-enable -->
 
 ## Project Structure
 
 ```text
 odb_datasafe/
-├── bin/           # 16+ executable scripts
+├── bin/           # 30 executable scripts
 ├── lib/           # Library framework (ds_lib.sh, common.sh, oci_helpers.sh)
 ├── doc/           # Documentation (this directory)
-├── tests/         # BATS test suite (127+ tests)
+├── tests/         # BATS test suite (346 tests)
 ├── etc/           # Configuration examples
 ├── sql/           # SQL queries
 ├── VERSION        # Current version
