@@ -46,6 +46,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (TEST-016); test count corrected from 349 to 346
 - `.github/workflows/ci.yml` and `release.yml`: `shfmt` added to `apt-get install`
   so `make format-check` no longer fails with "shfmt not found" on GitHub-hosted runners
+- `bin/install_datasafe_service.sh`, `lib/ds_lib.sh`, `lib/oci_helpers.sh`: applied
+  `shfmt` formatting (redirect spacing, trailing blank lines, arithmetic spacing)
 
 ## [0.24.0] - 2026-06-28
 
