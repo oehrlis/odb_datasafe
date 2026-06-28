@@ -85,7 +85,7 @@ REQUIRED (choose one):
   Option 1: Use OraDBA environment (simplest)
         --datasafe-home ENV     OraDBA environment name (e.g., dscon4)
                                 Automatically resolves connector home and metadata
-                                from ${ORADBA_BASE}/etc/oradba_homes.conf
+                                from ${ORADBA_BASE:-/opt/oracle/local/oradba}/etc/oradba_homes.conf
 
   Option 2: Specify connector manually
         --connector NAME        Connector name or OCID

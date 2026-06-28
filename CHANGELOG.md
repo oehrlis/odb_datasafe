@@ -48,6 +48,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   so `make format-check` no longer fails with "shfmt not found" on GitHub-hosted runners
 - `bin/install_datasafe_service.sh`, `lib/ds_lib.sh`, `lib/oci_helpers.sh`: applied
   `shfmt` formatting (redirect spacing, trailing blank lines, arithmetic spacing)
+- `bin/ds_connector_update.sh`: `${ORADBA_BASE}` in `usage()` heredoc guarded with
+  `${ORADBA_BASE:-/opt/oracle/local/oradba}` to avoid `set -u` failure when
+  `ORADBA_BASE` is unset (e.g. CI runners, fresh installs)
+- `bin/ds_target_move.sh`: moved `-D`/`--dest-compartment` presence check before
+  `require_oci_cli` in `validate_inputs()` so the missing-parameter error is shown
+  even when `oci` CLI is not available
 
 ## [0.24.0] - 2026-06-28
 

@@ -254,12 +254,12 @@ parse_args() {
 # Output..: Log messages for validation steps
 # ------------------------------------------------------------------------------
 validate_inputs() {
-    require_oci_cli
-
     if [[ -z "${DEST_COMPARTMENT}" ]]; then
         log_error "Destination compartment (-D) is required"
         usage 1
     fi
+
+    require_oci_cli
 
     # Note: implicit DS_ROOT_COMP fallback is handled in preflight_checks()
     # after ds_resolve_all_targets_scope, consistent with ds_target_refresh.sh
