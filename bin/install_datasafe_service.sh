@@ -624,10 +624,10 @@ EOF
 generate_sudoers_file() {
     # Resolve actual binary paths; fall back to conventional locations
     local systemctl_bin
-    systemctl_bin=$(command -v systemctl 2>/dev/null || echo "/bin/systemctl")
+    systemctl_bin=$(command -v systemctl 2> /dev/null || echo "/bin/systemctl")
     local systemctl_alt="/usr/bin/systemctl"
     local journalctl_bin
-    journalctl_bin=$(command -v journalctl 2>/dev/null || echo "/usr/bin/journalctl")
+    journalctl_bin=$(command -v journalctl 2> /dev/null || echo "/usr/bin/journalctl")
     local journalctl_alt="/bin/journalctl"
     cat << EOF
 # ------------------------------------------------------------------------------

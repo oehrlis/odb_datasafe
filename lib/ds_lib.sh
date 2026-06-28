@@ -686,7 +686,7 @@ ds_resolve_target_ocid() {
         local -i match_count=0
         local _match_line
         while IFS= read -r _match_line; do
-            [[ -n "$_match_line" ]] && match_count=$(( match_count + 1 ))
+            [[ -n "$_match_line" ]] && match_count=$((match_count + 1))
         done <<< "$matches"
 
         if [[ "$match_count" -eq 1 ]]; then
