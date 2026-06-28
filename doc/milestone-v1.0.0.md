@@ -70,8 +70,8 @@ authoritative source.
 
 ## Sign-off
 
-- [ ] Human sign-off recorded (GATE 2 approval)
-- [ ] `git log --oneline -5` shows the v1.0.0 tag on main
+- [x] Human sign-off recorded (GATE 2 approval — 2026-06-28)
+- [x] `git log --oneline -5` shows the v1.0.0 tag on main (commit 4b56bb6)
 
 ---
 

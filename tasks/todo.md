@@ -127,8 +127,8 @@
 
 - [x] make ci passes (346 tests, 0 failures)
 - [x] Update doc/milestone-v1.0.0.md checklist
-- [-] GATE 2: present summary to human for v1.0.0 approval
+- [x] GATE 2: human approval received 2026-06-28
 - [x] Bump VERSION to 1.0.0
 - [x] CHANGELOG entry v1.0.0
 - [x] Create doc/release_notes/v1.0.0.md
-- [ ] Commit + tag v1.0.0 (after GATE 2 approval)
+- [x] Commit f88f772 + tag v1.0.0 (commit 4b56bb6)
