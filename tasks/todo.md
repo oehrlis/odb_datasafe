@@ -40,31 +40,49 @@
 
 ---
 
-## M2 — Security Hardening (tag: v0.22.0)
+## M2 — Security Hardening (tag: v0.22.0) ✓ DONE
 
-### Tasks
-
-- [-] Read M2 findings (security.md, oracle.md, deps.md)
-- [ ] SEC-002: argv warning for -P/--ds-secret in ds_target_register.sh
-- [ ] SEC-003: bundle password via file:// in oci_helpers.sh:ds_generate_connector_bundle
-- [ ] SEC-004: mktemp + umask 077 + EXIT trap for register payload (ds_target_register.sh)
-- [ ] SEC-005: ownership/permission check in common.sh:load_config
-- [ ] SEC-006: remove || true from chown calls in install_datasafe_service.sh
-- [ ] SEC-007: remove trailing * from journalctl sudoers rule
-- [ ] SEC-008: constrain pkill -f in uninstall_all_datasafe_services.sh
-- [ ] ORA-003: PASSWORD_LOCK_TIME 1 + INACTIVE_ACCOUNT_TIME in create_ds_admin_prerequisites.sql
-- [ ] ORA-004: CONTAINER=ALL for profile creation
-- [ ] ORA-005: replace GRANT RESOURCE with CREATE SESSION in create_ds_admin_user.sql
-- [ ] ORA-009: remove HOST + predictable /tmp in extension_comprehensive.sql
-- [ ] ORA-013/ORA-014: constrain IAM policies in doc/oci-iam-policies.md
-- [ ] DEP-004/DEP-012: Python 3.8+ check + checksum in ds_connector_create/update.sh
-- [ ] D-3: document --grant-mode ALL privilege surface in prerequisites doc
-- [ ] CHANGELOG + release notes v0.22.0
-- [ ] make ci passes → commit + tag v0.22.0
+- [x] Read M2 findings (security.md, oracle.md, deps.md)
+- [x] SEC-002: argv warning for -P/--ds-secret in ds_target_register.sh
+- [x] SEC-003: bundle password via file:// in oci_helpers.sh:ds_generate_connector_bundle
+- [x] SEC-004: mktemp + umask 077 + EXIT trap for register payload (ds_target_register.sh)
+- [x] SEC-005: ownership/permission check in common.sh:load_config
+- [x] SEC-006: remove || true from chown calls in install_datasafe_service.sh
+- [x] SEC-007: remove trailing * from journalctl sudoers rule
+- [x] SEC-008: constrain pkill -f in uninstall_all_datasafe_services.sh
+- [x] ORA-003: PASSWORD_LOCK_TIME 1 + INACTIVE_ACCOUNT_TIME 35 in create_ds_admin_prerequisites.sql
+- [x] ORA-004: CONTAINER=ALL for profile creation
+- [x] ORA-005: replace GRANT RESOURCE with CREATE SESSION in create_ds_admin_user.sql
+- [x] ORA-009: remove HOST + predictable /tmp in extension_comprehensive.sql
+- [x] ORA-013/ORA-014: constrain IAM policies in doc/oci-iam-policies.md
+- [x] DEP-004/DEP-012: Python 3.8+ check + checksum in ds_connector_create/update.sh
+- [x] D-3: document --grant-mode ALL privilege surface in doc/database_prereqs.md
+- [x] CHANGELOG + release notes v0.22.0
+- [x] make ci passes → commit 35b9767 + tag v0.22.0
 
 ## M3 — Installer Hardening (tag: v0.23.0)
 
-*Pending M2 completion*
+**Goal:** Harden the installer to production deployment standards.
+
+### Tasks
+
+- [x] Read M3 findings (architecture.md ARCH-001/007/008, bash.md BASH-006/016/023, deps.md DEP-002/007, testing.md REG-001..006)
+- [x] Write REG-001..REG-006 regression tests in tests/install_datasafe_service.bats
+  - REG-001 PASS: auto-discovers connector via ORACLE_BASE
+  - REG-002 PASS: exits non-zero when connector not found
+  - REG-003 SKIP: auto-regen chown fails in test env (M3 fix: respect DRY_RUN in chown - ARCH-008)
+  - REG-004 PASS: warns when sudoers file missing
+  - REG-005 PASS: warns when ExecStart binary missing
+  - REG-006 SKIP: log dir creation unreachable via dry-run (M3 fix: move into plan section - BASH-016)
+- [ ] ARCH-007/DEP-002: centralize layout discovery; resolve systemctl/visudo/getent via command -v; OS detection uname -s (Linux vs Darwin)
+- [ ] BASH-016: add ERR + EXIT traps to installer (standalone, no lib/common.sh)
+- [ ] BASH-006: route non-ERROR output to stderr consistently; structured output to stdout
+- [ ] ARCH-008: --prepare → --install contract; --install must not regenerate --prepare artifacts except via explicit logged path; fix DRY_RUN chown skip (unblocks REG-003)
+- [ ] DEP-007: missing oradba_dsctl.sh is a hard pre-install validation error (unblocks existing WARNING)
+- [ ] Move log dir creation into dry-run plan section (unblocks REG-006)
+- [ ] Remove REG-003 and REG-006 skip markers after above fixes
+- [ ] CHANGELOG + release notes v0.23.0
+- [ ] make ci passes → commit + tag v0.23.0
 
 ## M4 — Test Coverage & Robustness (tag: v0.24.0)
 

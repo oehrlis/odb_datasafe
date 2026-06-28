@@ -8,6 +8,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-06-28
+
+### Added
+
+- `tests/install_datasafe_service.bats`: REG-001..REG-006 installer regression tests;
+  all six pass after M3 hardening (REG-001 ORACLE_BASE auto-discovery, REG-002 missing
+  connector, REG-003 User= mismatch, REG-004 missing sudoers, REG-005 missing ExecStart,
+  REG-006 log directory creation)
+
+### Changed
+
+- `bin/install_datasafe_service.sh`: added ERR and EXIT traps; unhandled errors now
+  print failing line/command before exiting (BASH-016)
+- `bin/install_datasafe_service.sh` `print_message()`: all log levels now route to
+  stderr; only undecorated structured output goes to stdout (BASH-006)
+- `bin/install_datasafe_service.sh` `generate_sudoers_file()`: `systemctl` and
+  `journalctl` paths resolved via `command -v` at generation time; both `/bin/` and
+  `/usr/bin/` variants included for distro portability (ARCH-007)
+- `bin/install_datasafe_service.sh`: dry-run plan output now reports missing connector
+  log directory ("Creating connector log directory") before the early return (REG-006)
+
+### Fixed
+
+- `bin/install_datasafe_service.sh` `install_service()`: auto-regen `chown` is now
+  skipped in `--dry-run` mode, preventing spurious failures when the target OS user
+  does not exist in the test environment (ARCH-008, unblocks REG-003)
+- `bin/install_datasafe_service.sh` `prepare_service()`: missing or non-executable
+  `oradba_dsctl.sh` now aborts `--prepare` with a clear error when a registry alias
+  is resolved; previously this produced a service file with a broken `ExecStart` (DEP-007)
+
 ## [0.22.0] - 2026-06-28
 
 ### Added

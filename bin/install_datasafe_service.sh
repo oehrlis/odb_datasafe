@@ -20,6 +20,15 @@
 
 set -euo pipefail
 
+# Minimal ERR/EXIT traps (standalone installer — does not source lib/common.sh)
+_installer_error_handler() {
+    local rc=$1 line=$2 cmd=$3
+    echo "ERROR: installer failed (exit $rc) at line $line: $cmd" >&2
+    exit "$rc"
+}
+trap '_installer_error_handler $? $LINENO "$BASH_COMMAND"' ERR
+trap 'exit $?' EXIT
+
 # ------------------------------------------------------------------------------
 # Default Configuration
 # ------------------------------------------------------------------------------
@@ -109,10 +118,10 @@ print_message() {
 
     case "$level" in
         ERROR) echo -e "${RED}[ERROR]:${NC} $message" >&2 ;;
-        SUCCESS) echo -e "${GREEN}[OK]${NC} $message" ;;
-        WARNING) echo -e "${YELLOW}[WARNING]:${NC} $message" ;;
-        INFO) echo -e "${BLUE}[INFO]${NC}  $message" ;;
-        STEP) echo -e "${BOLD}▶${NC}  $message" ;;
+        SUCCESS) echo -e "${GREEN}[OK]${NC} $message" >&2 ;;
+        WARNING) echo -e "${YELLOW}[WARNING]:${NC} $message" >&2 ;;
+        INFO) echo -e "${BLUE}[INFO]${NC}  $message" >&2 ;;
+        STEP) echo -e "${BOLD}▶${NC}  $message" >&2 ;;
         *) echo "$message" ;;
     esac
 }
@@ -613,6 +622,13 @@ EOF
 # ------------------------------------------------------------------------------
 # Generate sudoers file content
 generate_sudoers_file() {
+    # Resolve actual binary paths; fall back to conventional locations
+    local systemctl_bin
+    systemctl_bin=$(command -v systemctl 2>/dev/null || echo "/bin/systemctl")
+    local systemctl_alt="/usr/bin/systemctl"
+    local journalctl_bin
+    journalctl_bin=$(command -v journalctl 2>/dev/null || echo "/usr/bin/journalctl")
+    local journalctl_alt="/bin/journalctl"
     cat << EOF
 # ------------------------------------------------------------------------------
 # Sudo configuration for Oracle Data Safe Connector: $CONNECTOR_NAME
@@ -620,15 +636,22 @@ generate_sudoers_file() {
 # Managed by: $SCRIPT_NAME $SCRIPT_VERSION
 # ------------------------------------------------------------------------------
 # Allow $OS_USER to manage the Data Safe connector service
-$OS_USER ALL=(ALL) NOPASSWD: /bin/systemctl start $SERVICE_NAME
-$OS_USER ALL=(ALL) NOPASSWD: /bin/systemctl stop $SERVICE_NAME
-$OS_USER ALL=(ALL) NOPASSWD: /bin/systemctl restart $SERVICE_NAME
-$OS_USER ALL=(ALL) NOPASSWD: /bin/systemctl reload $SERVICE_NAME
-$OS_USER ALL=(ALL) NOPASSWD: /bin/systemctl status $SERVICE_NAME
-$OS_USER ALL=(ALL) NOPASSWD: /bin/systemctl is-active $SERVICE_NAME
-$OS_USER ALL=(ALL) NOPASSWD: /bin/systemctl is-enabled $SERVICE_NAME
-$OS_USER ALL=(ALL) NOPASSWD: /bin/journalctl --unit=$SERVICE_NAME
-$OS_USER ALL=(ALL) NOPASSWD: /usr/bin/journalctl --unit=$SERVICE_NAME
+$OS_USER ALL=(ALL) NOPASSWD: $systemctl_bin start $SERVICE_NAME
+$OS_USER ALL=(ALL) NOPASSWD: $systemctl_bin stop $SERVICE_NAME
+$OS_USER ALL=(ALL) NOPASSWD: $systemctl_bin restart $SERVICE_NAME
+$OS_USER ALL=(ALL) NOPASSWD: $systemctl_bin reload $SERVICE_NAME
+$OS_USER ALL=(ALL) NOPASSWD: $systemctl_bin status $SERVICE_NAME
+$OS_USER ALL=(ALL) NOPASSWD: $systemctl_bin is-active $SERVICE_NAME
+$OS_USER ALL=(ALL) NOPASSWD: $systemctl_bin is-enabled $SERVICE_NAME
+$OS_USER ALL=(ALL) NOPASSWD: $systemctl_alt start $SERVICE_NAME
+$OS_USER ALL=(ALL) NOPASSWD: $systemctl_alt stop $SERVICE_NAME
+$OS_USER ALL=(ALL) NOPASSWD: $systemctl_alt restart $SERVICE_NAME
+$OS_USER ALL=(ALL) NOPASSWD: $systemctl_alt reload $SERVICE_NAME
+$OS_USER ALL=(ALL) NOPASSWD: $systemctl_alt status $SERVICE_NAME
+$OS_USER ALL=(ALL) NOPASSWD: $systemctl_alt is-active $SERVICE_NAME
+$OS_USER ALL=(ALL) NOPASSWD: $systemctl_alt is-enabled $SERVICE_NAME
+$OS_USER ALL=(ALL) NOPASSWD: $journalctl_bin --unit=$SERVICE_NAME
+$OS_USER ALL=(ALL) NOPASSWD: $journalctl_alt --unit=$SERVICE_NAME
 EOF
 }
 
@@ -813,6 +836,13 @@ prepare_service() {
     REGISTRY_ALIAS=""
     if REGISTRY_ALIAS=$(lookup_registry_alias "${CONNECTOR_NAME}" "${ORADBA_BASE}"); then
         print_message INFO "Registry alias resolved: ${REGISTRY_ALIAS} -> ${CONNECTOR_NAME}"
+        # DEP-007: hard error if dsctl binary is absent when a registry alias is resolved
+        local dsctl_bin="${ORADBA_BASE}/bin/oradba_dsctl.sh"
+        if [[ ! -x "${dsctl_bin}" ]]; then
+            print_message ERROR "oradba_dsctl.sh not found or not executable: ${dsctl_bin}"
+            print_message INFO "Set ORADBA_BASE to the correct path and retry --prepare"
+            return 1
+        fi
     else
         print_message WARNING "Falling back to direct cmctl calls (no registry alias found)"
     fi
@@ -932,7 +962,10 @@ install_service() {
         print_message WARNING "Service file specifies User=${file_user} but --user ${OS_USER} was given"
         print_message INFO "Auto-regenerating service files for user ${OS_USER}"
         prepare_service
-        chown "${OS_USER}:${OS_GROUP}" "${CONNECTOR_ETC}"/*
+        # Only chown in real install (not dry-run); chown would fail for nonexistent user
+        if ! $DRY_RUN; then
+            chown "${OS_USER}:${OS_GROUP}" "${CONNECTOR_ETC}"/*
+        fi
         file_user="${OS_USER}"
         print_message SUCCESS "Service files regenerated for ${OS_USER}"
     fi
@@ -973,6 +1006,10 @@ install_service() {
         if [[ -f "$local_sudoers" ]]; then
             echo "  2. Copy $local_sudoers to $system_sudoers"
             echo "  3. Validate sudoers syntax"
+        fi
+        local log_dir_dry="${CONNECTOR_HOME}/log"
+        if [[ ! -d "${log_dir_dry}" ]]; then
+            print_message INFO "Creating connector log directory: ${log_dir_dry}"
         fi
         echo "  4. systemctl daemon-reload"
         echo "  5. systemctl enable $SERVICE_NAME"
