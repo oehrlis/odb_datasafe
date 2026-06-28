@@ -228,9 +228,9 @@ stop_service() {
 
     local cman_bin="${CONNECTOR_BASE}/${connector_name}/oracle_cman_home/bin"
     if [[ -d "${cman_bin}" ]]; then
-        if pgrep -f "${cman_bin}" > /dev/null 2>&1; then
+        if pgrep -f "^${cman_bin}/" > /dev/null 2>&1; then
             print_message INFO "Force-killing remaining CMAN processes"
-            pkill -f "${cman_bin}" 2> /dev/null || true
+            pkill -f "^${cman_bin}/" 2> /dev/null || true
         fi
     fi
 

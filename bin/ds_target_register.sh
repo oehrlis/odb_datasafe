@@ -276,6 +276,7 @@ parse_args() {
                 ;;
             -P | --ds-secret)
                 DS_SECRET="$2"
+                log_warn "DEPRECATED: --ds-secret/-P passes the secret on the command line (visible in ps/shell history). Use --secret-file <path> instead."
                 shift 2
                 ;;
             --secret-file)
@@ -1106,7 +1107,14 @@ register_target() {
     log_info "Creating Data Safe target registration..."
 
     # Create JSON payload
-    local json_file="${TMPDIR:-/tmp}/ds_target_${DISPLAY_NAME//[^a-zA-Z0-9]/_}.json"
+    local json_file
+    local prev_umask
+    prev_umask=$(umask)
+    umask 077
+    json_file=$(mktemp -t "ds_target_XXXXXX.json")
+    umask "$prev_umask"
+    # shellcheck disable=SC2064
+    trap 'rm -f "${json_file:-}"' RETURN
     local pdb_name
 
     if [[ "$RUN_ROOT" == "true" ]]; then
@@ -1209,7 +1217,10 @@ register_target() {
         --from-json "file://$json_file") || {
         log_error "Registration failed"
         log_error "$result"
-        log_warn "Keeping failed registration payload for analysis: $json_file"
+        local redacted_file="${json_file%.json}_redacted.json"
+        jq '.credentials.password = "****"' "$json_file" > "$redacted_file" 2> /dev/null || true
+        rm -f "$json_file"
+        log_warn "Redacted registration payload saved to: $redacted_file"
         die "Target registration failed" 2
     }
     rm -f "$json_file"

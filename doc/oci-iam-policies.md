@@ -85,6 +85,19 @@ maintenance operations, and CI/CD pipeline integration.
 
 ## Policy Statements
 
+> **Security Recommendation (Least-Privilege):** Several policy statements below use
+> `in tenancy` scope. While this simplifies cross-compartment access, it grants
+> broader-than-necessary permissions. For production deployments:
+>
+> - Replace `manage data-safe-family in tenancy` with a compartment-scoped statement
+>   constrained by `where target.compartment.id = '<datasafe-compartment-ocid>'`
+>   (see the JSON deployment examples for the constrained form).
+> - Replace `read ... in tenancy` for database-family, virtual-network-family, and
+>   similar resources with `read ... in compartment id <datasafe-compartment-ocid>`
+>   where cross-compartment access is not required.
+> - Scope `use keys` and `read secret-family` statements to the specific vault
+>   compartment rather than the tenancy.
+
 ### Prerequisites
 
 1. **Create Groups** (via OCI Console or CLI):
@@ -115,6 +128,9 @@ maintenance operations, and CI/CD pipeline integration.
 
 # Full Data Safe Management (all resources)
 Allow group grp-ds-admin to manage data-safe-family in compartment id <datasafe-compartment-ocid>
+# WARNING: The following statement grants tenancy-wide manage access. For least-privilege,
+# constrain with a where clause: where target.compartment.id = '<datasafe-compartment-ocid>'
+# See the JSON example below for the constrained form.
 Allow group grp-ds-admin to manage data-safe-family in tenancy
 
 # Note: data-safe-family includes all Data Safe resources including:
@@ -200,6 +216,8 @@ Allow group grp-ds-operation to read secret-family in compartment id <datasafe-c
 # Read-Only Access to All Data Safe Resources
 Allow group grp-ds-auditor to read data-safe-family in compartment id <datasafe-compartment-ocid>
 Allow group grp-ds-auditor to inspect data-safe-family in compartment id <datasafe-compartment-ocid>
+# NOTE: The following statement grants read access across the entire tenancy. For least-privilege,
+# scope to the specific Data Safe compartment: in compartment id <datasafe-compartment-ocid>
 Allow group grp-ds-auditor to read data-safe-family in tenancy
 
 # Note: data-safe-family includes all Data Safe resources including:
@@ -233,6 +251,9 @@ Allow group grp-ds-auditor to read virtual-network-family in tenancy
 
 # Full Data Safe Management
 Allow group grp-ds-service to manage data-safe-family in compartment id <datasafe-compartment-ocid>
+# WARNING: The following statement grants tenancy-wide manage access. For least-privilege,
+# constrain with a where clause: where target.compartment.id = '<datasafe-compartment-ocid>'
+# See the JSON example below for the constrained form.
 Allow group grp-ds-service to manage data-safe-family in tenancy
 
 # Note: data-safe-family includes all Data Safe resources including:

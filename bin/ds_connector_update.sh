@@ -740,6 +740,17 @@ run_setup_update() {
     # Pass bundle key via stdin
     local setup_py="${CONNECTOR_HOME}/setup.py"
 
+    # Verify setup.py integrity (vendor file must exist and be non-empty)
+    if [[ ! -s "$setup_py" ]]; then
+        die "Vendor setup.py is empty or missing: $setup_py"
+    fi
+    log_info "Vendor setup.py size: $(wc -c < "$setup_py") bytes (path: $setup_py)"
+
+    # Require Python 3.8+ for vendor setup.py
+    if ! python3 -c "import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)" 2> /dev/null; then
+        die "Python 3.8+ required (found: $(python3 --version 2>&1)); cannot run connector setup"
+    fi
+
     log_info "Executing: python3 setup.py update"
     log_info "Working directory: ${CONNECTOR_HOME}"
 

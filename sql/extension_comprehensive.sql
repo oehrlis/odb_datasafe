@@ -33,17 +33,12 @@ SET VERIFY OFF
 SET FEEDBACK ON
 
 -- Configure spool directory and filename components
+-- Set LOGDIR via SQL*Plus -DEFINE LOGDIR=/path or accept default '.'
+-- HOST temp-file pattern removed: /tmp/oradba_logdir_${USER}.sql was world-readable
+-- with a predictable path (ORA-009 hardening).
 DEFINE LOGDIR = '.'
 DEFINE TIMESTAMP = 'UNKNOWN'
 DEFINE DBSID = 'UNKNOWN'
-
--- Try to get log directory from ORADBA_LOG environment variable
--- Falls back to current directory if not set
-WHENEVER OSERROR CONTINUE
-HOST echo "DEFINE LOGDIR = '${ORADBA_LOG:-.}'" > /tmp/oradba_logdir_${USER}.sql 2>/dev/null || echo "DEFINE LOGDIR = '.'" > /tmp/oradba_logdir_${USER}.sql
-@@/tmp/oradba_logdir_${USER}.sql
-HOST rm -f /tmp/oradba_logdir_${USER}.sql
-WHENEVER OSERROR EXIT FAILURE
 
 -- Get timestamp and database SID for filename
 COLUMN logts NEW_VALUE TIMESTAMP NOPRINT

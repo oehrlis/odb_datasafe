@@ -2125,10 +2125,21 @@ ds_generate_connector_bundle() {
         return 0
     fi
 
+    # Write password to secure temp file to avoid exposure on argv (visible in ps)
+    local pwd_file
+    local prev_umask
+    prev_umask=$(umask)
+    umask 077
+    pwd_file=$(mktemp)
+    umask "$prev_umask"
+    echo "$password" > "$pwd_file"
+    # shellcheck disable=SC2064
+    trap 'rm -f "$pwd_file"' RETURN
+
     # Generate bundle - returns work request
     oci_exec data-safe on-prem-connector generate-on-prem-connector-configuration \
         --on-prem-connector-id "$connector_ocid" \
-        --password "$password" \
+        --password "file://$pwd_file" \
         --file "$output_file"
 }
 

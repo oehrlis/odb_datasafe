@@ -42,7 +42,25 @@
 
 ## M2 — Security Hardening (tag: v0.22.0)
 
-*Pending M1 completion*
+### Tasks
+
+- [-] Read M2 findings (security.md, oracle.md, deps.md)
+- [ ] SEC-002: argv warning for -P/--ds-secret in ds_target_register.sh
+- [ ] SEC-003: bundle password via file:// in oci_helpers.sh:ds_generate_connector_bundle
+- [ ] SEC-004: mktemp + umask 077 + EXIT trap for register payload (ds_target_register.sh)
+- [ ] SEC-005: ownership/permission check in common.sh:load_config
+- [ ] SEC-006: remove || true from chown calls in install_datasafe_service.sh
+- [ ] SEC-007: remove trailing * from journalctl sudoers rule
+- [ ] SEC-008: constrain pkill -f in uninstall_all_datasafe_services.sh
+- [ ] ORA-003: PASSWORD_LOCK_TIME 1 + INACTIVE_ACCOUNT_TIME in create_ds_admin_prerequisites.sql
+- [ ] ORA-004: CONTAINER=ALL for profile creation
+- [ ] ORA-005: replace GRANT RESOURCE with CREATE SESSION in create_ds_admin_user.sql
+- [ ] ORA-009: remove HOST + predictable /tmp in extension_comprehensive.sql
+- [ ] ORA-013/ORA-014: constrain IAM policies in doc/oci-iam-policies.md
+- [ ] DEP-004/DEP-012: Python 3.8+ check + checksum in ds_connector_create/update.sh
+- [ ] D-3: document --grant-mode ALL privilege surface in prerequisites doc
+- [ ] CHANGELOG + release notes v0.22.0
+- [ ] make ci passes → commit + tag v0.22.0
 
 ## M3 — Installer Hardening (tag: v0.23.0)
 

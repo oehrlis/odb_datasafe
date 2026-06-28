@@ -24,7 +24,7 @@
 --   - Creates the user with the given password and profile.
 --   - Drops the user first if FORCE is TRUE and user exists.
 --   - Updates the user secret if UPDATE_SECRET is TRUE and user exists.
---   - Grants CONNECT and RESOURCE roles.
+--   - Grants CREATE SESSION only (minimum required; RESOURCE removed per ORA-005 hardening).
 --   - Should be executed in CDB$ROOT with "_ORACLE_SCRIPT" enabled if needed.
 --
 -- Notes......:
@@ -154,17 +154,19 @@ BEGIN
     END IF;
 
     -- Apply grants
-    l_sql := 'GRANT CONNECT, RESOURCE TO ' || l_username;
+    -- Grant minimum required access; feature-specific roles are added by datasafe_privileges.sql
+    l_sql := 'GRANT CREATE SESSION TO ' || l_username;
     EXECUTE IMMEDIATE l_sql;
-    sys.dbms_output.put_line('Grants CONNECT, RESOURCE applied to ' || l_username);
+    sys.dbms_output.put_line('Grant CREATE SESSION applied to ' || l_username);
 EXCEPTION
     WHEN password_reuse THEN
         sys.dbms_output.put_line('WARNING: Secret reuse detected (ORA-28007). Continuing without secret change.');
         l_sql := 'ALTER USER ' || l_username || ' PROFILE ' || l_profile;
         EXECUTE IMMEDIATE l_sql;
-        l_sql := 'GRANT CONNECT, RESOURCE TO ' || l_username;
+        -- Grant minimum required access; feature-specific roles are added by datasafe_privileges.sql
+        l_sql := 'GRANT CREATE SESSION TO ' || l_username;
         EXECUTE IMMEDIATE l_sql;
-        sys.dbms_output.put_line('Grants CONNECT, RESOURCE applied to ' || l_username);
+        sys.dbms_output.put_line('Grant CREATE SESSION applied to ' || l_username);
     WHEN OTHERS THEN
         RAISE;
 END;

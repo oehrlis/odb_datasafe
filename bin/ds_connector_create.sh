@@ -469,6 +469,17 @@ run_setup_install() {
         die "setup.py not found after bundle extraction: ${setup_py}"
     fi
 
+    # Verify setup.py integrity (vendor file must exist and be non-empty)
+    if [[ ! -s "$setup_py" ]]; then
+        die "Vendor setup.py is empty or missing: $setup_py"
+    fi
+    log_info "Vendor setup.py size: $(wc -c < "$setup_py") bytes (path: $setup_py)"
+
+    # Require Python 3.8+ for vendor setup.py
+    if ! python3 -c "import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)" 2> /dev/null; then
+        die "Python 3.8+ required (found: $(python3 --version 2>&1)); cannot run connector setup"
+    fi
+
     log_info "Running setup.py install..."
 
     if [[ "${DRY_RUN}" == "true" ]]; then

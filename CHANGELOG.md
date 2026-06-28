@@ -8,6 +8,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-06-28
+
+### Added
+
+- `doc/database_prereqs.md`: new "Privilege Surface by Grant Mode" section documenting
+  each `--grant-mode` value, features enabled, and system privileges granted (D-3)
+
+### Changed
+
+- `lib/common.sh` `load_config()`: validates config ownership and permissions before
+  sourcing; world/group-writable files and files owned by untrusted users are rejected
+  with a warning (SEC-005)
+- `bin/install_datasafe_service.sh`: sudoers `journalctl` rule uses `--unit=` instead
+  of trailing wildcard; added both `/bin/` and `/usr/bin/` paths (SEC-007)
+- `bin/install_datasafe_service.sh`: removed `|| true` from `chown` calls — ownership
+  failures now surface as errors (SEC-006)
+- `bin/uninstall_all_datasafe_services.sh`: `pkill -f` / `pgrep -f` patterns anchored
+  with `^` to prevent matching unrelated processes (SEC-008)
+- `sql/create_ds_admin_prerequisites.sql`: `PASSWORD_LOCK_TIME` set to `1` (day);
+  `INACTIVE_ACCOUNT_TIME` set to `35` (days); `CONTAINER=ALL` added to `CREATE PROFILE`
+  (ORA-003, ORA-004)
+- `doc/oci-iam-policies.md`: added security recommendations and `# WARNING` comments on
+  tenancy-wide `manage` statements; compartment-scoped form documented (ORA-013, ORA-014)
+
+### Fixed
+
+- `bin/ds_connector_create.sh`, `bin/ds_connector_update.sh`: added Python 3.8+ version
+  guard and non-empty file check before executing vendor `setup.py` (DEP-004, DEP-012)
+
+### Security
+
+- `bin/ds_target_register.sh`: `-P/--ds-secret` emits a deprecation warning; users
+  directed to `--secret-file` to avoid argv/history exposure (SEC-002)
+- `lib/oci_helpers.sh` `ds_generate_connector_bundle()`: bundle password passed via
+  `file://` temp file (mktemp + umask 077 + RETURN trap) instead of on CLI argv (SEC-003)
+- `bin/ds_target_register.sh` `register_target()`: registration JSON payload uses
+  mktemp + umask 077 + RETURN trap; on failure a jq-redacted copy is preserved and
+  the real credential file is deleted (SEC-004)
+- `sql/create_ds_admin_user.sql`: `GRANT CONNECT, RESOURCE` replaced with
+  `GRANT CREATE SESSION`; RESOURCE role (which grants UNLIMITED TABLESPACE) removed
+  from Data Safe admin accounts (ORA-005)
+- `sql/extension_comprehensive.sql`: removed `HOST echo` round-trip to predictable
+  world-readable `/tmp/oradba_logdir_*.sql`; replaced with static `DEFINE LOGDIR = '.'`
+  (ORA-009)
+
 ## [0.21.0] - 2026-06-28
 
 ### Added

@@ -476,10 +476,25 @@ load_config() {
     local config_file="$1"
 
     if [[ -f "$config_file" ]]; then
+        # SEC-005: Reject group/world-writable config files (portable BSD+GNU)
+        if [[ -n "$(find "$config_file" -maxdepth 0 \( -perm -g+w -o -perm -o+w \) 2> /dev/null)" ]]; then
+            log_warn "Ignoring group/world-writable config file: $config_file"
+            return 0
+        fi
+        # SEC-005: Reject config files not owned by root or the invoking user
+        local _cfg_owner
+        _cfg_owner=$(stat -c "%U" "$config_file" 2> /dev/null || stat -f "%Su" "$config_file" 2> /dev/null || echo "")
+        local _invoking_user
+        _invoking_user=$(id -un 2> /dev/null || echo "")
+        if [[ -n "$_cfg_owner" && -n "$_invoking_user" && "$_cfg_owner" != "root" && "$_cfg_owner" != "$_invoking_user" ]]; then
+            log_warn "Ignoring config owned by untrusted user '$_cfg_owner' (not root or $_invoking_user): $config_file"
+            return 0
+        fi
         log_debug "Loading config from: $config_file"
         _DATASAFE_CONF_FILES="${_DATASAFE_CONF_FILES:+${_DATASAFE_CONF_FILES} }${config_file}"
         # shellcheck disable=SC1090
         source "$config_file"
+        log_info "Config loaded: $config_file"
     fi
     return 0
 }

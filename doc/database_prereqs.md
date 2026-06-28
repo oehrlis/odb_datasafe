@@ -170,6 +170,32 @@ ${DATASAFE_BASE}/ds_database_prereqs.sh --root -P "<secret>" --force
 - `create_ds_admin_user.sql` updates the profile only when `FORCE` is FALSE to avoid ORA-28007.
 - If you see an ORA-28007 reuse warning, use a different secret or rerun with `--force`.
 
+## Privilege Surface by Grant Mode
+
+The `--grant-mode` parameter controls which Data Safe features the admin account
+is provisioned for. The default (`ALL`) grants the full superset required for all
+features including Data Masking and Data Discovery.
+
+<!-- markdownlint-disable MD013 MD060 -->
+| Mode | Features Enabled | Key System Privileges Granted |
+| --- | --- | --- |
+| `ASSESSMENT` | Security Assessment, Alerts | `CREATE SESSION`, assessment roles |
+| `AUDIT_COLLECTION` | Audit Collection | `CREATE SESSION`, audit roles |
+| `AUDIT_SETTING` | Audit Policy Management | `CREATE SESSION`, audit mgmt roles |
+| `DATA_DISCOVERY` | Data Discovery | `READ ANY TABLE`, `SELECT ANY TABLE` |
+| `SQL_FIREWALL` | SQL Firewall | `CREATE SESSION`, firewall roles |
+| `MASKING` | Data Masking | `SELECT ANY TABLE`, `CREATE ANY TABLE`, `DROP ANY TABLE`, `ALTER ANY TABLE`, `ALTER SYSTEM` |
+| `ALL` (default) | All of the above | Full superset including MASKING grants |
+<!-- markdownlint-enable MD013 MD060 -->
+
+**Recommendation:** Use the minimum `--grant-mode` for your deployment:
+
+- If using only assessment and auditing: `--grant-mode ASSESSMENT,AUDIT_COLLECTION,AUDIT_SETTING`
+- Only use `ALL` (the default) if you require Data Masking or Data Discovery features.
+
+The `--grant-mode ALL` default is retained for backwards compatibility. Operators should
+explicitly pass a least-privilege mode for production deployments.
+
 ## Updating the Embedded Payload
 
 If you update the SQL scripts, rebuild the embedded payload in the script.

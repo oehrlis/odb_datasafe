@@ -627,7 +627,8 @@ $OS_USER ALL=(ALL) NOPASSWD: /bin/systemctl reload $SERVICE_NAME
 $OS_USER ALL=(ALL) NOPASSWD: /bin/systemctl status $SERVICE_NAME
 $OS_USER ALL=(ALL) NOPASSWD: /bin/systemctl is-active $SERVICE_NAME
 $OS_USER ALL=(ALL) NOPASSWD: /bin/systemctl is-enabled $SERVICE_NAME
-$OS_USER ALL=(ALL) NOPASSWD: /bin/journalctl -u $SERVICE_NAME*
+$OS_USER ALL=(ALL) NOPASSWD: /bin/journalctl --unit=$SERVICE_NAME
+$OS_USER ALL=(ALL) NOPASSWD: /usr/bin/journalctl --unit=$SERVICE_NAME
 EOF
 }
 
@@ -931,7 +932,7 @@ install_service() {
         print_message WARNING "Service file specifies User=${file_user} but --user ${OS_USER} was given"
         print_message INFO "Auto-regenerating service files for user ${OS_USER}"
         prepare_service
-        chown "${OS_USER}:${OS_GROUP}" "${CONNECTOR_ETC}"/* 2> /dev/null || true
+        chown "${OS_USER}:${OS_GROUP}" "${CONNECTOR_ETC}"/*
         file_user="${OS_USER}"
         print_message SUCCESS "Service files regenerated for ${OS_USER}"
     fi
@@ -999,7 +1000,7 @@ install_service() {
     if [[ ! -d "${log_dir}" ]]; then
         print_message INFO "Creating connector log directory: ${log_dir}"
         mkdir -p "${log_dir}"
-        chown "${OS_USER}:${OS_GROUP}" "${log_dir}" 2> /dev/null || true
+        chown "${OS_USER}:${OS_GROUP}" "${log_dir}"
     fi
 
     # Copy service file
