@@ -38,20 +38,26 @@ RED='' GREEN='' YELLOW='' BLUE='' BOLD='' NC=''
 
 init_colors() {
     if [[ "$USE_COLOR" == "true" ]] && [[ -t 1 ]]; then
-        RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
-        BLUE='\033[0;34m'; BOLD='\033[1m'; NC='\033[0m'
+        RED='\033[0;31m'
+        GREEN='\033[0;32m'
+        YELLOW='\033[1;33m'
+        BLUE='\033[0;34m'
+        BOLD='\033[1m'
+        NC='\033[0m'
     fi
 }
 
 print_message() {
-    local level="$1"; shift; local message="$*"
+    local level="$1"
+    shift
+    local message="$*"
     case "$level" in
-        ERROR)   echo -e "${RED}[ERROR]:${NC} $message" >&2 ;;
+        ERROR) echo -e "${RED}[ERROR]:${NC} $message" >&2 ;;
         SUCCESS) echo -e "${GREEN}[OK]${NC} $message" ;;
         WARNING) echo -e "${YELLOW}[WARNING]:${NC} $message" ;;
-        INFO)    echo -e "${BLUE}[INFO]${NC}  $message" ;;
-        STEP)    echo -e "${BOLD}▶${NC}  $message" ;;
-        *)       echo "$message" ;;
+        INFO) echo -e "${BLUE}[INFO]${NC}  $message" ;;
+        STEP) echo -e "${BOLD}▶${NC}  $message" ;;
+        *) echo "$message" ;;
     esac
 }
 
@@ -112,7 +118,7 @@ EOF
 # Purpose.: List installed oracle_datasafe_* services via systemctl
 # ------------------------------------------------------------------------------
 discover_installed_services() {
-    systemctl list-unit-files 'oracle_datasafe_*.service' --no-legend 2>/dev/null \
+    systemctl list-unit-files 'oracle_datasafe_*.service' --no-legend 2> /dev/null \
         | awk '{print $1}' || true
 }
 
@@ -137,7 +143,7 @@ list_services() {
     local idx=1
     for svc in "${services[@]}"; do
         local status_label
-        if systemctl is-active "${svc}" &>/dev/null; then
+        if systemctl is-active "${svc}" &> /dev/null; then
             status_label="${GREEN}ACTIVE${NC}"
         else
             status_label="${YELLOW}INACTIVE${NC}"
@@ -145,7 +151,7 @@ list_services() {
         printf "%2d. %-50s [" "${idx}" "${svc}"
         echo -e "${status_label}]"
         [[ -f "/etc/systemd/system/${svc}" ]] && echo "    /etc/systemd/system/${svc}"
-        idx=$(( idx + 1 ))
+        idx=$((idx + 1))
     done
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "Total: ${#services[@]} service(s)"
@@ -158,12 +164,27 @@ list_services() {
 parse_arguments() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            -l | --list)      LIST_ONLY=true; shift ;;
-            -u | --uninstall) UNINSTALL_MODE=true; shift ;;
-            -f | --force)     FORCE=true; shift ;;
-            -d | --dry-run)   DRY_RUN=true; shift ;;
-            --no-color)       USE_COLOR=false; shift ;;
-            -h | --help)      usage ;;
+            -l | --list)
+                LIST_ONLY=true
+                shift
+                ;;
+            -u | --uninstall)
+                UNINSTALL_MODE=true
+                shift
+                ;;
+            -f | --force)
+                FORCE=true
+                shift
+                ;;
+            -d | --dry-run)
+                DRY_RUN=true
+                shift
+                ;;
+            --no-color)
+                USE_COLOR=false
+                shift
+                ;;
+            -h | --help) usage ;;
             *)
                 print_message ERROR "Unknown option: $1"
                 echo "Use --help for usage information"

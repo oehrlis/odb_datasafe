@@ -357,22 +357,22 @@ resolve_install_context() {
         fi
         # Read OS_USER / OS_GROUP from the prepared file, or warn if explicitly overridden
         local raw_user raw_group file_user="" file_group=""
-        raw_user=$(grep -E '^User=' "${prepared_file}" 2>/dev/null | head -1 || true)
+        raw_user=$(grep -E '^User=' "${prepared_file}" 2> /dev/null | head -1 || true)
         [[ -n "${raw_user}" ]] && file_user="${raw_user#User=}"
-        raw_group=$(grep -E '^Group=' "${prepared_file}" 2>/dev/null | head -1 || true)
+        raw_group=$(grep -E '^Group=' "${prepared_file}" 2> /dev/null | head -1 || true)
         [[ -n "${raw_group}" ]] && file_group="${raw_group#Group=}"
 
         if [[ "${OS_USER}" == "${DEFAULT_USER}" ]]; then
-            [[ -n "${file_user}" ]] && OS_USER="${file_user}" && \
-                print_message INFO "OS user from prepared service file: ${OS_USER}"
+            [[ -n "${file_user}" ]] && OS_USER="${file_user}" \
+                && print_message INFO "OS user from prepared service file: ${OS_USER}"
         elif [[ -n "${file_user}" ]] && [[ "${file_user}" != "${OS_USER}" ]]; then
             print_message WARNING "Prepared service has User=${file_user} but --user ${OS_USER} was given"
             print_message INFO "Service will run as ${file_user}. Re-run --prepare -n ${CONNECTOR_NAME} --user ${OS_USER} to change."
         fi
 
         if [[ "${OS_GROUP}" == "${DEFAULT_GROUP}" ]]; then
-            [[ -n "${file_group}" ]] && OS_GROUP="${file_group}" && \
-                print_message INFO "OS group from prepared service file: ${OS_GROUP}"
+            [[ -n "${file_group}" ]] && OS_GROUP="${file_group}" \
+                && print_message INFO "OS group from prepared service file: ${OS_GROUP}"
         elif [[ -n "${file_group}" ]] && [[ "${file_group}" != "${OS_GROUP}" ]]; then
             print_message WARNING "Prepared service has Group=${file_group} but --group ${OS_GROUP} was given"
         fi
@@ -381,7 +381,7 @@ resolve_install_context() {
         # Read OS_USER from the installed system service file for correct sudoers filename
         if [[ -f "${installed_file}" ]] && [[ "${OS_USER}" == "${DEFAULT_USER}" ]]; then
             local raw_user
-            raw_user=$(grep -E '^User=' "${installed_file}" 2>/dev/null | head -1 || true)
+            raw_user=$(grep -E '^User=' "${installed_file}" 2> /dev/null | head -1 || true)
             if [[ -n "${raw_user}" ]]; then
                 OS_USER="${raw_user#User=}"
                 print_message INFO "OS user from installed service file: ${OS_USER}"
@@ -1042,7 +1042,7 @@ install_service() {
 
     # Validate ExecStart executable exists (catches wrong ORADBA_BASE paths)
     local raw_exec exec_bin=""
-    raw_exec=$(grep -E '^ExecStart=' "${local_service}" 2>/dev/null | head -1 || true)
+    raw_exec=$(grep -E '^ExecStart=' "${local_service}" 2> /dev/null | head -1 || true)
     if [[ -n "${raw_exec}" ]]; then
         exec_bin="${raw_exec#ExecStart=}"
         exec_bin="${exec_bin%% *}"
@@ -1274,20 +1274,20 @@ stop_service() {
         local alias
         if alias=$(lookup_registry_alias "${connector_name}" "${ORADBA_BASE}"); then
             print_message INFO "Stopping via oradba_dsctl.sh stop ${alias}"
-            "${dsctl}" stop "${alias}" 2>/dev/null || true
+            "${dsctl}" stop "${alias}" 2> /dev/null || true
             return 0
         fi
     fi
 
     # Fallback: systemctl stop + force-kill remaining CMAN processes
     print_message INFO "Stopping via systemctl"
-    systemctl stop "${service}" 2>/dev/null || true
+    systemctl stop "${service}" 2> /dev/null || true
 
     local cman_bin="${CONNECTOR_BASE}/${connector_name}/oracle_cman_home/bin"
     if [[ -d "${cman_bin}" ]]; then
-        if pgrep -f "^${cman_bin}/" >/dev/null 2>&1; then
+        if pgrep -f "^${cman_bin}/" > /dev/null 2>&1; then
             print_message INFO "Force-killing remaining CMAN processes"
-            pkill -f "^${cman_bin}/" 2>/dev/null || true
+            pkill -f "^${cman_bin}/" 2> /dev/null || true
         fi
     fi
     return 0
@@ -1337,7 +1337,7 @@ uninstall_service() {
     stop_service "${SERVICE_NAME}"
 
     print_message INFO "Disabling service"
-    systemctl disable "$SERVICE_NAME" 2>/dev/null || true
+    systemctl disable "$SERVICE_NAME" 2> /dev/null || true
 
     # Remove files
     print_message INFO "Removing service files from system"
