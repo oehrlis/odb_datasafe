@@ -33,11 +33,11 @@ trap 'exit $?' EXIT
 # Default Configuration
 # ------------------------------------------------------------------------------
 SCRIPT_NAME="$(basename "$0")"
-SCRIPT_VERSION="v1.0.1"
+SCRIPT_VERSION="v1.0.2"
 
 # Default paths (can be overridden)
 DEFAULT_CONNECTOR_BASE="${ORACLE_BASE:-/u01/app/oracle}/product"
-DEFAULT_USER="oracle"
+DEFAULT_USER="$(id -un)"
 DEFAULT_GROUP="dba"
 DEFAULT_JAVA_HOME="${ORACLE_BASE:-/u01/app/oracle}/product/jdk"
 ORADBA_BASE="${ORADBA_BASE:-${ORADBA_PREFIX:-/opt/oradba}}"
@@ -709,11 +709,14 @@ EOF
 generate_sudoers_file() {
     # Resolve actual binary paths; fall back to conventional locations
     local systemctl_bin
-    systemctl_bin=$(command -v systemctl 2> /dev/null || echo "/bin/systemctl")
-    local systemctl_alt="/usr/bin/systemctl"
+    systemctl_bin=$(command -v systemctl 2> /dev/null || echo "/usr/bin/systemctl")
+    # Alt is the other conventional path (/bin vs /usr/bin); skip if identical to primary
+    local systemctl_alt
+    [[ "${systemctl_bin}" == "/usr/bin/systemctl" ]] && systemctl_alt="/bin/systemctl" || systemctl_alt="/usr/bin/systemctl"
     local journalctl_bin
     journalctl_bin=$(command -v journalctl 2> /dev/null || echo "/usr/bin/journalctl")
-    local journalctl_alt="/bin/journalctl"
+    local journalctl_alt
+    [[ "${journalctl_bin}" == "/usr/bin/journalctl" ]] && journalctl_alt="/bin/journalctl" || journalctl_alt="/usr/bin/journalctl"
     cat << EOF
 # ------------------------------------------------------------------------------
 # Sudo configuration for Oracle Data Safe Connector: $CONNECTOR_NAME
@@ -728,6 +731,11 @@ $OS_USER ALL=(ALL) NOPASSWD: $systemctl_bin reload $SERVICE_NAME
 $OS_USER ALL=(ALL) NOPASSWD: $systemctl_bin status $SERVICE_NAME
 $OS_USER ALL=(ALL) NOPASSWD: $systemctl_bin is-active $SERVICE_NAME
 $OS_USER ALL=(ALL) NOPASSWD: $systemctl_bin is-enabled $SERVICE_NAME
+$OS_USER ALL=(ALL) NOPASSWD: $journalctl_bin --unit=$SERVICE_NAME
+EOF
+    # Emit alternate-path entries only if the binary exists at a different path
+    if [[ -x "${systemctl_alt}" ]]; then
+        cat << EOF
 $OS_USER ALL=(ALL) NOPASSWD: $systemctl_alt start $SERVICE_NAME
 $OS_USER ALL=(ALL) NOPASSWD: $systemctl_alt stop $SERVICE_NAME
 $OS_USER ALL=(ALL) NOPASSWD: $systemctl_alt restart $SERVICE_NAME
@@ -735,9 +743,13 @@ $OS_USER ALL=(ALL) NOPASSWD: $systemctl_alt reload $SERVICE_NAME
 $OS_USER ALL=(ALL) NOPASSWD: $systemctl_alt status $SERVICE_NAME
 $OS_USER ALL=(ALL) NOPASSWD: $systemctl_alt is-active $SERVICE_NAME
 $OS_USER ALL=(ALL) NOPASSWD: $systemctl_alt is-enabled $SERVICE_NAME
-$OS_USER ALL=(ALL) NOPASSWD: $journalctl_bin --unit=$SERVICE_NAME
+EOF
+    fi
+    if [[ -x "${journalctl_alt}" ]]; then
+        cat << EOF
 $OS_USER ALL=(ALL) NOPASSWD: $journalctl_alt --unit=$SERVICE_NAME
 EOF
+    fi
 }
 
 # ------------------------------------------------------------------------------
@@ -1268,6 +1280,7 @@ stop_service() {
     local service="$1"
     local connector_name="${service#oracle_datasafe_}"
     connector_name="${connector_name%.service}"
+    local cman_bin="${CONNECTOR_BASE}/${connector_name}/oracle_cman_home/bin"
 
     local dsctl="${ORADBA_BASE}/bin/oradba_dsctl.sh"
     if [[ -x "${dsctl}" ]]; then
@@ -1275,19 +1288,25 @@ stop_service() {
         if alias=$(lookup_registry_alias "${connector_name}" "${ORADBA_BASE}"); then
             print_message INFO "Stopping via oradba_dsctl.sh stop ${alias}"
             "${dsctl}" stop "${alias}" 2> /dev/null || true
-            return 0
+            # Verify process actually stopped; fall through to pkill if still running
+            local status_check
+            status_check=$("${dsctl}" status "${alias}" 2> /dev/null || true)
+            if [[ -n "${status_check}" && "${status_check}" != *"RUNNING"* ]]; then
+                return 0
+            fi
+            print_message WARNING "Process still running after dsctl stop - forcing via pkill"
         fi
+    else
+        # No dsctl: rely on systemctl stop
+        print_message INFO "Stopping via systemctl"
+        systemctl stop "${service}" 2> /dev/null || true
     fi
 
-    # Fallback: systemctl stop + force-kill remaining CMAN processes
-    print_message INFO "Stopping via systemctl"
-    systemctl stop "${service}" 2> /dev/null || true
-
-    local cman_bin="${CONNECTOR_BASE}/${connector_name}/oracle_cman_home/bin"
+    # Force-kill remaining CMAN processes if directory is reachable
     if [[ -d "${cman_bin}" ]]; then
-        if pgrep -f "^${cman_bin}/" > /dev/null 2>&1; then
+        if pgrep -f "${cman_bin}/" > /dev/null 2>&1; then
             print_message INFO "Force-killing remaining CMAN processes"
-            pkill -f "^${cman_bin}/" 2> /dev/null || true
+            pkill -f "${cman_bin}/" 2> /dev/null || true
         fi
     fi
     return 0

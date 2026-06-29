@@ -6,6 +6,25 @@ All notable changes to the OraDBA Data Safe Extension will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-06-29
+
+### Fixed
+
+- `bin/install_datasafe_service.sh`: `DEFAULT_USER` was hardcoded to `oracle`;
+  now derived from `$(id -un)` so `--prepare` run as any non-oracle user (e.g.
+  `oravw`) correctly sets that user as the service OS user without requiring
+  an explicit `--user` flag
+- `bin/install_datasafe_service.sh`: `stop_service()` now verifies via
+  `oradba_dsctl.sh status` that the connector process actually stopped after
+  calling `oradba_dsctl.sh stop`; if the process is still RUNNING it falls
+  through to `pkill` rather than silently returning 0
+- `bin/install_datasafe_service.sh`: `generate_sudoers_file()` emitted
+  duplicate `systemctl` NOPASSWD entries when `command -v systemctl` resolved
+  to the same path as the hardcoded alternate; alternate-path entries are now
+  only emitted when the binary exists at a different path
+- `.extension`: version was not bumped alongside `VERSION` in v1.0.1, causing
+  `ds_target_activate.sh` (and sibling scripts) to report wrong version
+
 ## [1.0.1] - 2026-06-29
 
 ### Added
