@@ -6,6 +6,29 @@ All notable changes to the OraDBA Data Safe Extension will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2026-06-29
+
+### Changed
+
+- `bin/install_datasafe_service.sh`: `generate_sudoers_file()` refactored to
+  produce a single shared `/etc/sudoers.d/oradba-datasafe` file covering all
+  connectors via a `Cmnd_Alias ORADBA_DATASAFE_CTL` wildcard
+  (`oracle_datasafe_*.service`); runas tightened from `(ALL)` to `(root)`;
+  `status`, `is-active`, `is-enabled`, and `journalctl` rules removed (those
+  work unprivileged); dual-path alternate entries removed in favour of a single
+  path resolved at install time via `command -v systemctl`
+- `bin/install_datasafe_service.sh`: `install_service()` now removes legacy
+  per-connector sudoers files (`/etc/sudoers.d/${OS_USER}-datasafe-*`) before
+  writing the consolidated file; file is written via `mktemp` + `visudo -cf`
+  validation + `install -m 0440 -o root -g root`; idempotent - skips install
+  if `/etc/sudoers.d/oradba-datasafe` already exists
+- `bin/install_datasafe_service.sh`: `uninstall_service()` retains the shared
+  sudoers file on per-connector removal (wildcard rule still covers remaining
+  connectors); only removes legacy per-connector file if still present
+- `bin/install_datasafe_service.sh`: `prepare_service()` no longer writes a
+  local sudoers staging file; dry-run output shows consolidated content and
+  target system path
+
 ## [1.0.2] - 2026-06-29
 
 ### Fixed
