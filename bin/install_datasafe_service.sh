@@ -6,7 +6,7 @@
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
 # Date.......: 2026.06.25
-# Version....: v0.20.4
+# Version....: v1.0.1
 # Purpose....: Install and manage Oracle Data Safe On-Premises Connector as systemd service
 #              Generic solution for any connector with automatic discovery and configuration
 # Notes......: Works as regular user for config preparation. Root only for system installation.
@@ -33,7 +33,7 @@ trap 'exit $?' EXIT
 # Default Configuration
 # ------------------------------------------------------------------------------
 SCRIPT_NAME="$(basename "$0")"
-SCRIPT_VERSION="v1.0.0"
+SCRIPT_VERSION="v1.0.1"
 
 # Default paths (can be overridden)
 DEFAULT_CONNECTOR_BASE="${ORACLE_BASE:-/u01/app/oracle}/product"
@@ -67,6 +67,7 @@ CHECK_MODE=false
 VERBOSE=false
 SKIP_SUDO=false
 USE_COLOR=true
+ALL_MODE=false
 
 # Service configuration
 SERVICE_NAME=""
@@ -161,6 +162,7 @@ Configuration Options:
     -j, --java-home <path>  JAVA_HOME path (default: \$ORACLE_BASE/product/jdk)
     
 Query Options:
+    --all                   Process all discovered connectors (combine with --prepare/--install/--uninstall)
     -l, --list              List all available connectors (no root needed)
     -c, --check             Check if service is installed (no root needed)
     
@@ -187,6 +189,10 @@ Examples:
   # Complete workflow (prepare + install)
   $SCRIPT_NAME --prepare -n my-connector
   sudo $SCRIPT_NAME --install -n my-connector
+
+  # Process all connectors (prepare or install)
+  $SCRIPT_NAME --prepare --all
+  sudo $SCRIPT_NAME --install --all
 
   # Check if service is installed (as oracle user)
   $SCRIPT_NAME --check -n my-connector
@@ -306,6 +312,85 @@ find_connector_base() {
         fi
     done
     return 1
+}
+
+# ------------------------------------------------------------------------------
+# Function: resolve_install_context
+# Purpose.: Minimal context resolution for install/uninstall/check modes.
+#           Does NOT validate JAVA_HOME, CMAN_HOME, or cmctl — those are
+#           already embedded in the prepared service file.
+# Args....: $1 - mode: install | uninstall | check
+# Returns.: 0 on success, 1 on error
+# Output..: Sets CONNECTOR_HOME, CONNECTOR_ETC, SERVICE_NAME, OS_USER, OS_GROUP
+# ------------------------------------------------------------------------------
+resolve_install_context() {
+    local mode="${1:-install}"
+
+    # Auto-discover base only if still at default and directory missing
+    if [[ "${CONNECTOR_BASE}" == "${DEFAULT_CONNECTOR_BASE}" ]] && [[ ! -d "${CONNECTOR_BASE}/${CONNECTOR_NAME}" ]]; then
+        local discovered_base
+        if discovered_base=$(find_connector_base "${CONNECTOR_NAME}"); then
+            print_message INFO "Auto-discovered connector base: ${discovered_base}"
+            CONNECTOR_BASE="${discovered_base}"
+        fi
+    fi
+
+    CONNECTOR_HOME="${CONNECTOR_BASE}/${CONNECTOR_NAME}"
+    CONNECTOR_ETC="${CONNECTOR_HOME}/etc/systemd"
+    SERVICE_NAME="oracle_datasafe_${CONNECTOR_NAME}.service"
+
+    if [[ ! -d "${CONNECTOR_HOME}" ]]; then
+        print_message ERROR "Connector directory not found: ${CONNECTOR_HOME}"
+        print_message INFO "Use --base or set ORACLE_BASE to point to the connector base"
+        return 1
+    fi
+
+    local prepared_file="${CONNECTOR_ETC}/${SERVICE_NAME}"
+    local installed_file="/etc/systemd/system/${SERVICE_NAME}"
+
+    if [[ "${mode}" == "install" ]]; then
+        # Require the prepared file to exist — no auto-regeneration
+        if [[ ! -f "${prepared_file}" ]]; then
+            print_message ERROR "Prepared service file not found: ${prepared_file}"
+            print_message INFO "Run first as oracle user: ${SCRIPT_NAME} --prepare -n ${CONNECTOR_NAME}"
+            return 1
+        fi
+        # Read OS_USER / OS_GROUP from the prepared file, or warn if explicitly overridden
+        local raw_user raw_group file_user="" file_group=""
+        raw_user=$(grep -E '^User=' "${prepared_file}" 2>/dev/null | head -1 || true)
+        [[ -n "${raw_user}" ]] && file_user="${raw_user#User=}"
+        raw_group=$(grep -E '^Group=' "${prepared_file}" 2>/dev/null | head -1 || true)
+        [[ -n "${raw_group}" ]] && file_group="${raw_group#Group=}"
+
+        if [[ "${OS_USER}" == "${DEFAULT_USER}" ]]; then
+            [[ -n "${file_user}" ]] && OS_USER="${file_user}" && \
+                print_message INFO "OS user from prepared service file: ${OS_USER}"
+        elif [[ -n "${file_user}" ]] && [[ "${file_user}" != "${OS_USER}" ]]; then
+            print_message WARNING "Prepared service has User=${file_user} but --user ${OS_USER} was given"
+            print_message INFO "Service will run as ${file_user}. Re-run --prepare -n ${CONNECTOR_NAME} --user ${OS_USER} to change."
+        fi
+
+        if [[ "${OS_GROUP}" == "${DEFAULT_GROUP}" ]]; then
+            [[ -n "${file_group}" ]] && OS_GROUP="${file_group}" && \
+                print_message INFO "OS group from prepared service file: ${OS_GROUP}"
+        elif [[ -n "${file_group}" ]] && [[ "${file_group}" != "${OS_GROUP}" ]]; then
+            print_message WARNING "Prepared service has Group=${file_group} but --group ${OS_GROUP} was given"
+        fi
+
+    elif [[ "${mode}" == "uninstall" ]]; then
+        # Read OS_USER from the installed system service file for correct sudoers filename
+        if [[ -f "${installed_file}" ]] && [[ "${OS_USER}" == "${DEFAULT_USER}" ]]; then
+            local raw_user
+            raw_user=$(grep -E '^User=' "${installed_file}" 2>/dev/null | head -1 || true)
+            if [[ -n "${raw_user}" ]]; then
+                OS_USER="${raw_user#User=}"
+                print_message INFO "OS user from installed service file: ${OS_USER}"
+            fi
+        fi
+    fi
+    # check mode: paths are set; existence of files is reported by check_service, not here
+
+    return 0
 }
 
 # ------------------------------------------------------------------------------
@@ -948,35 +1033,24 @@ install_service() {
     local system_service="/etc/systemd/system/$SERVICE_NAME"
     local system_sudoers="/etc/sudoers.d/${OS_USER}-datasafe-${CONNECTOR_NAME}"
 
-    # Check if configs exist
+    # Safety net: prepared file must exist (already verified by resolve_install_context)
     if [[ ! -f "$local_service" ]]; then
         print_message ERROR "Service file not found: $local_service"
-        print_message INFO "Run: $SCRIPT_NAME --prepare -n $CONNECTOR_NAME --user $OS_USER --group $OS_GROUP"
+        print_message INFO "Run first as oracle user: $SCRIPT_NAME --prepare -n $CONNECTOR_NAME"
         return 1
     fi
 
-    # Validate User= in prepared file matches --user argument; auto-regenerate if needed
-    local file_user
-    file_user=$(grep -E '^User=' "${local_service}" | head -1 | cut -d= -f2- | tr -d ' ')
-    if [[ -n "${file_user}" ]] && [[ "${file_user}" != "${OS_USER}" ]]; then
-        print_message WARNING "Service file specifies User=${file_user} but --user ${OS_USER} was given"
-        print_message INFO "Auto-regenerating service files for user ${OS_USER}"
-        prepare_service
-        # Only chown in real install (not dry-run); chown would fail for nonexistent user
-        if ! $DRY_RUN; then
-            chown "${OS_USER}:${OS_GROUP}" "${CONNECTOR_ETC}"/*
-        fi
-        file_user="${OS_USER}"
-        print_message SUCCESS "Service files regenerated for ${OS_USER}"
-    fi
-
     # Validate ExecStart executable exists (catches wrong ORADBA_BASE paths)
-    local exec_bin
-    exec_bin=$(grep -E '^ExecStart=' "${local_service}" | head -1 | cut -d= -f2- | awk '{print $1}')
+    local raw_exec exec_bin=""
+    raw_exec=$(grep -E '^ExecStart=' "${local_service}" 2>/dev/null | head -1 || true)
+    if [[ -n "${raw_exec}" ]]; then
+        exec_bin="${raw_exec#ExecStart=}"
+        exec_bin="${exec_bin%% *}"
+    fi
     if [[ -n "${exec_bin}" ]] && [[ ! -x "${exec_bin}" ]]; then
         print_message WARNING "ExecStart binary not found or not executable: ${exec_bin}"
         print_message INFO "If using oradba_dsctl.sh: set ORADBA_BASE and re-run --prepare"
-        print_message INFO "  ORADBA_BASE=/correct/path $SCRIPT_NAME --prepare -n $CONNECTOR_NAME --user $OS_USER"
+        print_message INFO "  ORADBA_BASE=/correct/path $SCRIPT_NAME --prepare -n $CONNECTOR_NAME"
     fi
 
     # Display what will be installed
@@ -984,7 +1058,7 @@ install_service() {
     echo "  Source........: $CONNECTOR_ETC"
     echo "  Service file..: $local_service"
     echo "               -> $system_service"
-    echo "  Service User..: ${file_user:-<not set>}"
+    echo "  Service User..: ${OS_USER}"
     if [[ -n "${exec_bin}" ]]; then
         echo "  ExecStart.....: ${exec_bin}"
     fi
@@ -993,7 +1067,7 @@ install_service() {
         echo "               -> $system_sudoers"
     elif ! $SKIP_SUDO; then
         print_message WARNING "Sudoers file not found: $local_sudoers"
-        print_message INFO "Re-prepare to generate it: $SCRIPT_NAME --prepare -n $CONNECTOR_NAME --user $OS_USER --group $OS_GROUP"
+        print_message INFO "Re-prepare to generate it: $SCRIPT_NAME --prepare -n $CONNECTOR_NAME"
     fi
     echo
 
@@ -1184,6 +1258,42 @@ check_service() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: stop_service
+# Purpose.: Stop a connector service, preferring oradba_dsctl.sh if available
+# Args....: $1 - systemd service name
+# Returns.: 0 always (errors are non-fatal)
+# Output..: Log messages
+# ------------------------------------------------------------------------------
+stop_service() {
+    local service="$1"
+    local connector_name="${service#oracle_datasafe_}"
+    connector_name="${connector_name%.service}"
+
+    local dsctl="${ORADBA_BASE}/bin/oradba_dsctl.sh"
+    if [[ -x "${dsctl}" ]]; then
+        local alias
+        if alias=$(lookup_registry_alias "${connector_name}" "${ORADBA_BASE}"); then
+            print_message INFO "Stopping via oradba_dsctl.sh stop ${alias}"
+            "${dsctl}" stop "${alias}" 2>/dev/null || true
+            return 0
+        fi
+    fi
+
+    # Fallback: systemctl stop + force-kill remaining CMAN processes
+    print_message INFO "Stopping via systemctl"
+    systemctl stop "${service}" 2>/dev/null || true
+
+    local cman_bin="${CONNECTOR_BASE}/${connector_name}/oracle_cman_home/bin"
+    if [[ -d "${cman_bin}" ]]; then
+        if pgrep -f "^${cman_bin}/" >/dev/null 2>&1; then
+            print_message INFO "Force-killing remaining CMAN processes"
+            pkill -f "^${cman_bin}/" 2>/dev/null || true
+        fi
+    fi
+    return 0
+}
+
+# ------------------------------------------------------------------------------
 # Function: uninstall_service
 # Purpose.: Uninstall service from system (root)
 # Args....: None
@@ -1223,13 +1333,11 @@ uninstall_service() {
         fi
     fi
 
-    # Stop service
-    print_message INFO "Stopping service"
-    systemctl stop "$SERVICE_NAME" 2> /dev/null || true
+    # Stop and disable service (with oradba_dsctl.sh integration if available)
+    stop_service "${SERVICE_NAME}"
 
-    # Disable service
     print_message INFO "Disabling service"
-    systemctl disable "$SERVICE_NAME" 2> /dev/null || true
+    systemctl disable "$SERVICE_NAME" 2>/dev/null || true
 
     # Remove files
     print_message INFO "Removing service files from system"
@@ -1267,6 +1375,10 @@ parse_arguments() {
                 ;;
             --uninstall)
                 UNINSTALL_MODE=true
+                shift
+                ;;
+            --all)
+                ALL_MODE=true
                 shift
                 ;;
             -n | --connector)
@@ -1333,6 +1445,13 @@ parse_arguments() {
         esac
     done
 
+    # --all and -n are mutually exclusive
+    if $ALL_MODE && [[ -n "${CONNECTOR_NAME}" ]]; then
+        print_message ERROR "--all and --connector (-n) are mutually exclusive"
+        echo "Use either --all or -n <name>, not both"
+        exit 1
+    fi
+
     # Default to prepare mode if no mode specified
     if ! $PREPARE_MODE && ! $INSTALL_MODE && ! $UNINSTALL_MODE && ! $LIST_MODE && ! $CHECK_MODE; then
         PREPARE_MODE=true
@@ -1363,35 +1482,135 @@ main() {
         exit 0
     fi
 
-    # Interactive connector selection if not specified
+    # --all: batch mode — discover and process every connector in the base
+    if $ALL_MODE; then
+        # Establish base for batch discovery when still at default and missing
+        if [[ "${CONNECTOR_BASE}" == "${DEFAULT_CONNECTOR_BASE}" ]] && [[ ! -d "${CONNECTOR_BASE}" ]]; then
+            local -a _base_cands=(
+                "${ORACLE_BASE:+${ORACLE_BASE}/product}"
+                "/appl/oracle/product"
+                "/u01/app/oracle/product"
+                "/u01/oracle/product"
+                "/opt/oracle/product"
+            )
+            local _cand
+            for _cand in "${_base_cands[@]+"${_base_cands[@]}"}"; do
+                [[ -z "${_cand}" ]] && continue
+                if [[ -d "${_cand}" ]]; then
+                    CONNECTOR_BASE="${_cand}"
+                    print_message INFO "Using connector base for --all: ${CONNECTOR_BASE}"
+                    break
+                fi
+            done
+        fi
+
+        local -a _all_connectors
+        mapfile -t _all_connectors < <(discover_connectors "${CONNECTOR_BASE}")
+
+        if [[ ${#_all_connectors[@]} -eq 0 ]]; then
+            print_message ERROR "No connectors found in ${CONNECTOR_BASE}"
+            exit 1
+        fi
+
+        print_message INFO "Found ${#_all_connectors[@]} connector(s) in ${CONNECTOR_BASE}"
+        INTERACTIVE=false
+
+        # Save CLI-provided user/group so each iteration can reset correctly
+        local _user_init="${OS_USER}"
+        local _group_init="${OS_GROUP}"
+        local -a _ok_list=()
+        local -a _fail_list=()
+
+        for _conn in "${_all_connectors[@]}"; do
+            echo
+            print_message STEP "Processing connector: ${_conn}"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+            # Reset per-connector globals
+            CONNECTOR_NAME="${_conn}"
+            CONNECTOR_HOME=""
+            CONNECTOR_ETC=""
+            CMAN_NAME=""
+            CMAN_HOME=""
+            CMAN_CTL=""
+            SERVICE_NAME=""
+            OS_USER="${_user_init}"
+            OS_GROUP="${_group_init}"
+
+            local _conn_ok=0
+            if $INSTALL_MODE; then
+                if resolve_install_context "install" && install_service; then :; else _conn_ok=1; fi
+            elif $UNINSTALL_MODE; then
+                if resolve_install_context "uninstall" && uninstall_service; then :; else _conn_ok=1; fi
+            elif $CHECK_MODE; then
+                if resolve_install_context "check"; then check_service || true; else _conn_ok=1; fi
+            elif $PREPARE_MODE; then
+                if validate_connector "${_conn}" "${CONNECTOR_BASE}" && prepare_service; then :; else _conn_ok=1; fi
+            fi
+
+            if [[ "${_conn_ok}" -eq 0 ]]; then
+                _ok_list+=("${_conn}")
+            else
+                _fail_list+=("${_conn}")
+            fi
+        done
+
+        echo
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        print_message STEP "Batch Summary (${CONNECTOR_BASE})"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        for _c in "${_ok_list[@]+"${_ok_list[@]}"}"; do
+            print_message SUCCESS "${_c}"
+        done
+        for _c in "${_fail_list[@]+"${_fail_list[@]}"}"; do
+            print_message ERROR "${_c} (FAILED)"
+        done
+        echo
+        print_message INFO "Total: ${#_all_connectors[@]}  OK: ${#_ok_list[@]}  FAILED: ${#_fail_list[@]}"
+        [[ ${#_fail_list[@]} -eq 0 ]] || exit 1
+        exit 0
+    fi
+
+    # Single connector: interactive selection if not specified
     if [[ -z "$CONNECTOR_NAME" ]]; then
         if $INTERACTIVE; then
             select_connector_interactive
         else
             print_message ERROR "Connector name required in non-interactive mode"
-            echo "Use --connector <name> or run without --yes for interactive mode"
+            echo "Use --connector <name>, --all, or run without --yes for interactive mode"
             exit 1
         fi
     fi
 
-    # Auto-discover connector base if the default was not overridden and ORACLE_BASE is unset
-    if [[ "${CONNECTOR_BASE}" == "${DEFAULT_CONNECTOR_BASE}" ]] && [[ ! -d "${CONNECTOR_BASE}/${CONNECTOR_NAME}" ]]; then
-        local discovered_base
-        if discovered_base=$(find_connector_base "${CONNECTOR_NAME}"); then
-            print_message INFO "Auto-discovered connector base: ${discovered_base}"
-            CONNECTOR_BASE="${discovered_base}"
+    # Single connector: route by mode
+    if $INSTALL_MODE || $UNINSTALL_MODE; then
+        local _mode="install"
+        $UNINSTALL_MODE && _mode="uninstall"
+        if ! resolve_install_context "${_mode}"; then
+            exit 1
         fi
+        print_message SUCCESS "Install context resolved: ${CONNECTOR_NAME}"
+    elif $CHECK_MODE; then
+        if ! resolve_install_context "check"; then
+            exit 1
+        fi
+    else
+        # PREPARE_MODE: full validation including JAVA_HOME and CMAN checks
+        if [[ "${CONNECTOR_BASE}" == "${DEFAULT_CONNECTOR_BASE}" ]] && [[ ! -d "${CONNECTOR_BASE}/${CONNECTOR_NAME}" ]]; then
+            local discovered_base
+            if discovered_base=$(find_connector_base "${CONNECTOR_NAME}"); then
+                print_message INFO "Auto-discovered connector base: ${discovered_base}"
+                CONNECTOR_BASE="${discovered_base}"
+            fi
+        fi
+        if ! validate_connector "$CONNECTOR_NAME" "$CONNECTOR_BASE"; then
+            exit 1
+        fi
+        print_message SUCCESS "Connector validated: $CONNECTOR_NAME"
+        $VERBOSE && print_message INFO "CMAN instance detected: $CMAN_NAME"
     fi
 
-    # Validate connector
-    if ! validate_connector "$CONNECTOR_NAME" "$CONNECTOR_BASE"; then
-        exit 1
-    fi
-
-    print_message SUCCESS "Connector validated: $CONNECTOR_NAME"
-    $VERBOSE && print_message INFO "CMAN instance detected: $CMAN_NAME"
-
-    # Handle different modes
+    # Execute
     if $CHECK_MODE; then
         check_service
     elif $UNINSTALL_MODE; then

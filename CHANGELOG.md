@@ -6,6 +6,37 @@ All notable changes to the OraDBA Data Safe Extension will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-06-29
+
+### Added
+
+- `bin/install_datasafe_service.sh`: `--all` flag to batch-process every
+  discovered connector in a single invocation; works with `--prepare`,
+  `--install`, `--uninstall`, and `--check`; implies non-interactive; mutually
+  exclusive with `-n`/`--connector`; prints batch summary on completion
+- `bin/install_datasafe_service.sh`: `resolve_install_context()` function for
+  `--install`/`--uninstall`/`--check` phases - skips JAVA_HOME/CMAN validation
+  and reads `OS_USER`/`OS_GROUP` from the prepared service file; fixes
+  `JAVA_HOME not found` error when running `sudo --install` with root's stripped
+  environment; warns when CLI `--user` differs from `User=` in the prepared file
+- `bin/install_datasafe_service.sh`: `stop_service()` function - prefers
+  `oradba_dsctl.sh stop`, falls back to `systemctl stop` + pkill of residual
+  CMAN processes
+
+### Changed
+
+- `bin/install_datasafe_service.sh`: `install_service()` no longer auto-regenerates
+  the service file when `User=` mismatches; raises a hard error if the prepared
+  service file is missing, enforcing the explicit two-phase workflow
+- `bin/install_datasafe_service.sh`: `uninstall_service()` now calls
+  `stop_service()` instead of bare `systemctl stop`
+- `bin/uninstall_all_datasafe_services.sh`: refactored from 548-line standalone
+  to ~230-line thin wrapper; discovery still via `systemctl list-unit-files`;
+  delegates per-connector uninstall to `install_datasafe_service.sh --uninstall -n`
+- `tests/install_datasafe_service.bats`: REG-003 updated to verify that
+  `--install` warns when `--user` differs from prepared service file `User=`
+  (auto-regeneration behaviour removed)
+
 ## [1.0.0] - 2026-06-28
 
 ### Added

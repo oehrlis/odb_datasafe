@@ -5,502 +5,165 @@
 # Name.......: uninstall_all_datasafe_services.sh
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
-# Date.......: 2026.06.25
-# Version....: v0.20.2
-# Purpose....: Uninstall all Oracle Data Safe On-Premises Connector systemd services
-# Notes......: Works as regular user for listing. Root only for uninstall operations.
+# Date.......: 2026.06.29
+# Version....: v1.0.1
+# Purpose....: Wrapper: uninstall all Oracle Data Safe systemd services.
+#              Discovers installed services via systemctl (catches orphaned services
+#              where CONNECTOR_BASE may no longer exist) and delegates per-connector
+#              uninstall to install_datasafe_service.sh.
+# Notes......: Root only for --uninstall; --list works as any user.
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
 # Modified...:
-# 2026.01.21 oehrli - refactored to allow non-root listing and checking
+# 2026.01.21 oehrli - initial version
 # 2026.06.25 oehrli - add stop_service with oradba_dsctl.sh integration
+# 2026.06.29 oehrli - refactored to thin wrapper around install_datasafe_service.sh
 # ------------------------------------------------------------------------------
 
 set -euo pipefail
 
 SCRIPT_NAME="$(basename "$0")"
-# shellcheck disable=SC2034
-SCRIPT_VERSION="v1.0.0"
-
-# Default paths
-CONNECTOR_BASE="${CONNECTOR_BASE:-${ORACLE_BASE:-/u01/app/oracle}/product}"
-ORADBA_BASE="${ORADBA_BASE:-${ORADBA_PREFIX:-/opt/oradba}}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+INSTALLER="${INSTALLER:-${SCRIPT_DIR}/install_datasafe_service.sh}"
 
 # Mode flags
 LIST_ONLY=false
 UNINSTALL_MODE=false
 DRY_RUN=false
-INTERACTIVE=true
 FORCE=false
 USE_COLOR=true
 
 # Colors
 RED='' GREEN='' YELLOW='' BLUE='' BOLD='' NC=''
 
-# ------------------------------------------------------------------------------
-# Function: init_colors
-# Purpose.: Initialize ANSI color variables
-# Args....: None
-# Returns.: 0 on success
-# Output..: None
-# ------------------------------------------------------------------------------
-# Initialize colors
 init_colors() {
     if [[ "$USE_COLOR" == "true" ]] && [[ -t 1 ]]; then
-        RED='\033[0;31m'
-        GREEN='\033[0;32m'
-        YELLOW='\033[1;33m'
-        BLUE='\033[0;34m'
-        BOLD='\033[1m'
-        NC='\033[0m'
-    else
-        RED='' GREEN='' YELLOW='' BLUE='' BOLD='' NC=''
+        RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
+        BLUE='\033[0;34m'; BOLD='\033[1m'; NC='\033[0m'
     fi
 }
 
-# ------------------------------------------------------------------------------
-# Function: print_message
-# Purpose.: Print a formatted message with optional color
-# Args....: $1 - Message level
-#           $@ - Message text
-# Returns.: 0 on success
-# Output..: Message to stdout/stderr
-# ------------------------------------------------------------------------------
-# Print message
 print_message() {
-    local level="$1"
-    shift
-    local message="$*"
-
+    local level="$1"; shift; local message="$*"
     case "$level" in
-        ERROR) echo -e "${RED}[ERROR]:${NC} $message" >&2 ;;
+        ERROR)   echo -e "${RED}[ERROR]:${NC} $message" >&2 ;;
         SUCCESS) echo -e "${GREEN}[OK]${NC} $message" ;;
         WARNING) echo -e "${YELLOW}[WARNING]:${NC} $message" ;;
-        INFO) echo -e "${BLUE}[INFO]${NC}  $message" ;;
-        STEP) echo -e "${BOLD}▶${NC}  $message" ;;
-        *) echo "$message" ;;
+        INFO)    echo -e "${BLUE}[INFO]${NC}  $message" ;;
+        STEP)    echo -e "${BOLD}▶${NC}  $message" ;;
+        *)       echo "$message" ;;
     esac
 }
 
 # ------------------------------------------------------------------------------
 # Function: usage
-# Purpose.: Display usage information and exit
-# Args....: None
-# Returns.: 0 (exits script)
-# Output..: Usage text to stdout
 # ------------------------------------------------------------------------------
-# Usage
 usage() {
     cat << EOF
+Oracle Data Safe Service Uninstaller (wrapper)
+Version: v1.0.1
+
 Usage:
-    $SCRIPT_NAME [OPTIONS]
+  $SCRIPT_NAME [OPTIONS]
 
 Description:
-    Manage Oracle Data Safe On-Premises Connector systemd services.
-    Works in two modes:
-      1. List: View installed services (no root needed)
-      2. Uninstall: Remove services from system (requires root)
+  Uninstall all Oracle Data Safe On-Premises Connector systemd services.
+  Discovers installed services from systemctl — works even when CONNECTOR_BASE
+  is no longer present. Delegates per-connector uninstall to:
+    ${INSTALLER}
 
 Options:
-    -l, --list                List installed services only (no root needed)
-    -u, --uninstall           Uninstall all services (REQUIRES ROOT)
-    -f, --force               Force removal without confirmation (with --uninstall)
-    -d, --dry-run             Show what would be done without making changes
-        --no-color            Disable colored output
-    -h, --help                Show this help message
+  -l, --list        List all installed services (no root needed)
+  -u, --uninstall   Uninstall all services (REQUIRES ROOT)
+  -f, --force       Skip confirmation prompt (with --uninstall)
+  -d, --dry-run     Show what would be removed without making changes
+      --no-color    Disable colored output
+  -h, --help        Show this help message
 
 Examples:
-    # List all installed services (as oracle user)
-    $SCRIPT_NAME --list
-    $SCRIPT_NAME  # same as --list
+  # List all installed services (as oracle user)
+  $SCRIPT_NAME --list
 
-    # Dry-run uninstall (shows what would be removed)
-    sudo $SCRIPT_NAME --uninstall --dry-run
+  # Dry-run: see what would be removed
+  sudo $SCRIPT_NAME --uninstall --dry-run
 
-    # Interactive uninstall (asks for confirmation)
-    sudo $SCRIPT_NAME --uninstall
+  # Interactive uninstall
+  sudo $SCRIPT_NAME --uninstall
 
-    # Force uninstall without confirmation (as root)
-    sudo $SCRIPT_NAME --uninstall --force
+  # Force uninstall without confirmation
+  sudo $SCRIPT_NAME --uninstall --force
 
 What Gets Removed:
-    - All oracle_datasafe_*.service files from /etc/systemd/system/
-    - All related sudoers configurations from /etc/sudoers.d/
-    - Services are stopped and disabled before removal
+  - All oracle_datasafe_*.service files from /etc/systemd/system/
+  - All related sudoers configurations from /etc/sudoers.d/
+  - Services are stopped and disabled before removal
 
 What Is Preserved:
-    - Original connector installations in \$CONNECTOR_BASE
-    - Local configuration files in connector etc/ directories
-    - SERVICE_README.md files
-
-Notes:
-    - REQUIRES ROOT: --uninstall
-    - NO ROOT NEEDED: --list, default behavior
-    - To reinstall: sudo install_datasafe_service.sh --install -n <connector>
+  - Original connector installations in \$CONNECTOR_BASE
+  - Local configuration files in connector etc/ directories
+  - SERVICE_README.md files
 
 EOF
     exit 0
 }
 
 # ------------------------------------------------------------------------------
-# Function: check_root
-# Purpose.: Validate root requirements for uninstall operations
-# Args....: None
-# Returns.: 0 on success, exits on error
-# Output..: Log messages
+# Function: discover_installed_services
+# Purpose.: List installed oracle_datasafe_* services via systemctl
 # ------------------------------------------------------------------------------
-# Check if running as root (only for uninstall operations)
-check_root() {
-    # Root only required for uninstall
-    if $UNINSTALL_MODE; then
-        if [[ $EUID -ne 0 ]]; then
-            if $DRY_RUN; then
-                print_message WARNING "Not running as root (dry-run mode)"
-                return 0
-            fi
-            print_message ERROR "--uninstall requires root privileges"
-            print_message INFO "Run: sudo $SCRIPT_NAME --uninstall"
-            exit 1
-        fi
-    else
-        # Not required for list mode
-        if [[ $EUID -eq 0 ]] && ! $DRY_RUN; then
-            print_message WARNING "Running as root for list operation"
-            print_message INFO "Tip: --list works as regular user"
-        fi
-    fi
-}
-
-# ------------------------------------------------------------------------------
-# Function: lookup_registry_alias
-# Purpose.: Look up registry alias for a connector directory name
-# Args....: $1 - Connector directory name (e.g. exacc-wob-vwg-ha1)
-#           $2 - ORADBA_BASE path
-# Returns.: 0 on success (alias found), 1 on error
-# Output..: Registry alias to stdout
-# ------------------------------------------------------------------------------
-lookup_registry_alias() {
-    local connector_dir="$1"
-    local oradba_base="$2"
-    local homes_conf="${oradba_base}/etc/oradba_homes.conf"
-    local connector_home="${CONNECTOR_BASE}/${connector_dir}"
-
-    if [[ ! -f "${homes_conf}" ]]; then
-        return 1
-    fi
-
-    local alias
-    alias=$(grep -v '^#' "${homes_conf}" | awk -F: -v home="${connector_home}" '$2 == home {print $1}' | head -1)
-
-    if [[ -z "${alias}" ]]; then
-        return 1
-    fi
-
-    echo "${alias}"
-    return 0
-}
-
-# ------------------------------------------------------------------------------
-# Function: stop_service
-# Purpose.: Stop a connector service, preferring oradba_dsctl.sh over cmctl
-# Args....: $1 - systemd service name (e.g. oracle_datasafe_exacc-wob-vwg-ha1.service)
-# Returns.: 0 always (errors are non-fatal)
-# Output..: Log messages
-# ------------------------------------------------------------------------------
-stop_service() {
-    local service="$1"
-    local connector_name="${service#oracle_datasafe_}"
-    connector_name="${connector_name%.service}"
-
-    local dsctl="${ORADBA_BASE}/bin/oradba_dsctl.sh"
-    if [[ -x "${dsctl}" ]]; then
-        local alias
-        if alias=$(lookup_registry_alias "${connector_name}" "${ORADBA_BASE}"); then
-            print_message INFO "Stopping via oradba_dsctl.sh stop ${alias}"
-            "${dsctl}" stop "${alias}" 2> /dev/null || true
-            return 0
-        fi
-    fi
-
-    # Fallback: systemctl stop + force-kill remaining CMAN processes
-    print_message INFO "Stopping via systemctl (cmctl fallback)"
-    systemctl stop "${service}" 2> /dev/null || true
-
-    local cman_bin="${CONNECTOR_BASE}/${connector_name}/oracle_cman_home/bin"
-    if [[ -d "${cman_bin}" ]]; then
-        if pgrep -f "^${cman_bin}/" > /dev/null 2>&1; then
-            print_message INFO "Force-killing remaining CMAN processes"
-            pkill -f "^${cman_bin}/" 2> /dev/null || true
-        fi
-    fi
-
-    return 0
-}
-
-# ------------------------------------------------------------------------------
-# Function: discover_services
-# Purpose.: Discover installed Data Safe services
-# Args....: None
-# Returns.: 0 on success
-# Output..: Service names to stdout
-# ------------------------------------------------------------------------------
-# Discover installed services
-discover_services() {
-    local -a services=()
-
-    while IFS= read -r service; do
-        [[ -n "$service" ]] && services+=("$service")
-    done < <(systemctl list-unit-files 'oracle_datasafe_*.service' --no-legend 2> /dev/null | awk '{print $1}')
-
-    printf '%s\n' "${services[@]}"
-}
-
-# ------------------------------------------------------------------------------
-# Function: find_sudoers_files
-# Purpose.: Find matching sudoers files
-# Args....: $1 - Pattern to match
-# Returns.: 0 on success
-# Output..: Matching file paths to stdout
-# ------------------------------------------------------------------------------
-# Find sudoers files
-find_sudoers_files() {
-    local pattern="$1"
-    find /etc/sudoers.d/ -type f -name "*datasafe*" 2> /dev/null | grep -E "$pattern" || true
-}
-
-# ------------------------------------------------------------------------------
-# Function: find_readme_files
-# Purpose.: Find connector README files
-# Args....: $1 - Base directory (optional)
-# Returns.: 0 on success
-# Output..: Matching file paths to stdout
-# ------------------------------------------------------------------------------
-# Find README files
-find_readme_files() {
-    local base="${1:-/appl/oracle/product/dsconnect}"
-    find "$base" -type f -name "SERVICE_README.md" 2> /dev/null || true
+discover_installed_services() {
+    systemctl list-unit-files 'oracle_datasafe_*.service' --no-legend 2>/dev/null \
+        | awk '{print $1}' || true
 }
 
 # ------------------------------------------------------------------------------
 # Function: list_services
-# Purpose.: List installed services and related files
-# Args....: None
-# Returns.: 0 on success, 1 when none found
-# Output..: Service listing to stdout
 # ------------------------------------------------------------------------------
-# List services
 list_services() {
-    print_message STEP "Discovering installed Data Safe Connector services"
+    print_message STEP "Installed Data Safe Connector services"
     echo
 
-    local -a services
-    mapfile -t services < <(discover_services)
+    local -a services=()
+    while IFS= read -r svc; do
+        [[ -n "${svc}" ]] && services+=("${svc}")
+    done < <(discover_installed_services)
 
     if [[ ${#services[@]} -eq 0 ]]; then
-        print_message INFO "No Data Safe Connector services found"
+        print_message INFO "No Data Safe Connector services installed"
         return 1
     fi
 
-    echo "Found services:"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
     local idx=1
-    for service in "${services[@]}"; do
-        local connector_name="${service#oracle_datasafe_}"
-        connector_name="${connector_name%.service}"
-        local status
-
-        if systemctl is-active "$service" &> /dev/null; then
-            status="${GREEN}ACTIVE${NC}"
+    for svc in "${services[@]}"; do
+        local status_label
+        if systemctl is-active "${svc}" &>/dev/null; then
+            status_label="${GREEN}ACTIVE${NC}"
         else
-            status="${YELLOW}INACTIVE${NC}"
+            status_label="${YELLOW}INACTIVE${NC}"
         fi
-
-        printf "%2d. %-50s [" "$idx" "$service"
-        echo -e "${status}]"
-
-        # Find related files
-        local service_file="/etc/systemd/system/$service"
-        [[ -f "$service_file" ]] && echo "    System service: $service_file"
-
-        # Check for local config
-        local local_config="$CONNECTOR_BASE/${connector_name}/etc/systemd/$service"
-        [[ -f "$local_config" ]] && echo "    Local config:   $local_config"
-
-        local sudoers_file="/etc/sudoers.d/oracle-datasafe-${connector_name}"
-        if [[ ! -f "$sudoers_file" ]]; then
-            sudoers_file="/etc/sudoers.d/*-datasafe-${connector_name}"
-        fi
-        [[ -f "$sudoers_file" ]] && echo "    Sudoers config: $sudoers_file"
-
-        echo
-        idx=$((idx + 1))
+        printf "%2d. %-50s [" "${idx}" "${svc}"
+        echo -e "${status_label}]"
+        [[ -f "/etc/systemd/system/${svc}" ]] && echo "    /etc/systemd/system/${svc}"
+        idx=$(( idx + 1 ))
     done
-
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "Total: ${#services[@]} service(s) found"
-
+    echo "Total: ${#services[@]} service(s)"
     return 0
 }
 
 # ------------------------------------------------------------------------------
-# Function: remove_all_services
-# Purpose.: Remove all Data Safe services from the system
-# Args....: None
-# Returns.: 0 on success
-# Output..: Log messages and summary
-# ------------------------------------------------------------------------------
-# Remove all services
-remove_all_services() {
-    local -a services
-    mapfile -t services < <(discover_services)
-
-    if [[ ${#services[@]} -eq 0 ]]; then
-        print_message INFO "No services to remove"
-        return 0
-    fi
-
-    echo
-    print_message STEP "Removing ${#services[@]} Data Safe Connector service(s)"
-    echo
-
-    if $DRY_RUN; then
-        print_message INFO "DRY-RUN MODE - No changes will be made"
-        echo
-        echo "Would remove:"
-        for service in "${services[@]}"; do
-            echo "  - $service"
-            echo "    /etc/systemd/system/$service"
-
-            local connector_name="${service#oracle_datasafe_}"
-            connector_name="${connector_name%.service}"
-
-            local sudoers_files
-            sudoers_files="$(find_sudoers_files "$connector_name")"
-            if [[ -n "$sudoers_files" ]]; then
-                while IFS= read -r file; do
-                    echo "    $file"
-                done <<< "$sudoers_files"
-            fi
-        done
-        return 0
-    fi
-
-    # Confirm if interactive
-    if $INTERACTIVE && ! $FORCE; then
-        echo "Services to be removed:"
-        for service in "${services[@]}"; do
-            echo "  - $service"
-        done
-        echo
-        read -rp "Remove all these services? [y/N]: " answer
-        if [[ ! "$answer" =~ ^[Yy]$ ]]; then
-            print_message INFO "Operation cancelled"
-            return 0
-        fi
-    fi
-
-    # Remove each service
-    local success_count=0
-    local fail_count=0
-
-    for service in "${services[@]}"; do
-        echo
-        print_message INFO "Removing: $service"
-
-        local connector_name="${service#oracle_datasafe_}"
-        connector_name="${connector_name%.service}"
-
-        # Stop service
-        print_message INFO "Stopping service"
-        stop_service "${service}"
-        print_message SUCCESS "Service stopped"
-
-        # Disable service
-        if systemctl is-enabled "$service" &> /dev/null; then
-            print_message INFO "Disabling service"
-            systemctl disable "$service" 2> /dev/null || true
-        fi
-
-        # Remove service file
-        local service_file="/etc/systemd/system/$service"
-        if [[ -f "$service_file" ]]; then
-            print_message INFO "Removing service file"
-            rm -f "$service_file"
-        fi
-
-        # Remove sudoers files
-        local sudoers_files
-        sudoers_files="$(find_sudoers_files "$connector_name")"
-        if [[ -n "$sudoers_files" ]]; then
-            print_message INFO "Removing sudoers configuration"
-            while IFS= read -r file; do
-                rm -f "$file"
-            done <<< "$sudoers_files"
-        fi
-
-        # Remove README (optional, might want to keep)
-        # Commenting out to preserve documentation
-        # local readme_pattern="*${connector_name}*/SERVICE_README.md"
-        # find /appl/oracle/product/dsconnect -type f -path "$readme_pattern" -delete 2>/dev/null || true
-
-        print_message SUCCESS "Removed: $service"
-        success_count=$((success_count + 1))
-    done
-
-    # Reload systemd
-    print_message INFO "Reloading systemd daemon"
-    systemctl daemon-reload
-
-    # Summary
-    echo
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    print_message SUCCESS "Uninstallation Complete"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo
-    echo "Services removed: $success_count"
-    [[ $fail_count -gt 0 ]] && echo "Failed: $fail_count"
-    echo
-    print_message INFO "Original connector installations preserved"
-    print_message INFO "Local configuration files preserved in connector etc/ directories"
-    print_message INFO "To reinstall: sudo install_datasafe_service.sh --install -n <connector>"
-}
-
-# ------------------------------------------------------------------------------
 # Function: parse_arguments
-# Purpose.: Parse command-line arguments
-# Args....: $@ - All command-line arguments
-# Returns.: 0 on success, exits on error
-# Output..: Sets global flags
 # ------------------------------------------------------------------------------
-# Parse arguments
 parse_arguments() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            -l | --list)
-                LIST_ONLY=true
-                shift
-                ;;
-            -u | --uninstall)
-                UNINSTALL_MODE=true
-                shift
-                ;;
-            -f | --force)
-                FORCE=true
-                INTERACTIVE=false
-                shift
-                ;;
-            -d | --dry-run)
-                DRY_RUN=true
-                shift
-                ;;
-            --no-color)
-                USE_COLOR=false
-                shift
-                ;;
-            -h | --help)
-                usage
-                ;;
+            -l | --list)      LIST_ONLY=true; shift ;;
+            -u | --uninstall) UNINSTALL_MODE=true; shift ;;
+            -f | --force)     FORCE=true; shift ;;
+            -d | --dry-run)   DRY_RUN=true; shift ;;
+            --no-color)       USE_COLOR=false; shift ;;
+            -h | --help)      usage ;;
             *)
                 print_message ERROR "Unknown option: $1"
                 echo "Use --help for usage information"
@@ -509,7 +172,6 @@ parse_arguments() {
         esac
     done
 
-    # Default to list mode if no mode specified
     if ! $LIST_ONLY && ! $UNINSTALL_MODE; then
         LIST_ONLY=true
     fi
@@ -517,30 +179,92 @@ parse_arguments() {
 
 # ------------------------------------------------------------------------------
 # Function: main
-# Purpose.: Main entry point
-# Args....: $@ - All command-line arguments
-# Returns.: 0 on success, exits on error
-# Output..: Log messages
 # ------------------------------------------------------------------------------
-# Main
 main() {
     parse_arguments "$@"
     init_colors
-    check_root
 
-    if ! list_services; then
+    if ! [[ -x "${INSTALLER}" ]]; then
+        print_message ERROR "Installer not found or not executable: ${INSTALLER}"
+        exit 1
+    fi
+
+    if $LIST_ONLY; then
+        list_services || true
+        if $UNINSTALL_MODE; then echo; fi
+    fi
+
+    if ! $UNINSTALL_MODE; then
+        echo
+        print_message INFO "To uninstall services, run: sudo $SCRIPT_NAME --uninstall"
         exit 0
     fi
 
-    # Only proceed with uninstall if requested
-    if $UNINSTALL_MODE; then
-        echo
-        remove_all_services
-    else
-        # List mode - show helpful message
-        echo
-        print_message INFO "To uninstall services, run: sudo $SCRIPT_NAME --uninstall"
+    # Require root for uninstall
+    if [[ $EUID -ne 0 ]] && ! $DRY_RUN; then
+        print_message ERROR "--uninstall requires root privileges"
+        print_message INFO "Run: sudo $SCRIPT_NAME --uninstall"
+        exit 1
     fi
+
+    local -a services=()
+    while IFS= read -r svc; do
+        [[ -n "${svc}" ]] && services+=("${svc}")
+    done < <(discover_installed_services)
+
+    if [[ ${#services[@]} -eq 0 ]]; then
+        print_message INFO "No Data Safe Connector services to uninstall"
+        exit 0
+    fi
+
+    # Confirm unless --force or --dry-run
+    if ! $FORCE && ! $DRY_RUN; then
+        echo
+        echo "Services to be removed:"
+        for svc in "${services[@]}"; do echo "  - ${svc}"; done
+        echo
+        local answer
+        read -rp "Remove all these services? [y/N]: " answer
+        if [[ ! "$answer" =~ ^[Yy]$ ]]; then
+            print_message INFO "Operation cancelled"
+            exit 0
+        fi
+    fi
+
+    # Build extra args to pass through to installer
+    local -a extra_args=(--yes)
+    $DRY_RUN && extra_args+=(--dry-run)
+    [[ "$USE_COLOR" == "false" ]] && extra_args+=(--no-color)
+
+    local -a ok_list=() fail_list=()
+
+    for svc in "${services[@]}"; do
+        local conn="${svc#oracle_datasafe_}"
+        conn="${conn%.service}"
+        echo
+        print_message STEP "Uninstalling: ${svc}"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+        local rc=0
+        if "${INSTALLER}" --uninstall -n "${conn}" "${extra_args[@]}"; then
+            ok_list+=("${conn}")
+        else
+            rc=$?
+            fail_list+=("${conn}")
+            print_message WARNING "Failed (exit ${rc}): ${conn}"
+        fi
+    done
+
+    echo
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    print_message STEP "Uninstall Summary"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    for c in "${ok_list[@]+"${ok_list[@]}"}"; do print_message SUCCESS "${c}"; done
+    for c in "${fail_list[@]+"${fail_list[@]}"}"; do print_message ERROR "${c} (FAILED)"; done
+    echo
+    print_message INFO "Total: ${#services[@]}  OK: ${#ok_list[@]}  FAILED: ${#fail_list[@]}"
+
+    [[ ${#fail_list[@]} -eq 0 ]] || exit 1
 }
 
 main "$@"

@@ -311,10 +311,10 @@ CMANORA
     [[ "$output" == *"not found"* ]] || [[ "$output" == *"ERROR"* ]]
 }
 
-# REG-003: --install detects User= mismatch and auto-regenerates with correct user
+# REG-003: --install warns when --user CLI arg differs from User= in prepared service file
 # Scenario: --prepare runs with --user oracle; --install runs with --user datasafe;
-#           script emits a WARNING and regenerates so service file has User=datasafe.
-@test "REG-003: install warns on User= mismatch and regenerates service file" {
+#           script emits a WARNING; no auto-regeneration (two-phase workflow enforced).
+@test "REG-003: install warns when --user differs from prepared service file User=" {
     # Prepare with user "oracle"
     run "$SCRIPT_PATH" \
         --base "$CONNECTOR_BASE" \
@@ -339,10 +339,11 @@ CMANORA
         --install --dry-run --yes --no-color
 
     [ "$status" -eq 0 ]
-    # Must warn about the mismatch and show the new user in the plan output
-    # (dry-run: prepare_service does not write files; file on disk keeps User=oracle)
-    [[ "$output" == *"datasafe"* ]] || [[ "$output" == *"WARNING"* ]]
-    [[ "$output" == *"User=oracle"* ]] || [[ "$output" == *"user"* ]]
+    # Must warn about the mismatch; no auto-regeneration
+    [[ "$output" == *"WARNING"* ]]
+    [[ "$output" == *"datasafe"* ]]
+    # Service file on disk must still have User=oracle (no auto-regeneration)
+    grep -q "User=oracle" "$svc_file"
 }
 
 # REG-004: --install warns when sudoers file is missing

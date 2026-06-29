@@ -80,6 +80,13 @@ Copy prepared configs to system locations:
 sudo ./install_datasafe_service.sh --install -n my-connector
 ```
 
+> **Note:** When running `--install`, `--uninstall`, or `--check` as root,
+> `JAVA_HOME` and CMAN directory validation are skipped. The installer reads
+> `OS_USER` and `OS_GROUP` directly from the prepared service file, so no
+> environment variables need to be passed via `sudo -E`. If `--user` is given
+> on the CLI and differs from the `User=` field in the prepared file, a warning
+> is emitted. Re-run `--prepare` with the desired `--user` to change the OS user.
+
 This copies files to:
 
 - `/etc/systemd/system/oracle_datasafe_<name>.service`
@@ -237,6 +244,8 @@ ${DATASAFE_BASE}/ds_database_prereqs.sh --all -P "<password>"
     --prepare             Prepare service files as oracle user (first phase)
     --install             Install prepared service files as root (second phase)
     --uninstall           Uninstall service and clean up files
+    --all                 Batch-process all discovered connectors; implies -y;
+                          mutually exclusive with -n/--connector
 
 -y, --yes                 Non-interactive mode (use defaults/provided values)
 -d, --dry-run             Show what would be done without making changes
@@ -439,11 +448,23 @@ sudo install_datasafe_service.sh --connector my-connector --yes
 
 ### Install Multiple Connectors
 
-```bash
-# Install connector 1
-sudo install_datasafe_service.sh -n connector1 -y
+Use `--all` to batch-process every discovered connector in one command:
 
-# Install connector 2
+```bash
+# Prepare all connectors (as oracle user)
+./install_datasafe_service.sh --prepare --all
+
+# Install all prepared connectors (as root)
+sudo ./install_datasafe_service.sh --install --all
+
+# Check all installed connectors
+sudo ./install_datasafe_service.sh --check --all
+```
+
+Or install connectors individually:
+
+```bash
+sudo install_datasafe_service.sh -n connector1 -y
 sudo install_datasafe_service.sh -n connector2 -y
 
 # Check all services
