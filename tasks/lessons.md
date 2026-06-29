@@ -38,3 +38,19 @@ and only after the caller is documented to not parse it.
 `oci_exec` / `oci_exec_ro`, so the wrapper fix covers them en bloc. The
 sibling `oci-datasafe-siem` repo was not affected because its scripts
 already use `2>/dev/null` on every command substitution.
+
+---
+
+## Always use `make format` before commit/tag, not bare `shfmt -w`
+
+**What happened.** `shfmt -w` applied tab indentation (default), but the
+Makefile's `format-check` target runs `shfmt -i 4 -bn -ci -sr -d` (4-space
+indent). Tag `v1.0.1` was created and pushed, CI failed on format-check,
+tag had to be deleted, fix committed, tag recreated.
+
+**Rule.** Never run `shfmt -w` directly. Always use `make format` so the
+project-specific flags (`-i 4 -bn -ci -sr`) are applied. Verify with
+`make format-check` before tagging.
+
+**How to apply.** The pre-release checklist is: `make lint && make format-check
+&& make test` — all three must be green before `git tag`.
