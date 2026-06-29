@@ -346,11 +346,11 @@ CMANORA
     grep -q "User=oracle" "$svc_file"
 }
 
-# REG-004: --install warns when sudoers file is missing
-# Scenario: --prepare runs normally (creates sudoers); file is deleted before
-#           --install --dry-run; script must emit "Sudoers file not found".
-@test "REG-004: install warns when prepared sudoers file is missing" {
-    # Prepare (creates service + sudoers files in CONNECTOR_ETC)
+# REG-004: --install --dry-run shows consolidated sudoers plan
+# Scenario: --prepare runs; --install --dry-run must show the oradba-datasafe
+#           sudoers path and the would-be content (no legacy-file warning).
+@test "REG-004: install dry-run shows consolidated sudoers plan" {
+    # Prepare (creates service file in CONNECTOR_ETC; no local sudoers staged)
     run "$SCRIPT_PATH" \
         --base "$CONNECTOR_BASE" \
         --connector "$TEST_CONNECTOR" \
@@ -360,11 +360,7 @@ CMANORA
 
     [ "$status" -eq 0 ]
 
-    # Delete the sudoers file
-    local sudoers_file="$CONNECTOR_BASE/$TEST_CONNECTOR/etc/systemd/oracle-datasafe-${TEST_CONNECTOR}"
-    rm -f "$sudoers_file"
-
-    # --install --dry-run must still proceed and warn
+    # --install --dry-run must show consolidated sudoers path and content
     run "$SCRIPT_PATH" \
         --base "$CONNECTOR_BASE" \
         --connector "$TEST_CONNECTOR" \
@@ -373,7 +369,8 @@ CMANORA
         --install --dry-run --yes --no-color
 
     [ "$status" -eq 0 ]
-    [[ "$output" == *"Sudoers file not found"* ]] || [[ "$output" == *"udoers"* ]]
+    [[ "$output" == *"oradba-datasafe"* ]]
+    [[ "$output" == *"ORADBA_DATASAFE_CTL"* ]]
 }
 
 # REG-005: --install warns when ExecStart binary does not exist

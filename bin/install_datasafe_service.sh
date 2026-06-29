@@ -72,7 +72,6 @@ ALL_MODE=false
 # Service configuration
 SERVICE_NAME=""
 SERVICE_FILE=""
-SUDOERS_FILE=""
 README_FILE=""
 
 # Colors for output (will be set in init_colors)
@@ -700,56 +699,29 @@ EOF
 
 # ------------------------------------------------------------------------------
 # Function: generate_sudoers_file
-# Purpose.: Generate sudoers file content
+# Purpose.: Generate consolidated sudoers content for all Data Safe connectors
 # Args....: None
 # Returns.: 0 on success
 # Output..: Sudoers file content to stdout
 # ------------------------------------------------------------------------------
-# Generate sudoers file content
 generate_sudoers_file() {
-    # Resolve actual binary paths; fall back to conventional locations
     local systemctl_bin
     systemctl_bin=$(command -v systemctl 2> /dev/null || echo "/usr/bin/systemctl")
-    # Alt is the other conventional path (/bin vs /usr/bin); skip if identical to primary
-    local systemctl_alt
-    [[ "${systemctl_bin}" == "/usr/bin/systemctl" ]] && systemctl_alt="/bin/systemctl" || systemctl_alt="/usr/bin/systemctl"
-    local journalctl_bin
-    journalctl_bin=$(command -v journalctl 2> /dev/null || echo "/usr/bin/journalctl")
-    local journalctl_alt
-    [[ "${journalctl_bin}" == "/usr/bin/journalctl" ]] && journalctl_alt="/bin/journalctl" || journalctl_alt="/usr/bin/journalctl"
     cat << EOF
 # ------------------------------------------------------------------------------
-# Sudo configuration for Oracle Data Safe Connector: $CONNECTOR_NAME
+# Sudo configuration for Oracle Data Safe On-Premises Connectors
 # Generated: $(date)
 # Managed by: $SCRIPT_NAME $SCRIPT_VERSION
+# Grants $OS_USER permission to manage all oracle_datasafe_* services.
 # ------------------------------------------------------------------------------
-# Allow $OS_USER to manage the Data Safe connector service
-$OS_USER ALL=(ALL) NOPASSWD: $systemctl_bin start $SERVICE_NAME
-$OS_USER ALL=(ALL) NOPASSWD: $systemctl_bin stop $SERVICE_NAME
-$OS_USER ALL=(ALL) NOPASSWD: $systemctl_bin restart $SERVICE_NAME
-$OS_USER ALL=(ALL) NOPASSWD: $systemctl_bin reload $SERVICE_NAME
-$OS_USER ALL=(ALL) NOPASSWD: $systemctl_bin status $SERVICE_NAME
-$OS_USER ALL=(ALL) NOPASSWD: $systemctl_bin is-active $SERVICE_NAME
-$OS_USER ALL=(ALL) NOPASSWD: $systemctl_bin is-enabled $SERVICE_NAME
-$OS_USER ALL=(ALL) NOPASSWD: $journalctl_bin --unit=$SERVICE_NAME
+Cmnd_Alias ORADBA_DATASAFE_CTL = \\
+    ${systemctl_bin} start   oracle_datasafe_*.service, \\
+    ${systemctl_bin} stop    oracle_datasafe_*.service, \\
+    ${systemctl_bin} restart oracle_datasafe_*.service, \\
+    ${systemctl_bin} reload  oracle_datasafe_*.service
+
+${OS_USER} ALL=(root) NOPASSWD: ORADBA_DATASAFE_CTL
 EOF
-    # Emit alternate-path entries only if the binary exists at a different path
-    if [[ -x "${systemctl_alt}" ]]; then
-        cat << EOF
-$OS_USER ALL=(ALL) NOPASSWD: $systemctl_alt start $SERVICE_NAME
-$OS_USER ALL=(ALL) NOPASSWD: $systemctl_alt stop $SERVICE_NAME
-$OS_USER ALL=(ALL) NOPASSWD: $systemctl_alt restart $SERVICE_NAME
-$OS_USER ALL=(ALL) NOPASSWD: $systemctl_alt reload $SERVICE_NAME
-$OS_USER ALL=(ALL) NOPASSWD: $systemctl_alt status $SERVICE_NAME
-$OS_USER ALL=(ALL) NOPASSWD: $systemctl_alt is-active $SERVICE_NAME
-$OS_USER ALL=(ALL) NOPASSWD: $systemctl_alt is-enabled $SERVICE_NAME
-EOF
-    fi
-    if [[ -x "${journalctl_alt}" ]]; then
-        cat << EOF
-$OS_USER ALL=(ALL) NOPASSWD: $journalctl_alt --unit=$SERVICE_NAME
-EOF
-    fi
 }
 
 # ------------------------------------------------------------------------------
@@ -875,8 +847,7 @@ ss -tlnp | grep cmgw
 
 - **Service file (local)**: $CONNECTOR_ETC/$SERVICE_NAME
 - **Service file (system)**: /etc/systemd/system/$SERVICE_NAME
-- **Sudo config (local)**: $CONNECTOR_ETC/$OS_USER-datasafe-$CONNECTOR_NAME
-- **Sudo config (system)**: /etc/sudoers.d/$OS_USER-datasafe-$CONNECTOR_NAME
+- **Sudo config (system)**: /etc/sudoers.d/oradba-datasafe (shared, covers all connectors)
 - **CMAN config**: $CMAN_HOME/network/admin/cman.ora
 - **This README**: $README_FILE
 
@@ -918,7 +889,6 @@ prepare_service() {
     # Set service and file names
     SERVICE_NAME="oracle_datasafe_${CONNECTOR_NAME}.service"
     SERVICE_FILE="$CONNECTOR_ETC/$SERVICE_NAME"
-    SUDOERS_FILE="$CONNECTOR_ETC/${OS_USER}-datasafe-${CONNECTOR_NAME}"
     README_FILE="$CONNECTOR_HOME/SERVICE_README.md"
 
     # Ensure etc directory exists
@@ -968,10 +938,10 @@ prepare_service() {
         echo
         echo "Would create:"
         echo "  - $SERVICE_FILE"
-        if ! $SKIP_SUDO; then
-            echo "  - $SUDOERS_FILE"
-        fi
         echo "  - $README_FILE"
+        if ! $SKIP_SUDO; then
+            echo "  - /etc/sudoers.d/oradba-datasafe (installed at --install step)"
+        fi
         echo
         echo "Service file content:"
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -979,7 +949,7 @@ prepare_service() {
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         if ! $SKIP_SUDO; then
             echo
-            echo "Sudoers file content:"
+            echo "Consolidated sudoers content (/etc/sudoers.d/oradba-datasafe):"
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             generate_sudoers_file
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -992,13 +962,8 @@ prepare_service() {
     generate_service_file > "$SERVICE_FILE"
     chmod 644 "$SERVICE_FILE"
 
-    # Create sudoers file (unless skipped)
     if ! $SKIP_SUDO; then
-        print_message INFO "Creating sudoers configuration: $SUDOERS_FILE"
-        generate_sudoers_file > "$SUDOERS_FILE"
-        chmod 600 "$SUDOERS_FILE"
-    else
-        print_message INFO "Skipping sudoers configuration (--skip-sudo)"
+        print_message INFO "Consolidated sudoers will be installed at: /etc/sudoers.d/oradba-datasafe (--install step)"
     fi
 
     # Generate README
@@ -1014,7 +979,7 @@ prepare_service() {
     echo "Configuration files created in: $CONNECTOR_ETC"
     echo "  - $SERVICE_NAME (service definition)"
     if ! $SKIP_SUDO; then
-        echo "  - ${OS_USER}-datasafe-${CONNECTOR_NAME} (sudo config)"
+        echo "  Sudoers: to be installed at /etc/sudoers.d/oradba-datasafe (--install step)"
     fi
     echo
     echo "Documentation: $README_FILE"
@@ -1041,9 +1006,9 @@ install_service() {
     # Set service and file names
     SERVICE_NAME="oracle_datasafe_${CONNECTOR_NAME}.service"
     local local_service="$CONNECTOR_ETC/$SERVICE_NAME"
-    local local_sudoers="$CONNECTOR_ETC/${OS_USER}-datasafe-${CONNECTOR_NAME}"
     local system_service="/etc/systemd/system/$SERVICE_NAME"
-    local system_sudoers="/etc/sudoers.d/${OS_USER}-datasafe-${CONNECTOR_NAME}"
+    local system_sudoers="/etc/sudoers.d/oradba-datasafe"
+    local legacy_sudoers_glob="/etc/sudoers.d/${OS_USER}-datasafe-*"
 
     # Safety net: prepared file must exist (already verified by resolve_install_context)
     if [[ ! -f "$local_service" ]]; then
@@ -1074,12 +1039,13 @@ install_service() {
     if [[ -n "${exec_bin}" ]]; then
         echo "  ExecStart.....: ${exec_bin}"
     fi
-    if [[ -f "$local_sudoers" ]]; then
-        echo "  Sudo config...: $local_sudoers"
-        echo "               -> $system_sudoers"
-    elif ! $SKIP_SUDO; then
-        print_message WARNING "Sudoers file not found: $local_sudoers"
-        print_message INFO "Re-prepare to generate it: $SCRIPT_NAME --prepare -n $CONNECTOR_NAME"
+    if ! $SKIP_SUDO; then
+        if [[ -f "$system_sudoers" ]]; then
+            echo "  Sudo config...: $system_sudoers (already installed - will skip)"
+        else
+            echo "  Sudo config...: $system_sudoers (will install)"
+            echo "  Legacy cleanup: ${legacy_sudoers_glob} (will remove if present)"
+        fi
     fi
     echo
 
@@ -1089,9 +1055,15 @@ install_service() {
         echo
         echo "Would execute:"
         echo "  1. Copy $local_service to $system_service"
-        if [[ -f "$local_sudoers" ]]; then
-            echo "  2. Copy $local_sudoers to $system_sudoers"
-            echo "  3. Validate sudoers syntax"
+        if ! $SKIP_SUDO; then
+            echo "  2. Remove legacy sudoers: ${legacy_sudoers_glob}"
+            if [[ -f "$system_sudoers" ]]; then
+                echo "  3. Skip sudoers install (already present): $system_sudoers"
+            else
+                echo "  3. Validate and install: $system_sudoers"
+                echo "     Content:"
+                generate_sudoers_file | sed 's/^/     /'
+            fi
         fi
         local log_dir_dry="${CONNECTOR_HOME}/log"
         if [[ ! -d "${log_dir_dry}" ]]; then
@@ -1131,19 +1103,31 @@ install_service() {
     cp "$local_service" "$system_service"
     chmod 644 "$system_service"
 
-    # Copy sudoers file if exists
-    if [[ -f "$local_sudoers" ]]; then
-        print_message INFO "Installing sudoers configuration to: $system_sudoers"
-        cp "$local_sudoers" "$system_sudoers"
-        chmod 440 "$system_sudoers"
+    # Install consolidated sudoers (unless skipped)
+    if ! $SKIP_SUDO; then
+        # Remove legacy per-connector sudoers files first
+        local f
+        for f in "/etc/sudoers.d/${OS_USER}"-datasafe-*; do
+            [[ -f "$f" ]] || continue
+            print_message INFO "Removing legacy sudoers file: $f"
+            rm -f "$f"
+        done
 
-        # Validate sudoers syntax
-        if ! visudo -c -f "$system_sudoers" &> /dev/null; then
-            print_message ERROR "Invalid sudoers syntax, removing file"
-            rm -f "$system_sudoers"
-            return 1
+        if [[ -f "$system_sudoers" ]]; then
+            print_message INFO "Consolidated sudoers already present, skipping: $system_sudoers"
+        else
+            local tmp_sudoers
+            tmp_sudoers=$(mktemp)
+            generate_sudoers_file > "$tmp_sudoers"
+            if ! visudo -cf "$tmp_sudoers" > /dev/null 2>&1; then
+                print_message ERROR "Sudoers syntax validation failed; aborting install" >&2
+                rm -f "$tmp_sudoers"
+                return 1
+            fi
+            install -m 0440 -o root -g root "$tmp_sudoers" "$system_sudoers"
+            rm -f "$tmp_sudoers"
+            print_message SUCCESS "Consolidated sudoers installed: $system_sudoers"
         fi
-        print_message SUCCESS "Sudoers configuration validated"
     fi
 
     # Reload systemd
@@ -1199,9 +1183,8 @@ install_service() {
 check_service() {
     SERVICE_NAME="oracle_datasafe_${CONNECTOR_NAME}.service"
     local local_service="$CONNECTOR_ETC/$SERVICE_NAME"
-    local local_sudoers="$CONNECTOR_ETC/${OS_USER}-datasafe-${CONNECTOR_NAME}"
     local system_service="/etc/systemd/system/$SERVICE_NAME"
-    local system_sudoers="/etc/sudoers.d/${OS_USER}-datasafe-${CONNECTOR_NAME}"
+    local system_sudoers="/etc/sudoers.d/oradba-datasafe"
     local readme="$CONNECTOR_HOME/SERVICE_README.md"
 
     echo
@@ -1215,14 +1198,6 @@ check_service() {
         print_message SUCCESS "Exists (prepared)"
     else
         print_message WARNING "Not found - run: $SCRIPT_NAME --prepare -n $CONNECTOR_NAME"
-    fi
-
-    echo
-    echo "  Sudo config: $local_sudoers"
-    if [[ -f "$local_sudoers" ]]; then
-        print_message SUCCESS "Exists"
-    else
-        print_message WARNING "Not found"
     fi
 
     echo
@@ -1323,7 +1298,7 @@ stop_service() {
 uninstall_service() {
     SERVICE_NAME="oracle_datasafe_${CONNECTOR_NAME}.service"
     local system_service="/etc/systemd/system/$SERVICE_NAME"
-    local system_sudoers="/etc/sudoers.d/${OS_USER}-datasafe-${CONNECTOR_NAME}"
+    local legacy_sudoers="/etc/sudoers.d/${OS_USER}-datasafe-${CONNECTOR_NAME}"
 
     print_message STEP "Uninstalling service for connector: $CONNECTOR_NAME"
     echo
@@ -1336,9 +1311,10 @@ uninstall_service() {
     if $DRY_RUN; then
         print_message INFO "DRY-RUN MODE - Would remove:"
         echo "  - $system_service"
-        if [[ -f "$system_sudoers" ]]; then
-            echo "  - $system_sudoers"
+        if [[ -f "$legacy_sudoers" ]]; then
+            echo "  - $legacy_sudoers (legacy per-connector sudoers)"
         fi
+        print_message INFO "Shared sudoers /etc/sudoers.d/oradba-datasafe is retained (covers all connectors)"
         return 0
     fi
 
@@ -1358,10 +1334,14 @@ uninstall_service() {
     print_message INFO "Disabling service"
     systemctl disable "$SERVICE_NAME" 2> /dev/null || true
 
-    # Remove files
+    # Remove service file and any legacy per-connector sudoers
     print_message INFO "Removing service files from system"
     rm -f "$system_service"
-    [[ -f "$system_sudoers" ]] && rm -f "$system_sudoers"
+    if [[ -f "$legacy_sudoers" ]]; then
+        print_message INFO "Removing legacy sudoers file: $legacy_sudoers"
+        rm -f "$legacy_sudoers"
+    fi
+    print_message INFO "Shared sudoers /etc/sudoers.d/oradba-datasafe retained (covers all connectors)"
 
     # Reload systemd
     print_message INFO "Reloading systemd daemon"
