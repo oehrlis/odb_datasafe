@@ -36,6 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `tests/install_datasafe_service.bats`: REG-003 updated to verify that
   `--install` warns when `--user` differs from prepared service file `User=`
   (auto-regeneration behaviour removed)
+- `bin/install_datasafe_service.sh`, `bin/uninstall_all_datasafe_services.sh`:
+  applied `shfmt -i 4` formatting to pass CI format-check
 
 ## [1.0.0] - 2026-06-28
 
