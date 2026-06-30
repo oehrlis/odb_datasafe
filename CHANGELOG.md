@@ -6,6 +6,21 @@ All notable changes to the OraDBA Data Safe Extension will be documented in this
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `bin/install_datasafe_service.sh` `generate_sudoers_file()`: added `enable` and
+  `disable` to `ORADBA_DATASAFE_CTL` alias; added second alias
+  `ORADBA_DATASAFE_ADMIN` granting NOPASSWD for `install_datasafe_service.sh` and
+  `uninstall_all_datasafe_services.sh`; bin path resolved at generation time via
+  `BASH_SOURCE[0]`.
+- `doc/runbook-datasafe-services.md`: new runbook covering architecture, service
+  installation workflow, all three management interfaces (oradba_dsctl.sh,
+  systemctl, oraup/u), sudoers configuration, service lifecycle, and
+  troubleshooting (systemd state mismatch, set-e status bug, port-based checks,
+  log access).
+
 ## [1.0.3] - 2026-06-29
 
 ### Changed

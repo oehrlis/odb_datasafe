@@ -706,21 +706,31 @@ EOF
 # ------------------------------------------------------------------------------
 generate_sudoers_file() {
     local systemctl_bin
-    systemctl_bin=$(command -v systemctl 2> /dev/null || echo "/usr/bin/systemctl")
+    systemctl_bin=$(command -v systemctl 2>/dev/null || echo "/usr/bin/systemctl")
+    local odb_bin
+    odb_bin="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     cat << EOF
 # ------------------------------------------------------------------------------
 # Sudo configuration for Oracle Data Safe On-Premises Connectors
 # Generated: $(date)
 # Managed by: $SCRIPT_NAME $SCRIPT_VERSION
-# Grants $OS_USER permission to manage all oracle_datasafe_* services.
+# Grants $OS_USER permission to manage all oracle_datasafe_* services
+# and to run the install/uninstall scripts.
 # ------------------------------------------------------------------------------
 Cmnd_Alias ORADBA_DATASAFE_CTL = \\
     ${systemctl_bin} start   oracle_datasafe_*.service, \\
     ${systemctl_bin} stop    oracle_datasafe_*.service, \\
     ${systemctl_bin} restart oracle_datasafe_*.service, \\
-    ${systemctl_bin} reload  oracle_datasafe_*.service
+    ${systemctl_bin} reload  oracle_datasafe_*.service, \\
+    ${systemctl_bin} enable  oracle_datasafe_*.service, \\
+    ${systemctl_bin} disable oracle_datasafe_*.service
+
+Cmnd_Alias ORADBA_DATASAFE_ADMIN = \\
+    ${odb_bin}/install_datasafe_service.sh, \\
+    ${odb_bin}/uninstall_all_datasafe_services.sh
 
 ${OS_USER} ALL=(root) NOPASSWD: ORADBA_DATASAFE_CTL
+${OS_USER} ALL=(root) NOPASSWD: ORADBA_DATASAFE_ADMIN
 EOF
 }
 
