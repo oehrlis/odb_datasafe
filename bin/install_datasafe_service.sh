@@ -706,7 +706,7 @@ EOF
 # ------------------------------------------------------------------------------
 generate_sudoers_file() {
     local systemctl_bin
-    systemctl_bin=$(command -v systemctl 2>/dev/null || echo "/usr/bin/systemctl")
+    systemctl_bin=$(command -v systemctl 2> /dev/null || echo "/usr/bin/systemctl")
     local odb_bin
     odb_bin="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     cat << EOF
