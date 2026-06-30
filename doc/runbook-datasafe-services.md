@@ -156,7 +156,7 @@ systemctl list-unit-files "oracle_datasafe_*.service"
 `/etc/sudoers.d/oradba-datasafe` is a shared file covering all connectors.
 It is installed once and not removed on per-connector uninstall.
 
-```
+```text
 # /etc/sudoers.d/oradba-datasafe
 Cmnd_Alias ORADBA_DATASAFE_CTL = \
     /usr/bin/systemctl start   oracle_datasafe_*.service, \
