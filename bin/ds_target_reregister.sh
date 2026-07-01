@@ -690,24 +690,25 @@ compute_new_db_details() {
     local pdb_name="${NEW_PDB:-$CUR_PDB}"
     local patch="{}"
 
-    # New cluster OCID
+    # New cluster OCID — use kebab-case to match OCI response format so jq '. + $patch'
+    # overwrites the existing key instead of adding a duplicate camelCase key alongside it
     if [[ -n "$CLUSTER_OCID" ]]; then
-        patch=$(printf '%s' "$patch" | jq --arg v "$CLUSTER_OCID" '. + {vmClusterId: $v}')
+        patch=$(printf '%s' "$patch" | jq --arg v "$CLUSTER_OCID" '. + {"vm-cluster-id": $v}')
     fi
 
     # New PDB OCID
     if [[ -n "$PLUGGABLE_DB_OCID" ]]; then
-        patch=$(printf '%s' "$patch" | jq --arg v "$PLUGGABLE_DB_OCID" '. + {pluggableDatabaseId: $v}')
+        patch=$(printf '%s' "$patch" | jq --arg v "$PLUGGABLE_DB_OCID" '. + {"pluggable-database-id": $v}')
     fi
 
     # Explicit service name
     if [[ -n "$NEW_SERVICE" ]]; then
-        patch=$(printf '%s' "$patch" | jq --arg v "$NEW_SERVICE" '. + {serviceName: $v}')
+        patch=$(printf '%s' "$patch" | jq --arg v "$NEW_SERVICE" '. + {"service-name": $v}')
     fi
 
     # Port
     if [[ -n "$NEW_PORT" ]]; then
-        patch=$(printf '%s' "$patch" | jq --argjson v "$NEW_PORT" '. + {listenerPort: $v}')
+        patch=$(printf '%s' "$patch" | jq --argjson v "$NEW_PORT" '. + {"listener-port": $v}')
     fi
 
     # --from-oci: query OCI PDB for service name and port
@@ -718,7 +719,7 @@ compute_new_db_details() {
             IFS='|' read -r oci_service oci_port <<< "$oci_result"
             log_info "OCI PDB connection: service='$oci_service' port='$oci_port'"
             patch=$(printf '%s' "$patch" | jq --arg s "$oci_service" --argjson p "$oci_port" \
-                '. + {serviceName: $s, listenerPort: $p}')
+                '. + {"service-name": $s, "listener-port": $p}')
         else
             log_warn "OCI PDB lookup failed for '$pdb_name' — service/port unchanged"
         fi

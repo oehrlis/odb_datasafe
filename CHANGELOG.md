@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.6] - 2026-07-01
+
+### Fixed
+
+- `bin/ds_target_reregister.sh`: fixed `compute_new_db_details()` using camelCase
+  patch keys (`vmClusterId`, `serviceName`, `listenerPort`) while OCI returns
+  kebab-case (`vm-cluster-id`, `service-name`, `listener-port`). The `jq '. + $patch'`
+  merge added duplicate keys with conflicting values instead of overwriting, causing
+  OCI CLI to reject the `--database-details` JSON with exit 1.
+
 ## [1.0.5] - 2026-07-01
 
 ### Fixed
