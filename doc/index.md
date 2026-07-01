@@ -21,8 +21,9 @@ The `odb_datasafe` extension provides a complete framework for working with Orac
 
 - **[Project README](../README.md)** - Top-level overview and common workflows
 - **[Quick Reference](quickref.md)** - Fast reference for all commands
+- **[Quick Reference (Root Admin)](quickref_root_admin.md)** - Cheatsheet for Unix/root admins
 - **[Standalone Usage](standalone_usage.md)** - Run `odb_datasafe` directly from its folder
-- **[Installation Guide](install_datasafe_service.md)** - Setup instructions
+- **[Service Installer Guide](install_datasafe_service.md)** - Install connectors as systemd services
 - **[Troubleshooting Guide](troubleshooting.md)** - Health overview and actions
 - **[Database Prereqs](database_prereqs.md)** - On-prem DB preparation
 - **[IAM Policies Guide](oci-iam-policies.md)** - Required OCI permissions
@@ -335,12 +336,21 @@ bin/ds_target_move.sh -T mydb01 -c new_compartment
 
 ### Service Management
 
+Two-phase workflow: DBA prepares (no root), then root installs.
+
 ```bash
-# Install connector service
-bin/install_datasafe_service.sh
+# Phase 1: Prepare service config (as oracle user)
+bin/install_datasafe_service.sh --list
+bin/install_datasafe_service.sh --prepare -n <connector-name>
+
+# Phase 2: Install, enable, and start service (as root)
+sudo bin/install_datasafe_service.sh --install -n <connector-name>
+
+# Check status (no root)
+bin/install_datasafe_service.sh --check -n <connector-name>
 
 # Uninstall all connector services
-bin/uninstall_all_datasafe_services.sh
+sudo bin/uninstall_all_datasafe_services.sh --uninstall
 ```
 
 ## For More Information
@@ -359,7 +369,7 @@ Notes:
 - With `--apply`, OCI updates use `--force` by default for non-interactive execution.
 - Use `--no-force` if you explicitly want OCI confirmation prompts.
 
-- 🔧 **[Installation Guide](install_datasafe_service.md)** - Connector installation and setup
+- 🔧 **[Service Installer Guide](install_datasafe_service.md)** - Connector installation, management, and operations
 - 🔐 **[IAM Policies Guide](oci-iam-policies.md)** - Required OCI permissions
 - 📋 **[Release Notes](release_notes/)** - Version history and migration guides
 - 📝 **[CHANGELOG](../CHANGELOG.md)** - Detailed change log

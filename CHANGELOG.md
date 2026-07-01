@@ -15,11 +15,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ORADBA_DATASAFE_ADMIN` granting NOPASSWD for `install_datasafe_service.sh` and
   `uninstall_all_datasafe_services.sh`; bin path resolved at generation time via
   `BASH_SOURCE[0]`.
-- `doc/runbook-datasafe-services.md`: new runbook covering architecture, service
-  installation workflow, all three management interfaces (oradba_dsctl.sh,
-  systemctl, oraup/u), sudoers configuration, service lifecycle, and
-  troubleshooting (systemd state mismatch, set-e status bug, port-based checks,
-  log access).
+- `doc/quickref_root_admin.md`: new one-page cheatsheet for Unix/root admins covering
+  install, uninstall, status, and service control commands; replaces the old
+  `quickstart_root_admin.md`.
+
+### Changed
+
+- `doc/install_datasafe_service.md`: complete rewrite as comprehensive DBA reference -
+  two-phase model overview table, directory structure, Phase 1 Prepare and Phase 2 Install
+  sections with exact step lists, dedicated Sudo Configuration section (consolidated
+  `/etc/sudoers.d/oradba-datasafe` model and DBA self-service workflow), Service
+  Management, Uninstall, oradba_dsctl.sh integration, Options Reference table,
+  Environment Variables table, and Troubleshooting (5 scenarios); absorbs content
+  from the deleted runbook.
+- `doc/index.md`: documentation section updated to reference `quickref_root_admin.md`
+  and revised `install_datasafe_service.md`; Service Management quick example updated
+  to show two-phase workflow.
+
+### Removed
+
+- `doc/quickstart_root_admin.md`: replaced by `quickref_root_admin.md`.
+- `doc/runbook-datasafe-services.md`: operational and troubleshooting content absorbed
+  into the rewritten `install_datasafe_service.md`.
 
 ## [1.0.3] - 2026-06-29
 

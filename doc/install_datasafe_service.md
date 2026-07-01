@@ -1,656 +1,396 @@
 # Oracle Data Safe Connector Service Installer
 
-## Features
+Comprehensive guide for installing and managing Oracle Data Safe On-Premises Connectors
+as systemd services using `install_datasafe_service.sh`.
 
-- ✅ **Two-Phase Workflow**: Prepare configs as oracle user, install as root
-- ✅ **Auto-discovery**: Automatically discovers available connectors
-- ✅ **Interactive Mode**: Guided prompts for easy setup
-- ✅ **Non-interactive Mode**: Full CLI support for automation
-- ✅ **Dry-run Mode**: Preview changes before applying
-- ✅ **Multiple Connectors**: Each connector gets a unique service
-- ✅ **Auto-configuration**: Detects CMAN instance name from cman.ora
-- ✅ **Sudo Integration**: Configures sudo for non-root management
-- ✅ **Local Config Storage**: Configs saved in connector etc/ directory
-- ✅ **Documentation**: Generates README for each connector
-- ✅ **Validation**: Comprehensive checks before installation
-- ✅ **Service Management**: Start, stop, check, install, and uninstall services
+## Overview
 
-## Requirements
+The installer uses a two-phase model to separate concerns between the DBA (who owns
+the connector files) and the root/system admin (who controls systemd and sudoers).
 
-- **Prepare Phase**: No special privileges (works as oracle/oradba user)
-- **Install Phase**: Root access required
-- **Uninstall Phase**: Root access required
-- **Systemd**: Linux system with systemd
-- **Oracle Data Safe Connector**: Already installed
-- **Standard directory structure**:
+| Phase       | Who                       | What                                                                            |
+|-------------|---------------------------|---------------------------------------------------------------------------------|
+| 1 - Prepare | oracle user (no root)     | Generates service unit and README in connector `etc/` directory                 |
+| 2 - Install | root or oracle with sudo  | Copies unit to `/etc/systemd/system/`, installs sudoers, enables and starts     |
+| - Uninstall | root or oracle with sudo  | Stops, disables, and removes service unit; preserves shared sudoers file        |
 
-  ```text
-  $ORACLE_BASE/product/
-  ├── jdk/                          # Java Development Kit
-  └── <connector-name>/             # One or more connectors (e.g., dsconnect)
-      ├── oracle_cman_home/
-      │   ├── bin/cmctl
-      │   └── network/admin/cman.ora
-      ├── etc/
-      │   └── systemd/              # Generated configs (prepare phase)
-      └── log/
-  ```
+Once the sudoers file is installed (after the first `--install`), the oracle user can
+run `--prepare`, `--install`, and `--uninstall` without root shell access.
 
-## Installation
-
-1. Copy the script to your system:
-
-   ```bash
-   cp install_datasafe_service.sh /usr/local/sbin/
-   chmod +x /usr/local/sbin/install_datasafe_service.sh
-   ```
-
-2. Or run directly from the repository:
-
-   ```bash
-   ./bin/install_datasafe_service.sh
-   ```
-
-## Two-Phase Workflow
-
-### Phase 1: Prepare (as oracle/oradba user)
-
-Generate service configuration files in the connector's etc directory:
-
-```bash
-# Interactive mode
-./install_datasafe_service.sh --prepare
-
-# Or specify connector
-./install_datasafe_service.sh --prepare -n my-connector
-```
-
-This creates:
-
-- `$CONNECTOR_HOME/etc/systemd/oracle_datasafe_<name>.service`
-- `$CONNECTOR_HOME/etc/systemd/<user>-datasafe-<name>` (sudo config)
-- `$CONNECTOR_HOME/SERVICE_README.md` (documentation)
-
-### Phase 2: Install (as root)
-
-Copy prepared configs to system locations:
-
-```bash
-# Install to system
-sudo ./install_datasafe_service.sh --install -n my-connector
-```
-
-> **Note:** When running `--install`, `--uninstall`, or `--check` as root,
-> `JAVA_HOME` and CMAN directory validation are skipped. The installer reads
-> `OS_USER` and `OS_GROUP` directly from the prepared service file, so no
-> environment variables need to be passed via `sudo -E`. If `--user` is given
-> on the CLI and differs from the `User=` field in the prepared file, a warning
-> is emitted. Re-run `--prepare` with the desired `--user` to change the OS user.
-
-This copies files to:
-
-- `/etc/systemd/system/oracle_datasafe_<name>.service`
-- `/etc/sudoers.d/<user>-datasafe-<name>`
-
-And starts the service.
-
-## Usage
-
-### Quick Start (Interactive)
-
-**As oracle user** - prepare configuration:
-
-```bash
-./install_datasafe_service.sh
-# or explicitly:
-./install_datasafe_service.sh --prepare
-```
-
-**As root** - install to system:
-
-```bash
-sudo ./install_datasafe_service.sh --install -n my-connector
-```
-
-### List Available Connectors (No Root Needed)
-
-```bash
-./install_datasafe_service.sh --list
-```
-
-Example output:
+## Directory Structure
 
 ```text
-Available connectors:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- 1. ds-conn-oradba-prod                              [NOT INSTALLED]
-    Path: /appl/oracle/product/dsconnect/ds-conn-oradba-prod
-    CMAN: oradba_cman
-
- 2. ds-conn-oradba-test                              [INSTALLED]
-    Path: /appl/oracle/product/dsconnect/ds-conn-oradba-test
-    CMAN: test_cman
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Total: 2 connector(s) found
+$ORACLE_BASE/product/
+├── jdk/                                        # Java Development Kit
+└── <connector-name>/                           # Connector directory (one per connector)
+    ├── oracle_cman_home/
+    │   ├── bin/cmctl
+    │   └── network/admin/cman.ora
+    ├── etc/
+    │   └── systemd/
+    │       └── oracle_datasafe_<name>.service  # Generated by --prepare
+    ├── log/
+    └── SERVICE_README.md                       # Generated by --prepare
 ```
 
-### Non-Interactive Installation
-
-Install a specific connector:
-
-```bash
-sudo install_datasafe_service.sh \
-  --connector ds-conn-oradba-prod \
-  --yes
-```
-
-With custom configuration:
-
-```bash
-sudo install_datasafe_service.sh \
-  --connector my-connector \
-  --user oracle \
-  --group dba \
-  --java-home /opt/java/jdk \
-  --yes
-```
-
-### Dry-Run Mode
-
-Preview what would be done without making changes:
-
-```bash
-sudo install_datasafe_service.sh \
-  --connector my-connector \
-  --dry-run
-```
-
-### Check Service Status
-
-```bash
-sudo install_datasafe_service.sh \
-  --connector my-connector \
-  --check
-```
-
-### Remove Service
-
-```bash
-sudo install_datasafe_service.sh \
-  --connector my-connector \
-  --uninstall
-```
-
-## Configure On-Premises Databases for Data Safe
-
-Use `ds_database_prereqs.sh` to create/update the Data Safe profile, user, and
-grants directly on the database host. This script runs locally (no SSH) and
-expects the Oracle environment to be sourced before execution.
-
-### Requirements
-
-- `ds_database_prereqs.sh` must be available on the DB server
-- SQL files are required unless you use `--embedded`
-- `ORACLE_SID` and `ORACLE_HOME` must be set (for example via `oraenv`)
-
-### Example Workflow
-
-```bash
-# Base directory on the DB host.
-# In OraDBA mode, ODB_DATASAFE_BASE is set automatically.
-export DATASAFE_BASE="${ODB_DATASAFE_BASE:-${ORACLE_BASE}/local/datasafe}"
-
-# Copy script to the database host (embedded payload)
-scp bin/ds_database_prereqs.sh oracle@dbhost:${DATASAFE_BASE}/
-ssh oracle@dbhost chmod 755 ${DATASAFE_BASE}/ds_database_prereqs.sh
-
-# Copy script + SQL files (external SQL files)
-scp bin/ds_database_prereqs.sh sql/*.sql oracle@dbhost:${DATASAFE_BASE}/
-ssh oracle@dbhost chmod 755 ${DATASAFE_BASE}/ds_database_prereqs.sh
-
-# Log in to the DB host and source environment
-ssh oracle@dbhost
-export ORACLE_SID=cdb01
-. oraenv <<< "${ORACLE_SID}" >/dev/null
-
-# Run for CDB$ROOT
-${DATASAFE_BASE}/ds_database_prereqs.sh --root -P "<password>"
-
-# Run for CDB$ROOT with embedded SQL
-${DATASAFE_BASE}/ds_database_prereqs.sh --root --embedded -P "<password>"
-
-# Run for all open PDBs + root
-${DATASAFE_BASE}/ds_database_prereqs.sh --all -P "<password>"
-```
-
-### Environment Sourcing Options
-
-- `oraenv` (Oracle standard)
-- Trivadis `basenv`
-- `dbstar`
-- OraDBA environment loader
-
-## Command-Line Options
+System locations (managed by `--install`):
 
 ```text
--n, --connector <name>    Connector name (directory name under base path)
--b, --base <path>         Connector base directory (default: $ORACLE_BASE/product)
--u, --user <user>         OS user for service (default: oracle)
--g, --group <group>       OS group for service (default: dba)
--j, --java-home <path>    JAVA_HOME path (default: $ORACLE_BASE/product/jdk)
-
--l, --list                List all available connectors
--c, --check               Check if service is installed for connector
-    --prepare             Prepare service files as oracle user (first phase)
-    --install             Install prepared service files as root (second phase)
-    --uninstall           Uninstall service and clean up files
-    --all                 Batch-process all discovered connectors; implies -y;
-                          mutually exclusive with -n/--connector
-
--y, --yes                 Non-interactive mode (use defaults/provided values)
--d, --dry-run             Show what would be done without making changes
--v, --verbose             Verbose output
--h, --help                Show this help message
+/etc/systemd/system/oracle_datasafe_<name>.service   # copied from connector etc/
+/etc/sudoers.d/oradba-datasafe                        # shared, installed once
+/var/log/oracle/                                      # log directory created
 ```
 
-## Environment Variables
+## Phase 1 - Prepare (oracle user, no root)
 
-Override defaults using environment variables:
+Run as the oracle user to generate service configuration files.
 
 ```bash
-export CONNECTOR_BASE="/custom/path/to/connectors"
-export ORADBA_BASE="/opt/oradba"   # default: ${ORADBA_PREFIX:-/opt/oradba}
-export OS_USER="oracle"
-export OS_GROUP="dba"
-export JAVA_HOME="/opt/java/jdk"
+# List available connectors (shows install state)
+install_datasafe_service.sh --list
 
-sudo -E install_datasafe_service.sh
+# Prepare a specific connector
+install_datasafe_service.sh --prepare -n exacc-wob-vwg-ha3
+
+# Prepare all discovered connectors
+install_datasafe_service.sh --prepare --all
+
+# Preview what will be generated (no changes)
+install_datasafe_service.sh --prepare -n exacc-wob-vwg-ha3 --dry-run
+
+# Check current install state
+install_datasafe_service.sh --check -n exacc-wob-vwg-ha3
+install_datasafe_service.sh --check --all
 ```
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `CONNECTOR_BASE` | `${ORACLE_BASE:-/u01/app/oracle}/product` | Base directory containing connector subdirectories |
-| `ORADBA_BASE` | `${ORADBA_PREFIX:-/opt/oradba}` | OraDBA installation root; used to locate `oradba_dsctl.sh` and `oradba_homes.conf` |
-| `OS_USER` | `oracle` | OS user that owns the service |
-| `OS_GROUP` | `dba` | OS group for the service |
-| `JAVA_HOME` | `${ORACLE_BASE:-/u01/app/oracle}/product/jdk` | Java installation for the connector |
+Generated per connector:
 
-**Note:** When the connector is not found at `CONNECTOR_BASE`, the installer probes
-candidate paths (`/appl/oracle/product`, `/u01/app/oracle/product`, etc.) automatically
-via `find_connector_base()`.
+- `<connector-home>/etc/systemd/oracle_datasafe_<name>.service`
+- `<connector-home>/SERVICE_README.md`
 
-## What Gets Installed
+> Note: `JAVA_HOME` and CMAN directory validation run only during `--prepare`.
+> `--install`, `--uninstall`, and `--check` skip those checks. `OS_USER` and
+> `OS_GROUP` are read directly from the prepared service file - no `sudo -E` needed.
 
-For each connector, the script creates:
+## Phase 2 - Install (root or oracle with sudo)
 
-### 1. Systemd Service File
+Copy prepared configuration to system locations and start the service.
 
-Location: `/etc/systemd/system/oracle_datasafe_<connector-name>.service`
+```bash
+# Install a single connector
+sudo install_datasafe_service.sh --install -n exacc-wob-vwg-ha3
 
-Features:
+# Install all prepared connectors
+sudo install_datasafe_service.sh --install --all
 
-- Automatic startup/shutdown
-- Restart on failure
-- Proper environment configuration
-- Logging to journald
+# Non-interactive (no confirmation prompt)
+sudo install_datasafe_service.sh --install -n exacc-wob-vwg-ha3 --yes
 
-### 2. Sudo Configuration
+# Dry-run preview
+sudo install_datasafe_service.sh --install -n exacc-wob-vwg-ha3 --dry-run
+```
 
-Location: `/etc/sudoers.d/<user>-datasafe-<connector-name>`
+What `--install` does:
 
-Allows the specified user to manage the service:
+1. Validates the prepared service file exists in `<connector-home>/etc/systemd/`
+2. Copies service unit to `/etc/systemd/system/oracle_datasafe_<name>.service`
+3. Installs `/etc/sudoers.d/oradba-datasafe` (shared, once - skipped if already current)
+4. Cleans up legacy per-connector sudoers files (`/etc/sudoers.d/<user>-datasafe-<name>`)
+5. Creates log directory `/var/log/oracle/`
+6. Runs `systemctl daemon-reload`
+7. Enables and starts the service
 
-- `systemctl start`
-- `systemctl stop`
-- `systemctl restart`
-- `systemctl status`
-- View logs with `journalctl`
+## Sudo Configuration
 
-### 3. Service Documentation
+The installer uses a single consolidated sudoers file that covers all Data Safe
+connector services via wildcards.
 
-Location: `<connector-home>/SERVICE_README.md`
+File: `/etc/sudoers.d/oradba-datasafe`
 
-Comprehensive guide including:
+```text
+# Managed by install_datasafe_service.sh - do not edit manually
+Cmnd_Alias ORADBA_DATASAFE_CTL = \
+    /usr/bin/systemctl start   oracle_datasafe_*.service, \
+    /usr/bin/systemctl stop    oracle_datasafe_*.service, \
+    /usr/bin/systemctl restart oracle_datasafe_*.service, \
+    /usr/bin/systemctl reload  oracle_datasafe_*.service, \
+    /usr/bin/systemctl enable  oracle_datasafe_*.service, \
+    /usr/bin/systemctl disable oracle_datasafe_*.service
 
-- Service management commands
-- Log viewing examples
-- Troubleshooting tips
-- Configuration file locations
+Cmnd_Alias ORADBA_DATASAFE_ADMIN = \
+    /path/to/odb_datasafe/bin/install_datasafe_service.sh, \
+    /path/to/odb_datasafe/bin/uninstall_all_datasafe_services.sh
+
+oracle ALL=(root) NOPASSWD: ORADBA_DATASAFE_CTL
+oracle ALL=(root) NOPASSWD: ORADBA_DATASAFE_ADMIN
+```
+
+This file is:
+
+- Installed once (shared across all connectors)
+- Not removed during per-connector `--uninstall`
+- Regenerated only when `--prepare` + `--install` is re-run with a changed `OS_USER`
+
+### DBA Self-Service
+
+Once the sudoers file is in place (after the first install by root), the oracle user
+can run the full workflow without a root shell:
+
+```bash
+# Oracle user can now run the full workflow via sudo
+install_datasafe_service.sh --prepare -n exacc-wob-vwg-ha3
+sudo install_datasafe_service.sh --install -n exacc-wob-vwg-ha3
+sudo install_datasafe_service.sh --uninstall -n exacc-wob-vwg-ha3
+```
+
+> Note: The very first install on a new host still requires root to write the
+> initial `/etc/sudoers.d/oradba-datasafe` file.
+
+To skip sudoers management entirely (if sudoers is handled by your config management
+tool), use `--skip-sudo`:
+
+```bash
+sudo install_datasafe_service.sh --install -n exacc-wob-vwg-ha3 --skip-sudo
+```
 
 ## Service Management
 
-### As Root
+### Start, Stop, Restart
 
 ```bash
-# Start service
-systemctl start oracle_datasafe_my-connector.service
+# Via oradba_dsctl.sh (recommended - delegates to systemd when service unit exists)
+oradba_dsctl.sh start exacc-wob-vwg-ha3
+oradba_dsctl.sh stop  exacc-wob-vwg-ha3
+oradba_dsctl.sh restart exacc-wob-vwg-ha3
 
-# Stop service
-systemctl stop oracle_datasafe_my-connector.service
-
-# Restart service
-systemctl restart oracle_datasafe_my-connector.service
-
-# Check status
-systemctl status oracle_datasafe_my-connector.service
-
-# Enable auto-start on boot
-systemctl enable oracle_datasafe_my-connector.service
-
-# View logs
-journalctl -u oracle_datasafe_my-connector.service -f
+# Direct systemctl (oracle user with sudo, or root)
+sudo systemctl start   oracle_datasafe_exacc-wob-vwg-ha3.service
+sudo systemctl stop    oracle_datasafe_exacc-wob-vwg-ha3.service
+sudo systemctl restart oracle_datasafe_exacc-wob-vwg-ha3.service
 ```
 
-### As Oracle User (with sudo)
+### Status and Logs
 
 ```bash
-# Start service
-sudo systemctl start oracle_datasafe_my-connector.service
+# systemd view
+systemctl status oracle_datasafe_exacc-wob-vwg-ha3.service
 
-# Stop service
-sudo systemctl stop oracle_datasafe_my-connector.service
+# Port-based live status (authoritative)
+oradba_dsctl.sh status exacc-wob-vwg-ha3
 
-# Restart service
-sudo systemctl restart oracle_datasafe_my-connector.service
+# Follow logs in real time
+journalctl -u oracle_datasafe_exacc-wob-vwg-ha3.service -f
 
-# Check status
-sudo systemctl status oracle_datasafe_my-connector.service
+# Logs since last boot
+journalctl -u oracle_datasafe_exacc-wob-vwg-ha3.service -b
 
-# View logs
-sudo journalctl -u oracle_datasafe_my-connector.service -f
+# Logs from last hour
+journalctl -u oracle_datasafe_exacc-wob-vwg-ha3.service --since "1 hour ago"
 ```
 
-## Verification
-
-### Check if service is running
+### Enable/Disable Auto-start
 
 ```bash
-systemctl is-active oracle_datasafe_my-connector.service
+sudo systemctl enable  oracle_datasafe_exacc-wob-vwg-ha3.service
+sudo systemctl disable oracle_datasafe_exacc-wob-vwg-ha3.service
 ```
 
-### Check if service is enabled
+### List All Connector Services
 
 ```bash
-systemctl is-enabled oracle_datasafe_my-connector.service
+# All oracle_datasafe_* units
+systemctl list-units "oracle_datasafe_*.service"
+systemctl list-unit-files "oracle_datasafe_*.service"
+
+# Via oradba_dsctl.sh
+oradba_dsctl.sh services
 ```
 
-### Verify CMAN is listening
+## Uninstall
+
+### Single Connector
 
 ```bash
-netstat -tlnp | grep cmgw
-# or
-ss -tlnp | grep cmgw
+sudo install_datasafe_service.sh --uninstall -n exacc-wob-vwg-ha3
 ```
 
-### Check process
+Uninstall stops the service, disables it, and removes the unit file from
+`/etc/systemd/system/`. The shared `/etc/sudoers.d/oradba-datasafe` is preserved.
+
+### All Connectors
+
+`uninstall_all_datasafe_services.sh` is a thin wrapper around `install_datasafe_service.sh`:
 
 ```bash
-ps aux | grep cmgw
+# List all installed connector services
+./uninstall_all_datasafe_services.sh --list
+
+# Preview what would be removed
+sudo uninstall_all_datasafe_services.sh --dry-run
+
+# Uninstall all services (prompts for confirmation)
+sudo uninstall_all_datasafe_services.sh --uninstall
+
+# Non-interactive
+sudo uninstall_all_datasafe_services.sh --uninstall --force
+
+# Non-interactive dry-run
+sudo uninstall_all_datasafe_services.sh --uninstall --dry-run --force
 ```
 
-## Troubleshooting
+Preserved after full uninstall:
 
-### Service won't start
-
-1. Check service status:
-
-   ```bash
-   systemctl status oracle_datasafe_my-connector.service
-   ```
-
-2. Check logs:
-
-   ```bash
-   journalctl -u oracle_datasafe_my-connector.service --since "10 minutes ago"
-   ```
-
-3. Verify permissions:
-
-   ```bash
-   ls -la /appl/oracle/product/dsconnect/my-connector/
-   ```
-
-4. Check CMAN configuration:
-
-   ```bash
-   cat /appl/oracle/product/dsconnect/my-connector/oracle_cman_home/network/admin/cman.ora
-   ```
-
-### Connection issues
-
-1. Verify CMAN is running:
-
-   ```bash
-   ps aux | grep cmgw
-   ```
-
-2. Check listener ports:
-
-   ```bash
-   netstat -tlnp | grep cmgw
-   ```
-
-3. Review CMAN logs:
-
-   ```bash
-   ls -ltr /appl/oracle/product/dsconnect/my-connector/log/
-   ```
-
-### Service file issues
-
-Re-run installation to regenerate:
-
-```bash
-sudo install_datasafe_service.sh --connector my-connector --yes
-```
-
-## Advanced Usage
-
-### Install Multiple Connectors
-
-Use `--all` to batch-process every discovered connector in one command:
-
-```bash
-# Prepare all connectors (as oracle user)
-./install_datasafe_service.sh --prepare --all
-
-# Install all prepared connectors (as root)
-sudo ./install_datasafe_service.sh --install --all
-
-# Check all installed connectors
-sudo ./install_datasafe_service.sh --check --all
-```
-
-Or install connectors individually:
-
-```bash
-sudo install_datasafe_service.sh -n connector1 -y
-sudo install_datasafe_service.sh -n connector2 -y
-
-# Check all services
-systemctl list-units 'oracle_datasafe_*' --all
-```
-
-### Custom Base Directory
-
-```bash
-sudo install_datasafe_service.sh \
-  --base /custom/path/to/connectors \
-  --connector my-connector \
-  --yes
-```
-
-### Automation Script
-
-```bash
-#!/bin/bash
-# install_all_connectors.sh
-
-CONNECTORS=(
-  "ds-conn-oradba-prod"
-  "ds-conn-oradba-test"
-  "ds-conn-oradba-dev"
-)
-
-for connector in "${CONNECTORS[@]}"; do
-  echo "Installing $connector..."
-  sudo install_datasafe_service.sh \
-    --connector "$connector" \
-    --user oracle \
-    --group dba \
-    --yes
-done
-```
-
-## Security Considerations
-
-### Sudo Configuration
-
-The script creates minimal sudo permissions:
-
-- Only specific systemctl commands
-- Only for the specific service
-- No password required (NOPASSWD)
-- Read-only log access via journalctl
-
-### File Permissions
-
-- Service file: 644 (readable by all, writable by root)
-- Sudoers file: 440 (readable by root, validated syntax)
-- README: 644 (readable by all)
-
-### Service Security
-
-The generated service includes:
-
-- `PrivateTmp=true`: Isolated /tmp directory
-- `NoNewPrivileges=true`: Prevent privilege escalation
-- Runs as specified non-root user
-- Proper file ownership and permissions
+- `/etc/sudoers.d/oradba-datasafe`
+- Connector home directories and all connector files
+- OraDBA configuration (`oradba_homes.conf`)
 
 ## oradba_dsctl.sh Integration
 
 When `${ORADBA_BASE}/etc/oradba_homes.conf` exists and contains an entry for the
-connector, the generated service file uses `oradba_dsctl.sh` instead of calling
-`cmctl` directly:
+connector, `--prepare` generates a `Type=oneshot` service that delegates to
+`oradba_dsctl.sh` instead of calling `cmctl` directly.
+
+`oradba_homes.conf` entry format (field 1 = alias, field 2 = connector home):
+
+```text
+dscon3:/appl/oracle/product/exacc-wob-vwg-ha3:datasafe:...
+```
+
+Resulting service unit excerpt:
 
 ```ini
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/opt/oradba/bin/oradba_dsctl.sh start <alias>
-ExecStop=/opt/oradba/bin/oradba_dsctl.sh stop <alias>
-ExecReload=/opt/oradba/bin/oradba_dsctl.sh restart <alias>
+ExecStart=/opt/oradba/bin/oradba_dsctl.sh start exacc-wob-vwg-ha3
+ExecStop=/opt/oradba/bin/oradba_dsctl.sh stop exacc-wob-vwg-ha3
+ExecReload=/opt/oradba/bin/oradba_dsctl.sh restart exacc-wob-vwg-ha3
 ```
 
-`oradba_homes.conf` format (field 1 = alias, field 2 = connector home):
-
-```text
-dscon1:/appl/oracle/product/exacc-wob-vwg-ha1:datasafe:...
-```
-
-Without `oradba_homes.conf` (or when no matching entry is found), the script falls
-back to direct `cmctl` calls with `Type=forking` — the previous behaviour.
+Without a matching `oradba_homes.conf` entry, the script falls back to direct `cmctl`
+calls with `Type=forking`.
 
 **Why this matters**: `cmctl shutdown` exits 0 immediately without waiting for the
-process to stop. `oradba_dsctl.sh stop` includes the necessary force-kill of
-remaining CMAN (`cmgw`) processes, ensuring `systemctl stop` actually terminates
-the connector.
+connector process to terminate. `oradba_dsctl.sh stop` includes a force-kill of
+remaining `cmgw` processes, ensuring `systemctl stop` actually terminates the connector.
 
-## Migration from Old Scripts
+`oradba_dsctl.sh` uses `INVOCATION_ID` to detect whether it is running inside systemd:
 
-If you have old manual service configurations:
+- Called externally: delegates `start`/`stop` to `sudo systemctl start/stop`
+- Called as `ExecStart`/`ExecStop` by systemd (`INVOCATION_ID` set): calls `cmctl` directly
 
-1. **Backup existing configuration**:
+This prevents infinite delegation loops and ensures systemd always tracks the correct state.
 
-   ```bash
-   cp /etc/systemd/system/oracle_datasafe.service /tmp/oracle_datasafe.service.bak
-   ```
+## Options Reference
 
-2. **Remove old service**:
+<!-- markdownlint-disable MD013 MD060 -->
+| Flag                  | Short | Description                                                                                  |
+|-----------------------|-------|----------------------------------------------------------------------------------------------|
+| `--prepare`           |       | Phase 1: generate service files as oracle user (default mode)                                |
+| `--install`           |       | Phase 2: copy files to system, enable and start service (requires root or sudo)              |
+| `--uninstall`         |       | Stop, disable, and remove service unit                                                       |
+| `--all`               |       | Batch mode - process all discovered connectors; implies `--yes`; mutually exclusive with `-n` |
+| `--connector <name>`  | `-n`  | Target a specific connector by directory name                                                |
+| `--base <path>`       | `-b`  | Override `CONNECTOR_BASE`                                                                    |
+| `--user <user>`       | `-u`  | OS user for the service (default: `oracle`)                                                  |
+| `--group <group>`     | `-g`  | OS group for the service (default: `dba`)                                                    |
+| `--java-home <path>`  | `-j`  | Override `JAVA_HOME`                                                                         |
+| `--list`              | `-l`  | List discovered connectors with install state (no root)                                      |
+| `--check`             | `-c`  | Check install status for connector(s) (no root)                                              |
+| `--yes`               | `-y`  | Non-interactive mode (skip confirmation prompts)                                             |
+| `--dry-run`           | `-d`  | Show what would be done without making changes                                               |
+| `--skip-sudo`         |       | Skip sudoers file management                                                                 |
+| `--verbose`           | `-v`  | Verbose output                                                                               |
+| `--help`              | `-h`  | Show usage information                                                                       |
+<!-- markdownlint-enable MD013 MD060 -->
 
-   ```bash
-   systemctl stop oracle_datasafe.service
-   systemctl disable oracle_datasafe.service
-   rm /etc/systemd/system/oracle_datasafe.service
-   systemctl daemon-reload
-   ```
+## Environment Variables
 
-3. **Install with new script**:
+<!-- markdownlint-disable MD013 MD060 -->
+| Variable         | Default                                        | Description                                                             |
+|------------------|------------------------------------------------|-------------------------------------------------------------------------|
+| `CONNECTOR_BASE` | `${ORACLE_BASE:-/u01/app/oracle}/product`      | Base directory containing connector subdirectories                      |
+| `ORADBA_BASE`    | `${ORADBA_PREFIX:-/opt/oradba}`                | OraDBA installation root; locates `oradba_dsctl.sh` and `oradba_homes.conf` |
+| `OS_USER`        | `oracle`                                       | OS user that owns the service                                           |
+| `OS_GROUP`       | `dba`                                          | OS group for the service                                                |
+| `JAVA_HOME`      | `${ORACLE_BASE:-/u01/app/oracle}/product/jdk`  | Java installation path                                                  |
+<!-- markdownlint-enable MD013 MD060 -->
 
-   ```bash
-   sudo install_datasafe_service.sh
-   ```
+When `CONNECTOR_BASE` does not exist, the installer automatically probes candidate
+paths (`/appl/oracle/product`, `/u01/app/oracle/product`, etc.) via `find_connector_base()`.
 
-## Examples
+## Troubleshooting
 
-### Example 1: Quick Installation
-
-```bash
-# Root runs the script
-[root@server]# install_datasafe_service.sh
-
-Scanning for Data Safe connectors in: /appl/oracle/product/dsconnect
-
-Available Data Safe On-Premises Connectors:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- 1. ds-conn-oradba-prod
- 2. ds-conn-oradba-test
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Select connector (1-2) or 'q' to quit: 1
-✅ Selected connector: ds-conn-oradba-prod
-✅ Connector validated: ds-conn-oradba-prod
-▶  Installing Data Safe Connector Service
-...
-✅ Data Safe Connector Service Installation Complete
-```
-
-### Example 2: Automated Deployment
+### Service fails to start
 
 ```bash
-# Non-interactive installation
-sudo install_datasafe_service.sh \
-  --connector ds-conn-oradba-prod \
-  --user oracle \
-  --group dba \
-  --java-home /appl/oracle/product/dsconnect/jdk \
-  --yes
+# 1. Check service status
+systemctl status oracle_datasafe_exacc-wob-vwg-ha3.service
 
-# Oracle user can now manage the service
-[oracle@server]$ sudo systemctl status oracle_datasafe_ds-conn-oradba-prod.service
-● oracle_datasafe_ds-conn-oradba-prod.service - Oracle Data Safe On-Premises Connector
-   Loaded: loaded (/etc/systemd/system/oracle_datasafe_ds-conn-oradba-prod.service)
-   Active: active (running) since Thu 2026-01-11 10:30:00 UTC
+# 2. Check recent logs
+journalctl -u oracle_datasafe_exacc-wob-vwg-ha3.service --since "10 minutes ago"
+
+# 3. Verify ExecStart binary
+grep ExecStart /etc/systemd/system/oracle_datasafe_exacc-wob-vwg-ha3.service
+
+# 4. Check CMAN configuration
+cat /appl/oracle/product/exacc-wob-vwg-ha3/oracle_cman_home/network/admin/cman.ora
+
+# 5. Verify Java
+${JAVA_HOME}/bin/java -version
 ```
 
-### Example 3: Dry-Run First
+### systemd shows active (exited) but connector is stopped
+
+**Cause**: `Type=oneshot + RemainAfterExit=yes` tracks only whether `ExecStart` returned
+0, not the live process state. If the connector was stopped outside systemd, systemd still
+reports `active (exited)`.
+
+**Fix**: Always stop via systemd or `oradba_dsctl.sh` to keep state synchronized:
 
 ```bash
-# Preview what will be done
-sudo install_datasafe_service.sh \
-  --connector my-connector \
-  --dry-run
-
-# If everything looks good, run for real
-sudo install_datasafe_service.sh \
-  --connector my-connector \
-  --yes
+sudo systemctl stop oracle_datasafe_exacc-wob-vwg-ha3.service
+sudo systemctl start oracle_datasafe_exacc-wob-vwg-ha3.service
 ```
 
-## Support
+Use `oradba_dsctl.sh status` for an authoritative port-based check:
 
-For issues or questions:
+```bash
+oradba_dsctl.sh status exacc-wob-vwg-ha3
+```
 
-1. Check the generated README: `<connector-home>/SERVICE_README.md`
-2. Review service logs: `journalctl -u oracle_datasafe_<connector-name>.service`
-3. Run with verbose output: `--verbose`
-4. Check validation: `--check`
+### Verify connector is listening
 
-## License
+```bash
+# Find configured port
+grep -i port /appl/oracle/product/exacc-wob-vwg-ha3/oracle_cman_home/network/admin/cman.ora
 
-Apache License Version 2.0
+# Check if port is listening (replace 1563 with actual port)
+ss -tnlp | grep :1563
+# older systems:
+netstat -tnlp | grep :1563
 
-## Author
+# Check process
+ps aux | grep cmgw
+```
 
-Stefan Oehrli (oes) - <stefan.oehrli@oradba.ch>
-OraDBA - Oracle Database Infrastructure and Security
+### Reinstall a service
+
+```bash
+# Remove and re-prepare from scratch
+sudo install_datasafe_service.sh --uninstall -n exacc-wob-vwg-ha3
+install_datasafe_service.sh --prepare -n exacc-wob-vwg-ha3
+sudo install_datasafe_service.sh --install -n exacc-wob-vwg-ha3
+```
+
+### Wrong ORADBA_BASE
+
+If `oradba_dsctl.sh` is not found or `oradba_homes.conf` is at a non-default location,
+set `ORADBA_BASE` before running `--prepare`:
+
+```bash
+export ORADBA_BASE=/custom/path/oradba
+install_datasafe_service.sh --prepare -n exacc-wob-vwg-ha3
+```
+
+The generated service file embeds the `ExecStart` path at prepare time. After changing
+`ORADBA_BASE`, re-run `--prepare` followed by `--install` to update the unit file.
