@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-07-01
+
+### Fixed
+
+- `lib/common.sh`: replaced `LC_ALL=C` with `LC_COLLATE=C` to preserve ASCII sort
+  order without clobbering `LC_CTYPE`; `LC_ALL=C` caused Python/Click to abort with
+  a `RuntimeError` on systems where `LANG` is unset or POSIX (e.g. NFS-mounted
+  minimal environments).
+- `lib/common.sh`: added `PYTHONIOENCODING=utf-8` export so OCI CLI Python
+  process uses UTF-8 I/O even on sparse-locale systems.
+- `lib/oci_helpers.sh`: added specific error branch for the Click
+  `"configured to use ASCII"` RuntimeError with a clear `export LANG=en_US.UTF-8`
+  hint.
+
+## [1.0.4] - 2026-06-30
+
 ### Added
 
 - `bin/install_datasafe_service.sh` `generate_sudoers_file()`: added `enable` and

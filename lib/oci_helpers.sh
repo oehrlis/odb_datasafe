@@ -121,6 +121,8 @@ check_oci_cli_auth() {
         elif [[ "$output" =~ "NotAuthenticated" ]] || [[ "$output" =~ "InvalidKeyFile" ]]; then
             log_error "OCI authentication credentials are invalid or expired"
             log_error "Check your API key configuration in ${OCI_CLI_CONFIG_FILE}"
+        elif [[ "$output" =~ "Click will abort" ]] || [[ "$output" =~ "configured to use ASCII" ]]; then
+            log_error "OCI CLI requires a UTF-8 locale. Set: export LANG=en_US.UTF-8"
         else
             log_error "OCI CLI test command failed. Ensure proper authentication setup."
         fi

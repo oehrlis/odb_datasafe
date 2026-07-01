@@ -21,8 +21,10 @@ if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
     exit 1
 fi
 
-# Ensure ASCII collation for tr, sort, and other locale-sensitive operations
-export LC_ALL=C
+# Ensure ASCII collation for tr, sort, and other locale-sensitive operations.
+# LC_COLLATE=C is sufficient — using LC_ALL=C would also clobber LC_CTYPE,
+# which breaks Python/Click (OCI CLI) on systems without a UTF-8 LANG default.
+export LC_COLLATE=C
 
 # =============================================================================
 # PYTHON / OCI CLI ENVIRONMENT
@@ -34,6 +36,10 @@ export LC_ALL=C
 # the JSON/OCID payload and corrupt downstream parsing. Respect a value the
 # user has explicitly set (e.g. for debugging Python deprecations).
 export PYTHONWARNINGS="${PYTHONWARNINGS:-ignore}"
+
+# Tell Python to use UTF-8 for I/O even when the system locale is sparse.
+# Prevents Click's _verify_python_env() from aborting on ASCII-only locales.
+export PYTHONIOENCODING="${PYTHONIOENCODING:-utf-8}"
 
 # Suppress the OCI config file permissions warning when umask is loose; the
 # message is informational and similarly leaks into stderr captures.
