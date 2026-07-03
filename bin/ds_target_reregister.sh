@@ -92,11 +92,16 @@ CLUSTER_OCID=""
 PLUGGABLE_DB_OCID=""
 PDB_COMPARTMENT_OCID=""
 TMP_CRED_JSON=""
+NEW_TARGET_OCID=""
 
 # Current state (loaded from OCI)
 CUR_DISPLAY_NAME=""
 CUR_DESCRIPTION=""
 CUR_DB_DETAILS=""
+CUR_CONNECTION_OPTION=""
+CUR_TLS_CONFIG=""
+CUR_FREEFORM_TAGS=""
+CUR_DEFINED_TAGS=""
 CUR_CLUSTER=""
 CUR_CDB=""
 CUR_PDB=""
@@ -382,6 +387,10 @@ load_current_target() {
     CUR_DESCRIPTION=$(printf '%s' "$target_json" | jq -r '.description // empty')
     CUR_DB_DETAILS=$(printf '%s' "$target_json" | jq -r '."database-details" // empty')
     COMP_OCID=$(printf '%s' "$target_json" | jq -r '."compartment-id" // empty')
+    CUR_CONNECTION_OPTION=$(printf '%s' "$target_json" | jq -c '."connection-option" // empty')
+    CUR_TLS_CONFIG=$(printf '%s' "$target_json" | jq -c '."tls-config" // empty')
+    CUR_FREEFORM_TAGS=$(printf '%s' "$target_json" | jq -c '."freeform-tags" // {}')
+    CUR_DEFINED_TAGS=$(printf '%s' "$target_json" | jq -c '."defined-tags" // {}')
 
     [[ -n "$CUR_DISPLAY_NAME" ]] || die "Could not read display-name for target: $TARGET_OCID"
     [[ -n "$CUR_DB_DETAILS" && "$CUR_DB_DETAILS" != "null" ]] || die "Could not read database-details for target: $TARGET_OCID"
@@ -761,8 +770,10 @@ show_reregister_plan() {
     cur_pdb_ocid=$(printf '%s' "$CUR_DB_DETAILS" | jq -r '."pluggable-database-id" // .pluggableDatabaseId // "(none)"')
     new_pdb_ocid=$(printf '%s' "$new_db_details" | jq -r '."pluggable-database-id" // .pluggableDatabaseId // "(none)"')
 
-    [[ "$cur_vm_cluster" != "$new_vm_cluster" ]] \
-        && log_info "  VM Cluster:    '$cur_vm_cluster' → '$new_vm_cluster'"
+    if [[ "$cur_vm_cluster" != "$new_vm_cluster" ]]; then
+        log_info "  VM Cluster:    '$cur_vm_cluster' → '$new_vm_cluster'"
+        log_info "  Strategy:      CREATE new target + DELETE old (vm-cluster-id is immutable via OCI API)"
+    fi
     [[ "$cur_pdb_ocid" != "$new_pdb_ocid" ]] \
         && log_info "  PDB OCID:      '$cur_pdb_ocid' → '$new_pdb_ocid'"
     [[ "$cur_service" != "$new_service_v" ]] \
@@ -790,19 +801,19 @@ cleanup_temp_files() {
 }
 
 # ------------------------------------------------------------------------------
-# Function: do_reregister
-# Purpose.: Execute the OCI updates for database-details, display name, credentials
+# Function: do_reregister_update
+# Purpose.: Update database-details, display name, credentials in-place.
+#           Only valid when vm-cluster-id does NOT change.
 # Args....: $1 - new display name
 #           $2 - new database-details JSON
 # Returns.: 0 on success, 2 on error
 # ------------------------------------------------------------------------------
-do_reregister() {
+do_reregister_update() {
     local new_display_name="$1"
     local new_db_details="$2"
 
     trap cleanup_temp_files EXIT
 
-    # --- Structural update (database-details + display-name + description) ---
     local -a cmd=(
         data-safe target-database update
         --target-database-id "$TARGET_OCID"
@@ -827,7 +838,6 @@ do_reregister() {
         die "Re-registration failed" 2
     fi
 
-    # --- Optional credential update ---
     if [[ -n "$DS_SECRET" ]]; then
         local ds_user_for_target
         ds_user_for_target=$(resolve_ds_user_for_target)
@@ -853,6 +863,100 @@ do_reregister() {
             log_error "Credentials update failed for: $new_display_name"
             die "Credential update failed" 2
         fi
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# Function: do_reregister_create_delete
+# Purpose.: Create new target with updated db-details, then delete old target.
+#           Required when vm-cluster-id changes (OCI API prohibits updating it).
+# Args....: $1 - new display name
+#           $2 - new database-details JSON
+# Returns.: 0 on success, 2 on error
+# ------------------------------------------------------------------------------
+do_reregister_create_delete() {
+    local new_display_name="$1"
+    local new_db_details="$2"
+
+    trap cleanup_temp_files EXIT
+
+    local -a create_cmd=(
+        data-safe target-database create
+        --compartment-id "$COMP_OCID"
+        --display-name "$new_display_name"
+        --database-details "$new_db_details"
+    )
+
+    local desc="${NEW_DESCRIPTION:-$CUR_DESCRIPTION}"
+    [[ -n "$desc" ]] && create_cmd+=(--description "$desc")
+
+    [[ -n "$CUR_CONNECTION_OPTION" && "$CUR_CONNECTION_OPTION" != "null" ]] \
+        && create_cmd+=(--connection-option "$CUR_CONNECTION_OPTION")
+    [[ -n "$CUR_TLS_CONFIG" && "$CUR_TLS_CONFIG" != "null" ]] \
+        && create_cmd+=(--tls-config "$CUR_TLS_CONFIG")
+    [[ -n "$CUR_FREEFORM_TAGS" && "$CUR_FREEFORM_TAGS" != "null" && "$CUR_FREEFORM_TAGS" != "{}" ]] \
+        && create_cmd+=(--freeform-tags "$CUR_FREEFORM_TAGS")
+    [[ -n "$CUR_DEFINED_TAGS" && "$CUR_DEFINED_TAGS" != "null" && "$CUR_DEFINED_TAGS" != "{}" ]] \
+        && create_cmd+=(--defined-tags "$CUR_DEFINED_TAGS")
+
+    if [[ -n "$DS_SECRET" ]]; then
+        local ds_user_for_target
+        ds_user_for_target=$(resolve_ds_user_for_target)
+        TMP_CRED_JSON=$(mktemp)
+        ds_write_cred_json_file "$TMP_CRED_JSON" "$ds_user_for_target" "$DS_SECRET"
+        create_cmd+=(--credentials "file://${TMP_CRED_JSON}")
+        log_info "Credentials will be set on new target for user: $ds_user_for_target"
+    fi
+
+    if [[ -n "$WAIT_STATE" ]]; then
+        create_cmd+=(--wait-for-state "$WAIT_STATE")
+    fi
+
+    log_info "Creating new target: $new_display_name"
+    local create_output
+    if create_output=$(oci_exec "${create_cmd[@]}"); then
+        NEW_TARGET_OCID=$(printf '%s' "$create_output" | jq -r '.data.id // empty')
+        [[ -n "$NEW_TARGET_OCID" && "$NEW_TARGET_OCID" != "null" ]] \
+            || die "Create succeeded but could not extract new target OCID" 2
+        log_info "New target created: $NEW_TARGET_OCID"
+    else
+        log_error "Create failed — old target NOT deleted: $TARGET_OCID"
+        die "Re-registration failed (create step)" 2
+    fi
+
+    log_info "Deleting old target: $CUR_DISPLAY_NAME ($TARGET_OCID)"
+    local -a delete_cmd=(
+        data-safe target-database delete
+        --target-database-id "$TARGET_OCID"
+        --force
+    )
+
+    if oci_exec "${delete_cmd[@]}" > /dev/null; then
+        log_info "Old target deleted successfully"
+    else
+        log_error "Delete of old target failed — both targets may exist: old=$TARGET_OCID new=$NEW_TARGET_OCID"
+        die "Old target delete failed" 2
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# Function: do_reregister
+# Purpose.: Route to update or create+delete based on whether vm-cluster-id changes.
+# Args....: $1 - new display name
+#           $2 - new database-details JSON
+# Returns.: 0 on success, 2 on error
+# ------------------------------------------------------------------------------
+do_reregister() {
+    local new_display_name="$1"
+    local new_db_details="$2"
+
+    local cur_vm_cluster
+    cur_vm_cluster=$(printf '%s' "$CUR_DB_DETAILS" | jq -r '."vm-cluster-id" // ""')
+
+    if [[ -n "$CLUSTER_OCID" && "$CLUSTER_OCID" != "$cur_vm_cluster" ]]; then
+        do_reregister_create_delete "$new_display_name" "$new_db_details"
+    else
+        do_reregister_update "$new_display_name" "$new_db_details"
     fi
 }
 

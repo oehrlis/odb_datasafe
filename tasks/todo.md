@@ -1,3 +1,22 @@
+# odb_datasafe — Active Tasks
+
+## v1.0.8 — Create+Delete path for vm-cluster-id change (2026-07-03)
+
+**Problem:** `ds_target_reregister.sh --cluster` fails with OCI 400 "vmClusterId cannot be updated".
+OCI Data Safe API prohibits changing `vm-cluster-id` via `target-database update`. Requires Delete+Create.
+
+- [-] Add new globals: `NEW_TARGET_OCID`, `CUR_CONNECTION_OPTION`, `CUR_TLS_CONFIG`, `CUR_FREEFORM_TAGS`, `CUR_DEFINED_TAGS`
+- [-] Extend `load_current_target()` to capture connection-option, tls-config, tags
+- [-] Update `show_reregister_plan()`: show CREATE+DELETE strategy when cluster changes
+- [-] Rename `do_reregister()` → `do_reregister_update()` (existing update path)
+- [-] Add `do_reregister_create_delete()`: CREATE new target → DELETE old
+- [-] Add `do_reregister()` router: detect cluster change → dispatch
+- [-] CHANGELOG v1.0.8 + release notes
+- [ ] Run `make lint && make test` — all green
+- [ ] Release v1.0.8
+
+---
+
 # odb_datasafe v0.20.4 → v1.0.0 Roadmap Execution
 
 ## M1 — Release Gate Restoration (tag: v0.21.0)
