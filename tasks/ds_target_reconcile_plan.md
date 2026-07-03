@@ -24,10 +24,96 @@ aber ohne filterbare, skriptbasierte Aktionsliste. Dieses Tool ist actionable.
 ## Phasenplan
 
 ```
+Phase 0 (pre-Ferien, exa_ds.sh):        DataGuard-Fix in BuildExpectedTargetsByFilter
 Phase 1 (post-Ferien, ab 2026-07-28):  Basis-Reconcile mit externem Expected Set
 Phase 2 (Spezifikation nötig):         OCI-nativer DB-Discovery + Data Safe Coverage Gap
 Phase 3 (optional):                    Integration / Automation (cron, Reporting)
 ```
+
+---
+
+## Phase 0: DataGuard-Fix in exa_ds.sh (dringend, pre-Ferien)
+
+### Problem: Reconcile generiert 37 false-positive MISSING-Einträge
+
+`BuildExpectedTargetsByFilter` iteriert alle Einträge in `databases.json`. Bei DataGuard
+teilen sich Primary und Standby denselben `db-name`, liegen aber auf **verschiedenen
+VM-Clustern**. Die Funktion generiert daher pro DG-Paar **zwei** Expected-Targets:
+
+```
+exa117r04c06_cdb03a06_ITLSAEP   ← Primary (registriert)
+exa118r05c06_cdb03a06_ITLSAEP   ← Standby (nicht registriert → fälschlich MISSING)
+```
+
+Im VW-ExaCC-Environment: **37 DG-Paare** → 37 false-positive MISSING pro Reconcile-Lauf.
+Reconcile ist ohne Fix für dieses Environment nicht verwendbar.
+
+Entscheid (2026-07-03): **Nur Primary registrieren** (kein ADG-Workload, kein Peer-Link).
+
+### Lösungsansatz: Primary-Erkennung + Dedup in BuildExpectedTargetsByFilter
+
+Wenn `db-name` mehrere DB-unique-names hat → nur das Entry des Primary in den Expected Set.
+
+**Primary-Erkennung (Priorität):**
+
+| Option | Beschreibung | Aufwand |
+|--------|-------------|---------|
+| OCI DG API | `oci db data-guard-association list --database-id <ocid>` | mittel |
+| SQL via SSH | `SELECT DATABASE_ROLE FROM V$DATABASE` auf DB-Node | einfach |
+| Ignore-File | Standby-Cluster-Entries manuell in `reconcile_ignore.csv` | sofort |
+
+Kurzfristig (pre-Ferien): **Ignore-File** — Standby-Cluster-Pattern für alle 37 Paare.
+Mittelfristig (Phase 0 Implementierung): SQL-Abfrage via SSH (analog `ds_database_prereqs.sh`).
+
+### Primary-Erkennung via SQL
+
+```sql
+SELECT DATABASE_ROLE FROM V$DATABASE;
+-- PRIMARY oder PHYSICAL STANDBY
+```
+
+Implementierungsoptionen:
+
+**Option A — Neue Funktion in `exa_ds.sh`:**
+`GetDatabaseRole <identifier>` — SSH auf DB-Node, sqlplus ohne Passwort (OS-Auth),
+gibt `PRIMARY` oder `STANDBY` zurück. Wird in `BuildExpectedTargetsByFilter` aufgerufen
+wenn db-name mehrere Kandidaten hat.
+
+**Option B — Erweiterung `ds_database_prereqs.sh`:**
+`--check-role` Flag: Verbindung aufbauen, Rolle abfragen, als Exit-Code oder Output.
+Nachteil: Prereqs-Script ist primär für Setup, nicht für Status-Abfragen.
+
+**Option C — Neues Script `ds_db_role.sh`:**
+Dediziertes Script für DB-Rollen-Abfrage. Sauberste Lösung, aber mehr Overhead.
+
+Empfehlung: **Option A** (intern in `exa_ds.sh`, minimal invasiv).
+
+### Failover-Prozedur (Dokumentation, kein Auto-Fix)
+
+Bei DG-Failover (Standby wird Primary):
+
+```bash
+# 1. Altes Primary-Target löschen
+exa_ds.sh --action delete --targets exa117r04c06_cdb03a06_ITLSAEP
+
+# 2. Neues Primary registrieren (db-unique-name des neuen Primary)
+exa_ds.sh --action register --sid cdb03a06_r05 --pdb ITLSAEP
+
+# Target-Name bleibt gleich: exa118r05c06_cdb03a06_ITLSAEP
+# → Policies und Assessments müssen auf neues Target übertragen werden
+```
+
+Hinweis: Data Safe-Policies und Security-Assessment-Konfigurationen sind Target-gebunden.
+Nach Failover müssen diese manuell auf das neue Target übertragen oder neu angelegt werden.
+
+### Implementierungsschritte Phase 0
+
+- [ ] Ignore-File mit 37 Standby-Cluster-Patterns erstellen (sofort, pre-Ferien)
+- [ ] `GetDatabaseRole` Funktion in `exa_ds.sh` implementieren
+- [ ] `BuildExpectedTargetsByFilter`: bei DG-Konflikt Primary via `GetDatabaseRole` auflösen
+- [ ] `ResolvePrereqsIdentifierBySid`: bei DG-Konflikt Primary-Only statt Error
+- [ ] Failover-Prozedur in `doc/` dokumentieren
+- [ ] shellcheck, Test mit `cdb03a06`-Szenario
 
 ---
 
@@ -48,6 +134,7 @@ Generiert Delete-Plan-Skripte.
 | Move-Detection | Ja, mit Warning (pattern-only, keine Metadata-Validation) |
 | Naming-Konvention | Noch offen — NormalizeTargetName optional oder nur case-folding |
 | exa_ds.sh Integration | Nein — komplett unabhängig |
+| DataGuard | Caller-Responsibility: Expected Set enthält nur Primary-Targets |
 | Timeline | Post-Ferien (ab 2026-07-28) |
 
 ### CLI-Interface
@@ -200,6 +287,8 @@ M4 — Tests + Doku (1 PT):
 
 ## Offene Punkte (vor Implementierung klären)
 
+- [ ] Phase 0: Ignore-File für 37 Standby-Cluster-Patterns erstellen (pre-Ferien Workaround)
+- [ ] Phase 0: Primary-Erkennung implementieren (Option A: `GetDatabaseRole` in exa_ds.sh)
 - [ ] F4 Naming-Konvention: `NormalizeTargetName` für generisches Script — optional oder nur case-folding?
 - [ ] Phase 2 Spezifikation: SQ1-SQ6 beantworten (separates Spezifikations-Meeting)
 - [ ] Cloud Guard Overlap beim Kunden prüfen (sind entsprechende Rules aktiv?)
