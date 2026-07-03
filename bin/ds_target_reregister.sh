@@ -557,8 +557,6 @@ resolve_ds_user_for_target() {
 validate_inputs() {
     log_debug "Validating inputs..."
 
-    require_oci_cli
-
     [[ -n "$TARGET" ]] || die "Missing required option: --target"
 
     # Check at least one change is requested
@@ -569,6 +567,8 @@ validate_inputs() {
     fi
 
     [[ -n "$NEW_CLUSTER" && -n "$NEW_HOST" ]] && die "Specify --cluster OR --host, not both"
+
+    require_oci_cli
 
     if [[ -n "$NEW_PORT" ]]; then
         [[ "$NEW_PORT" =~ ^[0-9]+$ && "$NEW_PORT" -ge 1 && "$NEW_PORT" -le 65535 ]] \

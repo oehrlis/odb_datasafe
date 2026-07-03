@@ -54,3 +54,45 @@ project-specific flags (`-i 4 -bn -ci -sr`) are applied. Verify with
 
 **How to apply.** The pre-release checklist is: `make lint && make format-check
 && make test` — all three must be green before `git tag`.
+
+[promoted → rule: .claude/rules/shell-scripts.md § Makefile Workflow]
+
+---
+
+## 2026-07-03 - OCI JSON --database-details: Patch Keys müssen kebab-case sein
+
+**Context.** `ds_target_reregister.sh --from-oci --apply` schlug mit OCI exit 1 fehl.
+Der `--database-details` JSON enthielt doppelte, widersprüchliche Keys: `vm-cluster-id`
+(alter Wert, kebab-case aus OCI GET) und `vmClusterId` (neuer Wert, camelCase aus Patch).
+OCI CLI lehnte das ambige JSON ab.
+
+**Root cause.** `compute_new_db_details()` baute den Patch mit camelCase-Keys
+(`vmClusterId`, `serviceName`, `listenerPort`). OCI CLI gibt `database-details` aber
+in kebab-case zurück. `jq '. + $patch'` überschreibt nur Keys mit identischem Namen —
+unterschiedliche Schreibweise → beide Varianten koexistieren.
+
+**Nebenbefund.** `show_reregister_plan()` las `."vm-cluster-id" // .vmClusterId` und
+wertete den kebab-case Key zuerst aus, zeigte also den alten Cluster-Wert. Der Dry-run-
+Output sah korrekt aus, obwohl das JSON schon fehlerhaft war.
+
+**Rule.** Wenn OCI GET-Responses via `jq '. + $patch'` gepatcht werden: Patch-Keys
+immer in kebab-case bauen — identisch zum Format der OCI-Antwort.
+
+**verify.** `grep 'vmClusterId\|serviceName\|listenerPort' bin/ds_target_reregister.sh`
+→ 0 Treffer in `compute_new_db_details()`.
+
+---
+
+## 2026-07-03 - validate_inputs(): required params vor require_oci_cli
+
+**Context.** BATS-Tests für fehlende Pflichtparameter (z.B. `--target`, `-D`)
+schlugen in CI fehl, weil `require_oci_cli` zuerst aufrief und mit
+"Missing required commands: oci" abbrach — der test-spezifische Fehlertext war nie sichtbar.
+
+**Rule.** In jeder `validate_inputs()`-Funktion: alle Pflichtparameter-Checks
+(`[[ -n "$VAR" ]] || die`) ZUERST, `require_oci_cli` ZULETZT.
+
+**verify.** `grep -n "require_oci_cli" bin/ds_target_reregister.sh` → muss nach
+allen required-param `die`-Zeilen erscheinen.
+
+[promoted → rule: .claude/rules/shell-scripts.md § validate_inputs() Ordering]
