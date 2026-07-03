@@ -92,16 +92,12 @@ CLUSTER_OCID=""
 PLUGGABLE_DB_OCID=""
 PDB_COMPARTMENT_OCID=""
 TMP_CRED_JSON=""
-NEW_TARGET_OCID=""
 
 # Current state (loaded from OCI)
 CUR_DISPLAY_NAME=""
 CUR_DESCRIPTION=""
 CUR_DB_DETAILS=""
 CUR_CONNECTION_OPTION=""
-CUR_TLS_CONFIG=""
-CUR_FREEFORM_TAGS=""
-CUR_DEFINED_TAGS=""
 CUR_CLUSTER=""
 CUR_CDB=""
 CUR_PDB=""
@@ -388,9 +384,6 @@ load_current_target() {
     CUR_DB_DETAILS=$(printf '%s' "$target_json" | jq -r '."database-details" // empty')
     COMP_OCID=$(printf '%s' "$target_json" | jq -r '."compartment-id" // empty')
     CUR_CONNECTION_OPTION=$(printf '%s' "$target_json" | jq -c '."connection-option" // empty')
-    CUR_TLS_CONFIG=$(printf '%s' "$target_json" | jq -c '."tls-config" // empty')
-    CUR_FREEFORM_TAGS=$(printf '%s' "$target_json" | jq -c '."freeform-tags" // {}')
-    CUR_DEFINED_TAGS=$(printf '%s' "$target_json" | jq -c '."defined-tags" // {}')
 
     [[ -n "$CUR_DISPLAY_NAME" ]] || die "Could not read display-name for target: $TARGET_OCID"
     [[ -n "$CUR_DB_DETAILS" && "$CUR_DB_DETAILS" != "null" ]] || die "Could not read database-details for target: $TARGET_OCID"
@@ -655,6 +648,13 @@ validate_inputs() {
         resolved_user=$(resolve_ds_user_for_target)
         log_info "Credentials provided — will also update credentials for user: $resolved_user"
     fi
+
+    # Cluster migration requires credentials (new target needs them at create time)
+    local cur_vm_cluster_v
+    cur_vm_cluster_v=$(printf '%s' "$CUR_DB_DETAILS" | jq -r '."vm-cluster-id" // ""')
+    if [[ -n "$CLUSTER_OCID" && "$CLUSTER_OCID" != "$cur_vm_cluster_v" && -z "$DS_SECRET" ]]; then
+        die "Cluster migration requires credentials. Provide --ds-secret or ensure a password file exists."
+    fi
 }
 
 # ------------------------------------------------------------------------------
@@ -868,7 +868,8 @@ do_reregister_update() {
 
 # ------------------------------------------------------------------------------
 # Function: do_reregister_create_delete
-# Purpose.: Create new target with updated db-details, then delete old target.
+# Purpose.: Register new target on new cluster via ds_target_register.sh, then
+#           delete old target (with dependencies) via ds_target_delete.sh.
 #           Required when vm-cluster-id changes (OCI API prohibits updating it).
 # Args....: $1 - new display name
 #           $2 - new database-details JSON
@@ -878,63 +879,55 @@ do_reregister_create_delete() {
     local new_display_name="$1"
     local new_db_details="$2"
 
-    trap cleanup_temp_files EXIT
+    # Extract values from already-resolved db-details
+    local new_service new_port connector_ocid
+    new_service=$(printf '%s' "$new_db_details" | jq -r '."service-name"')
+    new_port=$(printf '%s' "$new_db_details" | jq -r '."listener-port"')
+    connector_ocid=$(printf '%s' "$CUR_CONNECTION_OPTION" | jq -r '."on-prem-connector-id" // empty')
 
-    local -a create_cmd=(
-        data-safe target-database create
-        --compartment-id "$COMP_OCID"
+    local ds_user_for_target
+    ds_user_for_target=$(resolve_ds_user_for_target)
+
+    # --- Step 1: Register new target (old target still exists — safe fallback on failure) ---
+    log_info "Registering new target: $new_display_name (cluster change — using ds_target_register.sh)"
+    local -a reg_cmd=(
+        "$SCRIPT_DIR/ds_target_register.sh"
+        --cluster "$CLUSTER_OCID"
+        --compartment "$COMP_OCID"
+        --sid "${NEW_SID:-$CUR_CDB}"
+        --pdb "${NEW_PDB:-$CUR_PDB}"
+        --service "$new_service"
+        --port "$new_port"
         --display-name "$new_display_name"
-        --database-details "$new_db_details"
+        --ds-user "$ds_user_for_target"
+        --ds-secret "$DS_SECRET"
     )
 
+    [[ -n "$connector_ocid" ]] && reg_cmd+=(--connector "$connector_ocid")
+
     local desc="${NEW_DESCRIPTION:-$CUR_DESCRIPTION}"
-    [[ -n "$desc" ]] && create_cmd+=(--description "$desc")
+    [[ -n "$desc" ]] && reg_cmd+=(--description "$desc")
 
-    [[ -n "$CUR_CONNECTION_OPTION" && "$CUR_CONNECTION_OPTION" != "null" ]] \
-        && create_cmd+=(--connection-option "$CUR_CONNECTION_OPTION")
-    [[ -n "$CUR_TLS_CONFIG" && "$CUR_TLS_CONFIG" != "null" ]] \
-        && create_cmd+=(--tls-config "$CUR_TLS_CONFIG")
-    [[ -n "$CUR_FREEFORM_TAGS" && "$CUR_FREEFORM_TAGS" != "null" && "$CUR_FREEFORM_TAGS" != "{}" ]] \
-        && create_cmd+=(--freeform-tags "$CUR_FREEFORM_TAGS")
-    [[ -n "$CUR_DEFINED_TAGS" && "$CUR_DEFINED_TAGS" != "null" && "$CUR_DEFINED_TAGS" != "{}" ]] \
-        && create_cmd+=(--defined-tags "$CUR_DEFINED_TAGS")
-
-    if [[ -n "$DS_SECRET" ]]; then
-        local ds_user_for_target
-        ds_user_for_target=$(resolve_ds_user_for_target)
-        TMP_CRED_JSON=$(mktemp)
-        ds_write_cred_json_file "$TMP_CRED_JSON" "$ds_user_for_target" "$DS_SECRET"
-        create_cmd+=(--credentials "file://${TMP_CRED_JSON}")
-        log_info "Credentials will be set on new target for user: $ds_user_for_target"
-    fi
-
-    if [[ -n "$WAIT_STATE" ]]; then
-        create_cmd+=(--wait-for-state "$WAIT_STATE")
-    fi
-
-    log_info "Creating new target: $new_display_name"
-    local create_output
-    if create_output=$(oci_exec "${create_cmd[@]}"); then
-        NEW_TARGET_OCID=$(printf '%s' "$create_output" | jq -r '.data.id // empty')
-        [[ -n "$NEW_TARGET_OCID" && "$NEW_TARGET_OCID" != "null" ]] \
-            || die "Create succeeded but could not extract new target OCID" 2
-        log_info "New target created: $NEW_TARGET_OCID"
+    if "${reg_cmd[@]}"; then
+        log_info "New target registered successfully: $new_display_name"
     else
-        log_error "Create failed — old target NOT deleted: $TARGET_OCID"
+        log_error "Registration failed — old target NOT deleted: $TARGET_OCID"
         die "Re-registration failed (create step)" 2
     fi
 
-    log_info "Deleting old target: $CUR_DISPLAY_NAME ($TARGET_OCID)"
-    local -a delete_cmd=(
-        data-safe target-database delete
-        --target-database-id "$TARGET_OCID"
+    # --- Step 2: Delete old target with dependencies (new target exists — safe to proceed) ---
+    log_info "Deleting old target and dependencies: $CUR_DISPLAY_NAME ($TARGET_OCID)"
+    local -a del_cmd=(
+        "$SCRIPT_DIR/ds_target_delete.sh"
+        --targets "$TARGET_OCID"
+        --compartment "$COMP_OCID"
         --force
     )
 
-    if oci_exec "${delete_cmd[@]}" > /dev/null; then
+    if "${del_cmd[@]}"; then
         log_info "Old target deleted successfully"
     else
-        log_error "Delete of old target failed — both targets may exist: old=$TARGET_OCID new=$NEW_TARGET_OCID"
+        log_error "Delete of old target failed — both targets may exist: $TARGET_OCID"
         die "Old target delete failed" 2
     fi
 }

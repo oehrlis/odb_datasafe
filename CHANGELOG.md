@@ -10,14 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- `bin/ds_target_reregister.sh`: OCI Data Safe API rejects `target-database update`
-  when `vm-cluster-id` changes (`InvalidParameter: vmClusterId cannot be updated`).
-  Added separate `do_reregister_create_delete()` code path: creates new target on the
-  new cluster first, then deletes the old target. The existing `do_reregister_update()`
-  path is used when only service/port/display-name change (no cluster switch). The
-  `do_reregister()` function now routes between both paths based on CLUSTER_OCID diff.
-  Also captures `connection-option`, `tls-config`, `freeform-tags`, and `defined-tags`
-  from the source target and passes them through to the create command.
+- `bin/ds_target_reregister.sh`: refactored `do_reregister_create_delete()` to
+  delegate to `ds_target_register.sh` (new target creation) and `ds_target_delete.sh`
+  (old target deletion with dependency cleanup — audit trails, assessments, policies).
+  Connector OCID is extracted from the source target's `connection-option` and passed
+  to `ds_target_register.sh` via `--connector`. Credentials are now required when
+  the cluster changes; `validate_inputs()` fails early with a clear message if
+  `DS_SECRET` is empty in the cluster-migration path.
 
 ## [1.0.7] - 2026-07-03
 
