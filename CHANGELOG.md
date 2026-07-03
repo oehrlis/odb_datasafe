@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `bin/ds_target_reregister.sh`: fixed `validate_inputs()` calling `require_oci_cli`
+  before required-parameter checks (`--target`, update constraints). In CI environments
+  without OCI CLI installed, BATS tests for missing-parameter errors saw
+  "Missing required commands: oci" instead of the expected param-specific message.
+
 ## [1.0.6] - 2026-07-01
 
 ### Fixed
