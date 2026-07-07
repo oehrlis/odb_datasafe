@@ -8,8 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.10] - 2026-07-07
+
 ### Fixed
 
+- `lib/common.sh`: resolved symlinks before the `find -perm` check in
+  `load_config()` so that config files reached via a symlink are validated
+  against the target's permissions rather than the symlink's own mode (macOS
+  symlinks always appear 0777 and cannot be `chmod`'d, causing the
+  group/world-writable guard to reject valid 600 configs).
 - `bin/ds_target_reregister.sh`: refactored `do_reregister_create_delete()` to
   delegate to `ds_target_register.sh` (new target creation) and `ds_target_delete.sh`
   (old target deletion with dependency cleanup — audit trails, assessments, policies).

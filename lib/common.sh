@@ -486,7 +486,13 @@ load_config() {
 
     if [[ -f "$config_file" ]]; then
         # SEC-005: Reject group/world-writable config files (portable BSD+GNU)
-        if [[ -n "$(find "$config_file" -maxdepth 0 \( -perm -g+w -o -perm -o+w \) 2> /dev/null)" ]]; then
+        # Resolve symlinks first so find checks the target's permissions, not the
+        # symlink itself (macOS symlinks always appear 0777 and cannot be chmod'd)
+        local _real_config_file
+        _real_config_file=$(realpath "$config_file" 2>/dev/null \
+            || readlink -f "$config_file" 2>/dev/null \
+            || echo "$config_file")
+        if [[ -n "$(find "$_real_config_file" -maxdepth 0 \( -perm -g+w -o -perm -o+w \) 2> /dev/null)" ]]; then
             log_warn "Ignoring group/world-writable config file: $config_file"
             return 0
         fi
