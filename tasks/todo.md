@@ -5,15 +5,15 @@
 **Problem:** `ds_target_reregister.sh --cluster` fails with OCI 400 "vmClusterId cannot be updated".
 OCI Data Safe API prohibits changing `vm-cluster-id` via `target-database update`. Requires Delete+Create.
 
-- [-] Add new globals: `NEW_TARGET_OCID`, `CUR_CONNECTION_OPTION`, `CUR_TLS_CONFIG`, `CUR_FREEFORM_TAGS`, `CUR_DEFINED_TAGS`
-- [-] Extend `load_current_target()` to capture connection-option, tls-config, tags
-- [-] Update `show_reregister_plan()`: show CREATE+DELETE strategy when cluster changes
-- [-] Rename `do_reregister()` → `do_reregister_update()` (existing update path)
-- [-] Add `do_reregister_create_delete()`: CREATE new target → DELETE old
-- [-] Add `do_reregister()` router: detect cluster change → dispatch
-- [-] CHANGELOG v1.0.8 + release notes
-- [ ] Run `make lint && make test` — all green
-- [ ] Release v1.0.8
+- [x] Add new globals: `NEW_TARGET_OCID`, `CUR_CONNECTION_OPTION`, `CUR_TLS_CONFIG`, `CUR_FREEFORM_TAGS`, `CUR_DEFINED_TAGS`
+- [x] Extend `load_current_target()` to capture connection-option, tls-config, tags
+- [x] Update `show_reregister_plan()`: show CREATE+DELETE strategy when cluster changes
+- [x] Rename `do_reregister()` → `do_reregister_update()` (existing update path)
+- [x] Add `do_reregister_create_delete()`: CREATE new target → DELETE old
+- [x] Add `do_reregister()` router: detect cluster change → dispatch
+- [x] CHANGELOG v1.0.8 + release notes
+- [x] Run `make lint && make test` — all green
+- [x] Release v1.0.8
 
 ---
 
@@ -43,19 +43,19 @@ OCI Data Safe API prohibits changing `vm-cluster-id` via `target-database update
 - [x] Create doc/release_notes/v0.21.0.md
 - [x] Update CHANGELOG.md with 0.21.0 entry
 - [x] Bump VERSION to 0.21.0
-- [-] Verify acceptance criteria (GATE 1) — make ci running
-- [ ] GATE 1: present diff for human approval
-- [ ] Commit + tag v0.21.0 (after approval)
+- [x] Verify acceptance criteria (GATE 1) — make ci running
+- [x] GATE 1: present diff for human approval
+- [x] Commit + tag v0.21.0 (after approval)
 
 ### Acceptance Criteria
 
-- [ ] Planted failing test causes make test to exit non-zero
-- [ ] grep -c "continue-on-error" .github/workflows/ci.yml == 0
-- [ ] make release aborts when make check fails
-- [ ] grep -R "DS_Admin.2025" . == 0 matches
-- [ ] bash 4.0+ guard active in lib/common.sh
-- [ ] ds_connector_register_oradba.sh and ds_connector_update.sh have set -euo pipefail
-- [ ] doc/milestone-v1.0.0.md exists
+- [x] Planted failing test causes make test to exit non-zero
+- [x] grep -c "continue-on-error" .github/workflows/ci.yml == 0
+- [x] make release aborts when make check fails
+- [x] grep -R "DS_Admin.2025" . == 0 matches
+- [x] bash 4.0+ guard active in lib/common.sh
+- [x] ds_connector_register_oradba.sh and ds_connector_update.sh have set -euo pipefail
+- [x] doc/milestone-v1.0.0.md exists
 
 ---
 

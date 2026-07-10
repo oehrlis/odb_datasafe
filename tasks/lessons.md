@@ -4,6 +4,20 @@ Self-improvement log per `~/.claude/CLAUDE.md`: every correction or
 non-obvious validated approach gets a one-paragraph entry so the same
 mistake does not recur.
 
+## 2026-07-10 - VERSION and .extension must be bumped together
+
+**Context.** v1.0.10 CI failed with all `--version` BATS tests reporting `not ok`.
+Scripts read `SCRIPT_VERSION` from `.extension`; tests compare against `VERSION`.
+The version bump was done by editing `VERSION` directly, leaving `.extension` at `1.0.9`.
+
+**Rule.** Always use `make version-bump-patch` (or `-minor`, `-major`) to bump versions.
+Never edit `VERSION` manually — the Makefile target updates both `VERSION` and `.extension`
+atomically in a single commit.
+
+**How to apply.** If a manual edit to `VERSION` is ever necessary, immediately run
+`perl -pi -e "s/^version:.*/version: $(cat VERSION)/" .extension` and commit both files together.
+Pre-release checklist: `make lint && make format-check && make test` catches the mismatch.
+
 ## 2026-05-26 - Never merge stderr into stdout when stdout is data
 
 **Context.** `ds_target_list.sh -C -v` started failing after the system
