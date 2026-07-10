@@ -8,10 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.10] - 2026-07-07
+## [1.0.10] - 2026-07-10
 
 ### Fixed
 
+- `lib/common.sh`: corrected `shfmt` formatting — `2>/dev/null` redirections in
+  `load_config()` changed to `2> /dev/null` to pass `make format-check` in CI.
 - `lib/common.sh`: resolved symlinks before the `find -perm` check in
   `load_config()` so that config files reached via a symlink are validated
   against the target's permissions rather than the symlink's own mode (macOS
