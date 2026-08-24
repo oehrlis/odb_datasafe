@@ -22,19 +22,19 @@ readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 readonly LIB_DIR="${SCRIPT_DIR}/../lib"
-SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2>/dev/null | awk '{print $2}' | tr -d '\n' || echo '1.1.1')"
+SCRIPT_VERSION="$(grep '^version:' "${SCRIPT_DIR}/../.extension" 2> /dev/null | awk '{print $2}' | tr -d '\n' || echo '1.1.1')"
 readonly SCRIPT_VERSION
 
 # Defaults
 : "${COMPARTMENT:=}"
 : "${SELECT_ALL:=false}"
-: "${STATE_FILTER:=}"        # --state: comma-separated effective states to show
+: "${STATE_FILTER:=}"       # --state: comma-separated effective states to show
 : "${DISPLAY_FILTER:=}"     # --filter: regex filter on display-name
-: "${OUTPUT_FORMAT:=table}"  # table|csv|json
-: "${SUMMARY_MODE:=both}"    # both|only|none
-: "${TRAILS_JSON:=}"         # --trails-json: read from snapshot instead of OCI
-: "${SAVE_TRAILS_JSON:=}"    # --save-trails-json: write raw OCI response to file
-: "${REPORT_FILE:=}"         # --report-file: tee output to file
+: "${OUTPUT_FORMAT:=table}" # table|csv|json
+: "${SUMMARY_MODE:=both}"   # both|only|none
+: "${TRAILS_JSON:=}"        # --trails-json: read from snapshot instead of OCI
+: "${SAVE_TRAILS_JSON:=}"   # --save-trails-json: write raw OCI response to file
+: "${REPORT_FILE:=}"        # --report-file: tee output to file
 # shellcheck disable=SC2034
 SHOW_USAGE_ON_EMPTY_ARGS=true
 
