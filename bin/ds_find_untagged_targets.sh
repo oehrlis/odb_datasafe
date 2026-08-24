@@ -52,6 +52,7 @@ source "${LIB_DIR}/ds_lib.sh"
 # ------------------------------------------------------------------------------
 COMPARTMENT=""
 TAG_NAMESPACE="DBSec"
+TAG_KEY=""
 STATE_FILTERS="ACTIVE"
 OUTPUT_FORMAT="table"
 INPUT_JSON=""
@@ -86,6 +87,10 @@ DESCRIPTION:
 OPTIONS:
     -c, --compartment COMP      Compartment name or OCID (default: DS_ROOT_COMP)
     -n, --namespace NS          Tag namespace to check (default: DBSec)
+    -k, --tag-key KEY           Require a specific key inside the namespace
+                                (e.g. ContainerStage). Without it the check is
+                                namespace-level: a target counts as untagged
+                                only when the namespace holds no tag at all.
     -s, --lifecycle STATE       Lifecycle state filter (default: ACTIVE)
     -o, --output FORMAT         Output format: table, csv, json (default: table)
         --input-json FILE       Read targets from local JSON (array or {data:[...]})
@@ -106,6 +111,9 @@ EXAMPLES:
 
     # Run from saved target JSON (no OCI fetch)
     ${SCRIPT_NAME} --input-json ./target_selection.json -n "DBSec"
+
+  # Find targets missing the DBSec.ContainerStage key specifically
+  ${SCRIPT_NAME} -n DBSec -k ContainerStage -o csv
 
 EXIT CODES:
   0 = Success
@@ -134,6 +142,10 @@ parse_args() {
                 ;;
             -n | --namespace)
                 TAG_NAMESPACE="$2"
+                shift 2
+                ;;
+            -k | --tag-key)
+                TAG_KEY="$2"
                 shift 2
                 ;;
             -s | --lifecycle)
@@ -262,13 +274,21 @@ find_untagged_targets() {
     total_count=$(echo "$targets_json" | jq '.data | length')
     log_info "Found $total_count total targets"
 
-    # Find untagged targets - check if namespace has any tags
+    # Find untagged targets - namespace-level check, or key-level with --tag-key
     local untagged_targets
-    untagged_targets=$(echo "$targets_json" | jq --arg ns "$TAG_NAMESPACE" '
-        .data[] | select(
-            (.["defined-tags"][$ns] | type) != "object" or
-            (.["defined-tags"][$ns] | length) == 0
-        )')
+    if [[ -n "$TAG_KEY" ]]; then
+        untagged_targets=$(echo "$targets_json" | jq --arg ns "$TAG_NAMESPACE" --arg key "$TAG_KEY" '
+            .data[] | select(
+                (.["defined-tags"][$ns] | type) != "object" or
+                ((.["defined-tags"][$ns][$key] // "") | tostring | length) == 0
+            )')
+    else
+        untagged_targets=$(echo "$targets_json" | jq --arg ns "$TAG_NAMESPACE" '
+            .data[] | select(
+                (.["defined-tags"][$ns] | type) != "object" or
+                (.["defined-tags"][$ns] | length) == 0
+            )')
+    fi
 
     local untagged_count
     untagged_count=$(echo "$untagged_targets" | jq -s 'length')
@@ -278,7 +298,11 @@ find_untagged_targets() {
         return 0
     fi
 
-    log_info "Found $untagged_count untagged targets"
+    if [[ -n "$TAG_KEY" ]]; then
+        log_info "Found $untagged_count targets without ${TAG_NAMESPACE}.${TAG_KEY}"
+    else
+        log_info "Found $untagged_count untagged targets"
+    fi
 
     # Output in requested format
     case "$OUTPUT_FORMAT" in
@@ -292,10 +316,10 @@ find_untagged_targets() {
                 .["database-details"]["database-name"] // "N/A",
                 .["display-name"],
                 .["lifecycle-state"],
-                .["compartment-id"],
-                .["database-details"]["database-type"] // "N/A", 
+                .["compartment-id"] // "N/A",
+                .["database-details"]["database-type"] // "N/A",
                 .["database-details"]["infrastructure-type"] // "N/A"
-            ] | @csv' | jq -r '.'
+            ] | @csv'
             ;;
         table | *)
             printf "%-60s %-25s %-15s %-15s\n" "Target ID" "Display Name" "State" "Database Type"

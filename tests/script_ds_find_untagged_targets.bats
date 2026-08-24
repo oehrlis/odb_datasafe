@@ -234,3 +234,54 @@ JSON
     [ "$status" -eq 0 ]
     [[ "$output" == *"db2"* ]]
 }
+
+# ---------------------------------------------------------------------------
+# --tag-key: key-level instead of namespace-level check
+# ---------------------------------------------------------------------------
+
+@test "ds_find_untagged_targets.sh --help documents --tag-key" {
+    run "${SCRIPT_PATH}" --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"--tag-key KEY"* ]]
+}
+
+@test "ds_find_untagged_targets.sh -k finds targets missing one key inside the namespace" {
+    local sample_json="${BATS_TEST_TMPDIR}/tagkey.json"
+    cat > "$sample_json" <<'JSON'
+{"data":[
+  {"id":"ocid1.datasafetargetdatabase.oc1..t1","display-name":"full",
+   "lifecycle-state":"ACTIVE",
+   "defined-tags":{"DBSec":{"Environment":"prod","ContainerStage":"pdb-prod"}}},
+  {"id":"ocid1.datasafetargetdatabase.oc1..t2","display-name":"partial",
+   "lifecycle-state":"ACTIVE",
+   "defined-tags":{"DBSec":{"Environment":"prod"}}},
+  {"id":"ocid1.datasafetargetdatabase.oc1..t3","display-name":"empty",
+   "lifecycle-state":"ACTIVE","defined-tags":{}}
+]}
+JSON
+
+    run "${SCRIPT_PATH}" --input-json "$sample_json" \
+        -n DBSec -k ContainerStage -o csv
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"partial"* ]]
+    [[ "$output" == *"empty"* ]]
+    [[ "$output" != *'"full"'* ]]
+}
+
+@test "ds_find_untagged_targets.sh without -k stays namespace-level" {
+    local sample_json="${BATS_TEST_TMPDIR}/tagns.json"
+    cat > "$sample_json" <<'JSON'
+{"data":[
+  {"id":"ocid1.datasafetargetdatabase.oc1..t2","display-name":"partial",
+   "lifecycle-state":"ACTIVE",
+   "defined-tags":{"DBSec":{"Environment":"prod"}}},
+  {"id":"ocid1.datasafetargetdatabase.oc1..t3","display-name":"empty",
+   "lifecycle-state":"ACTIVE","defined-tags":{}}
+]}
+JSON
+
+    run "${SCRIPT_PATH}" --input-json "$sample_json" -n DBSec -o csv
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"empty"* ]]
+    [[ "$output" != *'"partial"'* ]]
+}
