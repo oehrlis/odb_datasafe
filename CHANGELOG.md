@@ -8,7 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-08-24
+
 ### Fixed
+
+- `lib/ds_lib.sh`, `bin/ds_trail_report.sh`: **`ds_trail_report.sh` aborted with
+  `jq: Argument list too long`** on any compartment holding a few hundred
+  targets. Verified against a 1352-target tenancy, where the report failed
+  before printing a single row. Large JSON payloads were handed to `jq` as
+  command-line arguments, which exceeds `ARG_MAX`. Five call sites fixed:
+  - `ds_collect_trail_items()`: the merge accumulator re-serialized the entire
+    result set through `--argjson` once per compartment - both over `ARG_MAX`
+    and quadratic in the number of compartments. Results are now appended to a
+    temp file and merged in a single `jq -s` pass.
+  - `ds_build_trail_rows()`: `--argjson trails` / `--argjson profiles` replaced
+    by `--slurpfile` from temp files.
+  - `ds_trail_report.sh`: `--save-trails-json` / `--save-profiles-json` wrap
+    their payload via stdin instead of `--argjson`.
+  - `ds_trail_report.sh`: JSON output passes the rows on stdin; only the
+    per-environment summary, which stays small, remains on argv.
 
 - `.github/workflows/release.yml`: the release step now sets `draft: false` and
   `prerelease: false` explicitly and fails on unmatched files. Seven orphaned

@@ -1758,8 +1758,13 @@ ds_collect_trail_items() {
     local list_fn="$1"
     shift
 
-    local merged="[]"
-    local scope payload items
+    local scope payload items acc_file rc=0
+
+    acc_file=$(mktemp) || {
+        log_error "Cannot create temp file to accumulate ${list_fn} results"
+        printf '[]'
+        return 1
+    }
 
     for scope in "$@"; do
         payload=$("$list_fn" "$scope" 2> /dev/null) || {
@@ -1767,10 +1772,16 @@ ds_collect_trail_items() {
             continue
         }
         items=$(ds_trail_items "$payload")
-        merged=$(jq -c -n --argjson a "$merged" --argjson b "$items" '$a + $b')
+        # One JSON array per line, merged in a single pass below. The previous
+        # version re-serialized a growing accumulator through jq's argv on every
+        # iteration: with 600 prod targets that exceeded ARG_MAX ("Argument list
+        # too long") and the cost was quadratic in the number of compartments.
+        printf '%s\n' "$items" >> "$acc_file"
     done
 
-    jq -c 'unique_by(.id)' <<< "$merged"
+    jq -c -s 'add // [] | unique_by(.id)' < "$acc_file" || rc=$?
+    rm -f "$acc_file"
+    return $rc
 }
 
 # ------------------------------------------------------------------------------
@@ -1912,13 +1923,32 @@ ds_build_trail_rows() {
     local tag_ns="${4:-DBSec}"
     local state_filter="${5:-}"
 
+    # Trails, profiles and targets are passed through temp files, not argv.
+    # A 600-target prod compartment produces arrays well past ARG_MAX and jq
+    # fails with "Argument list too long". --slurpfile wraps each file in an
+    # array, hence the [0] unwrapping in the program below.
+    local trails_file profiles_file rc=0
+    trails_file=$(mktemp) || {
+        log_error "Cannot create temp file for trail items"
+        return 1
+    }
+    profiles_file=$(mktemp) || {
+        log_error "Cannot create temp file for profile items"
+        rm -f "$trails_file"
+        return 1
+    }
+    printf '%s' "$trail_items" > "$trails_file"
+    printf '%s' "$profile_items" > "$profiles_file"
+
     jq -c \
-        --argjson trails "$trail_items" \
-        --argjson profiles "$profile_items" \
+        --slurpfile trails_in "$trails_file" \
+        --slurpfile profiles_in "$profiles_file" \
         --arg ns "$tag_ns" \
         --arg states "$state_filter" \
         "${DS_TRAIL_JQ_PRELUDE}"'
-        ($trails   | group_by(.["target-id"]) | map({key: .[0]["target-id"], value: .}) | from_entries) as $trail_map
+        ($trails_in[0]   // []) as $trails
+      | ($profiles_in[0] // []) as $profiles
+      | ($trails   | group_by(.["target-id"]) | map({key: .[0]["target-id"], value: .}) | from_entries) as $trail_map
       | ($profiles | group_by(.["target-id"]) | map({key: .[0]["target-id"], value: .[0]}) | from_entries) as $profile_map
       | ($states | ascii_upcase | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))) as $state_list
       | [ .data[]
@@ -1954,7 +1984,10 @@ ds_build_trail_rows() {
         else .
         end
       | sort_by(.environment, .type, .target)
-    ' <<< "$targets_json"
+    ' <<< "$targets_json" || rc=$?
+
+    rm -f "$trails_file" "$profiles_file"
+    return $rc
 }
 
 # ------------------------------------------------------------------------------

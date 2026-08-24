@@ -376,10 +376,12 @@ collect_state() {
         PROFILES_ITEMS_JSON=$(ds_collect_trail_items ds_list_audit_profiles "${scopes[@]+"${scopes[@]}"}")
     fi
 
+    # Wrapped via stdin, not --argjson: a 600-target compartment produces
+    # arrays past ARG_MAX and jq fails with "Argument list too long".
     [[ -n "$SAVE_TRAILS_JSON" ]] \
-        && jq -n --argjson items "$TRAILS_ITEMS_JSON" '{data:{items:$items}}' > "$SAVE_TRAILS_JSON"
+        && jq '{data:{items:.}}' <<< "$TRAILS_ITEMS_JSON" > "$SAVE_TRAILS_JSON"
     [[ -n "$SAVE_PROFILES_JSON" ]] \
-        && jq -n --argjson items "$PROFILES_ITEMS_JSON" '{data:{items:$items}}' > "$SAVE_PROFILES_JSON"
+        && jq '{data:{items:.}}' <<< "$PROFILES_ITEMS_JSON" > "$SAVE_PROFILES_JSON"
 
     log_debug "Audit trails: $(jq 'length' <<< "$TRAILS_ITEMS_JSON"), audit profiles: $(jq 'length' <<< "$PROFILES_ITEMS_JSON")"
     return 0
@@ -471,9 +473,13 @@ summary_json() {
 render_report() {
     case "$OUTPUT_FORMAT" in
         json)
-            jq -n --argjson rows "$ROWS_JSON" --argjson summary "$(summary_json)" \
+            # $ROWS_JSON arrives on stdin - as --argjson it exceeds ARG_MAX
+            # on large compartments. The summary is one row per environment
+            # and stays small enough for argv.
+            jq --argjson summary "$(summary_json)" \
                 --arg generated "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
-                '{generated: $generated, targets: ($rows | length), rows: $rows, summary: $summary}'
+                '{generated: $generated, targets: length, rows: ., summary: $summary}' \
+                <<< "$ROWS_JSON"
             ;;
         csv)
             if [[ "$SUMMARY_MODE" != "only" ]]; then
