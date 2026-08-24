@@ -8,6 +8,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-24
+
+Audit reconcile and trail reporting for the Data Safe to SIEM pipeline.
+
+### Added
+
+- `bin/ds_audit_reconcile.sh`: new reconcile run that compares the desired and
+  the actual audit state in a compartment subtree and closes the gap. Tags
+  targets that lack `DBSec.ContainerStage`, triggers audit trail discovery for
+  targets without a trail object, and starts trails in state `NOT_STARTED`.
+  Trails in `NEEDS_ATTENTION` are reported only, never touched. The run is
+  idempotent and is a dry-run unless `--apply` is given. `--limit N` caps the
+  number of writes per run - a tag update, a trail discovery and a trail start
+  each count as one - so a rollout can proceed in waves with a volume check in
+  between. The work is delegated to `ds_target_update_tags.sh`,
+  `ds_target_audit_trail.sh` and the audit profile API; no logic is duplicated.
+- `bin/ds_trail_report.sh`: new report of the audit trail state per target,
+  grouped by environment, in `table`, `csv` or `json`. Reports target name,
+  environment, container type, trail state, auto-purge, and the collected
+  audit volume from the audit profile, plus a per-environment summary. Three
+  bulk API calls regardless of the number of targets. `--state` narrows the
+  report to the states that still need work, `--summary-only` produces the
+  gate for the next rollout wave.
+- `bin/ds_find_untagged_targets.sh`: new `-k`/`--tag-key` option to check for a
+  specific key inside the namespace (for example `ContainerStage`) instead of
+  the namespace as a whole. A target holding `DBSec.Environment` but no
+  `DBSec.ContainerStage` was previously reported as tagged.
+- `lib/ds_lib.sh`: audit trail and audit profile helpers - `ds_list_audit_trails`,
+  `ds_list_audit_profiles`, `ds_collect_trail_items`, `ds_trail_items`,
+  `ds_trail_effective_state`, `ds_trail_is_collecting`, `ds_trail_is_startable`,
+  `ds_discover_audit_trails`, `ds_build_trail_rows`, `ds_trail_summary_json`,
+  `ds_format_bytes`, and the shared `DS_TRAIL_JQ_PRELUDE` jq function library.
+- `doc/audit_reconcile.md`: rollout guide for the wave-based reconcile.
+- `tests/lib_ds_audit_trail.bats`, `tests/script_ds_audit_reconcile.bats`,
+  `tests/script_ds_trail_report.bats`: 61 new tests covering state derivation,
+  the change budget, the skip flags, and the fixed start-time and auto-purge
+  policy.
+
+### Fixed
+
+- `bin/ds_target_audit_trail.sh`: an audit trail carries two independent state
+  fields - `lifecycle-state` (`ACTIVE`, `NEEDS_ATTENTION`, `FAILED`) and
+  `status` (`NOT_STARTED`, `COLLECTING`, `IDLE`, `STOPPED`, ...). The script
+  read only `lifecycle-state`, so `--list` could never show `NOT_STARTED`, and
+  the skip check in `start_audit_trails()` compared `lifecycle-state` against
+  `COLLECTING`/`STARTING`/`RESUMING`, which never matches. Every run therefore
+  issued a start call for trails that were already collecting. Both the list
+  and the start path now evaluate the combined state.
+- `bin/ds_find_untagged_targets.sh`: the `csv` output piped the `@csv` result
+  back into `jq -r '.'`, which fails on any non-empty row. The command aborted
+  with a jq parse error whenever an untagged target was found. A missing
+  `compartment-id` now renders as `N/A` instead of an empty field.
+
 ## [1.0.10] - 2026-07-10
 
 ### Fixed

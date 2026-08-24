@@ -1,4 +1,58 @@
-# odb_datasafe — Active Tasks
+# odb_datasafe - Active Tasks
+
+## v1.1.0 - Audit reconcile + trail report (2026-08-23, done)
+
+Context: Splunk SIEM integration. 1390 Data Safe targets (Prod 600 / QS 393 /
+Test 397). Prod is the rollout scope. 54 targets tenancy-wide without
+`DBSec.ContainerStage`, 506 Prod trails `NOT_STARTED`, 31 Prod targets with no
+trail object at all.
+
+### Decisions (confirmed 2026-08-23)
+
+1. Missing trail objects are created via `oci data-safe audit-profile
+   discover-audit-trails` - there is no `audit-trail create`. Fire and forget,
+   no work-request wait; the trail is started by the next wave.
+2. The trail state report is its own script, `bin/ds_trail_report.sh`.
+3. `--limit N` counts every write globally (tag update, discovery, trail start
+   each count 1), one shared budget consumed in step order.
+4. The `lifecycle-state` vs `status` defect in `ds_target_audit_trail.sh` is
+   fixed as part of this change.
+
+### Tasks
+
+- [x] Fix `ds_target_audit_trail.sh`: evaluate `status` next to `lifecycle-state`
+- [x] `lib/ds_lib.sh`: bulk helpers for audit trails and audit profiles
+- [x] `bin/ds_find_untagged_targets.sh`: `-k`/`--tag-key` for key-level checks
+- [x] New `bin/ds_trail_report.sh` (table/csv/json, grouped by environment)
+- [x] New `bin/ds_audit_reconcile.sh` (dry-run default, `--apply`, `--limit`)
+- [x] 61 new BATS tests, including the trail-status regression
+- [x] Docs: `doc/audit_reconcile.md`, quickref, doc index, README
+- [x] VERSION 1.0.10 -> 1.1.0 + CHANGELOG entry
+- [x] `make lint`, `make format-check`, `make test` - 414 pass, 0 fail
+
+### Results
+
+Two defects were found and fixed along the way, both pre-existing:
+
+- `ds_target_audit_trail.sh` read only `lifecycle-state`. Collection progress
+  lives in `status`, so `--list` could never report `NOT_STARTED` and the skip
+  check never matched - every run re-issued a start for trails that were
+  already collecting.
+- `ds_find_untagged_targets.sh -o csv` piped `@csv` output back into
+  `jq -r '.'` and aborted with a parse error on any non-empty row.
+
+One defect was found in new code during testing: `take_budget` was called in a
+command substitution, so the shared `--limit` budget was never decremented and
+every step got the full budget. Now sets a global instead.
+
+### Not done, deliberately
+
+- No security policy distribution (Data Safe handles that via target groups)
+- No deleting or stopping of trails
+- No automatic handling of `NEEDS_ATTENTION` beyond reporting
+- No backfill of historic audit data
+
+---
 
 ## v1.0.8 — Create+Delete path for vm-cluster-id change (2026-07-03)
 

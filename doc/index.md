@@ -15,7 +15,9 @@ The `odb_datasafe` extension provides a complete framework for working with Orac
 - **OCI Integration** - Helper functions for OCI CLI operations
 - **Library Framework** - Reusable shell libraries for Data Safe operations
 - **Tag-based Filtering** - Scope any bulk operation by OCI freeform or defined tags
-- **Comprehensive Testing** - BATS test suite with 346 tests
+- **Audit Reconcile** - Close the gap between desired and actual audit state in
+  controlled waves, and report the trail state per environment
+- **Comprehensive Testing** - BATS test suite with 414 tests
 
 ## Documentation
 
@@ -24,6 +26,7 @@ The `odb_datasafe` extension provides a complete framework for working with Orac
 - **[Quick Reference (Root Admin)](quickref_root_admin.md)** - Cheatsheet for Unix/root admins
 - **[Standalone Usage](standalone_usage.md)** - Run `odb_datasafe` directly from its folder
 - **[Service Installer Guide](install_datasafe_service.md)** - Install connectors as systemd services
+- **[Audit Reconcile](audit_reconcile.md)** - Wave-based audit rollout and trail reporting
 - **[Troubleshooting Guide](troubleshooting.md)** - Health overview and actions
 - **[Database Prereqs](database_prereqs.md)** - On-prem DB preparation
 - **[IAM Policies Guide](oci-iam-policies.md)** - Required OCI permissions
@@ -142,7 +145,7 @@ odb_datasafe/
 ├── bin/           # 30 executable scripts
 ├── lib/           # Library framework (ds_lib.sh, common.sh, oci_helpers.sh)
 ├── doc/           # Documentation (this directory)
-├── tests/         # BATS test suite (346 tests)
+├── tests/         # BATS test suite (414 tests)
 ├── etc/           # Configuration examples
 ├── sql/           # SQL queries
 ├── VERSION        # Current version

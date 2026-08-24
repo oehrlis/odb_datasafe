@@ -12,7 +12,7 @@ The `odb_datasafe` extension provides comprehensive tools for managing Oracle OC
 - **Service Installer** - Install Data Safe On-Premises Connectors as systemd services  
 - **Connector Management** - List, configure, and manage connectors
 - **OCI Integration** - Built on OCI CLI with helper functions
-- **Comprehensive Testing** - 346 BATS tests with full coverage
+- **Comprehensive Testing** - 414 BATS tests with full coverage
 
 ## Quick Start
 
@@ -113,6 +113,7 @@ export DS_ROOT_COMP="ocid1.compartment.oc1....."
 - 📖 **[Complete Documentation](doc/index.md)** — Full reference guide
 - ⚡ **[Quick Reference](doc/quickref.md)** — Command cheat sheet with examples
 - 🔧 **[Installation & Setup](doc/install_datasafe_service.md)** — Detailed setup instructions
+- 🔁 **[Audit Reconcile](doc/audit_reconcile.md)** — Wave-based audit rollout and trail reporting
 - 🔐 **[OCI IAM Policies](doc/oci-iam-policies.md)** — Required IAM permissions
 - 📝 **[Release Notes](doc/release_notes/)** — Version history
 - 📋 **[CHANGELOG](CHANGELOG.md)** — Detailed change log
@@ -131,7 +132,13 @@ export DS_ROOT_COMP="ocid1.compartment.oc1....."
   authentication with cached checks and helpful errors.
 - ✅ **Standardized compartment handling** — Consistent `-c` and `DS_ROOT_COMP` pattern across scripts.
 - ✅ **Safe dry-runs and debugging** — Uniform `--dry-run`, `--debug`, and logging behaviors.
-- ✅ **Comprehensive testing** — 346 BATS tests for reliability.
+- ✅ **Audit reconcile** — `ds_audit_reconcile.sh` closes the gap between the
+  desired and the actual audit state: tagging, trail discovery, and trail start
+  in one idempotent, dry-run-by-default run with a per-run change budget.
+- ✅ **Trail state reporting** — `ds_trail_report.sh` reports trail state,
+  auto-purge, and collected volume per target, grouped by environment, in
+  table, CSV, or JSON.
+- ✅ **Comprehensive testing** — 414 BATS tests for reliability.
 
 ## Requirements
 
@@ -149,10 +156,10 @@ export DS_ROOT_COMP="ocid1.compartment.oc1....."
 
 ```text
 odb_datasafe/
-├── bin/              # 30 executable scripts
+├── bin/              # 32 executable scripts
 ├── lib/              # Shared libraries (common.sh, ds_lib.sh, oci_helpers.sh)
 ├── doc/              # Documentation
-├── tests/            # BATS test suite (346 tests)
+├── tests/            # BATS test suite (414 tests)
 ├── etc/              # Configuration templates
 ├── sql/              # SQL utility scripts
 └── Makefile         # Build and test automation
@@ -181,6 +188,15 @@ ds_target_update_credentials.sh -T my-database -U C##DATASAFE_ADMIN -P '<secret>
 
 # Start audit trails
 ds_target_audit_trail.sh -T my-database
+
+# Audit trail state of every target, grouped by environment
+ds_trail_report.sh -c prod-compartment --summary-only
+
+# Reconcile tags and audit trails - dry-run by default
+ds_audit_reconcile.sh --compartment-id ocid1.compartment.oc1..prod
+
+# Run one rollout wave of at most 50 changes
+ds_audit_reconcile.sh --compartment-id ocid1.compartment.oc1..prod --apply --limit 50
 ```
 
 ### Advanced Operations

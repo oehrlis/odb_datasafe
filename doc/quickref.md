@@ -19,6 +19,9 @@ odb_datasafe/                          # OraDBA Extension for Data Safe
 │   ├── ds_target_list_connector.sh    # List Data Safe connectors
 │   ├── ds_target_connector_summary.sh # Group targets by connector
 │   ├── ds_target_refresh.sh           # Refresh Data Safe targets
+│   ├── ds_target_audit_trail.sh       # Start or list audit trails
+│   ├── ds_audit_reconcile.sh          # Reconcile tags and audit trails
+│   ├── ds_trail_report.sh             # Audit trail state report per target
 │   ├── ds_target_update_*.sh          # Update target properties
 │   ├── ds_connector_update.sh         # Update Data Safe connector
 │   ├── ds_connector_register_oradba.sh # Register connector in OraDBA config
@@ -114,6 +117,19 @@ bin/ds_tg_report.sh --input-json ./target_selection.json -r env
 # Persist selected targets while running report
 bin/ds_tg_report.sh -c prod-compartment --save-json ./target_selection.json
 
+# Audit trail state per target, grouped by environment
+bin/ds_trail_report.sh -c prod-compartment
+
+# Only the targets that still need work
+bin/ds_trail_report.sh -A --state NOT_STARTED,NO_TRAIL,NEEDS_ATTENTION
+
+# Per-environment summary - the gate for the next rollout wave
+bin/ds_trail_report.sh -A --summary-only
+
+# Machine readable state for the SIEM handover
+bin/ds_trail_report.sh -A -f json > trail-state.json
+bin/ds_trail_report.sh -A -f csv  > trail-state.csv
+
 # Show count summary by lifecycle state
 bin/ds_target_list.sh --count
 
@@ -174,6 +190,19 @@ bin/ds_target_activate.sh -c "MyCompartment" -T db1,db2 --apply
 
 # Activate only targets matching regex
 bin/ds_target_activate.sh -c "MyCompartment" -r "db02" --apply
+
+# Reconcile audit state - dry-run is the default, nothing is written
+bin/ds_audit_reconcile.sh --compartment-id ocid1.compartment.oc1..prod
+
+# Run one rollout wave: at most 50 changes, report to file
+bin/ds_audit_reconcile.sh --compartment-id ocid1.compartment.oc1..prod \
+    --apply --limit 50 --report-file wave-01.txt
+
+# Tagging only, no trail work
+bin/ds_audit_reconcile.sh -A --apply --skip-trails
+
+# Trails only, restricted to one database family
+bin/ds_audit_reconcile.sh -A --apply --skip-tagging --target-filter '^PRODDB0' --limit 50
 
 # Consolidated issue summary (all issue categories)
 bin/ds_target_list.sh --mode health

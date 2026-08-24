@@ -110,3 +110,62 @@ schlugen in CI fehl, weil `require_oci_cli` zuerst aufrief und mit
 allen required-param `die`-Zeilen erscheinen.
 
 [promoted → rule: .claude/rules/shell-scripts.md § validate_inputs() Ordering]
+
+---
+
+## 2026-08-23 - OCI Audit Trail: lifecycle-state und status sind zwei Felder
+
+**Context.** `ds_target_audit_trail.sh --list` konnte `NOT_STARTED` nie anzeigen,
+und `start_audit_trails()` schickte bei jedem Lauf einen Start an bereits
+sammelnde Trails. Ursache: das Skript las ausschliesslich `lifecycle-state`.
+
+Ein OCI Audit Trail traegt zwei unabhaengige Zustandsfelder:
+
+- `lifecycle-state`: `ACTIVE`, `NEEDS_ATTENTION`, `FAILED`, `DELETING`, ...
+  (ist das Trail-Objekt gesund?)
+- `status`: `NOT_STARTED`, `COLLECTING`, `IDLE`, `STOPPED`, `RECOVERING`,
+  `STOPPED_NEEDS_ATTN`, `STOPPED_FAILED`, ... (laeuft die Sammlung?)
+
+`COLLECTING` ist ein `status`-Wert und erscheint nie in `lifecycle-state` - der
+Vergleich `case "${trail_state^^}" in COLLECTING)` konnte also nie greifen.
+
+**Rule.** Bei jedem OCI-Ressourcentyp mit `--lifecycle-state` UND `--status` als
+getrennten CLI-Filtern: beide Felder auswerten. Die CLI-Filteroptionen von
+`oci <service> <resource> list --help` sind die verlaessliche Quelle dafuer,
+welche Zustandsfelder existieren - nicht das erste Feld in der JSON-Antwort.
+
+**verify.** `oci data-safe audit-trail list --help | grep -E '^\s+--(status|lifecycle-state)'`
+→ beide muessen als eigenstaendige Optionen erscheinen.
+
+---
+
+## 2026-08-23 - Shared Budget nie in einer Command Substitution veraendern
+
+**Context.** In `ds_audit_reconcile.sh` verteilte `take_budget()` das gemeinsame
+`--limit`-Kontingent ueber drei Phasen. Aufgerufen wurde sie als
+`granted=$(take_budget "$count")`. Die Zuweisung an `BUDGET_LEFT` lief damit in
+einer Subshell und war nach der Rueckkehr weg - jede Phase bekam das volle
+Kontingent. Bei `--limit 1` haette der Lauf 4 statt 1 Aenderung gemacht.
+
+**Rule.** Funktionen, die gemeinsamen Zustand mutieren, geben ihr Ergebnis ueber
+eine globale Variable zurueck, nicht ueber stdout. Wer stdout nutzt, wird per
+`$(...)` aufgerufen, und `$(...)` ist eine Subshell.
+
+**verify.** Jede Funktion, die eine globale Zaehl- oder Budget-Variable
+zuweist, darf nicht in `$(...)` aufgerufen werden:
+`grep -n '=\$(\(take_\|consume_\|reserve_\)' bin/*.sh` → 0 Treffer.
+
+---
+
+## 2026-08-23 - jq: `@csv` nicht erneut durch jq pipen
+
+**Context.** `ds_find_untagged_targets.sh -o csv` brach mit
+"jq: parse error: Expected value before ','" ab, sobald ein untagged Target
+gefunden wurde. Die Pipeline endete auf `... | @csv' | jq -r '.'`. `jq -r`
+liefert bei `@csv` bereits rohen CSV-Text; der zweite `jq` versucht dann, eine
+CSV-Zeile als JSON zu parsen.
+
+**Rule.** `jq -r '... | @csv'` ist der Endpunkt der Pipeline. Kein weiteres
+`jq -r '.'` dahinter. Gleiches gilt fuer `@tsv`, `@text` und `@base64d`.
+
+**verify.** `grep -n "@csv'\s*|\s*jq\|@tsv'\s*|\s*jq" bin/*.sh lib/*.sh` → 0 Treffer.
