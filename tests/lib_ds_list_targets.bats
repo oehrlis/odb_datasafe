@@ -35,7 +35,7 @@ JSON
 
     # Mock: passes through --lifecycle-state server filtering for single-state
     # calls; returns the full dataset when no filter is given (multi-state path).
-    # shellcheck disable=SC2329
+    # shellcheck disable=SC2317,SC2329
     _ds_get_target_list_cached() {
         local _filter_state=""
         shift 2  # skip comp_ocid and lifecycle_norm
