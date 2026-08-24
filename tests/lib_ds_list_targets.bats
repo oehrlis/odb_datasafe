@@ -56,7 +56,7 @@ JSON
         fi
     }
 
-    # shellcheck disable=SC2329
+    # shellcheck disable=SC2317,SC2329
     oci_resolve_compartment_ocid() { printf 'ocid1.compartment.oc1..test'; }
 }
 
