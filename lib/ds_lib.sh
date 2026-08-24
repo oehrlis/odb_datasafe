@@ -1592,5 +1592,408 @@ ds_create_connector() {
     echo "$connector_ocid"
 }
 
+# =============================================================================
+# AUDIT TRAIL AND AUDIT PROFILE OPERATIONS
+# =============================================================================
+
+# ------------------------------------------------------------------------------
+# Function: ds_list_audit_trails
+# Purpose.: List all Data Safe audit trails in a compartment subtree
+# Args....: $1 - Compartment OCID or name
+# Returns.: 0 on success, 1 on error
+# Output..: JSON object {"data":{"items":[...]}} on stdout
+# Notes...: One bulk call instead of one call per target. Audit trails carry two
+#           independent state fields: "lifecycle-state" (ACTIVE, NEEDS_ATTENTION,
+#           FAILED, ...) and "status" (NOT_STARTED, COLLECTING, IDLE, STOPPED,
+#           ...). Both are needed to judge a trail; see ds_trail_effective_state.
+# ------------------------------------------------------------------------------
+ds_list_audit_trails() {
+    local compartment="$1"
+
+    local comp_ocid
+    comp_ocid=$(oci_resolve_compartment_ocid "$compartment") || return 1
+
+    log_debug "Listing audit trails in compartment subtree: $comp_ocid"
+
+    oci_exec_ro data-safe audit-trail list \
+        --compartment-id "$comp_ocid" \
+        --compartment-id-in-subtree true \
+        --all
+}
+
+# ------------------------------------------------------------------------------
+# Function: ds_list_audit_profiles
+# Purpose.: List all Data Safe audit profiles in a compartment subtree
+# Args....: $1 - Compartment OCID or name
+# Returns.: 0 on success, 1 on error
+# Output..: JSON object {"data":{"items":[...]}} on stdout
+# Notes...: The audit profile holds the collected audit volume and is the handle
+#           required by "audit-profile discover-audit-trails".
+# ------------------------------------------------------------------------------
+ds_list_audit_profiles() {
+    local compartment="$1"
+
+    local comp_ocid
+    comp_ocid=$(oci_resolve_compartment_ocid "$compartment") || return 1
+
+    log_debug "Listing audit profiles in compartment subtree: $comp_ocid"
+
+    oci_exec_ro data-safe audit-profile list \
+        --compartment-id "$comp_ocid" \
+        --compartment-id-in-subtree true \
+        --all
+}
+
+# ------------------------------------------------------------------------------
+# Function: ds_trail_items
+# Purpose.: Normalize an OCI audit-trail/audit-profile list payload to an array
+# Args....: $1 - JSON payload as returned by the OCI CLI
+# Returns.: 0 on success
+# Output..: JSON array on stdout (empty array when the payload has no items)
+# Notes...: The CLI returns {"data":{"items":[...]}} for paginated list calls but
+#           {"data":[...]} in some versions and for --from-json replays.
+# ------------------------------------------------------------------------------
+ds_trail_items() {
+    local payload="${1:-}"
+
+    [[ -z "$payload" ]] && {
+        printf '[]'
+        return 0
+    }
+
+    printf '%s' "$payload" | jq -c '
+        if (.data | type) == "object" then (.data.items // [])
+        elif (.data | type) == "array" then .data
+        elif type == "array" then .
+        else []
+        end
+    ' 2> /dev/null || printf '[]'
+}
+
+# ------------------------------------------------------------------------------
+# Function: ds_trail_effective_state
+# Purpose.: Collapse an audit trail's lifecycle-state and status into one state
+# Args....: $1 - lifecycle-state (may be empty)
+#           $2 - status (may be empty)
+# Returns.: 0 always
+# Output..: Normalized state on stdout
+# Notes...: A trail that is broken reports it in lifecycle-state, everything else
+#           about collection lives in status. Reporting lifecycle-state alone
+#           (the pre-1.1.0 behaviour) can never show NOT_STARTED.
+# ------------------------------------------------------------------------------
+ds_trail_effective_state() {
+    local lifecycle="${1:-}"
+    local status="${2:-}"
+
+    lifecycle="${lifecycle^^}"
+    status="${status^^}"
+
+    case "$lifecycle" in
+        NEEDS_ATTENTION | FAILED)
+            printf 'NEEDS_ATTENTION'
+            return 0
+            ;;
+        DELETING | DELETED)
+            printf '%s' "$lifecycle"
+            return 0
+            ;;
+    esac
+
+    case "$status" in
+        STOPPED_NEEDS_ATTN | STOPPED_FAILED)
+            printf 'NEEDS_ATTENTION'
+            return 0
+            ;;
+    esac
+
+    if [[ -n "$status" ]]; then
+        printf '%s' "$status"
+    elif [[ -n "$lifecycle" ]]; then
+        printf '%s' "$lifecycle"
+    else
+        printf 'UNKNOWN'
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# Function: ds_trail_is_collecting
+# Purpose.: Test whether an audit trail is already collecting or on its way there
+# Args....: $1 - Normalized state (see ds_trail_effective_state)
+# Returns.: 0 if the trail must not be started again, 1 otherwise
+# Output..: None
+# ------------------------------------------------------------------------------
+ds_trail_is_collecting() {
+    case "${1^^}" in
+        COLLECTING | STARTING | RESUMING | RECOVERING | RETRYING | IDLE) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# ------------------------------------------------------------------------------
+# Function: ds_trail_is_startable
+# Purpose.: Test whether an audit trail can be started by an automated run
+# Args....: $1 - Normalized state (see ds_trail_effective_state)
+# Returns.: 0 if startable, 1 otherwise
+# Output..: None
+# Notes...: NEEDS_ATTENTION is deliberately not startable - it is reported only.
+# ------------------------------------------------------------------------------
+ds_trail_is_startable() {
+    case "${1^^}" in
+        NOT_STARTED) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# ------------------------------------------------------------------------------
+# Function: ds_collect_trail_items
+# Purpose.: Run a bulk audit list function over several compartments and merge
+# Args....: $1 - list function (ds_list_audit_trails|ds_list_audit_profiles)
+#           $@ - compartment OCIDs or names
+# Returns.: 0 on success
+# Output..: Merged, de-duplicated JSON array on stdout
+# Notes...: A failing compartment is logged and skipped so a single missing
+#           permission does not void the whole report.
+# ------------------------------------------------------------------------------
+ds_collect_trail_items() {
+    local list_fn="$1"
+    shift
+
+    local merged="[]"
+    local scope payload items
+
+    for scope in "$@"; do
+        payload=$("$list_fn" "$scope" 2> /dev/null) || {
+            log_warn "Failed to list via ${list_fn} in compartment: $scope"
+            continue
+        }
+        items=$(ds_trail_items "$payload")
+        merged=$(jq -c -n --argjson a "$merged" --argjson b "$items" '$a + $b')
+    done
+
+    jq -c 'unique_by(.id)' <<< "$merged"
+}
+
+# ------------------------------------------------------------------------------
+# Variable: DS_TRAIL_JQ_PRELUDE
+# Purpose.: jq function library mirroring ds_trail_effective_state for bulk work
+# Notes...: Building 1390 rows with a bash loop costs one fork per field. The jq
+#           implementation must stay in sync with ds_trail_effective_state and
+#           ds_trail_is_collecting; tests/script_ds_trail_report.bats pins that.
+#           Provides: trail_effective_state, trail_state_rank, target_environment,
+#           target_container_type.
+# ------------------------------------------------------------------------------
+DS_TRAIL_JQ_PRELUDE='
+def trail_effective_state(t):
+  ((t["lifecycle-state"] // "") | ascii_upcase) as $lc
+  | ((t["status"] // "") | ascii_upcase) as $st
+  | if ($lc == "NEEDS_ATTENTION" or $lc == "FAILED") then "NEEDS_ATTENTION"
+    elif ($lc == "DELETING" or $lc == "DELETED") then $lc
+    elif ($st == "STOPPED_NEEDS_ATTN" or $st == "STOPPED_FAILED") then "NEEDS_ATTENTION"
+    elif ($st != "") then $st
+    elif ($lc != "") then $lc
+    else "UNKNOWN"
+    end;
+
+def trail_state_rank($s):
+  {"NEEDS_ATTENTION":0,"NOT_STARTED":1,"STOPPED":2,"STOPPING":3,"INACTIVE":4,
+   "DELETING":5,"DELETED":6,"RETRYING":7,"RECOVERING":8,"RESUMING":9,
+   "STARTING":10,"IDLE":11,"COLLECTING":12}[$s] // 7;
+
+def target_environment(t; $ns):
+  (t["defined-tags"][$ns]["Environment"] // "") as $env
+  | (t["defined-tags"][$ns]["ContainerStage"] // "") as $stage
+  | if ($env | length) > 0 and ($env | ascii_downcase) != "undef" then ($env | ascii_downcase)
+    elif ($stage | length) > 0 and ($stage | test("-")) then ($stage | ascii_downcase | split("-") | last)
+    else "undef"
+    end;
+
+def target_container_type(t; $ns):
+  (t["defined-tags"][$ns]["ContainerType"] // "") as $ct
+  | if ((t["display-name"] // "") | test("_CDBROOT$")) then "cdbroot"
+    elif ($ct | length) > 0 and ($ct | ascii_downcase) != "undef" then ($ct | ascii_downcase)
+    else "pdb"
+    end;
+
+def target_stage(t; $ns):
+  (t["defined-tags"][$ns]["ContainerStage"] // "");
+'
+# shellcheck disable=SC2034  # consumed by bin/ds_trail_report.sh and bin/ds_audit_reconcile.sh
+readonly DS_TRAIL_JQ_PRELUDE
+
+# ------------------------------------------------------------------------------
+# Function: ds_discover_audit_trails
+# Purpose.: Trigger audit trail rediscovery for an audit profile
+# Args....: $1 - Audit profile OCID
+#           $2 - Target name for log messages (optional)
+# Returns.: 0 on success, 1 on error
+# Output..: Log messages
+# Notes...: There is no create operation for audit trails - Data Safe discovers
+#           them. This is asynchronous: the trail object appears after the work
+#           request completes and is started by a later reconcile run.
+# ------------------------------------------------------------------------------
+ds_discover_audit_trails() {
+    local profile_ocid="$1"
+    local target_name="${2:-$1}"
+
+    if ! is_ocid "$profile_ocid"; then
+        log_error "Invalid audit profile OCID: $profile_ocid"
+        return 1
+    fi
+
+    if [[ "${DRY_RUN}" == "true" ]]; then
+        log_info "[DRY-RUN] Would discover audit trails for: $target_name ($profile_ocid)"
+        return 0
+    fi
+
+    log_info "Discovering audit trails for: $target_name"
+    oci_exec data-safe audit-profile discover-audit-trails \
+        --audit-profile-id "$profile_ocid" > /dev/null
+}
+
+# ------------------------------------------------------------------------------
+# Function: ds_format_bytes
+# Purpose.: Render a byte count as a short human readable string
+# Args....: $1 - Byte count (may be empty or non-numeric)
+# Returns.: 0 always
+# Output..: Formatted size on stdout, "-" when the input is not a number
+# ------------------------------------------------------------------------------
+ds_format_bytes() {
+    local bytes="${1:-}"
+
+    if [[ ! "$bytes" =~ ^[0-9]+$ ]]; then
+        printf '%s' "-"
+        return 0
+    fi
+
+    local -a units=(B KB MB GB TB PB)
+    local idx=0
+    local value="$bytes"
+
+    while [[ $value -ge 1024 && $idx -lt 5 ]]; do
+        value=$((value / 1024))
+        idx=$((idx + 1))
+    done
+
+    if [[ $idx -eq 0 ]]; then
+        printf '%s%s' "$value" "${units[$idx]}"
+        return 0
+    fi
+
+    # One decimal place via integer math: scale the pre-division value by 10
+    local divisor=1
+    local i
+    for ((i = 0; i < idx; i++)); do
+        divisor=$((divisor * 1024))
+    done
+    local scaled=$((bytes * 10 / divisor))
+
+    printf '%s.%s%s' "$((scaled / 10))" "$((scaled % 10))" "${units[$idx]}"
+}
+
+# ------------------------------------------------------------------------------
+# Function: ds_build_trail_rows
+# Purpose.: Join targets, audit trails and audit profiles into one row per target
+# Args....: $1 - targets JSON {"data":[...]}
+#           $2 - audit trail items JSON array
+#           $3 - audit profile items JSON array
+#           $4 - tag namespace (default: DBSec)
+#           $5 - trail state filter, comma separated (optional)
+# Returns.: 0 on success, 1 on jq error
+# Output..: JSON array of row objects on stdout
+# Notes...: Targets with several trails report the most actionable state, i.e.
+#           the one with the lowest trail_state_rank. A target without any trail
+#           object reports NO_TRAIL - that is not an OCI state, it means Data
+#           Safe has not discovered a trail for this target yet.
+# ------------------------------------------------------------------------------
+ds_build_trail_rows() {
+    local targets_json="$1"
+    local trail_items="${2:-[]}"
+    local profile_items="${3:-[]}"
+    local tag_ns="${4:-DBSec}"
+    local state_filter="${5:-}"
+
+    jq -c \
+        --argjson trails "$trail_items" \
+        --argjson profiles "$profile_items" \
+        --arg ns "$tag_ns" \
+        --arg states "$state_filter" \
+        "${DS_TRAIL_JQ_PRELUDE}"'
+        ($trails   | group_by(.["target-id"]) | map({key: .[0]["target-id"], value: .}) | from_entries) as $trail_map
+      | ($profiles | group_by(.["target-id"]) | map({key: .[0]["target-id"], value: .[0]}) | from_entries) as $profile_map
+      | ($states | ascii_upcase | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))) as $state_list
+      | [ .data[]
+          | . as $t
+          | ($trail_map[$t.id] // []) as $tr
+          | ($profile_map[$t.id] // null) as $pr
+          | ($tr | map(trail_effective_state(.))) as $tr_states
+          | (if ($tr | length) == 0 then "NO_TRAIL"
+             else ($tr_states | sort_by(trail_state_rank(.)) | first)
+             end) as $state
+          | (if ($tr | length) == 0 then "-"
+             elif ($tr | all(.["is-auto-purge-enabled"] == true)) then "yes"
+             elif ($tr | all(.["is-auto-purge-enabled"] != true)) then "no"
+             else "mixed"
+             end) as $purge
+          | {
+              target:            ($t["display-name"] // $t.id),
+              "target-id":       $t.id,
+              environment:       target_environment($t; $ns),
+              type:              target_container_type($t; $ns),
+              stage:             (target_stage($t; $ns) | if length == 0 then "-" else . end),
+              "target-state":    ($t["lifecycle-state"] // "-"),
+              "trail-state":     $state,
+              "trail-count":     ($tr | length),
+              "auto-purge":      $purge,
+              "volume-bytes":    ($pr["audit-collected-volume"] // null),
+              "audit-profile-id": ($pr.id // null),
+              "compartment-id":  ($t["compartment-id"] // null)
+            }
+        ]
+      | if ($state_list | length) > 0
+        then map(select(.["trail-state"] as $s | $state_list | index($s) != null))
+        else .
+        end
+      | sort_by(.environment, .type, .target)
+    ' <<< "$targets_json"
+}
+
+# ------------------------------------------------------------------------------
+# Function: ds_trail_summary_json
+# Purpose.: Aggregate trail rows per environment, plus a TOTAL row
+# Args....: $1 - rows JSON array from ds_build_trail_rows
+# Returns.: 0 on success, 1 on jq error
+# Output..: JSON array of summary objects on stdout
+# ------------------------------------------------------------------------------
+ds_trail_summary_json() {
+    local rows_json="${1:-[]}"
+
+    jq -c '
+        def bucket($s):
+          if ($s == "COLLECTING" or $s == "IDLE" or $s == "RECOVERING"
+               or $s == "STARTING" or $s == "RESUMING" or $s == "RETRYING") then "collecting"
+          elif $s == "NOT_STARTED" then "not_started"
+          elif $s == "NEEDS_ATTENTION" then "needs_attention"
+          elif $s == "NO_TRAIL" then "no_trail"
+          else "other"
+          end;
+
+        def agg($env; $rows):
+          {
+            environment: $env,
+            targets: ($rows | length),
+            collecting:      ($rows | map(select(bucket(.["trail-state"]) == "collecting"))      | length),
+            not_started:     ($rows | map(select(bucket(.["trail-state"]) == "not_started"))     | length),
+            needs_attention: ($rows | map(select(bucket(.["trail-state"]) == "needs_attention")) | length),
+            no_trail:        ($rows | map(select(bucket(.["trail-state"]) == "no_trail"))        | length),
+            other:           ($rows | map(select(bucket(.["trail-state"]) == "other"))           | length),
+            "volume-bytes":  ($rows | map(.["volume-bytes"] // 0) | add // 0)
+          };
+
+        . as $all
+        | ($all | group_by(.environment) | map(agg(.[0].environment; .)))
+          + (if ($all | length) > 0 then [agg("TOTAL"; $all)] else [] end)
+    ' <<< "$rows_json"
+}
+
 readonly DS_LIB_SH_LOADED=1
 # Library loaded successfully (v4.0.0)

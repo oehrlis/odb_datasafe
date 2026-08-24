@@ -100,7 +100,9 @@ Options:
         --save-json FILE            Save selected target JSON payload to file
 
   Action:
-    -l, --list                      List audit trail lifecycle states (read-only)
+    -l, --list                      List audit trail states (read-only). The state
+                                    combines lifecycle-state and status, so
+                                    NOT_STARTED and NEEDS_ATTENTION both show up.
     -n, --dry-run                   Show plan without starting trails (start mode only)
 
   Audit Configuration (start mode only):
@@ -368,25 +370,32 @@ list_audit_trails() {
         [[ -z "$target_compartment" ]] && target_compartment="${COMPARTMENT:-${DS_ROOT_COMP:-}}"
 
         # Query audit trail state for this target
-        local trails_json trail_state note
+        local trails_json trail_state note raw_lifecycle raw_status
         trails_json=$(oci_exec_ro data-safe audit-trail list \
             --compartment-id "$target_compartment" \
             --target-id "$target_ocid" \
             --all 2> /dev/null) || trails_json='{"data":{"items":[]}}'
 
-        trail_state=$(printf '%s' "$trails_json" \
+        # An audit trail reports collection progress in "status" and breakage in
+        # "lifecycle-state" - both are required, lifecycle-state alone can never
+        # surface NOT_STARTED.
+        raw_lifecycle=$(printf '%s' "$trails_json" \
             | jq -r '(.data.items // .data)[]?."lifecycle-state" // empty' | head -n1)
+        raw_status=$(printf '%s' "$trails_json" \
+            | jq -r '(.data.items // .data)[]?.status // empty' | head -n1)
 
-        if [[ -z "$trail_state" ]]; then
+        if [[ -z "$raw_lifecycle" && -z "$raw_status" ]]; then
             trail_state="(no trail)"
             note="missing"
         else
+            trail_state=$(ds_trail_effective_state "$raw_lifecycle" "$raw_status")
             case "${trail_state^^}" in
-                COLLECTING) note="ok" ;;
-                STARTING | RESUMING) note="starting" ;;
-                STOPPED) note="needs restart" ;;
+                COLLECTING | IDLE | RECOVERING) note="ok" ;;
+                STARTING | RESUMING | RETRYING) note="starting" ;;
+                NOT_STARTED) note="not started" ;;
+                STOPPED | STOPPING) note="needs restart" ;;
                 INACTIVE) note="inactive" ;;
-                NEEDS_ATTENTION | FAILED) note="needs attention" ;;
+                NEEDS_ATTENTION) note="needs attention" ;;
                 DELETING | DELETED) note="deleted" ;;
                 *) note="" ;;
             esac
@@ -482,9 +491,9 @@ start_audit_trails() {
             failed_count=$((failed_count + 1))
             continue
         }
-        # Extract id + lifecycle-state as TSV for each trail
+        # Extract id + lifecycle-state + status as TSV for each trail
         local trail_info
-        trail_info=$(echo "$trails_json" | jq -r '(.data.items // .data)[]? | [.id, (."lifecycle-state" // "UNKNOWN")] | @tsv')
+        trail_info=$(echo "$trails_json" | jq -r '(.data.items // .data)[]? | [.id, (."lifecycle-state" // ""), (.status // "")] | @tsv')
 
         if [[ -z "$trail_info" ]]; then
             log_warn "No audit trails found for: $target_name — skipping"
@@ -500,15 +509,15 @@ start_audit_trails() {
 
         # Start each audit trail by its OCID; skip already-running trails
         local trail_ok=0 trail_fail=0 trail_skip=0
-        while IFS=$'\t' read -r trail_ocid trail_state; do
+        while IFS=$'\t' read -r trail_ocid trail_lifecycle trail_status; do
             [[ -z "$trail_ocid" ]] && continue
-            case "${trail_state^^}" in
-                COLLECTING | STARTING | RESUMING)
-                    log_info "Audit trail already ${trail_state} for: $target_name — skipping"
-                    trail_skip=$((trail_skip + 1))
-                    continue
-                    ;;
-            esac
+            local trail_state
+            trail_state=$(ds_trail_effective_state "$trail_lifecycle" "$trail_status")
+            if ds_trail_is_collecting "$trail_state"; then
+                log_info "Audit trail already ${trail_state} for: $target_name — skipping"
+                trail_skip=$((trail_skip + 1))
+                continue
+            fi
             if oci_exec data-safe audit-trail start \
                 --audit-trail-id "$trail_ocid" \
                 --audit-collection-start-time "$collection_start_time" \
@@ -516,21 +525,19 @@ start_audit_trails() {
                 trail_ok=$((trail_ok + 1))
             else
                 # Re-check state: if the trail is now running it was already started
-                local post_state
-                post_state=$(oci_exec_ro data-safe audit-trail get \
-                    --audit-trail-id "$trail_ocid" \
-                    --query 'data."lifecycle-state"' \
-                    --raw-output 2> /dev/null || echo "UNKNOWN")
-                case "${post_state^^}" in
-                    COLLECTING | STARTING | RESUMING)
-                        log_info "Audit trail already ${post_state} for: $target_name — skipping"
-                        trail_skip=$((trail_skip + 1))
-                        ;;
-                    *)
-                        log_error "Failed to start audit trail $trail_ocid for: $target_name (state: ${post_state})"
-                        trail_fail=$((trail_fail + 1))
-                        ;;
-                esac
+                local post_json post_state
+                post_json=$(oci_exec_ro data-safe audit-trail get \
+                    --audit-trail-id "$trail_ocid" 2> /dev/null) || post_json='{}'
+                post_state=$(ds_trail_effective_state \
+                    "$(jq -r '.data."lifecycle-state" // empty' <<< "$post_json")" \
+                    "$(jq -r '.data.status // empty' <<< "$post_json")")
+                if ds_trail_is_collecting "$post_state"; then
+                    log_info "Audit trail already ${post_state} for: $target_name — skipping"
+                    trail_skip=$((trail_skip + 1))
+                else
+                    log_error "Failed to start audit trail $trail_ocid for: $target_name (state: ${post_state})"
+                    trail_fail=$((trail_fail + 1))
+                fi
             fi
         done <<< "$trail_info"
 
