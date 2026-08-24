@@ -5,7 +5,7 @@
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
 # Date.......: 2026.04.08
-# Version....: 0.2.0
+# Version....: 0.3.0
 # Purpose....: Release workflow - build and publish tarball on version tag push
 # Notes......: Triggered by v*.*.* tags or manual workflow_dispatch with version
 # Reference..: https://github.com/oehrlis/odb_datasafe
@@ -112,12 +112,41 @@ jobs:
           EOF
           fi
 
+      - name: Verify build artifacts exist
+        run: |
+          # Same glob as the release step below. The tarball prefix comes from
+          # the name: field in .extension, so it must not be hardcoded here.
+          VERSION="${{ steps.version.outputs.version }}"
+          shopt -s nullglob
+          tarballs=(dist/*-"${VERSION}".tar.gz)
+          checksums=(dist/*-"${VERSION}".tar.gz.sha256)
+          if [ ${#tarballs[@]} -eq 0 ] || [ ${#checksums[@]} -eq 0 ]; then
+            echo "No build artifacts for version ${VERSION} in dist/"
+            ls -la dist/ 2>/dev/null || echo "dist/ does not exist"
+            exit 1
+          fi
+          for f in "${tarballs[@]}" "${checksums[@]}"; do
+            if [ ! -s "$f" ]; then
+              echo "Build artifact is empty: $f"
+              exit 1
+            fi
+          done
+          echo "Build artifacts present:"
+          ls -la dist/
+        shell: bash
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ steps.version.outputs.version }}
           name: Release v${{ steps.version.outputs.version }}
           body_path: release_notes.md
+          # Publish immediately. Never leave a draft behind - the repository
+          # accumulated seven orphaned drafts before this was made explicit.
+          draft: false
+          prerelease: false
+          # Abort instead of publishing a release without its tarball.
+          fail_on_unmatched_files: true
           files: |
             dist/*-${{ steps.version.outputs.version }}.tar.gz
             dist/*-${{ steps.version.outputs.version }}.tar.gz.sha256

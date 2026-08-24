@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `.github/workflows/release.yml`: the release step now sets `draft: false` and
+  `prerelease: false` explicitly and fails on unmatched files. Seven orphaned
+  draft releases had accumulated in the repository (`v1.0.10`, `v0.18.3`,
+  `v0.18.2`, `v0.17.5`, `v0.12.2`, `v0.11.1`, `v0.6.0`), one of them without
+  any assets. A new "Verify build artifacts exist" step aborts the run before
+  a release is created when the tarball or its checksum is missing, instead of
+  publishing an empty release. Triggers and `make_latest` behaviour are
+  unchanged, so tag pushes still release automatically and the newest release
+  is still marked as latest.
+
 ## [1.1.0] - 2026-08-24
 
 Audit reconcile and trail reporting for the Data Safe to SIEM pipeline.
