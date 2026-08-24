@@ -61,3 +61,8 @@ etc/*_pwd.b64
 # --- EOF ----------------------------------------------------------------------
 bin/exa_ds.sh
 log/*.json
+# aitk-managed - do not commit (deployed from ai-toolkit)
+# A project-own file under these paths needs an explicit `git add -f`.
+.claude/rules/
+.claude/agents/
+.github/copilot-instructions.md

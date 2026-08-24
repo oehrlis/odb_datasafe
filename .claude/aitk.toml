@@ -1,0 +1,8 @@
+schema = 1
+profiles = [
+    "base",
+    "oracle",
+]
+link_mode = "symlink"
+initialized_at = "2026-08-24T11:49:39Z"
+aitk_version = "3.1.0"
