@@ -8,6 +8,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-08-24
+
+### Fixed
+
+- `lib/ds_lib.sh`: **`ds_list_targets()` multi-value `--lifecycle` filter
+  silently returned only the targets matching the last state in the list.**
+  `oci data-safe target-database list --lifecycle-state` is a single-value
+  parameter; repeating it makes only the last value effective. Measured on a
+  600-target compartment: `-L "ACTIVE,NEEDS_ATTENTION"` returned 43 instead of
+  596, and reversing the order returned 553 instead of 596. For a single state
+  the server-side filter is kept (cheaper). For two or more states the
+  `--lifecycle-state` flag is omitted and the result is reduced client-side
+  via `jq`.
+
+### Added
+
+- `bin/ds_audit_trail_state.sh`: new script for trail-centric state reporting
+  directly from the OCI `audit-trail list` API. One bulk call per compartment,
+  no target join. Useful for monitoring collection progress after a reconcile
+  run. Supports `--state` filter, `-r/--filter` regex on display-name,
+  `--summary-only`, `--no-summary`, and `--format table|csv|json`.
+
 ## [1.1.1] - 2026-08-24
 
 ### Fixed

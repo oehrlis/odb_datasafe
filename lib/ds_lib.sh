@@ -50,19 +50,14 @@ ds_list_targets() {
     local compartment="$1"
     local lifecycle_input="${2:-}"
 
-    # Normalize lifecycle (remove spaces, uppercase) and build CLI options (supports comma-separated states)
+    # Normalize: uppercase, strip spaces
     local lifecycle_norm=""
-    local -a lifecycle_opts=()
     local -a __states=()
-    local __state=""
 
     if [[ -n "$lifecycle_input" ]]; then
         lifecycle_norm="${lifecycle_input^^}"
         lifecycle_norm="${lifecycle_norm// /}"
         IFS=',' read -ra __states <<< "$lifecycle_norm"
-        for __state in "${__states[@]}"; do
-            [[ -n "$__state" ]] && lifecycle_opts+=(--lifecycle-state "$__state")
-        done
     fi
 
     local comp_ocid
@@ -70,8 +65,30 @@ ds_list_targets() {
 
     log_debug "Listing Data Safe targets in compartment: $comp_ocid (lifecycle: ${lifecycle_norm:-none})"
 
-    # Bash 4.2 compatibility: safe array expansion with nounset
-    _ds_get_target_list_cached "$comp_ocid" "$lifecycle_norm" ${lifecycle_opts[@]+"${lifecycle_opts[@]}"}
+    # OCI CLI --lifecycle-state is a single-value parameter; repeating it makes
+    # only the last value effective. For multiple states: fetch without server
+    # filter and reduce client-side via jq. For zero or one state: keep the
+    # server-side filter (cheaper, avoids transferring unwanted data).
+    local targets_json
+    if [[ ${#__states[@]} -gt 1 ]]; then
+        targets_json=$(_ds_get_target_list_cached "$comp_ocid" "$lifecycle_norm") || return 1
+        targets_json=$(printf '%s' "$targets_json" | jq --arg states "$lifecycle_norm" '
+            ($states | split(",")) as $state_list |
+            .data = (.data | map(select(
+                .["lifecycle-state"] as $s | ($state_list | any(. == $s))
+            )))
+        ') || return 1
+    else
+        local -a lifecycle_opts=()
+        # Bash 4.2 compatibility: safe array check with nounset
+        # shellcheck disable=SC2128
+        if [[ -n "${__states[*]+x}" ]] && [[ ${#__states[@]} -eq 1 && -n "${__states[0]}" ]]; then
+            lifecycle_opts=(--lifecycle-state "${__states[0]}")
+        fi
+        targets_json=$(_ds_get_target_list_cached "$comp_ocid" "$lifecycle_norm" ${lifecycle_opts[@]+"${lifecycle_opts[@]}"}) || return 1
+    fi
+
+    printf '%s' "$targets_json"
 }
 
 # ------------------------------------------------------------------------------
