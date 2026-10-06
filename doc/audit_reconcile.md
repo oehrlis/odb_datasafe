@@ -96,6 +96,12 @@ the run is designed to be repeated.
 Set the regex once in `etc/datasafe.conf` as `DS_ENV_COMP_REGEX`, or pass
 `--env-regex` per run.
 
+Keys that belong to the SIEM delivery path - for example `SiemWorker` in a
+deployment that routes targets to dedicated audit workers - are **not** derived
+or set by this script or by `ds_target_register.sh`. They must be maintained by
+SIEM-side tooling or manually. The tag namespace itself is managed idempotently
+by `bin/ds_tag_namespace.sh` (see the quickref for usage).
+
 ## The change budget
 
 `--limit N` caps the writes of a single run. Every write counts as one:

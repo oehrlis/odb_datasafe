@@ -8,6 +8,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-06
+
+### Added
+
+- `bin/ds_tag_namespace.sh`: **create or align a defined-tag namespace from a
+  JSON definition, whatever its current state.** Handles a missing, present or
+  retired namespace and, per key, missing, retired, other description, other
+  cost-tracking flag or other validator. Plan is the default - every difference
+  is printed and nothing changes until `--apply`. Nothing is ever deleted;
+  keys the tenancy has but the definition does not list are named and left
+  alone. Removing values from an ENUM validator is skipped and named unless
+  `--allow-shrink` is given (resources may still carry the removed values, OCI
+  does not re-validate them); `--apply` then exits 3 so a skipped change cannot
+  pass as "in sync". Validators are compared as sets - a different order is not
+  a change.
+- `tests/ds_tag_namespace.bats`: ten cases against a fake `oci` - in sync,
+  namespace missing, namespace retired, key missing, key retired, ENUM shrink
+  with and without `--allow-shrink`, ENUM grow, ENUM to free text, unlisted
+  key, duplicate key in the definition.
+- `doc/quickref.md`, `doc/audit_reconcile.md`: the new script, and that keys of
+  a SIEM delivery path such as `SiemWorker` are not set by the tagging scripts.
+
 ## [1.1.2] - 2026-08-24
 
 ### Fixed

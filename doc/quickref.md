@@ -836,6 +836,34 @@ ds_target_delete.sh -c prod-compartment
 ds_target_delete.sh -T target1,target2,target3 --continue-on-error
 ```
 
+### Create or Align a Tag Namespace
+
+`bin/ds_tag_namespace.sh` brings a defined-tag namespace and its keys to the state
+described in a JSON definition - whatever the current state (missing, present,
+retired, other description or validator). It prints a plan by default and only
+writes with `--apply`. It never deletes; removing ENUM values needs
+`--allow-shrink`, because resources may still carry them.
+
+```bash
+# Plan: show what would change, write nothing
+ds_tag_namespace.sh -f etc/dbsec_tag_namespace.json --oci-profile READONLY
+
+# Apply (needs: manage tag-namespaces in tenancy)
+ds_tag_namespace.sh -f etc/dbsec_tag_namespace.json --oci-profile ADMIN --apply
+```
+
+Definition format:
+
+```json
+{"namespace": {"name": "DBSec", "description": "..."},
+ "tags": [{"name": "Environment", "description": "...", "validator": ["test", "qs", "prod"]},
+          {"name": "Owner", "description": "...", "validator": null}]}
+```
+
+Keys that belong to a SIEM delivery path - for example `SiemWorker`, which names the
+audit worker that reads a target - are part of a namespace definition but are **not**
+set by `ds_target_register.sh` or `ds_target_update_tags.sh`.
+
 ### Find Untagged Targets
 
 ```bash
