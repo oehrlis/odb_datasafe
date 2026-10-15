@@ -113,7 +113,7 @@ allen required-param `die`-Zeilen erscheinen.
 
 ---
 
-## 2026-08-23 - OCI Audit Trail: lifecycle-state und status sind zwei Felder
+## 2026-08-23 - OCI Audit Trail: lifecycle-state und status sind zwei Felder [promoted → rule: oracle-datasafe.md]
 
 **Context.** `ds_target_audit_trail.sh --list` konnte `NOT_STARTED` nie anzeigen,
 und `start_audit_trails()` schickte bei jedem Lauf einen Start an bereits
@@ -139,7 +139,7 @@ welche Zustandsfelder existieren - nicht das erste Feld in der JSON-Antwort.
 
 ---
 
-## 2026-08-23 - Shared Budget nie in einer Command Substitution veraendern
+## 2026-08-23 - Shared Budget nie in einer Command Substitution veraendern [promoted → rule: bash-performance.md]
 
 **Context.** In `ds_audit_reconcile.sh` verteilte `take_budget()` das gemeinsame
 `--limit`-Kontingent ueber drei Phasen. Aufgerufen wurde sie als
@@ -157,7 +157,7 @@ zuweist, darf nicht in `$(...)` aufgerufen werden:
 
 ---
 
-## 2026-08-23 - jq: `@csv` nicht erneut durch jq pipen
+## 2026-08-23 - jq: `@csv` nicht erneut durch jq pipen [promoted → rule: bash-performance.md]
 
 **Context.** `ds_find_untagged_targets.sh -o csv` brach mit
 "jq: parse error: Expected value before ','" ab, sobald ein untagged Target
