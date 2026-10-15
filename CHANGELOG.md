@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-10-15
+
 ### Fixed
 
 - `bin/ds_audit_trail_state.sh`: **every run aborted right after start, with no
@@ -21,12 +23,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   number, so a non-zero function return no longer looks like an error at the
   caller. It no longer dies on `BASH_SOURCE[1]: unbound variable` when the
   trap fires outside a sourced file.
-- `lib/common.sh` `load_config`: the warnings for an ignored group/world-writable
-  or foreign-owned config file now say that its settings are not applied and
-  give the `chmod` / `chown` command that fixes it.
+- `lib/common.sh` `load_config`: an ignored group/world-writable or
+  foreign-owned config file is now reported at ERROR level, not WARN, so
+  `LOG_LEVEL=ERROR` can no longer hide it. The message says its settings are
+  not applied and gives the `chmod` / `chown` command that fixes it.
+- `--all` in 13 `bin/ds_*.sh` scripts: an invalid `--all` gave two errors - the
+  specific reason from `ds_resolve_all_targets_scope`, then a generic
+  "Invalid --all usage" from the caller. The resolver is now the only message
+  source and names the fix (for a missing `DS_ROOT_COMP` it also points at an
+  ignored config file); callers end in `|| exit 1`.
 - `tests/script_ds_audit_trail_state.bats`: first tests for the script -
   snapshot run, `-c` run against a fake `oci`, stray positional argument,
-  empty result, ignored config hint, and the `error_handler` message.
+  empty result, ignored config hint (also with `LOG_LEVEL=ERROR`), `--all`
+  without `DS_ROOT_COMP` and with `-c`, and the `error_handler` message.
+
+### Changed
+
+- `tasks/lessons.md`: three lessons from 2026-08-23 marked as promoted to the
+  `oracle-datasafe` and `bash-performance` rules.
 
 ## [1.2.0] - 2026-10-06
 

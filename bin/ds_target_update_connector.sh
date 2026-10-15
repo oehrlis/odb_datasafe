@@ -321,7 +321,7 @@ validate_inputs() {
 
     require_oci_cli
 
-    COMPARTMENT=$(ds_resolve_all_targets_scope "$SELECT_ALL" "$COMPARTMENT" "$TARGETS") || die "Invalid --all usage. --all requires DS_ROOT_COMP and cannot be combined with -c/--compartment or -T/--targets"
+    COMPARTMENT=$(ds_resolve_all_targets_scope "$SELECT_ALL" "$COMPARTMENT" "$TARGETS") || exit 1
 
     # Show help if no operation mode specified
     if [[ -z "$OPERATION_MODE" ]]; then

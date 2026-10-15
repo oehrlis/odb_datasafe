@@ -81,3 +81,24 @@ EOF
     [ "$status" -eq 1 ]
     [[ "$output" == *"(exit code: 1): [[ 1 -eq 0 ]]"* ]]
 }
+
+@test "ds_audit_trail_state: ignored config stays visible with LOG_LEVEL=ERROR" {
+    printf 'DS_ROOT_COMP=ocid1.compartment.oc1..fromconf\n' > "${ORADBA_ETC}/datasafe.conf"
+    chmod 664 "${ORADBA_ETC}/datasafe.conf"
+    LOG_LEVEL=ERROR run "${BIN_DIR}/ds_audit_trail_state.sh" --trails-json "${TRAILS_FILE}"
+    [[ "$output" == *"Ignoring group/world-writable config file"* ]]
+}
+
+@test "ds_audit_trail_state: --all without DS_ROOT_COMP gives one reason with the fix" {
+    run "${BIN_DIR}/ds_audit_trail_state.sh" --all
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"--all needs DS_ROOT_COMP, which is not set - set it in datasafe.conf"* ]]
+    [[ "$output" != *"Invalid --all usage"* ]]
+    [ "$(grep -c '\[ERROR\]' <<< "$output")" -eq 1 ]
+}
+
+@test "ds_audit_trail_state: --all with -c names the conflict" {
+    run "${BIN_DIR}/ds_audit_trail_state.sh" --all -c ocid1.compartment.oc1..test
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"--all cannot be combined with an explicit compartment"* ]]
+}

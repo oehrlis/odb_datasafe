@@ -1190,7 +1190,8 @@ resolve_compartment_for_operation() {
 #           $2 - compartment input (optional)
 #           $3 - targets input (optional)
 # Returns.: 0 on success, 1 on invalid option combination or missing DS_ROOT_COMP
-# Output..: Effective compartment value to stdout
+# Output..: Effective compartment value to stdout; on failure the reason and
+#           the fix to stderr - callers add nothing, just "|| exit 1"
 # Notes...: --all is mutually exclusive with explicit --compartment and --targets
 # ------------------------------------------------------------------------------
 ds_resolve_all_targets_scope() {
@@ -1204,17 +1205,17 @@ ds_resolve_all_targets_scope() {
     fi
 
     if [[ -n "$targets_input" ]]; then
-        log_error "--all cannot be combined with -T/--targets"
+        log_error "--all cannot be combined with -T/--targets - use one of them"
         return 1
     fi
 
     if [[ -n "$compartment_input" ]]; then
-        log_error "--all cannot be combined with -c/--compartment"
+        log_error "--all cannot be combined with an explicit compartment - drop --all or the compartment option"
         return 1
     fi
 
     if [[ -z "${DS_ROOT_COMP:-}" ]]; then
-        log_error "DS_ROOT_COMP must be set when using --all"
+        log_error "--all needs DS_ROOT_COMP, which is not set - set it in datasafe.conf (check for an 'Ignoring ... config' line above) or pass the compartment explicitly"
         return 1
     fi
 

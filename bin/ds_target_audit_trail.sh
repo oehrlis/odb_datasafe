@@ -278,7 +278,7 @@ validate_inputs() {
 
     # Resolve --all to DS_ROOT_COMP (errors if combined with -c or -T)
     COMPARTMENT=$(ds_resolve_all_targets_scope "$SELECT_ALL" "$COMPARTMENT" "$TARGETS") \
-        || die "Invalid --all usage. --all requires DS_ROOT_COMP and cannot be combined with -c/--compartment or -T/--targets"
+        || exit 1
 
     # If no explicit scope and no --input-json, fall back to DS_ROOT_COMP
     if [[ -z "$TARGETS" && -z "$COMPARTMENT" && -z "$INPUT_JSON" ]]; then

@@ -387,7 +387,7 @@ validate_inputs() {
     fi
 
     COMPARTMENT=$(ds_resolve_all_targets_scope "$SELECT_ALL" "$COMPARTMENT" "") \
-        || die "Invalid --all usage. --all requires DS_ROOT_COMP and cannot be combined with --compartment-id"
+        || exit 1
 
     if [[ -z "$COMPARTMENT" && -z "$INPUT_JSON" ]]; then
         COMPARTMENT=$(resolve_compartment_for_operation "") \

@@ -498,7 +498,9 @@ load_config() {
             || readlink -f "$config_file" 2> /dev/null \
             || echo "$config_file")
         if [[ -n "$(find "$_real_config_file" -maxdepth 0 \( -perm -g+w -o -perm -o+w \) 2> /dev/null)" ]]; then
-            log_warn "Ignoring group/world-writable config file: $config_file - settings in it (e.g. DS_ROOT_COMP) are NOT applied. Fix: chmod go-w $_real_config_file"
+            # ERROR, not WARN: the run goes on without these settings, and
+            # LOG_LEVEL=ERROR must not turn that into a silent skip
+            log_error "Ignoring group/world-writable config file: $config_file - settings in it (e.g. DS_ROOT_COMP) are NOT applied. Fix: chmod go-w $_real_config_file"
             return 0
         fi
         # SEC-005: Reject config files not owned by root or the invoking user
@@ -507,7 +509,7 @@ load_config() {
         local _invoking_user
         _invoking_user=$(id -un 2> /dev/null || echo "")
         if [[ -n "$_cfg_owner" && -n "$_invoking_user" && "$_cfg_owner" != "root" && "$_cfg_owner" != "$_invoking_user" ]]; then
-            log_warn "Ignoring config owned by untrusted user '$_cfg_owner' (not root or $_invoking_user): $config_file - settings in it are NOT applied. Fix: chown $_invoking_user $config_file"
+            log_error "Ignoring config owned by untrusted user '$_cfg_owner' (not root or $_invoking_user): $config_file - settings in it are NOT applied. Fix: chown $_invoking_user $config_file"
             return 0
         fi
         log_debug "Loading config from: $config_file"

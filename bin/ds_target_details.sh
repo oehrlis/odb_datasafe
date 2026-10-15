@@ -297,7 +297,7 @@ validate_inputs() {
     # Resolve --all to DS_ROOT_COMP (errors if combined with -c or -T)
     if [[ -z "$INPUT_JSON" ]]; then
         COMPARTMENT=$(ds_resolve_all_targets_scope "$SELECT_ALL" "$COMPARTMENT" "$TARGETS") \
-            || die "Invalid --all usage. --all requires DS_ROOT_COMP and cannot be combined with -c/--compartment or -T/--targets"
+            || exit 1
     fi
 
     # Validate filter regex
