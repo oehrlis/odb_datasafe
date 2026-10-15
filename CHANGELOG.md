@@ -8,6 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `bin/ds_audit_trail_state.sh`: **every run aborted right after start, with no
+  reason given.** `parse_args` ended on a `[[ ... ]] && log_warn` list; without
+  a positional argument the false test became the function's return code and
+  tripped the ERR trap. The handler only reported the call site in `main()`,
+  which pointed the search at `validate_inputs`. Now an `if`.
+- `bin/ds_audit_trail_state.sh`: an empty result reported `TOTAL` as `null`
+  instead of `0`.
+- `lib/common.sh` `error_handler`: names the failed command next to the line
+  number, so a non-zero function return no longer looks like an error at the
+  caller. It no longer dies on `BASH_SOURCE[1]: unbound variable` when the
+  trap fires outside a sourced file.
+- `lib/common.sh` `load_config`: the warnings for an ignored group/world-writable
+  or foreign-owned config file now say that its settings are not applied and
+  give the `chmod` / `chown` command that fixes it.
+- `tests/script_ds_audit_trail_state.bats`: first tests for the script -
+  snapshot run, `-c` run against a fake `oci`, stray positional argument,
+  empty result, ignored config hint, and the `error_handler` message.
+
 ## [1.2.0] - 2026-10-06
 
 ### Added

@@ -282,14 +282,19 @@ stacktrace() {
 # ------------------------------------------------------------------------------
 error_handler() {
     local exit_code=$?
+    local failed_cmd="${BASH_COMMAND}"
 
     # CRITICAL: Disable ERR trap immediately to prevent infinite recursion
     trap - ERR
-    local line_num="${BASH_LINENO[0]}"
-    local script="${BASH_SOURCE[1]}"
+    # guarded: without a calling file (bash -c, top level) BASH_SOURCE[1] is
+    # unset, and set -u would kill the handler before it reports anything
+    local line_num="${BASH_LINENO[0]:-?}"
+    local script="${BASH_SOURCE[1]:-$0}"
 
-    # Output directly to stderr to avoid triggering more errors
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] Error in ${script} at line ${line_num} (exit code: ${exit_code})" >&2
+    # Output directly to stderr to avoid triggering more errors. Name the failed
+    # command: a function that returns non-zero is reported at its call site,
+    # and the line number alone points at the caller, not the cause
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] Error in ${script} at line ${line_num} (exit code: ${exit_code}): ${failed_cmd}" >&2
 
     if [[ "${SHOW_STACKTRACE:-true}" == "true" ]]; then
         stacktrace
@@ -493,7 +498,7 @@ load_config() {
             || readlink -f "$config_file" 2> /dev/null \
             || echo "$config_file")
         if [[ -n "$(find "$_real_config_file" -maxdepth 0 \( -perm -g+w -o -perm -o+w \) 2> /dev/null)" ]]; then
-            log_warn "Ignoring group/world-writable config file: $config_file"
+            log_warn "Ignoring group/world-writable config file: $config_file - settings in it (e.g. DS_ROOT_COMP) are NOT applied. Fix: chmod go-w $_real_config_file"
             return 0
         fi
         # SEC-005: Reject config files not owned by root or the invoking user
@@ -502,7 +507,7 @@ load_config() {
         local _invoking_user
         _invoking_user=$(id -un 2> /dev/null || echo "")
         if [[ -n "$_cfg_owner" && -n "$_invoking_user" && "$_cfg_owner" != "root" && "$_cfg_owner" != "$_invoking_user" ]]; then
-            log_warn "Ignoring config owned by untrusted user '$_cfg_owner' (not root or $_invoking_user): $config_file"
+            log_warn "Ignoring config owned by untrusted user '$_cfg_owner' (not root or $_invoking_user): $config_file - settings in it are NOT applied. Fix: chown $_invoking_user $config_file"
             return 0
         fi
         log_debug "Loading config from: $config_file"

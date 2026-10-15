@@ -208,8 +208,11 @@ parse_args() {
         esac
     done
 
-    [[ ${#remaining[@]} -gt 0 ]] \
-        && log_warn "Ignoring unexpected positional argument(s): ${remaining[*]}"
+    # if, not "[[ ]] && cmd": as the last statement a false test would become
+    # the function's return code and trip the ERR trap on every normal call
+    if [[ ${#remaining[@]} -gt 0 ]]; then
+        log_warn "Ignoring unexpected positional argument(s): ${remaining[*]}"
+    fi
 }
 
 # ------------------------------------------------------------------------------
@@ -329,7 +332,7 @@ summary_json() {
             state:  .[0]["effective-state"],
             count:  length
         }) |
-        . + [{state: "TOTAL", count: ([.[].count] | add)}]
+        . + [{state: "TOTAL", count: ([.[].count] | add // 0)}]
     ' <<< "$1"
 }
 
