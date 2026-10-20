@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `make lint-ci`: runs `lint-shell` with the shellcheck of the CI runner (apt, `ubuntu:24.04` container) - the
+  local brew release is newer and missed SC2154 that failed the v1.3.0 build. `make tag` runs it first;
+  `SKIP_LINT_CI=1` skips it with a warning
+
+### Removed
+
+- Tag `v1.3.0` (release build failed, no asset was ever published) - 1.3.1 is the release with `--type`
+
 ## [1.3.1] - 2026-10-20
 
 ### Fixed

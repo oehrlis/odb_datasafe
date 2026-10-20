@@ -181,6 +181,21 @@ lint-shell: ## Lint shell scripts with shellcheck
 .PHONY: lint-sh
 lint-sh: lint-shell ## Alias for lint-shell
 
+# CI (ubuntu-latest) installs shellcheck from apt - an older release than brew. It
+# flags things the local one does not (v1.3.0 failed on SC2154), so tag runs this.
+LINT_CI_IMAGE ?= ubuntu:24.04
+
+.PHONY: lint-ci
+lint-ci: ## Run lint-shell with the CI shellcheck (apt, ubuntu:24.04 container)
+	@if ! command -v docker >/dev/null 2>&1; then \
+		echo -e "$(COLOR_RED)❌ docker not found - lint-ci needs it to run the CI shellcheck$(COLOR_RESET)"; \
+		echo "   Tag without it (CI may still fail): make tag SKIP_LINT_CI=1"; \
+		exit 1; \
+	fi
+	@echo -e "$(COLOR_BLUE)Linting with the CI shellcheck ($(LINT_CI_IMAGE))...$(COLOR_RESET)"
+	@docker run --rm -v "$(CURDIR):/src:ro" -w /src $(LINT_CI_IMAGE) bash -c \
+		'apt-get update -qq >/dev/null && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq shellcheck make >/dev/null 2>&1 && shellcheck --version | sed -n 2p && make --no-print-directory lint-shell'
+
 .PHONY: lint-markdown
 lint-markdown: ## Lint Markdown files with markdownlint
 	@echo -e "$(COLOR_BLUE)Linting Markdown files...$(COLOR_RESET)"
@@ -306,7 +321,12 @@ version-bump-major: ## Bump major version (X.0.0) -> commit
 # ==============================================================================
 
 .PHONY: tag
-tag: ## Create git tag from VERSION (guards: clean tree + VERSION committed)
+tag: ## Create git tag from VERSION (guards: clean tree + VERSION committed + lint-ci)
+	@if [ "$(SKIP_LINT_CI)" = "1" ]; then \
+		echo -e "$(COLOR_YELLOW)⚠ SKIP_LINT_CI=1 - CI shellcheck not run, the release build may fail$(COLOR_RESET)"; \
+	else \
+		$(MAKE) --no-print-directory lint-ci || exit 1; \
+	fi
 	@if [ -z "$(GIT)" ]; then \
 		echo -e "$(COLOR_RED)Error: git not found in PATH$(COLOR_RESET)"; exit 1; \
 	fi; \
