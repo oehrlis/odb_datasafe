@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-10-20
+
+### Fixed
+
+- Release build: shellcheck 0.9 (CI) reported SC2154 for `$stderr` in
+  `tests/script_ds_target_register.bats` (set by `run --separate-stderr`) - the v1.3.0 release workflow failed
+  and published nothing; 1.3.1 is the first release with `ds_target_register.sh --type`
+
 ## [1.3.0] - 2026-10-20
 
 ### Added

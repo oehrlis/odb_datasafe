@@ -1,4 +1,6 @@
 #!/usr/bin/env bats
+# $stderr is assigned by bats 'run --separate-stderr', which shellcheck cannot see
+# shellcheck disable=SC2154
 
 bats_require_minimum_version 1.5.0
 
