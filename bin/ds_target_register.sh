@@ -1520,7 +1520,11 @@ main() {
     # Register target
     register_target
 
-    log_info "Registration completed successfully"
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
+        log_info "Dry-run finished - nothing registered"
+    else
+        log_info "Registration completed successfully"
+    fi
 }
 
 # Run the script

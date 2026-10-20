@@ -129,9 +129,10 @@ EOF
     [ "$(jq -r '.displayName' <<< "$output")" = "demovm_CDB19_PDB1" ]
     [ "$(jq -r '.definedTags.DBSec.ContainerType' <<< "$output")" = "pdb" ]
     [[ "$stderr" == *"skipping VM cluster and pluggable DB lookup"* ]]
-    # no DB node / VM cluster / PDB lookup for installed databases
+    # no DB node / VM cluster / PDB lookup for installed databases; 'target-database list'
+    # (the existence check) is allowed, hence 'db database list' anchored
     grep -q 'on-prem-connector list' "${OCI_LOG}"
-    run grep -Eq 'db-node|vm-cluster|pluggable-database|database list|resource-query|search' "${OCI_LOG}"
+    run grep -Eq 'db-node|vm-cluster|pluggable-database|(^| )db database list|resource-query|search' "${OCI_LOG}"
     [ "$status" -ne 0 ]
 }
 
