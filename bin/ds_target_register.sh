@@ -13,13 +13,24 @@
 # Purpose:
 #   Register a single database (PDB or CDB$ROOT) as a Data Safe target without
 #   requiring SSH access. Uses OCI CLI to create target with JSON payload.
+#   Target types: exacc (default, ExaCC VM cluster), compute (installed DB on
+#   an OCI Compute instance), onprem (installed DB on premises). All types
+#   connect through an on-premises connector.
 #
 # Usage:
 #   ds_target_register.sh --host <host> --sid <sid> --pdb <pdb> [options]
 #   ds_target_register.sh --host <host> --sid <sid> --root [options]
+#   ds_target_register.sh --type compute --instance-id <ocid> --host-ip <ip> \
+#       --sid <sid> --pdb <pdb> --connector <conn> [options]
+#   ds_target_register.sh --type onprem --host-ip <ip> \
+#       --sid <sid> --root --connector <conn> [options]
 #
 # Options:
-#   -H, --host HOST             Database host (required)
+#   --type TYPE                 exacc (default) | compute | onprem
+#   --instance-id OCID          Compute instance OCID (--type compute)
+#   --host-ip IP[,IP...]        DB host IP address(es) (--type compute|onprem)
+#   -H, --host HOST             Database host (exacc: DB node lookup;
+#                               compute/onprem: name for display/tags only)
 #   --sid SID                   Database SID (required)
 #   --pdb PDB                   PDB name (required unless --root)
 #   --root                      Register CDB$ROOT instead of PDB
@@ -78,7 +89,10 @@ DISPLAY_NAME=""
 DESCRIPTION=""
 CLUSTER=""
 CHECK_ONLY=false
-WAIT_STATE="" # State to poll for after submit; empty = return immediately after API call
+REGISTER_TYPE="exacc" # exacc | compute | onprem
+INSTANCE_ID=""        # --type compute: OCID of the compute instance
+HOST_IP=""            # --type compute|onprem: comma-separated IP address(es)
+WAIT_STATE=""         # State to poll for after submit; empty = return immediately after API call
 
 # Tag configuration (same defaults as ds_target_update_tags.sh)
 TAG_NAMESPACE="${TAG_NAMESPACE:-DBSec}"
@@ -126,15 +140,35 @@ Usage: ${SCRIPT_NAME} [options]
 
 DESCRIPTION:
     Register a database (PDB or CDB\$ROOT) as an Oracle Data Safe target.
-    Requires on-premises connector for cloud-at-customer deployments.
+    All target types connect through a Data Safe on-premises connector.
+
+TARGET TYPE:
+        --type TYPE                     exacc (default) | compute | onprem
+          exacc                         ExaCC VM cluster database (DATABASE_CLOUD_SERVICE,
+                                        CLOUD_AT_CUSTOMER). -H/--cluster are resolved via
+                                        OCI DB nodes / VM clusters. Existing behaviour.
+          compute                       Installed database on an OCI Compute instance
+                                        (INSTALLED_DATABASE, ORACLE_CLOUD). Requires
+                                        --instance-id, --host-ip and a connector.
+          onprem                        Installed database on premises (INSTALLED_DATABASE,
+                                        ON_PREMISES). Requires --host-ip and a connector.
+        --instance-id OCID              Compute instance OCID (ocid1.instance...), compute only
+        --host-ip IP[,IP...]            Database host IP address(es) or FQDN(s), compute/onprem.
+                                        Comma-separated list becomes ipAddresses[].
+
+    For compute/onprem -H/--host is a plain name for display name and tags only
+    (no DB node lookup); --cluster is ignored. The compartment is not derived
+    from the host: use -c, else DS_REGISTER_COMPARTMENT, then DS_ROOT_COMP.
 
 SCOPE (choose one):
     --pdb PDB                           Register a specific PDB
     --root                              Register CDB\$ROOT (named CDBROOT)
 
 REQUIRED OPTIONS:
-    -H, --host HOST                     Database host name (required with --cluster as alternative)
-        --cluster CLUSTER               VM Cluster name or OCID (required with --host as alternative)
+    -H, --host HOST                     Database host name (exacc: required with --cluster as
+                                        alternative; compute/onprem: optional display name part)
+        --cluster CLUSTER               VM Cluster name or OCID (exacc only)
+                                        exacc: required with --host as alternative
         --sid SID                       Database SID
     -c, --compartment COMP              Target compartment (name or OCID)
                                         Default: resource compartment from --host/--cluster,
@@ -156,12 +190,16 @@ CONNECTION:
         --connector-compartment COMP    Compartment to search for connector (default: same as -c)
 
 METADATA:
-    -N, --display-name NAME             Display name (default: <cluster>_<sid>_<pdb|CDBROOT>)
+    -N, --display-name NAME             Display name (default exacc: <cluster|host>_<sid>_<pdb|CDBROOT>,
+                                        compute/onprem: <host>_<sid>_<pdb|CDBROOT>, where <host> is
+                                        the -H short name (domain stripped, "_" replaced by "-"),
+                                        or the local short hostname when -H is not given)
         --description DESC              Free text description
 
 MODES:
         --check                         Only check if target already exists
-    -n, --dry-run                       Show registration plan without executing
+    -n, --dry-run                       Show registration plan without executing; the
+                                        payload (password masked) is printed to stdout
         --wait-state STATE              Poll until target reaches STATE after submit
                                         (e.g. ACTIVE, NEEDS_ATTENTION). Default: return
                                         immediately after submit (background registration)
@@ -213,6 +251,16 @@ EXAMPLES:
     -c prod-compartment --connector my-connector --ds-secret <secret> \\
     --no-tags
 
+    # Register a PDB on an OCI Compute instance (connector on the same VM)
+    ds_target_register.sh --type compute -H demovm --sid CDB19 --pdb PDB1 \\
+    --instance-id ocid1.instance.oc1... --host-ip 10.0.1.10 \\
+    -c demo-compartment --connector demo-connector --secret-file DS_ADMIN_pwd.b64
+
+    # Register CDB\$ROOT of an on-premises database
+    ds_target_register.sh --type onprem -H dbhost01 --sid CDB01 --root \\
+    --host-ip 192.168.1.20 -c onprem-compartment --connector dc-connector \\
+    --secret-file C##DS_ADMIN_pwd.b64
+
 EXIT CODES:
     0 = Success
     1 = Input validation error
@@ -236,6 +284,21 @@ parse_args() {
         case $1 in
             -H | --host)
                 HOST="$2"
+                shift 2
+                ;;
+            --type)
+                need_val "$1" "${2:-}"
+                REGISTER_TYPE="${2,,}"
+                shift 2
+                ;;
+            --instance-id)
+                need_val "$1" "${2:-}"
+                INSTANCE_ID="$2"
+                shift 2
+                ;;
+            --host-ip)
+                need_val "$1" "${2:-}"
+                HOST_IP="$2"
                 shift 2
                 ;;
             --sid)
@@ -664,6 +727,82 @@ resolve_ds_user() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: is_installed_type
+# Purpose.: Check whether the target type registers an INSTALLED_DATABASE
+# Args....: None (uses REGISTER_TYPE)
+# Returns.: 0 for compute/onprem, 1 for exacc
+# Output..: None
+# ------------------------------------------------------------------------------
+is_installed_type() {
+    [[ "$REGISTER_TYPE" == "compute" || "$REGISTER_TYPE" == "onprem" ]]
+}
+
+# ------------------------------------------------------------------------------
+# Function: validate_type_inputs
+# Purpose.: Validate --type and the flags each type requires or ignores
+# Args....: None (uses REGISTER_TYPE, INSTANCE_ID, HOST_IP, HOST, CLUSTER)
+# Returns.: 0 on success, exits on error
+# Output..: Warnings for flags a type ignores
+# Notes...: Runs before any OCI call so missing flags fail fast.
+# ------------------------------------------------------------------------------
+validate_type_inputs() {
+    case "$REGISTER_TYPE" in
+        exacc | compute | onprem) ;;
+        *) die "Invalid --type '${REGISTER_TYPE}'. Use one of: exacc, compute, onprem" ;;
+    esac
+
+    if [[ "$REGISTER_TYPE" == "exacc" ]]; then
+        [[ -z "$HOST" && -z "$CLUSTER" ]] && die "Missing resource identifier. Specify --host or --cluster"
+        [[ -n "$INSTANCE_ID" ]] && log_warn "Ignoring --instance-id: only used with --type compute"
+        [[ -n "$HOST_IP" ]] && log_warn "Ignoring --host-ip: only used with --type compute|onprem"
+        return 0
+    fi
+
+    # compute / onprem
+    [[ -z "${HOST_IP//,/}" ]] && die "Missing required option for --type ${REGISTER_TYPE}: --host-ip IP"
+    if [[ "$HOST_IP" =~ [[:space:]] ]]; then
+        die "Invalid --host-ip '${HOST_IP}': use a comma-separated list without spaces"
+    fi
+
+    if [[ "$REGISTER_TYPE" == "compute" ]]; then
+        [[ -z "$INSTANCE_ID" ]] && die "Missing required option for --type compute: --instance-id OCID"
+        [[ "$INSTANCE_ID" =~ ^ocid1\.instance\. ]] \
+            || die "Invalid --instance-id '${INSTANCE_ID}': expected a compute instance OCID (ocid1.instance...)"
+    elif [[ -n "$INSTANCE_ID" ]]; then
+        log_warn "Ignoring --instance-id: only used with --type compute"
+    fi
+
+    if [[ -n "$CLUSTER" ]]; then
+        log_warn "Ignoring --cluster '${CLUSTER}': only used with --type exacc"
+        CLUSTER=""
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# Function: derive_host_label
+# Purpose.: Derive the host part of the default display name for compute/onprem
+# Args....: None (uses HOST)
+# Returns.: 0
+# Output..: short host name to stdout, notes to log
+# Notes...: -H short name (domain stripped), else local short hostname. "_" is
+#           replaced by "-" so <host>_<sid>_<pdb> still splits into three parts.
+# ------------------------------------------------------------------------------
+derive_host_label() {
+    local label="${HOST:-}"
+    if [[ -z "$label" ]]; then
+        label="$(hostname 2> /dev/null || true)"
+        log_warn "No -H/--host given; using local hostname '${label%%.*}' for the display name"
+    fi
+    label="${label%%.*}"
+    if [[ "$label" == *_* ]]; then
+        log_warn "Host name '${label}' contains '_'; using '${label//_/-}' so the display name keeps the <host>_<sid>_<pdb> format"
+        label="${label//_/-}"
+    fi
+    [[ -n "$label" ]] || die "Cannot derive host name for the display name. Use -H/--host or -N/--display-name"
+    printf '%s' "$label"
+}
+
+# ------------------------------------------------------------------------------
 # Function: validate_inputs
 # Purpose.: Validate command-line inputs and resolve OCIDs
 # Args....: None
@@ -675,11 +814,12 @@ resolve_ds_user() {
 validate_inputs() {
     log_trace "Validating inputs..."
 
-    require_oci_cli
-
-    # Required fields
-    [[ -z "$HOST" && -z "$CLUSTER" ]] && die "Missing resource identifier. Specify --host or --cluster"
+    # Type-specific required flags first: fail before any OCI call
+    validate_type_inputs
     [[ -z "$SID" ]] && die "Missing required option: --sid"
+    [[ "$LISTENER_PORT" =~ ^[0-9]+$ ]] || die "Invalid --port '${LISTENER_PORT}': expected a number"
+
+    require_oci_cli
 
     # Validate compartment name (allow only safe characters for OCI --query JMESPath)
     if [[ -n "${COMPARTMENT:-}" ]] && ! [[ "$COMPARTMENT" =~ ^[a-zA-Z0-9_:@./\ -]+$ ]]; then
@@ -728,6 +868,14 @@ validate_inputs() {
     # Secret required unless check-only
     if [[ "$CHECK_ONLY" != "true" && -z "$DS_SECRET" ]]; then
         die "Missing required option: --ds-secret (not needed with --check)"
+    fi
+
+    # compute/onprem: no DB node / VM cluster to derive the compartment from
+    if [[ -z "$COMPARTMENT" ]] && is_installed_type; then
+        COMPARTMENT="${DS_REGISTER_COMPARTMENT:-${DS_ROOT_COMP:-}}"
+        [[ -n "$COMPARTMENT" ]] \
+            || die "Missing compartment for --type ${REGISTER_TYPE}. Use -c or set DS_REGISTER_COMPARTMENT / DS_ROOT_COMP"
+        log_info "No -c given; using configured default compartment: $COMPARTMENT"
     fi
 
     # Compartment derivation: try cluster/host before falling back to env vars.
@@ -838,7 +986,9 @@ validate_inputs() {
     fi
 
     # Resolve cluster OCID once, with COMP_OCID now available for the fallback loop
-    if [[ -z "$CLUSTER_OCID" ]]; then
+    if is_installed_type; then
+        log_info "Type ${REGISTER_TYPE}: skipping VM cluster and pluggable DB lookup (not used for INSTALLED_DATABASE)"
+    elif [[ -z "$CLUSTER_OCID" ]]; then
         if CLUSTER_OCID=$(resolve_vm_cluster_ocid); then
             log_info "Resolved VM cluster OCID: ${CLUSTER_OCID}"
         else
@@ -857,7 +1007,7 @@ validate_inputs() {
         log_info "Resolved VM cluster OCID: ${CLUSTER_OCID}"
     fi
 
-    if [[ "$RUN_ROOT" != "true" ]]; then
+    if [[ "$RUN_ROOT" != "true" ]] && ! is_installed_type; then
         if PLUGGABLE_DB_OCID=$(resolve_pluggable_db_ocid); then
             log_info "Resolved pluggable DB OCID: ${PLUGGABLE_DB_OCID}"
         else
@@ -936,7 +1086,9 @@ validate_inputs() {
             scope_name="$PDB"
         fi
 
-        if [[ -n "$CLUSTER" ]]; then
+        if is_installed_type; then
+            DISPLAY_NAME="$(derive_host_label)_${SID}_${scope_name}"
+        elif [[ -n "$CLUSTER" ]]; then
             DISPLAY_NAME="${CLUSTER}_${SID}_${scope_name}"
         else
             DISPLAY_NAME="${HOST}_${SID}_${scope_name}"
@@ -1064,8 +1216,15 @@ show_registration_plan() {
     fi
 
     log_info "Registration Plan:"
+    log_info "  Type:          $REGISTER_TYPE"
     log_info "  Scope:         $scope"
-    log_info "  Host:          $HOST"
+    log_info "  Host:          ${HOST:-(not set)}"
+    if [[ -n "$HOST_IP" ]]; then
+        log_info "  IP Addresses:  $HOST_IP"
+    fi
+    if [[ -n "$INSTANCE_ID" && "$REGISTER_TYPE" == "compute" ]]; then
+        log_info "  Instance ID:   $INSTANCE_ID"
+    fi
     log_info "  SID:           $SID"
     log_info "  Service:       $SERVICE_NAME"
     log_info "  Port:          $LISTENER_PORT"
@@ -1129,22 +1288,50 @@ register_target() {
     fi
 
     local desc
+    local desc_host="${HOST:-${HOST_IP}}"
     if [[ "$RUN_ROOT" == "true" ]]; then
-        desc="${DESCRIPTION:-CDB\$ROOT on Database ${SID} at ${HOST}}"
+        desc="${DESCRIPTION:-CDB\$ROOT on Database ${SID} at ${desc_host}}"
     else
-        desc="${DESCRIPTION:-PDB ${pdb_name} on Database ${SID} at ${HOST}}"
+        desc="${DESCRIPTION:-PDB ${pdb_name} on Database ${SID} at ${desc_host}}"
     fi
 
     # Build database details JSON
     local db_details
-    db_details=$(jq -n \
-        --arg dbType "DATABASE_CLOUD_SERVICE" \
-        --arg infra "CLOUD_AT_CUSTOMER" \
-        --argjson port "$LISTENER_PORT" \
-        --arg svc "$SERVICE_NAME" \
-        --arg vmClusterId "$CLUSTER_OCID" \
-        --arg pluggableDatabaseId "$PLUGGABLE_DB_OCID" \
-        --arg runRoot "$RUN_ROOT" '
+    if is_installed_type; then
+        # InstalledDatabaseDetails (OCI SDK oci.data_safe.models):
+        # databaseType, infrastructureType, instanceId, ipAddresses, listenerPort, serviceName
+        local infra="ON_PREMISES"
+        local instance_id=""
+        if [[ "$REGISTER_TYPE" == "compute" ]]; then
+            infra="ORACLE_CLOUD"
+            instance_id="$INSTANCE_ID"
+        fi
+        db_details=$(jq -n \
+            --arg infra "$infra" \
+            --arg instanceId "$instance_id" \
+            --arg ips "$HOST_IP" \
+            --argjson port "$LISTENER_PORT" \
+            --arg svc "$SERVICE_NAME" '
+            {
+                databaseType: "INSTALLED_DATABASE",
+                infrastructureType: $infra
+            }
+            | if ($instanceId != "") then . + {instanceId: $instanceId} else . end
+            | . + {
+                ipAddresses: ($ips | split(",") | map(select(length > 0))),
+                listenerPort: $port,
+                serviceName: $svc
+            }
+        ')
+    else
+        db_details=$(jq -n \
+            --arg dbType "DATABASE_CLOUD_SERVICE" \
+            --arg infra "CLOUD_AT_CUSTOMER" \
+            --argjson port "$LISTENER_PORT" \
+            --arg svc "$SERVICE_NAME" \
+            --arg vmClusterId "$CLUSTER_OCID" \
+            --arg pluggableDatabaseId "$PLUGGABLE_DB_OCID" \
+            --arg runRoot "$RUN_ROOT" '
         {
             databaseType: $dbType,
             infrastructureType: $infra,
@@ -1154,6 +1341,7 @@ register_target() {
         | if ($vmClusterId != "") then . + {vmClusterId: $vmClusterId} else . end
         | if ($runRoot != "true" and $pluggableDatabaseId != "") then . + {pluggableDatabaseId: $pluggableDatabaseId} else . end
     ')
+    fi
 
     # Build defined tags JSON (unless --no-tags)
     local tags_json="{}"
@@ -1207,9 +1395,8 @@ register_target() {
     if [[ "${DRY_RUN:-false}" == "true" ]]; then
         log_info "DRY-RUN: Would execute:"
         log_info "  oci data-safe target-database create --from-json file://$json_file"
-        jq '.credentials.password = "****"' "$json_file" | while IFS= read -r line; do
-            log_trace "  $line"
-        done
+        log_info "DRY-RUN: Payload (password masked) on stdout"
+        jq '.credentials.password = "****"' "$json_file"
         rm -f "$json_file"
         return 0
     fi
