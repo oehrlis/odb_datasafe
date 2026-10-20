@@ -8,6 +8,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `bin/ds_target_register.sh`: **`--type exacc|compute|onprem` registers
+  installed databases on OCI Compute and on premises** through an on-premises
+  connector. `exacc` stays the default; existing calls build the same
+  DATABASE_CLOUD_SERVICE / CLOUD_AT_CUSTOMER payload as before.
+  - `compute`: `--instance-id` (ocid1.instance...) and `--host-ip` required;
+    INSTALLED_DATABASE / ORACLE_CLOUD with `instanceId`, `ipAddresses`,
+    `listenerPort`, `serviceName`.
+  - `onprem`: `--host-ip` required; INSTALLED_DATABASE / ON_PREMISES.
+  - `--host-ip` takes a comma-separated list (one `ipAddresses` entry each).
+  - For both, `-H` is a plain name for the display name and tags: no DB node,
+    VM cluster or pluggable database lookup, and the compartment comes from
+    `-c`, `DS_REGISTER_COMPARTMENT` or `DS_ROOT_COMP`. The default display
+    name is `<host>_<sid>_<pdb|CDBROOT>` with the `-H` short name (or the
+    local short hostname, with a warning); a `_` in the host becomes `-` so
+    the name parsers still split it into three parts.
+  - Missing or invalid flags per type fail before any OCI call; flags a type
+    does not use (`--cluster`, `--instance-id`, `--host-ip`) are named in a
+    warning, not dropped silently. `--port` must be numeric.
+- `tests/script_ds_target_register.bats`: 16 cases against a fake `oci` -
+  payload per type in dry-run, required-flag errors, invalid type/port,
+  ignored-flag warnings, display-name derivation, exacc default unchanged.
+
+### Changed
+
+- `bin/ds_target_register.sh` `--dry-run`: the payload (password masked) is
+  printed as JSON on stdout instead of TRACE log lines, so it can be piped to
+  `jq`. Log output stays on stderr.
+
 ## [1.2.1] - 2026-10-15
 
 ### Fixed

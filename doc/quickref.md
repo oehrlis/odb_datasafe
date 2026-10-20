@@ -1019,7 +1019,51 @@ ds_target_register.sh -H db01 --sid cdb01 --pdb APP1PDB \
 # Dry-run to preview registration plan
 ds_target_register.sh -H db01 --sid cdb01 --pdb APP1PDB \
   -c prod-compartment --connector my-connector --ds-secret <secret> --dry-run
+
+# OCI Compute: PDB of an installed CDB, connector on the same VM
+ds_target_register.sh --type compute -H demovm --sid CDB19 --pdb PDB1 \
+  --instance-id ocid1.instance.oc1... --host-ip 10.0.1.10 \
+  -c demo-compartment --connector demo-connector --secret-file DS_ADMIN_pwd.b64
+
+# On premises: CDB$ROOT, two addresses, non-default port and service
+ds_target_register.sh --type onprem -H dbhost01 --sid CDB01 --root \
+  --host-ip 192.168.1.20,dbhost01.example.com --port 1522 --service CDB01.example.com \
+  -c onprem-compartment --connector dc-connector --secret-file 'C##DS_ADMIN_pwd.b64'
 ```
+
+Target types (`--type`, default `exacc`):
+
+<!-- markdownlint-disable MD013 MD060 -->
+| Type      | databaseType           | infrastructureType  | Required besides `--sid`, scope, secret | Host handling                        |
+|-----------|------------------------|---------------------|-----------------------------------------|--------------------------------------|
+| `exacc`   | DATABASE_CLOUD_SERVICE | CLOUD_AT_CUSTOMER   | `-H` or `--cluster`                     | DB node / VM cluster lookup via OCI  |
+| `compute` | INSTALLED_DATABASE     | ORACLE_CLOUD        | `--instance-id`, `--host-ip`, connector | `-H` is a plain name (display, tags) |
+| `onprem`  | INSTALLED_DATABASE     | ON_PREMISES         | `--host-ip`, connector                  | `-H` is a plain name (display, tags) |
+<!-- markdownlint-restore -->
+
+Notes for `compute` and `onprem`:
+
+- The payload carries `databaseDetails` with `databaseType`, `infrastructureType`,
+  `instanceId` (compute only), `ipAddresses`, `listenerPort`, `serviceName`, and
+  `connectionOption` `ONPREM_CONNECTOR` with `onPremConnectorId`.
+- `--host-ip` takes a comma-separated list; each entry becomes one `ipAddresses`
+  element. FQDNs are accepted by Data Safe with an on-premises connector.
+- The connector is mandatory: `--connector`, or the configured default
+  (`ONPREM_CONNECTOR_OCID`, `ONPREM_CONNECTOR`, `ONPREM_CONNECTOR_LIST`).
+- The compartment is not derived from the host: `-c`, else
+  `DS_REGISTER_COMPARTMENT`, then `DS_ROOT_COMP`.
+- No VM cluster or pluggable database lookup is done; the script says so.
+- Default display name is `<host>_<sid>_<pdb|CDBROOT>`. `<host>` is the `-H`
+  short name (domain stripped) or, without `-H`, the local short hostname. A `_`
+  in the host name is replaced by `-` so the name still splits into
+  `<host>_<sid>_<pdb>` for the name parsers of the other scripts.
+- `--cluster` is ignored for these types, `--instance-id` is ignored for
+  `onprem`, and `--host-ip` / `--instance-id` are ignored for `exacc` - each with
+  a warning.
+- The default service name is the PDB name (or the SID for `--root`). On a
+  database with `DB_DOMAIN` set, pass the full service with `--service`.
+- `--dry-run` prints the payload (password masked) to stdout; log lines go to
+  stderr, so `... --dry-run 2>/dev/null | jq .databaseDetails` works.
 
 ### New in v0.3.2
 

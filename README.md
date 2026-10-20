@@ -83,9 +83,20 @@ sudo ./bin/uninstall_all_datasafe_services.sh --uninstall
 # Export target details
 ./bin/ds_target_export.sh -T my-target
 
-# Register new target
-./bin/ds_target_register.sh -n my-new-target --database-id ocid1.database...
+# Register an ExaCC PDB (default --type exacc)
+./bin/ds_target_register.sh -H db01 --sid cdb01 --pdb APP1PDB \
+  -c prod-compartment --connector my-connector --secret-file DS_ADMIN_pwd.b64
+
+# Register a PDB on an OCI Compute instance through an on-premises connector
+./bin/ds_target_register.sh --type compute -H demovm --sid CDB19 --pdb PDB1 \
+  --instance-id ocid1.instance.oc1... --host-ip 10.0.1.10 \
+  -c demo-compartment --connector demo-connector --secret-file DS_ADMIN_pwd.b64 -n
 ```
+
+`ds_target_register.sh --type` selects the target type: `exacc` (default,
+ExaCC VM cluster), `compute` (installed database on OCI Compute) or `onprem`
+(installed database on premises). All three connect through an on-premises
+connector. See [Register New Targets](doc/quickref.md#register-new-targets).
 
 **Flexible Compartment Selection:**
 
