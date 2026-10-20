@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-20
+
 ### Added
 
 - `bin/ds_target_register.sh`: **`--type exacc|compute|onprem` registers
