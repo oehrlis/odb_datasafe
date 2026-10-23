@@ -1,7 +1,7 @@
 # Plan - fixes found on the LRN6087 lab (2026-10-23)
 
 Context: building the LRN6087 demo lab (oci-labs `datasafe-demo`, 26ai 23.26.4 + 19c, ON_PREMISES via on-prem
-connector) on 2026-10-22/23 surfaced five defects in odb_datasafe 1.3.1. Number 1 is fixed on `main` already, the
+connector) on 2026-10-22/23 surfaced seven defects in odb_datasafe 1.3.1. Number 1 is fixed on `main` already, the
 others are open. Goal: fix all with tests, release 1.3.2. Open tasks are also listed in `tasks/todo.md`
 ("Open - found on the LRN6087 lab").
 
@@ -48,10 +48,25 @@ On 400 LimitExceeded ("The limit for this tenancy has been exceeded") the output
 `OCI command failed (exit 1)`, `Registration failed` and an empty ERROR line. Print `code` and `message` of the
 OCI response (`oci_exec` / `register_target`). Check other `oci_exec` callers for the same pattern.
 
+## 6. ds_target_register.sh -n demands the secret
+
+`ds_target_register.sh ... -n` stops with `Missing required option: --ds-secret (not needed with --check)`. A dry
+run only prints the plan and the masked payload - it must not need the secret. Workaround in oci-labs `demo.sh`:
+the secret file is passed in both modes.
+
+## 7. Target-list file cache is not invalidated by a registration
+
+`ds_lib.sh` caches the target list per compartment in a file (`DS_TARGET_CACHE_TTL`). The existence check of
+`ds_target_register.sh` filled the cache before the new target existed; `ds_target_audit_trail.sh -T <new target>`
+30 s later used that cache and failed with `Target not found` (debug: `Using cached target list ... [file]
+age=153s`). Invalidate the cache for the compartment after create/delete of a target (register, delete, reset);
+when a name is not found in a cached list, refresh once before giving up. Workaround in the demo copy:
+`DS_TARGET_CACHE_TTL="0"`.
+
 ## Approach
 
 - [ ] Extend this plan / `tasks/todo.md` first, then implement
-- [ ] Bats tests: 2 (rc != 0 on SQL error, sqlplus mock), 4 (oci mock checks `--from-json`, no `--password` and no
+- [ ] Bats tests: 2 (rc != 0 on SQL error, sqlplus mock), 6 (-n without secret), 7 (cache refresh), 4 (oci mock checks `--from-json`, no `--password` and no
   secret in argv), 5 (error code and message printed)
 - [ ] `make test` and `make lint-ci` green
 - [ ] CHANGELOG `[Unreleased]` -> Fixed (entry for 1 exists), bump to 1.3.2
