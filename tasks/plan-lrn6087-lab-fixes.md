@@ -66,7 +66,8 @@ when a name is not found in a cached list, refresh once before giving up. Workar
 ## Approach
 
 - [ ] Extend this plan / `tasks/todo.md` first, then implement
-- [ ] Bats tests: 2 (rc != 0 on SQL error, sqlplus mock), 6 (-n without secret), 7 (cache refresh), 4 (oci mock checks `--from-json`, no `--password` and no
+- [ ] Bats tests: 2 (rc != 0 on SQL error, sqlplus mock), 6 (-n without secret), 7 (cache refresh),
+  4 (oci mock checks `--from-json`, no `--password` and no
   secret in argv), 5 (error code and message printed)
 - [ ] `make test` and `make lint-ci` green
 - [ ] CHANGELOG `[Unreleased]` -> Fixed (entry for 1 exists), bump to 1.3.2
