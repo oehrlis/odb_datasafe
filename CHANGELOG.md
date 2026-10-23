@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   local brew release is newer and missed SC2154 that failed the v1.3.0 build. `make tag` runs it first;
   `SKIP_LINT_CI=1` skips it with a warning
 
+### Fixed
+
+- `create_ds_admin_prerequisites.sql`: `CONTAINER=ALL` on `CREATE PROFILE` only in `CDB$ROOT` - since v0.22.0 every
+  PDB run of `ds_database_prereqs.sh` stopped with ORA-65140 (invalid common profile name), so `--all` and `--pdb`
+  created no local `DS_ADMIN` (found on a fresh 26ai lab, 2026-10-23)
+
 ### Removed
 
 - Tag `v1.3.0` (release build failed, no asset was ever published) - 1.3.1 is the release with `--type`

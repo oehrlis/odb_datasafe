@@ -1,5 +1,15 @@
 # odb_datasafe - Active Tasks
 
+## Open - found on the LRN6087 lab (2026-10-23)
+
+- [ ] `ds_database_prereqs.sh` reports `Done` and rc 0 although `create_ds_admin_user.sql` failed (ORA-28003,
+  secret without special character vs. `ORA12C_VERIFY_FUNCTION`) and the grants then failed with ORA-44001 -
+  no user, silent success. Fail the scope on any ORA- in the user/grant step; in `--debug` the `sqlplus | tee`
+  pipe returns the status of `tee` [P1]
+- [ ] Check the secret against the profile's verify function before `CREATE USER` (or name the rule in the
+  error): special character required [P2]
+- [ ] Release 1.3.2 with the `CONTAINER=ALL` fix (CHANGELOG Unreleased) [P1]
+
 ## v1.1.0 - Audit reconcile + trail report (2026-08-23, done)
 
 Context: Splunk SIEM integration. 1390 Data Safe targets (Prod 600 / QS 393 /

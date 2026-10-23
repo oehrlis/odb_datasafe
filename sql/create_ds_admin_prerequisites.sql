@@ -22,6 +22,10 @@ PROMPT Ensuring profile &&ds_profile exists with CIS-based limits
 DECLARE
 	l_count NUMBER := 0;
 	l_profile VARCHAR2(128) := UPPER('&&ds_profile');
+	-- CONTAINER=ALL only in CDB$ROOT: in a PDB it raises ORA-65140 for a local
+	-- profile name, in a non-CDB the clause is not allowed
+	l_container VARCHAR2(20) := CASE WHEN SYS_CONTEXT('USERENV', 'CON_NAME') = 'CDB$ROOT'
+		THEN ' CONTAINER=ALL' END;
 BEGIN
 	SELECT COUNT(*)
 	  INTO l_count
@@ -48,7 +52,7 @@ BEGIN
 			|| ' PASSWORD_GRACE_TIME DEFAULT'
 			|| ' INACTIVE_ACCOUNT_TIME 35'
 			|| ' PASSWORD_ROLLOVER_TIME 864000/86400'
-			|| ' CONTAINER=ALL';
+			|| l_container;
 		DBMS_OUTPUT.PUT_LINE('Created profile ' || l_profile);
 	ELSE
 		EXECUTE IMMEDIATE 'ALTER PROFILE ' || l_profile || ' LIMIT'
