@@ -8,6 +8,10 @@
   pipe returns the status of `tee` [P1]
 - [ ] Check the secret against the profile's verify function before `CREATE USER` (or name the rule in the
   error): special character required [P2]
+- [ ] `ds_lib.sh` bundle generation passes `--password "file://$pwd_file"` - the OCI CLI does not expand
+  `file://` for this string option and sends the path as the password: 400 InvalidParameter "Invalid input".
+  Worked on the lab with `--from-json file://<json>` (`onPremConnectorId`, `password`, `file`), secret stays off
+  argv. Bundle password also needs a special character [P1]
 - [ ] Release 1.3.2 with the `CONTAINER=ALL` fix (CHANGELOG Unreleased) [P1]
 
 ## v1.1.0 - Audit reconcile + trail report (2026-08-23, done)
