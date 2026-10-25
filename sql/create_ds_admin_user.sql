@@ -97,6 +97,36 @@ DECLARE
     l_update_secret VARCHAR2(10 CHAR)       := '&ds_update_secret';
     l_user_exists   PLS_INTEGER;
     l_sql           text_type;              -- sql used in EXECUTE IMMEDIATE
+
+    -- Check the secret against the verify function of the profile before any
+    -- DROP/CREATE/ALTER: otherwise CREATE USER fails with a bare ORA-28003
+    -- (and a FORCE run has already dropped the user)
+    PROCEDURE check_secret IS
+        l_verify_fn dba_profiles.limit%TYPE;
+    BEGIN
+        SELECT limit INTO l_verify_fn FROM dba_profiles
+         WHERE profile = l_profile AND resource_name = 'PASSWORD_VERIFY_FUNCTION';
+        IF l_verify_fn = 'DEFAULT' THEN
+            SELECT limit INTO l_verify_fn FROM dba_profiles
+             WHERE profile = 'DEFAULT' AND resource_name = 'PASSWORD_VERIFY_FUNCTION';
+        END IF;
+        IF l_verify_fn IS NULL OR l_verify_fn IN ('NULL', 'UNLIMITED') THEN
+            RETURN;
+        END IF;
+        BEGIN
+            EXECUTE IMMEDIATE 'BEGIN IF NOT SYS.' || sys.dbms_assert.simple_sql_name(l_verify_fn)
+                || '(:u, :p, NULL) THEN RAISE_APPLICATION_ERROR(-20000, ''rejected''); END IF; END;'
+                USING l_username, l_passwd;
+        EXCEPTION
+            WHEN OTHERS THEN
+                RAISE_APPLICATION_ERROR(-20002, 'Secret rejected by ' || l_verify_fn
+                    || ' (profile ' || l_profile || '): '
+                    || REGEXP_REPLACE(REGEXP_SUBSTR(SQLERRM, '^[^' || CHR(10) || ']+'), '^ORA-[0-9]+: ', ''));
+        END;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            RAISE_APPLICATION_ERROR(-20003, 'Profile ' || l_profile || ' does not exist');
+    END check_secret;
 BEGIN
     -- normalize inputs
     l_username := UPPER(l_username);
@@ -105,6 +135,11 @@ BEGIN
     l_update_secret := UPPER(l_update_secret);
     -- Check if user exists
     SELECT COUNT(*) INTO l_user_exists FROM DBA_USERS WHERE USERNAME = l_username; -- Replace 'desired_username' with the username you want to check.
+
+    -- A secret is set on create, on FORCE recreate and on UPDATE_SECRET
+    IF l_user_exists = 0 OR l_force = 'TRUE' OR l_update_secret = 'TRUE' THEN
+        check_secret;
+    END IF;
 
     IF l_user_exists > 0 THEN
         DBMS_OUTPUT.PUT_LINE('User '|| l_username || ' does exists.');
