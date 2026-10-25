@@ -315,9 +315,45 @@ _oci_run_capture() {
     fi
 
     log_error "OCI command failed (exit ${exit_code}): ${redacted}"
+    local service_error
+    if service_error=$(_oci_service_error_summary "$stderr"); then
+        log_error "OCI error: ${service_error}"
+    fi
     [[ -n "$stdout" ]] && log_trace "OCI stdout: $stdout"
     [[ -n "$stderr" ]] && log_trace "OCI stderr: $stderr"
     return "$exit_code"
+}
+
+# ------------------------------------------------------------------------------
+# Function: _oci_service_error_summary
+# Purpose.: Condense OCI CLI stderr into one line for the error log
+# Args....: $1 - Captured OCI CLI stderr
+# Returns.: 0 if a summary was produced, 1 if stderr is empty
+# Output..: "<status> <code>: <message>" for a ServiceError, otherwise the
+#           last non-empty stderr line (e.g. a CLI usage error)
+# Notes...: Without this, a 400 LimitExceeded showed up only as
+#           "OCI command failed (exit 1)" - the reason was at trace level.
+# ------------------------------------------------------------------------------
+_oci_service_error_summary() {
+    local stderr="$1"
+    [[ -n "$stderr" ]] || return 1
+
+    # ServiceError: the JSON object starts at the first line that is "{"
+    local summary=""
+    summary=$(printf '%s\n' "$stderr" | sed -n '/^{/,/^}/p' | jq -r '
+        select(type == "object" and (.code != null or .message != null))
+        | "\(.status // "?") \(.code // "?"): \(.message // "no message")"' 2> /dev/null || true)
+    if [[ -n "$summary" ]]; then
+        printf '%s\n' "$summary"
+        return 0
+    fi
+
+    local line last=""
+    while IFS= read -r line; do
+        [[ -n "${line//[[:space:]]/}" ]] && last="$line"
+    done <<< "$stderr"
+    [[ -n "$last" ]] || return 1
+    printf '%s\n' "$last"
 }
 
 # ------------------------------------------------------------------------------

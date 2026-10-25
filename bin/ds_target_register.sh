@@ -1404,11 +1404,10 @@ register_target() {
     # Execute registration (no --wait-for-state: oci_exec captures 2>&1 which mixes
     # OCI CLI progress output with JSON, corrupting the result for jq).
     # Instead we poll ds_list_targets until the target reaches ACTIVE/FAILED state.
-    local result
-    result=$(oci_exec data-safe target-database create \
-        --from-json "file://$json_file") || {
+    oci_exec data-safe target-database create \
+        --from-json "file://$json_file" > /dev/null || {
+        # The OCI status, code and message are logged by oci_exec
         log_error "Registration failed"
-        log_error "$result"
         local redacted_file="${json_file%.json}_redacted.json"
         jq '.credentials.password = "****"' "$json_file" > "$redacted_file" 2> /dev/null || true
         rm -f "$json_file"

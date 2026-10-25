@@ -339,6 +339,30 @@ step_delete_dependencies() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: run_oci_delete
+# Purpose.: Run an OCI delete command, keep its error for the log
+# Args....: $@ - Full command (oci ...)
+# Returns.: Exit code of the command
+# Output..: On failure the OCI error (status, code, message) as error log;
+#           callers log which object failed
+# Notes...: stdin from /dev/null - the callers loop over `while read`
+# ------------------------------------------------------------------------------
+run_oci_delete() {
+    local err_file rc=0 err="" summary
+    err_file=$(mktemp "${TMPDIR:-/tmp}/ds_delete_err.XXXXXX")
+    "$@" > /dev/null 2> "$err_file" < /dev/null || rc=$?
+    if [[ -s "$err_file" ]]; then
+        err=$(< "$err_file")
+    fi
+    rm -f "$err_file"
+    if [[ $rc -ne 0 ]]; then
+        summary=$(_oci_service_error_summary "$err" || echo "exit ${rc}, no error output")
+        log_error "    OCI error: ${summary}"
+    fi
+    return "$rc"
+}
+
+# ------------------------------------------------------------------------------
 # Function: step_delete_targets
 # Purpose.: Delete target databases
 # Args....: None
@@ -366,7 +390,7 @@ step_delete_targets() {
             --profile "${OCI_CLI_PROFILE}"
             --force)
         [[ -n "${WAIT_STATE}" ]] && delete_cmd+=(--wait-for-state "${WAIT_STATE}")
-        if "${delete_cmd[@]}" > /dev/null 2>&1; then
+        if run_oci_delete "${delete_cmd[@]}"; then
             log_info "  ✓ Successfully deleted: ${target_name}"
             deleted_count=$((deleted_count + 1)) || true
         else
@@ -416,12 +440,11 @@ delete_audit_trails() {
     local failed=0
     while IFS= read -r trail_ocid; do
         [[ -z "${trail_ocid}" ]] && continue
-        if oci data-safe audit-trail delete \
+        if run_oci_delete oci data-safe audit-trail delete \
             --audit-trail-id "${trail_ocid}" \
             --config-file "${OCI_CLI_CONFIG_FILE}" \
             --profile "${OCI_CLI_PROFILE}" \
-            --force \
-            > /dev/null 2>&1; then
+            --force; then
             count=$((count + 1))
         else
             failed=$((failed + 1))
@@ -472,12 +495,11 @@ delete_assessments() {
     local failed=0
     while IFS= read -r assessment_ocid; do
         [[ -z "${assessment_ocid}" ]] && continue
-        if oci data-safe security-assessment delete \
+        if run_oci_delete oci data-safe security-assessment delete \
             --security-assessment-id "${assessment_ocid}" \
             --config-file "${OCI_CLI_CONFIG_FILE}" \
             --profile "${OCI_CLI_PROFILE}" \
-            --force \
-            > /dev/null 2>&1; then
+            --force; then
             count=$((count + 1))
         else
             failed=$((failed + 1))
@@ -528,12 +550,11 @@ delete_security_policies() {
     local failed=0
     while IFS= read -r policy_ocid; do
         [[ -z "${policy_ocid}" ]] && continue
-        if oci data-safe security-policy delete \
+        if run_oci_delete oci data-safe security-policy delete \
             --security-policy-id "${policy_ocid}" \
             --config-file "${OCI_CLI_CONFIG_FILE}" \
             --profile "${OCI_CLI_PROFILE}" \
-            --force \
-            > /dev/null 2>&1; then
+            --force; then
             count=$((count + 1))
         else
             failed=$((failed + 1))
