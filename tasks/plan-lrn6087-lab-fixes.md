@@ -63,7 +63,7 @@ age=153s`). Invalidate the cache for the compartment after create/delete of a ta
 when a name is not found in a cached list, refresh once before giving up. Workaround in the demo copy:
 `DS_TARGET_CACHE_TTL="0"`.
 
-## 8. Name resolution picks DELETED targets
+## 8. Name resolution picks DELETED targets (#18)
 
 `ds_resolve_target_ocid` (`lib/ds_lib.sh`) matches the display name over all lifecycle states and takes the first
 hit (`head -n1`). After a reset and a new registration under the same name (demo rehearsal 2026-10-25,
