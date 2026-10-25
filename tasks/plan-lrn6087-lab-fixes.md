@@ -75,13 +75,14 @@ original). Check other name lookups (`ds_collect_targets_source` with `-T`) for 
 
 ## Approach
 
-- [ ] Extend this plan / `tasks/todo.md` first, then implement
-- [ ] Bats tests: 2 (rc != 0 on SQL error, sqlplus mock), 6 (-n without secret), 7 (cache refresh),
+- [x] Extend this plan / `tasks/todo.md` first, then implement
+- [x] Bats tests: 2 (rc != 0 on SQL error, sqlplus mock), 6 (-n without secret), 7 (cache refresh),
   4 (oci mock checks `--from-json`, no `--password` and no
   secret in argv), 5 (error code and message printed), 8 (DELETED target with the same name is skipped)
-- [ ] `make test` and `make lint-ci` green
-- [ ] CHANGELOG `[Unreleased]` -> Fixed (entry for 1 exists), bump to 1.3.2
-- [ ] Conventional Commits, no Co-Authored-By, check the branch before every commit
+- [-] `make test` and `make lint-ci` green - `make test` (485) and `make lint` green, `lint-ci` open (network)
+- [-] CHANGELOG `[Unreleased]` -> Fixed (entry for 1 exists), bump to 1.3.2 - entries done; the bump comes
+  with `make release`
+- [x] Conventional Commits, no Co-Authored-By, check the branch before every commit
 - [ ] Release: agree with Stefan before `make tag`; push the tag, check the release asset and its `.sha256`
 - [ ] oci-labs (worktree `~/Repos/own/oehrlis/oci-labs-datasafe-demo`, branch `feat/datasafe-demo`):
   `odb_datasafe_version` / `odb_datasafe_sha256` in `terraform/envs/datasafe-demo/variables.tf` to 1.3.2 (sha from
@@ -89,3 +90,15 @@ original). Check other name lookups (`ds_collect_targets_source` with `-T`) for 
   tenancy) runs 1.3.1 with the fixed SQL copied in by hand; pull it to 1.3.2 with
   `make dsdemo-step TAG=odb_datasafe DSDEMO_LOCAL_PORT=2223` - coordinate with the LRN6087 session, the demo runs
   on that host
+
+## Results (2026-10-25)
+
+- Commits on `main`, not pushed: `29f44c0` #19, `5cd5b52` #20, `45af314` #22, `1b3e56e` #21, `aeb3120` #23,
+  `d0963d7` #18/#24
+- Defects 1-3 verified on Oracle Database 26ai Free (local container, CDB + PDB): common profile in root, local
+  in the PDB; weak secret rejected with the rule before any DROP; the ORA-44001 case gave `Done`/rc 0 with
+  1.3.1 and rc 1 with a failed-scope list now; no secret in `--debug` output, `TMPDIR` empty afterwards
+- Every new test fails against 1.3.1 (temp worktree on `b89d7a7`) and passes now; each commit passes
+  syntax + shellcheck and its own tests on its own
+- Found on the way: temp SQL files with the secret never removed, BSD `mktemp` suffix template (second
+  run failed on macOS), `--debug` echoed the secret line, `--dry-run` rc 1, secret on the argv of `jq`

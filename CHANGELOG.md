@@ -19,6 +19,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `create_ds_admin_prerequisites.sql`: `CONTAINER=ALL` on `CREATE PROFILE` only in `CDB$ROOT` - since v0.22.0 every
   PDB run of `ds_database_prereqs.sh` stopped with ORA-65140 (invalid common profile name), so `--all` and `--pdb`
   created no local `DS_ADMIN` (found on a fresh 26ai lab, 2026-10-23)
+- `ds_database_prereqs.sh`: **a failed user or grant step fails its scope** (#19) - `create_ds_admin_user.sql`
+  switched to `WHENEVER SQLERROR CONTINUE` and `datasafe_privileges.sql` only prints its errors, so a run with
+  ORA-28003 and ORA-44001 ended with `Done` and rc 0, without a user. Every ORA-/SP2- line now fails the step
+  with scope and ORA code; no grants without a user; `--all` continues with the other scopes and ends with
+  rc 1 and a list of failed scopes. Scopes left to manual steps (Database Vault) are named at the end
+- `ds_database_prereqs.sh`: the temp SQL files - the user script gets the secret as argument - were never
+  removed (registered inside a command substitution), on macOS the second run failed (`mktemp` template with
+  a suffix), `--debug` echoed the line with the secret, and `--dry-run` ended with rc 1
+- `create_ds_admin_user.sql`: the secret is checked against the password verify function of the profile
+  before any DROP/CREATE/ALTER (#20) - the error names the rule ("password must contain 1 or more special
+  characters") instead of a bare ORA-28003, and `--force` no longer drops the user before a doomed CREATE
+- Connector bundle generation (`ds_connector_create.sh`, `ds_connector_update.sh`): the password goes in a
+  0600 `--from-json` file (#21) - the OCI CLI does not expand `--password file://<path>` and sent the path
+  itself (400 "Invalid input"); a password that misses the complexity rule is rejected with the rule
+- A failed OCI call logs status, code and message of the service error (#22) - a 400 LimitExceeded showed
+  only `OCI command failed (exit 1)` and an empty ERROR line. `ds_target_delete.sh` keeps the error of its
+  delete calls instead of discarding it
+- `ds_target_register.sh -n` no longer needs the secret (#23) - the dry run masks it in the payload anyway
+- Name resolution (`-T <name>`) skips DELETED and DELETING targets (#18) - after a delete and a new
+  registration under the same name, the deleted target won; a name that only matches deleted targets says so
+- The cached target lists are dropped after a target is registered or deleted, and a name missing from a
+  cached list gets one fresh fetch (#24) - `ds_target_audit_trail.sh -T <new target>` failed with
+  `Target not found` for up to `DS_TARGET_CACHE_TTL` seconds after the registration
 
 ### Removed
 

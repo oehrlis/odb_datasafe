@@ -2,17 +2,27 @@
 
 ## Open - found on the LRN6087 lab (2026-10-23)
 
-- [ ] `ds_database_prereqs.sh` reports `Done` and rc 0 although `create_ds_admin_user.sql` failed (ORA-28003,
+Fixed on `main` 2026-10-25 (commits `29f44c0`..`d0963d7`, issues #18-#24), plan:
+`tasks/plan-lrn6087-lab-fixes.md`. Open: CI lint and the release.
+
+- [x] `ds_database_prereqs.sh` reports `Done` and rc 0 although `create_ds_admin_user.sql` failed (ORA-28003,
   secret without special character vs. `ORA12C_VERIFY_FUNCTION`) and the grants then failed with ORA-44001 -
   no user, silent success. Fail the scope on any ORA- in the user/grant step; in `--debug` the `sqlplus | tee`
   pipe returns the status of `tee` [P1]
-- [ ] Check the secret against the profile's verify function before `CREATE USER` (or name the rule in the
+- [x] Check the secret against the profile's verify function before `CREATE USER` (or name the rule in the
   error): special character required [P2]
-- [ ] `ds_lib.sh` bundle generation passes `--password "file://$pwd_file"` - the OCI CLI does not expand
+- [x] `ds_lib.sh` bundle generation passes `--password "file://$pwd_file"` - the OCI CLI does not expand
   `file://` for this string option and sends the path as the password: 400 InvalidParameter "Invalid input".
   Worked on the lab with `--from-json file://<json>` (`onPremConnectorId`, `password`, `file`), secret stays off
   argv. Bundle password also needs a special character [P1]
-- [ ] Release 1.3.2 with the `CONTAINER=ALL` fix (CHANGELOG Unreleased) [P1]
+- [x] `ds_target_register.sh`: OCI error swallowed (#22), `-n` demands the secret (#23), stale target cache
+  after register/delete (#24); name resolution picks DELETED targets (#18)
+- [x] Found while fixing: temp SQL files with the secret never removed, BSD `mktemp` suffix template,
+  `--debug` echoed the secret line, `--dry-run` rc 1, secret on the argv of `jq` (bundle and register)
+- [ ] `make lint-ci` (needs network: apt shellcheck in `ubuntu:24.04`) before `make tag` [P1]
+- [ ] Release 1.3.2 with the `CONTAINER=ALL` fix (CHANGELOG Unreleased) - `make release` bumps `VERSION`,
+  then rename `[Unreleased]` to `[1.3.2]`; agree with Stefan first, no lab deploy before the demo
+  (Tue 2026-10-27 08:00 PDT) without his OK [P1]
 
 ## v1.1.0 - Audit reconcile + trail report (2026-08-23, done)
 

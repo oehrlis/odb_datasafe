@@ -4,6 +4,40 @@ Self-improvement log per `~/.claude/CLAUDE.md`: every correction or
 non-obvious validated approach gets a one-paragraph entry so the same
 mistake does not recur.
 
+## 2026-10-25 - On a metered network: no downloads, use local images
+
+**Context.** For the LRN6087 fixes a test DB was started with `docker run gvenzl/oracle-free` - a multi-GB
+pull on an in-flight network. Stefan stopped it: "do not pull anything, use what we have". A
+`container-registry.oracle.com/database/free:latest` image was already local; the first search missed it
+because `docker images --format ... | grep -i oracle` returned nothing.
+
+**Rule.** Before any `docker run`/`pull`, `apt-get`, `brew`, `npm` download: list what is local
+(`docker images` without a format filter) and start with `--pull never`. Ask before downloading when the
+network situation is unknown. `make lint-ci` downloads too (apt in `ubuntu:24.04`).
+
+## 2026-10-25 - State set inside `$(...)` is lost, BSD mktemp needs trailing X's
+
+**Context.** `ds_database_prereqs.sh` registered its temp SQL files in `TEMP_FILES` inside
+`build_temp_sql_script`, which every caller ran as `tmp_sql=$(build_temp_sql_script ...)`. The array entry died
+with the subshell, so the files - the user script gets the secret as argument - were never removed. The
+template `<name>.XXXXXX.sql` is literal on macOS (BSD `mktemp` only replaces trailing X's): the first run wrote
+a file with that literal name, the second failed with "File exists". Linux hosts never showed either.
+
+**Rule.** A function called in `$(...)` must not register cleanup state - the caller does. `mktemp` templates
+end in X's; for a fixed extension create a `mktemp -d` directory and name the file inside it.
+
+## 2026-10-25 - `git apply --unidiff-zero` misplaces a subset of hunks
+
+**Context.** Splitting a working tree into one commit per issue, a subset of `git diff -U0` hunks was staged with
+`git apply --cached --unidiff-zero`. Without context lines git places each hunk by its new-side line number,
+which is wrong once earlier hunks are skipped: `_oci_service_error_summary` landed 33 lines too far down inside
+`oci_exec`. `bash -n` and shellcheck passed; only the remaining diff (the same block once removed, once added)
+showed it. The commit was redone before anything was pushed.
+
+**Rule.** Stage a hunk subset by applying it to the index blob by old-side line numbers (bottom-up, removed lines
+verified) and `git update-index --cacheinfo`, or with normal context (`-U3`). Check after every partial
+staging: the remaining `git diff` has no removal that is not meant for a later commit.
+
 ## 2026-07-10 - VERSION and .extension must be bumped together
 
 **Context.** v1.0.10 CI failed with all `--version` BATS tests reporting `not ok`.
