@@ -865,9 +865,13 @@ validate_inputs() {
         fi
     fi
 
-    # Secret required unless check-only
+    # Secret required unless check-only or dry-run (the dry-run payload masks it anyway)
     if [[ "$CHECK_ONLY" != "true" && -z "$DS_SECRET" ]]; then
-        die "Missing required option: --ds-secret (not needed with --check)"
+        if [[ "${DRY_RUN:-false}" == "true" ]]; then
+            log_info "DRY-RUN: no Data Safe secret given - not needed for the plan, required for the real run"
+        else
+            die "Missing required option: --ds-secret or --secret-file (not needed with --check or --dry-run)"
+        fi
     fi
 
     # compute/onprem: no DB node / VM cluster to derive the compartment from
