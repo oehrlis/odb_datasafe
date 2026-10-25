@@ -1418,6 +1418,8 @@ register_target() {
         die "Target registration failed" 2
     }
     rm -f "$json_file"
+    # The existence check cached the list before the target existed
+    ds_invalidate_target_cache
 
     if [[ -z "$WAIT_STATE" ]]; then
         log_info "Target registration submitted. Activation continues in background."

@@ -293,3 +293,93 @@ EOF
     [[ "$output" == *"--host-ip IP"* ]]
     [[ "$output" == *"<host>_<sid>_<pdb|CDBROOT>"* ]]
 }
+
+# ------------------------------------------------------------------------------
+# LRN6087 lab defects (2026-10-23): dry-run secret, swallowed OCI error, stale cache
+# ------------------------------------------------------------------------------
+
+@test "ds_target_register: -n works without a secret (dry run only prints the plan)" {
+    _fake_oci_setup
+    run --separate-stderr "${BIN_DIR}/ds_target_register.sh" --type onprem -H dbhost01 \
+        --sid CDB01 --pdb APP1 --host-ip 10.1.1.1 -c "$COMP" --connector demo-conn -n
+    [ "$status" -eq 0 ]
+    [ "$(jq -r '.credentials.password' <<< "$output")" = "****" ]
+    [[ "$stderr" == *"no Data Safe secret given"* ]]
+}
+
+@test "ds_target_register: a real run without a secret still fails" {
+    _fake_oci_setup
+    run "${BIN_DIR}/ds_target_register.sh" --type onprem -H dbhost01 \
+        --sid CDB01 --pdb APP1 --host-ip 10.1.1.1 -c "$COMP" --connector demo-conn
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Missing required option: --ds-secret or --secret-file"* ]]
+}
+
+# fake oci for a real create: MOCK_CREATE=limit answers like the tenancy limit on the lab
+_fake_oci_create() {
+    export MOCK_CREATE="$1"
+    cat > "${TEST_BIN_DIR}/oci" << 'MOCK'
+#!/usr/bin/env bash
+echo "$*" >> "${OCI_LOG}"
+case "$*" in
+    *"os ns get"*) echo '{"data":"ns"}' ;;
+    *"on-prem-connector list"*)
+        echo '{"data":[{"display-name":"demo-conn","id":"ocid1.datasafeonpremconnector.oc1..conn"}]}' ;;
+    *"data-safe target-database create"*)
+        if [[ "${MOCK_CREATE}" == "limit" ]]; then
+            printf '%s\n' 'ServiceError:' '{' '    "code": "LimitExceeded",' \
+                '    "message": "The limit for this tenancy has been exceeded.",' \
+                '    "opc-request-id": "req-1",' '    "status": 400' '}' >&2
+            exit 1
+        fi
+        echo '{"data":{"id":"ocid1.datasafetargetdatabase.oc1..new"}}' ;;
+    *) echo '{"data":[]}' ;;
+esac
+MOCK
+    chmod +x "${TEST_BIN_DIR}/oci"
+}
+
+@test "ds_target_register: a failed create prints the OCI status, code and message" {
+    _fake_oci_setup
+    _fake_oci_create limit
+    run --separate-stderr "${BIN_DIR}/ds_target_register.sh" --type onprem -H dbhost01 \
+        --sid CDB01 --pdb APP1 --host-ip 10.1.1.1 -c "$COMP" --connector demo-conn -P 'Secret_123#x'
+    [ "$status" -ne 0 ]
+    [[ "$stderr" == *"OCI error: 400 LimitExceeded: The limit for this tenancy has been exceeded."* ]]
+    # no empty ERROR line any more
+    run grep -E '\[ERROR\][[:space:]]*$' <<< "$stderr"
+    [ "$status" -ne 0 ]
+}
+
+@test "ds_target_register: a successful create drops the cached target lists" {
+    _fake_oci_setup
+    _fake_oci_create ok
+    export TMPDIR="${BATS_TEST_TMPDIR}/tmp"
+    mkdir -p "${TMPDIR}/datasafe_target_cache"
+    echo '{"data":[]}' > "${TMPDIR}/datasafe_target_cache/targets_123.json"
+    run --separate-stderr "${BIN_DIR}/ds_target_register.sh" --type onprem -H dbhost01 \
+        --sid CDB01 --pdb APP1 --host-ip 10.1.1.1 -c "$COMP" --connector demo-conn -P 'Secret_123#x'
+    [ "$status" -eq 0 ]
+    run bash -c "ls '${TMPDIR}/datasafe_target_cache/'targets_*.json 2> /dev/null"
+    [ -z "$output" ]
+}
+
+@test "ds_target_register: the secret never reaches the argv of jq" {
+    _fake_oci_setup
+    _fake_oci_create ok
+    export REAL_JQ JQ_LOG="${BATS_TEST_TMPDIR}/jq.log"
+    REAL_JQ="$(command -v jq)"
+    : > "${JQ_LOG}"
+    cat > "${TEST_BIN_DIR}/jq" << 'MOCK'
+#!/usr/bin/env bash
+echo "$*" >> "${JQ_LOG}"
+exec "${REAL_JQ}" "$@"
+MOCK
+    chmod +x "${TEST_BIN_DIR}/jq"
+    run --separate-stderr "${BIN_DIR}/ds_target_register.sh" --type onprem -H dbhost01 \
+        --sid CDB01 --pdb APP1 --host-ip 10.1.1.1 -c "$COMP" --connector demo-conn -P 'Secret_123#x'
+    [ "$status" -eq 0 ]
+    [ -s "${JQ_LOG}" ]
+    run grep -F -- 'Secret_123#x' "${JQ_LOG}"
+    [ "$status" -ne 0 ]
+}

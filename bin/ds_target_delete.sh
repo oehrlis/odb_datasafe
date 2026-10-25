@@ -372,6 +372,12 @@ run_oci_delete() {
 step_delete_targets() {
     log_info "Step 2/2: Deleting target databases..."
 
+    # Cached target lists go stale with the first delete; dropping them up front
+    # also covers the stop-on-error exit
+    if [[ "${DRY_RUN}" != "true" ]]; then
+        ds_invalidate_target_cache
+    fi
+
     for target_ocid in "${RESOLVED_TARGETS[@]}"; do
         local target_name
         target_name="$(ds_resolve_target_name "${target_ocid}" 2> /dev/null || echo "${target_ocid}")"

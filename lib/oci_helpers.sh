@@ -37,6 +37,7 @@ _DS_TARGET_CACHE_COMP_OCID=""
 _DS_TARGET_CACHE_LIFECYCLE=""
 _DS_TARGET_CACHE_JSON=""
 _DS_TARGET_CACHE_FILE=""
+_DS_TARGET_CACHE_HIT=false # last _ds_get_target_list_cached call served from cache
 
 # Global cache for OCI CLI authentication check
 _OCI_CLI_AUTH_CHECKED=""
@@ -61,10 +62,42 @@ _ds_target_cache_file_path() {
     cache_hash=$(printf '%s|%s' "$comp_ocid" "$lifecycle" | cksum | awk '{print $1}')
 
     local cache_dir
-    cache_dir="${TMPDIR:-/tmp}/datasafe_target_cache"
+    cache_dir="$(_ds_target_cache_dir)"
     mkdir -p "$cache_dir"
 
     echo "${cache_dir}/targets_${cache_hash}.json"
+}
+
+# ----------------------------------------------------------------------------
+# Function: _ds_target_cache_dir
+# Purpose.: Directory of the target list cache files
+# Args....: None
+# Returns.: Echoes the directory path
+# ----------------------------------------------------------------------------
+_ds_target_cache_dir() {
+    echo "${TMPDIR:-/tmp}/datasafe_target_cache"
+}
+
+# ----------------------------------------------------------------------------
+# Function: ds_invalidate_target_cache
+# Purpose.: Drop all cached target lists (file and memory)
+# Args....: None
+# Returns.: 0
+# Notes...: Call after a target is created or deleted. All files go, not only
+#           the target's compartment: lists are fetched with
+#           --compartment-id-in-subtree, so every parent compartment's list
+#           holds the target as well.
+# ----------------------------------------------------------------------------
+ds_invalidate_target_cache() {
+    local cache_dir
+    cache_dir="$(_ds_target_cache_dir)"
+    rm -f "${cache_dir}"/targets_*.json
+    _DS_TARGET_CACHE_COMP_OCID=""
+    _DS_TARGET_CACHE_LIFECYCLE=""
+    _DS_TARGET_CACHE_JSON=""
+    _DS_TARGET_CACHE_FILE=""
+    _DS_TARGET_CACHE_HIT=false
+    log_debug "Target list cache invalidated: ${cache_dir}"
 }
 
 # =============================================================================

@@ -580,6 +580,7 @@ _ds_get_target_list_cached() {
         "$_DS_TARGET_CACHE_COMP_OCID" == "$comp_ocid" &&
         "$_DS_TARGET_CACHE_LIFECYCLE" == "$lifecycle" ]]; then
         log_debug "Using cached target list for compartment: $comp_ocid (lifecycle: ${lifecycle:-none}) [memory]"
+        _DS_TARGET_CACHE_HIT=true
         printf '%s' "$_DS_TARGET_CACHE_JSON"
         return 0
     fi
@@ -595,6 +596,7 @@ _ds_get_target_list_cached() {
                 _DS_TARGET_CACHE_LIFECYCLE="$lifecycle"
                 _DS_TARGET_CACHE_FILE="$cache_file"
                 _DS_TARGET_CACHE_JSON=$(cat "$cache_file")
+                _DS_TARGET_CACHE_HIT=true
                 printf '%s' "$_DS_TARGET_CACHE_JSON"
                 return 0
             fi
@@ -602,6 +604,7 @@ _ds_get_target_list_cached() {
     fi
 
     log_debug "Fetching target list for compartment: $comp_ocid (lifecycle: ${lifecycle:-none})"
+    _DS_TARGET_CACHE_HIT=false
 
     local -a cmd=(
         data-safe target-database list
@@ -633,6 +636,76 @@ _ds_get_target_list_cached() {
 }
 
 # ------------------------------------------------------------------------------
+# Function: _ds_match_target_name
+# Purpose.: Match a display name in a target list, skipping deleted targets
+# Args....: $1 - Targets JSON ({data: [...]})
+#           $2 - Display name
+# Returns.: 0 match (OCID on stdout)
+#           1 no match
+#           2 ambiguous partial match ("name|ocid" lines on stdout)
+#           3 only DELETED/DELETING targets match ("name|state|ocid" lines)
+# Notes...: Order: exact, case-insensitive, unique substring. DELETED and
+#           DELETING targets keep their name - after a delete and a new
+#           registration under the same name they used to win the match.
+# ------------------------------------------------------------------------------
+_ds_match_target_name() {
+    local targets_json="$1"
+    local name="$2"
+
+    local live
+    live=$(jq -c '[.data[] | select(."lifecycle-state" != "DELETED" and ."lifecycle-state" != "DELETING")]' \
+        <<< "$targets_json") || return 1
+
+    local result
+    result=$(jq -r --arg name "$name" '.[] | select(."display-name" == $name) | .id' <<< "$live" | head -n1)
+
+    if [[ -z "$result" ]]; then
+        log_debug "Exact match not found for target: $name (case-sensitive). Trying case-insensitive match."
+        result=$(jq -r --arg name "$name" '
+            .[] | select((."display-name" | ascii_downcase) == ($name | ascii_downcase)) | .id' <<< "$live" | head -n1)
+    fi
+
+    if [[ -n "$result" ]]; then
+        printf '%s\n' "$result"
+        return 0
+    fi
+
+    log_debug "No exact match found for target: $name. Trying partial (substring) match."
+    local matches
+    matches=$(jq -r --arg name "$name" '
+        .[] | select((."display-name" | ascii_downcase) | contains($name | ascii_downcase))
+        | ."display-name" + "|" + .id' <<< "$live")
+
+    if [[ -n "$matches" ]]; then
+        local -i match_count=0
+        local _match_line
+        while IFS= read -r _match_line; do
+            [[ -n "$_match_line" ]] && match_count=$((match_count + 1))
+        done <<< "$matches"
+
+        if [[ "$match_count" -eq 1 ]]; then
+            log_info "Target '$name' not found by exact name; using partial match: ${matches%%|*}"
+            printf '%s\n' "${matches#*|}"
+            return 0
+        fi
+        printf '%s\n' "$matches"
+        return 2
+    fi
+
+    # Name only on deleted targets: say so instead of a bare "not found"
+    local gone
+    gone=$(jq -r --arg name "$name" '
+        .data[] | select(."lifecycle-state" == "DELETED" or ."lifecycle-state" == "DELETING")
+        | select((."display-name" | ascii_downcase) | contains($name | ascii_downcase))
+        | ."display-name" + "|" + ."lifecycle-state" + "|" + .id' <<< "$targets_json")
+    if [[ -n "$gone" ]]; then
+        printf '%s\n' "$gone"
+        return 3
+    fi
+    return 1
+}
+
+# ------------------------------------------------------------------------------
 # Function: ds_resolve_target_ocid
 # Purpose.: Resolve target name to OCID
 # Args....: $1 - Target name or OCID
@@ -658,66 +731,60 @@ ds_resolve_target_ocid() {
 
     log_debug "Resolving target name: $input (compartment: $compartment)"
 
-    # Retrieve targets JSON once per compartment (and lifecycle) and cache to reduce repeated large downloads
-    # Populate cache (suppress stdout to avoid polluting command substitution in callers)
-    if ! _ds_get_target_list_cached "$compartment" "" > /dev/null; then
-        log_error "Failed to list targets for resolution: $input"
-        return 1
-    fi
-
-    local targets_json
-    if [[ -n "$_DS_TARGET_CACHE_JSON" ]]; then
-        targets_json="$_DS_TARGET_CACHE_JSON"
-    elif [[ -n "$_DS_TARGET_CACHE_FILE" && -f "$_DS_TARGET_CACHE_FILE" ]]; then
-        targets_json=$(cat "$_DS_TARGET_CACHE_FILE")
-    else
-        log_error "Target cache unavailable after fetch for: $input"
-        return 1
-    fi
-
-    # First try case-sensitive exact match, then case-insensitive
-    local result
-    result=$(echo "$targets_json" | jq -r --arg name "$input" '
-        .data[] | select(."display-name" == $name) | .id' | head -n1)
-
-    if [[ -z "$result" || "$result" == "null" ]]; then
-        log_debug "Exact match not found for target: $input (case-sensitive). Trying case-insensitive match."
-
-        result=$(echo "$targets_json" | jq -r --arg name "$input" '
-            .data[] | select((."display-name" | ascii_downcase) == ($name | ascii_downcase)) | .id' | head -n1)
-    fi
-
-    if [[ -z "$result" || "$result" == "null" ]]; then
-        log_debug "No exact match found for target: $input. Trying partial (substring) match."
-
-        local matches
-        matches=$(echo "$targets_json" | jq -r --arg name "$input" '
-            .data[] | select((."display-name" | ascii_downcase) | contains($name | ascii_downcase)) | ."display-name" + "|" + .id')
-
-        if [[ -z "$matches" ]]; then
-            log_error "Target not found: $input"
+    # Match against the cached list first; a name missing from a cached list
+    # (target registered after the list was cached) gets one fresh fetch
+    local result="" match_rc=0 attempt
+    for attempt in 1 2; do
+        if ! _ds_get_target_list_cached "$compartment" "" > /dev/null; then
+            log_error "Failed to list targets for resolution: $input"
             return 1
         fi
 
-        # If exactly one partial match, use it; otherwise ask to disambiguate
-        local -i match_count=0
-        local _match_line
-        while IFS= read -r _match_line; do
-            [[ -n "$_match_line" ]] && match_count=$((match_count + 1))
-        done <<< "$matches"
-
-        if [[ "$match_count" -eq 1 ]]; then
-            result="${matches#*|}"
-            log_info "Target '$input' not found by exact name; using partial match: ${matches%%|*}"
+        local targets_json
+        if [[ -n "$_DS_TARGET_CACHE_JSON" ]]; then
+            targets_json="$_DS_TARGET_CACHE_JSON"
+        elif [[ -n "$_DS_TARGET_CACHE_FILE" && -f "$_DS_TARGET_CACHE_FILE" ]]; then
+            targets_json=$(< "$_DS_TARGET_CACHE_FILE")
         else
+            log_error "Target cache unavailable after fetch for: $input"
+            return 1
+        fi
+
+        match_rc=0
+        result=$(_ds_match_target_name "$targets_json" "$input") || match_rc=$?
+
+        if [[ $attempt -eq 1 && "$_DS_TARGET_CACHE_HIT" == "true" && ($match_rc -eq 1 || $match_rc -eq 3) ]]; then
+            log_debug "Target '$input' not in cached target list - refreshing once"
+            ds_invalidate_target_cache
+            continue
+        fi
+        break
+    done
+
+    case "$match_rc" in
+        0) ;;
+        2)
             log_error "Target not found or ambiguous: $input"
             log_error "Candidates (partial match):"
-            echo "$matches" | while IFS='|' read -r disp ocid; do
+            local disp ocid
+            while IFS='|' read -r disp ocid; do
                 log_error "  ${disp} -> ${ocid}"
-            done
+            done <<< "$result"
             return 1
-        fi
-    fi
+            ;;
+        3)
+            log_error "Target not found: $input - only deleted targets match this name:"
+            local disp state ocid
+            while IFS='|' read -r disp state ocid; do
+                log_error "  ${disp} (${state}) -> ${ocid}"
+            done <<< "$result"
+            return 1
+            ;;
+        *)
+            log_error "Target not found: $input"
+            return 1
+            ;;
+    esac
 
     log_debug "Resolved target: $input -> $result"
     echo "$result"
@@ -1129,7 +1196,8 @@ ds_delete_target() {
 
     oci_exec data-safe target-database delete \
         --target-database-id "$target_ocid" \
-        --force
+        --force || return $?
+    ds_invalidate_target_cache
 }
 
 # =============================================================================
