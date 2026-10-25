@@ -1,7 +1,7 @@
 # Plan - fixes found on the LRN6087 lab (2026-10-23)
 
 Context: building the LRN6087 demo lab (oci-labs `datasafe-demo`, 26ai 23.26.4 + 19c, ON_PREMISES via on-prem
-connector) on 2026-10-22/23 surfaced seven defects in odb_datasafe 1.3.1. Number 1 is fixed on `main` already, the
+connector) on 2026-10-22/23 surfaced eight defects in odb_datasafe 1.3.1. Number 1 is fixed on `main` already, the
 others are open. Goal: fix all with tests, release 1.3.2. Open tasks are also listed in `tasks/todo.md`
 ("Open - found on the LRN6087 lab").
 
@@ -63,12 +63,22 @@ age=153s`). Invalidate the cache for the compartment after create/delete of a ta
 when a name is not found in a cached list, refresh once before giving up. Workaround in the demo copy:
 `DS_TARGET_CACHE_TTL="0"`.
 
+## 8. Name resolution picks DELETED targets
+
+`ds_resolve_target_ocid` (`lib/ds_lib.sh`) matches the display name over all lifecycle states and takes the first
+hit (`head -n1`). After a reset and a new registration under the same name (demo rehearsal 2026-10-25,
+`oradb01_CDB26_AIPDB1`) the DELETED target came first: `ds_target_audit_trail.sh -T <name>` tried to start the
+trail of the deleted target and failed with 400 "Target ... is Deleted or Failed". Exclude DELETED and DELETING in
+all three matches (exact, case-insensitive, substring); when only deleted targets match, say so instead of "not
+found". Workaround in the demo copy: the same filter patched in by hand (`lib/ds_lib.sh.1.3.1-orig` is the
+original). Check other name lookups (`ds_collect_targets_source` with `-T`) for the same pattern.
+
 ## Approach
 
 - [ ] Extend this plan / `tasks/todo.md` first, then implement
 - [ ] Bats tests: 2 (rc != 0 on SQL error, sqlplus mock), 6 (-n without secret), 7 (cache refresh),
   4 (oci mock checks `--from-json`, no `--password` and no
-  secret in argv), 5 (error code and message printed)
+  secret in argv), 5 (error code and message printed), 8 (DELETED target with the same name is skipped)
 - [ ] `make test` and `make lint-ci` green
 - [ ] CHANGELOG `[Unreleased]` -> Fixed (entry for 1 exists), bump to 1.3.2
 - [ ] Conventional Commits, no Co-Authored-By, check the branch before every commit
