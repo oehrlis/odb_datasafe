@@ -1359,13 +1359,12 @@ register_target() {
             '{($ns): {($envk): $env, ($typk): $typ, ($stgk): $stg, ($clsk): $cls}}')
     fi
 
-    # Create full payload
-    jq -n \
+    # Create full payload - the secret goes to jq on stdin, never on argv (ps)
+    printf '%s' "$DS_SECRET" | jq -Rs \
         --arg comp "$COMP_OCID" \
         --arg name "$DISPLAY_NAME" \
         --arg desc "$desc" \
         --arg user "$DS_USER" \
-        --arg pass "$DS_SECRET" \
         --arg conn "$CONNECTOR_OCID" \
         --argjson dbd "$db_details" \
         --argjson tags "$tags_json" \
@@ -1375,7 +1374,7 @@ register_target() {
             description: $desc,
             credentials: {
                 userName: $user,
-                password: $pass
+                password: .
             },
             connectionOption: {
                 connectionType: "ONPREM_CONNECTOR",

@@ -1445,6 +1445,11 @@ ds_generate_connector_bundle() {
         die "Bundle password is required"
     fi
 
+    # OCI only answers "Invalid input" for a weak password - name the rule here
+    if ! is_valid_bundle_key "$password"; then
+        die "Bundle password rejected: 12-30 characters with upper, lower, digit and special character required"
+    fi
+
     if [[ -z "$output_file" ]]; then
         die "Output file path is required for bundle generation"
     fi
@@ -1459,22 +1464,29 @@ ds_generate_connector_bundle() {
         return 0
     fi
 
-    # Write password to secure temp file to avoid exposure on argv (visible in ps)
-    local pwd_file
+    # Pass the password in a 0600 --from-json file and to jq on stdin: never on
+    # argv (visible in ps). --password "file://..." does not work - the OCI CLI
+    # does not expand file:// for this string option and sends the path itself.
+    local json_file
     local prev_umask
     prev_umask=$(umask)
     umask 077
-    pwd_file=$(mktemp)
+    json_file=$(mktemp "${TMPDIR:-/tmp}/ds_bundle.XXXXXX")
     umask "$prev_umask"
-    echo "$password" > "$pwd_file"
-    # shellcheck disable=SC2064
-    trap 'rm -f "$pwd_file"' RETURN
+
+    if ! printf '%s' "$password" | jq -Rs --arg id "$connector_ocid" --arg file "$output_file" \
+        '{onPremConnectorId: $id, password: ., file: $file}' > "$json_file"; then
+        rm -f "$json_file"
+        log_error "Failed to write bundle request file"
+        return 1
+    fi
 
     # Generate bundle - returns work request
+    local rc=0
     oci_exec data-safe on-prem-connector generate-on-prem-connector-configuration \
-        --on-prem-connector-id "$connector_ocid" \
-        --password "file://$pwd_file" \
-        --file "$output_file"
+        --from-json "file://$json_file" || rc=$?
+    rm -f "$json_file"
+    return "$rc"
 }
 
 # ------------------------------------------------------------------------------
