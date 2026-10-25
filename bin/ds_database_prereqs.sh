@@ -426,6 +426,9 @@ find_pass_file() {
 : "${USER_ACTION:=}"
 
 TEMP_FILES=()
+FAILED_SCOPES=()  # scopes whose SQL failed - the run ends with rc 1
+SKIPPED_SCOPES=() # scopes left to manual steps (Database Vault)
+CURRENT_SCOPE=""  # scope label for error messages
 
 # =============================================================================
 # FUNCTIONS
@@ -441,7 +444,9 @@ TEMP_FILES=()
 cleanup() {
     local file=""
     for file in "${TEMP_FILES[@]:-}"; do
-        [[ -n "$file" && -e "$file" ]] && rm -rf "$file"
+        if [[ -n "$file" && -e "$file" ]]; then
+            rm -rf "$file"
+        fi
     done
 }
 
@@ -946,8 +951,12 @@ build_temp_sql_script() {
     shift 2 || true
 
     local tmp_sql
-    tmp_sql="$(mktemp "${TMPDIR:-/tmp}/${base_name}.XXXXXX.sql")"
-    TEMP_FILES+=("$tmp_sql")
+    # Own 0700 directory: BSD mktemp only replaces trailing X's, so a template
+    # like <name>.XXXXXX.sql is taken literally on macOS. Callers run this in
+    # $(...) and register the directory in TEMP_FILES themselves.
+    local tmp_dir
+    tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/${SCRIPT_NAME}.XXXXXX")"
+    tmp_sql="${tmp_dir}/${base_name}.sql"
 
     local -a args=()
     (($#)) && args=("$@")
@@ -985,6 +994,11 @@ build_temp_sql_script() {
             if ((${#args[@]})); then
                 printf -v joined ' %s' "${args[@]}"
                 joined="${joined:1}"
+            fi
+            # The user script gets the secret as argument: never echo that line
+            # (--debug sets echo on, which would print it to the terminal/log)
+            if [[ "$base" == "$USER_SQL" ]]; then
+                echo "set echo off"
             fi
             if [[ -n "$joined" ]]; then
                 printf '@"%s/%s" %s\n' "${SQL_DIR%/}" "$base" "$joined"
@@ -1025,6 +1039,9 @@ run_sql_local() {
     seq="$(date +%s)"
     local tmp_sql
     TERMOUT_FORCE="$termout_force" tmp_sql="$(build_temp_sql_script "${SCRIPT_NAME}_${ORACLE_SID}_${seq}" "$sqlspec" "$@")"
+    # Registered here, not in build_temp_sql_script: that runs in a subshell, and
+    # the file holds the secret of the user script as argument
+    TEMP_FILES+=("$(dirname -- "$tmp_sql")")
 
     if [[ "$DRY_RUN" == "true" ]]; then
         log_info "DRY-RUN: would run sqlplus @${tmp_sql}"
@@ -1032,25 +1049,48 @@ run_sql_local() {
     fi
 
     local out_file
-    out_file="$(mktemp "${TMPDIR:-/tmp}/${SCRIPT_NAME}.sqlplus.XXXXXX.log")"
+    out_file="$(mktemp "${TMPDIR:-/tmp}/${SCRIPT_NAME}.sqlplus.log.XXXXXX")"
     TEMP_FILES+=("$out_file")
 
+    local rc=0
     if is_verbose; then
-        if ! sqlplus -s -L / as sysdba @"${tmp_sql}" 2>&1 | tee "$out_file"; then
-            return 1
-        fi
-    elif ! sqlplus -s -L / as sysdba @"${tmp_sql}" > "$out_file" 2>&1; then
-        log_error "SQL*Plus failed while running ${sqlspec}."
-        log_error "Use --debug for full SQL output. Showing last 20 lines:"
-        tail -n 20 "$out_file" >&2
-        return 1
+        sqlplus -s -L / as sysdba @"${tmp_sql}" < /dev/null 2>&1 | tee "$out_file" || rc=$?
+    else
+        sqlplus -s -L / as sysdba @"${tmp_sql}" < /dev/null > "$out_file" 2>&1 || rc=$?
     fi
 
     if grep -q "ORA-28007" "$out_file"; then
         log_warn "Secret reuse detected (ORA-28007). Use a different secret or --force to recreate."
     fi
 
-    return 0
+    # datasafe_privileges.sql catches its errors and only prints them (rc 0):
+    # an ORA-/SP2- line at the start of a line fails the step as well
+    local errors
+    errors=$(awk '/^(ORA|SP2)-[0-9]+/ && !/^ORA-06512/ && !seen[$0]++' "$out_file")
+    if [[ $rc -eq 0 && -z "$errors" ]]; then
+        return 0
+    fi
+
+    local sql_label="inline SQL"
+    if [[ "$sqlspec" != @INLINE* ]]; then
+        sql_label="$(basename -- "$sqlspec")"
+    fi
+    log_error "${CURRENT_SCOPE:-scope}: ${sql_label} failed (sqlplus rc=${rc})"
+    if [[ -n "$errors" ]]; then
+        local line
+        while IFS= read -r line; do
+            log_error "  ${line}"
+        done <<< "$errors"
+    fi
+    if [[ "$errors" == *ORA-28003* ]]; then
+        log_error "  The secret does not satisfy the password verify function of the profile" \
+            "(ORA12C_VERIFY_FUNCTION, the default of DS_USER_PROFILE, requires a special character)"
+    fi
+    if [[ -z "$errors" ]] && ! is_verbose; then
+        log_error "Use --debug for full SQL output. Last 20 lines:"
+        tail -n 20 "$out_file" >&2
+    fi
+    return 1
 }
 
 # ------------------------------------------------------------------------------
@@ -1061,10 +1101,24 @@ run_sql_local() {
 # Output..: PDB names to stdout
 # ------------------------------------------------------------------------------
 list_open_pdbs() {
+    # Runs in $(...): a TEMP_FILES entry would get lost, so remove the file here
+    local err_file rc=0
+    err_file="$(mktemp "${TMPDIR:-/tmp}/${SCRIPT_NAME}.pdbs.log.XXXXXX")"
+    _list_open_pdbs "$err_file" || rc=$?
+    rm -f "$err_file"
+    return "$rc"
+}
+
+# ------------------------------------------------------------------------------
+# Function: _list_open_pdbs
+# Purpose.: Query open READ WRITE PDBs (worker for list_open_pdbs)
+# Args....: $1 - File for sqlplus stderr
+# Returns.: 0 on success, 1 on error
+# Output..: PDB names, one per line
+# ------------------------------------------------------------------------------
+_list_open_pdbs() {
     local output
-    local err_file
-    err_file="$(mktemp "${TMPDIR:-/tmp}/${SCRIPT_NAME}.pdbs.XXXXXX.log")"
-    TEMP_FILES+=("$err_file")
+    local err_file="$1"
 
     local cdb_flag
     if ! cdb_flag=$(
@@ -1258,12 +1312,15 @@ run_prereqs_scope() {
         log_warn "  1. Connect as DV_ACCMGR (or account manager role) to create user: ${ds_user}"
         log_warn "  2. Connect as DV_OWNER or SYS to grant the required Data Safe privileges"
         log_warn "  Skipping automated prerequisites for scope: ${scope_label}"
+        SKIPPED_SCOPES+=("${scope_label} (Database Vault)")
         return 0
     fi
 
-    run_sql_local "${SQL_DIR%/}/${PREREQ_SQL}" "${ds_profile}"
-    run_sql_local "${SQL_DIR%/}/${USER_SQL}" "${ds_user}" "${DATASAFE_PASS}" "${ds_profile}" "${force_arg}" "${update_arg}"
-    run_sql_local "${SQL_DIR%/}/${GRANTS_SQL}" "${ds_user}" "${DS_GRANT_TYPE}" "${DS_GRANT_MODE}"
+    # Called as `run_prereqs_scope ... || ...`: set -e is off in here, so
+    # every step checks its own status - the grants must not run without a user
+    run_sql_local "${SQL_DIR%/}/${PREREQ_SQL}" "${ds_profile}" || return 1
+    run_sql_local "${SQL_DIR%/}/${USER_SQL}" "${ds_user}" "${DATASAFE_PASS}" "${ds_profile}" "${force_arg}" "${update_arg}" || return 1
+    run_sql_local "${SQL_DIR%/}/${GRANTS_SQL}" "${ds_user}" "${DS_GRANT_TYPE}" "${DS_GRANT_MODE}" || return 1
 }
 
 # ------------------------------------------------------------------------------
@@ -1348,6 +1405,56 @@ EOF
 }
 
 # ------------------------------------------------------------------------------
+# Function: run_scope
+# Purpose.: Run one scope action and record a failure instead of aborting
+# Args....: $1 - Action function (run_prereqs_scope, run_checks_scope, ...)
+#           $2 - Scope label (ROOT or PDB=<name>)
+# Returns.: 0 (failures are collected in FAILED_SCOPES)
+# Output..: Log messages
+# ------------------------------------------------------------------------------
+run_scope() {
+    local action="$1"
+    local scope_label="$2"
+    CURRENT_SCOPE="$scope_label"
+    if ! "$action" "$scope_label"; then
+        record_failed_scope "$scope_label" "Scope ${scope_label} failed"
+    fi
+    CURRENT_SCOPE=""
+}
+
+# ------------------------------------------------------------------------------
+# Function: record_failed_scope
+# Purpose.: Log a failure and remember the scope for the end-of-run summary
+# Args....: $1 - Scope label
+#           $2 - Error message
+# Returns.: 0
+# Output..: Error message
+# ------------------------------------------------------------------------------
+record_failed_scope() {
+    log_error "$2"
+    FAILED_SCOPES+=("$1")
+}
+
+# ------------------------------------------------------------------------------
+# Function: report_scopes
+# Purpose.: Summarize skipped and failed scopes at the end of a run
+# Args....: None
+# Returns.: 0 if no scope failed, 1 otherwise
+# Output..: Log messages
+# ------------------------------------------------------------------------------
+report_scopes() {
+    local scope
+    for scope in "${SKIPPED_SCOPES[@]+"${SKIPPED_SCOPES[@]}"}"; do
+        log_warn "Skipped: ${scope} - run the manual steps listed above"
+    done
+    if [[ ${#FAILED_SCOPES[@]} -gt 0 ]]; then
+        log_error "Failed scopes (${#FAILED_SCOPES[@]}): ${FAILED_SCOPES[*]}"
+        return 1
+    fi
+    log_info "Done"
+}
+
+# ------------------------------------------------------------------------------
 # Function: main
 # Purpose.: Main entry point
 # Args....: $@ - Command-line arguments
@@ -1376,7 +1483,7 @@ main() {
         if [[ "$RUN_ALL" == "true" ]]; then
             RUN_ROOT=true
             PDB=""
-            run_drop_user_scope "ROOT"
+            run_scope run_drop_user_scope "ROOT"
 
             local pdb
             local pdbs=""
@@ -1385,14 +1492,14 @@ main() {
                     [[ -z "$pdb" ]] && continue
                     RUN_ROOT=false
                     PDB="$pdb"
-                    run_drop_user_scope "PDB=${pdb}"
+                    run_scope run_drop_user_scope "PDB=${pdb}"
                 done <<< "$pdbs"
             else
-                log_warn "Skipping PDB processing; unable to list PDBs."
+                record_failed_scope "PDB list" "Unable to list PDBs - no PDB processed"
             fi
         elif [[ "$RUN_ROOT" == "true" ]]; then
             PDB=""
-            run_drop_user_scope "ROOT"
+            run_scope run_drop_user_scope "ROOT"
         else
             RUN_ROOT=false
             local pdb
@@ -1406,21 +1513,21 @@ main() {
                     return 1
                 fi
                 PDB="$pdb"
-                run_drop_user_scope "PDB=${pdb}"
+                run_scope run_drop_user_scope "PDB=${pdb}"
             done
         fi
 
-        log_info "Done"
-        return 0
+        report_scopes
+        return
     fi
 
     if [[ "$RUN_ALL" == "true" ]]; then
         RUN_ROOT=true
         PDB=""
         if [[ "$CHECK_ONLY" == "true" ]]; then
-            run_checks_scope "ROOT"
+            run_scope run_checks_scope "ROOT"
         else
-            run_prereqs_scope "ROOT"
+            run_scope run_prereqs_scope "ROOT"
         fi
 
         local pdb
@@ -1431,20 +1538,20 @@ main() {
                 RUN_ROOT=false
                 PDB="$pdb"
                 if [[ "$CHECK_ONLY" == "true" ]]; then
-                    run_checks_scope "PDB=${pdb}"
+                    run_scope run_checks_scope "PDB=${pdb}"
                 else
-                    run_prereqs_scope "PDB=${pdb}"
+                    run_scope run_prereqs_scope "PDB=${pdb}"
                 fi
             done <<< "$pdbs"
         else
-            log_warn "Skipping PDB processing; unable to list PDBs."
+            record_failed_scope "PDB list" "Unable to list PDBs - no PDB processed"
         fi
     elif [[ "$RUN_ROOT" == "true" ]]; then
         PDB=""
         if [[ "$CHECK_ONLY" == "true" ]]; then
-            run_checks_scope "ROOT"
+            run_scope run_checks_scope "ROOT"
         else
-            run_prereqs_scope "ROOT"
+            run_scope run_prereqs_scope "ROOT"
         fi
     else
         RUN_ROOT=false
@@ -1460,14 +1567,14 @@ main() {
             fi
             PDB="$pdb"
             if [[ "$CHECK_ONLY" == "true" ]]; then
-                run_checks_scope "PDB=${pdb}"
+                run_scope run_checks_scope "PDB=${pdb}"
             else
-                run_prereqs_scope "PDB=${pdb}"
+                run_scope run_prereqs_scope "PDB=${pdb}"
             fi
         done
     fi
 
-    log_info "Done"
+    report_scopes
 }
 
 if [[ $# -eq 0 ]]; then

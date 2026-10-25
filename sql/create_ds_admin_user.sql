@@ -71,7 +71,9 @@ BEGIN
     END IF;
 END;
 /
-WHENEVER SQLERROR CONTINUE
+-- Any error below fails the run: sqlplus exits non-zero and the caller
+-- reports the scope as failed (CONTINUE here reported success without a user)
+WHENEVER SQLERROR EXIT FAILURE
 
 -- Configure SQLPlus -----------------------------------------------------------
 SPOOL create_ds_admin_user.log
