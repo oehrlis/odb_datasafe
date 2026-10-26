@@ -2,8 +2,8 @@
 
 ## Open - found on the LRN6087 lab (2026-10-23)
 
-Fixed on `main` 2026-10-25 (commits `29f44c0`..`d0963d7`, issues #18-#24), plan:
-`tasks/plan-lrn6087-lab-fixes.md`. Open: CI lint and the release.
+Fixed on `main` 2026-10-25 (commits `29f44c0`..`d0963d7`, issues #18-#24 closed), released as v1.3.2 on
+2026-10-26. Plan: `tasks/plan-lrn6087-lab-fixes.md`. Open: oci-labs to 1.3.2 (after the demo, with OK).
 
 - [x] `ds_database_prereqs.sh` reports `Done` and rc 0 although `create_ds_admin_user.sql` failed (ORA-28003,
   secret without special character vs. `ORA12C_VERIFY_FUNCTION`) and the grants then failed with ORA-44001 -
@@ -19,10 +19,14 @@ Fixed on `main` 2026-10-25 (commits `29f44c0`..`d0963d7`, issues #18-#24), plan:
   after register/delete (#24); name resolution picks DELETED targets (#18)
 - [x] Found while fixing: temp SQL files with the secret never removed, BSD `mktemp` suffix template,
   `--debug` echoed the secret line, `--dry-run` rc 1, secret on the argv of `jq` (bundle and register)
-- [ ] `make lint-ci` (needs network: apt shellcheck in `ubuntu:24.04`) before `make tag` [P1]
-- [ ] Release 1.3.2 with the `CONTAINER=ALL` fix (CHANGELOG Unreleased) - `make release` bumps `VERSION`,
-  then rename `[Unreleased]` to `[1.3.2]`; agree with Stefan first, no lab deploy before the demo
-  (Tue 2026-10-27 08:00 PDT) without his OK [P1]
+- [x] `make lint-ci` (needs network: apt shellcheck in `ubuntu:24.04`) before `make tag` [P1]
+- [x] Release 1.3.2 with the `CONTAINER=ALL` fix - tag `v1.3.2` (`f4c91c6`), release workflow green, asset
+  `odb_datasafe-1.3.2.tar.gz` sha256 `d29c39c3...c8ba3` checked, #18-#24 closed (2026-10-26)
+- [ ] oci-labs `datasafe-demo` to 1.3.2 (`odb_datasafe_version` / `odb_datasafe_sha256` from the asset, runbook,
+  lab host via `make dsdemo-step TAG=odb_datasafe`) - not before the demo Tue 2026-10-27 08:00 PDT without
+  Stefan's OK, coordinate with the LRN6087 session [P2]
+- [ ] Release asset `.sha256` holds the absolute CI runner path (`/home/runner/work/.../dist/<file>`), so
+  `shasum -c` fails for a download - write it from inside `dist/` (also in 1.3.1) [P3]
 
 ## v1.1.0 - Audit reconcile + trail report (2026-08-23, done)
 

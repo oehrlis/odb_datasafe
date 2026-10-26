@@ -79,11 +79,11 @@ original). Check other name lookups (`ds_collect_targets_source` with `-T`) for 
 - [x] Bats tests: 2 (rc != 0 on SQL error, sqlplus mock), 6 (-n without secret), 7 (cache refresh),
   4 (oci mock checks `--from-json`, no `--password` and no
   secret in argv), 5 (error code and message printed), 8 (DELETED target with the same name is skipped)
-- [-] `make test` and `make lint-ci` green - `make test` (485) and `make lint` green, `lint-ci` open (network)
-- [-] CHANGELOG `[Unreleased]` -> Fixed (entry for 1 exists), bump to 1.3.2 - entries done; the bump comes
-  with `make release`
+- [x] `make test` and `make lint-ci` green - `make test` (485), `make lint`, `lint-ci` (shellcheck 0.9.0), CI
+- [x] CHANGELOG `[Unreleased]` -> Fixed (entry for 1 exists), bump to 1.3.2
 - [x] Conventional Commits, no Co-Authored-By, check the branch before every commit
-- [ ] Release: agree with Stefan before `make tag`; push the tag, check the release asset and its `.sha256`
+- [x] Release: agree with Stefan before `make tag`; push the tag, check the release asset and its `.sha256` -
+  v1.3.2 on 2026-10-26, sha256 matches (the file names the CI runner path, see `tasks/todo.md`), #18-#24 closed
 - [ ] oci-labs (worktree `~/Repos/own/oehrlis/oci-labs-datasafe-demo`, branch `feat/datasafe-demo`):
   `odb_datasafe_version` / `odb_datasafe_sha256` in `terraform/envs/datasafe-demo/variables.tf` to 1.3.2 (sha from
   the asset, never guessed), runbook `docs/datasafe-demo.md` (laptop copy, checksum). The lab host (Trivadis
