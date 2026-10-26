@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- `tasks/plan-lrn6087-lab-fixes.md` - all eight LRN6087 lab defects fixed and released as 1.3.2, issues #18-#24
+  closed; the planned oci-labs/lab update is dropped (no lab change after the demo). Last content:
+  `git show 6222605:tasks/plan-lrn6087-lab-fixes.md`
+
 ## [1.3.2] - 2026-10-26
 
 ### Added
