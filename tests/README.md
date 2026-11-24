@@ -19,6 +19,7 @@ Extension v0.24.0, built using the [BATS (Bash Automated Testing System)](https:
 2. **Script Tests** (`script_*.bats`)
    - `script_ds_connector_update.bats` - Tests for connector update functionality
    - `script_ds_find_untagged_targets.bats` - Tests for untagged target discovery
+   - `script_ds_fleet_assessment_stats.bats` - Tests for fleet assessment aggregates
    - `script_ds_target_activate.bats` - Tests for target activation
    - `script_ds_target_audit_trail.bats` - Tests for audit trail management
    - `script_ds_target_connect_details.bats` - Tests for connection detail display

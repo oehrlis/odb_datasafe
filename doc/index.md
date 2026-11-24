@@ -113,6 +113,7 @@ bin/ds_target_refresh.sh -T mydb01 --dry-run
 | `ds_connector_update.sh`             | Update connector bundle with download, password management, and setup.py         |
 | `ds_database_prereqs.sh`             | Create or update Data Safe profile, user, and grants on an on-premises DB host   |
 | `ds_find_untagged_targets.sh`        | Find targets without tags                                                        |
+| `ds_fleet_assessment_stats.sh`        | Fleet aggregates from LATEST user/security assessments (counts only, read-only)  |
 | `ds_target_activate.sh`              | Activate Data Safe targets                                                       |
 | `ds_target_audit_trail.sh`           | Start or list audit trail status                                                 |
 | `ds_target_connect_details.sh`       | Show connection details                                                          |

@@ -167,7 +167,7 @@ export DS_ROOT_COMP="ocid1.compartment.oc1....."
 
 ```text
 odb_datasafe/
-├── bin/              # 33 executable scripts
+├── bin/              # 34 executable scripts
 ├── lib/              # Shared libraries (common.sh, ds_lib.sh, oci_helpers.sh)
 ├── doc/              # Documentation
 ├── tests/            # BATS test suite (496 tests)
@@ -187,6 +187,9 @@ ds_target_list.sh
 
 # Get target details
 ds_target_details.sh -T my-database
+
+# Fleet aggregates from LATEST assessments (counts only, read-only)
+ds_fleet_assessment_stats.sh --idle-days 90 --dba-threshold 5
 
 # Update target credentials (dry-run)
 ds_target_update_credentials.sh -T my-database -U C##DATASAFE_ADMIN

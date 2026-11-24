@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `bin/ds_fleet_assessment_stats.sh` - read-only fleet aggregates from LATEST user and security assessments:
+  target lifecycle counts, accounts, DBA role holders (total, median, targets above threshold), expired, idle
+  and never-logged-in accounts, account-status breakdown, top HIGH findings by affected targets and snapshot
+  range. Counts only - no user names, target names or OCIDs on stdout; raw JSON in a temp workdir removed at exit
+  (`--keep-workdir`). Options `--idle-days`, `--dba-threshold`, `--top`. The OCI call shape is untested against a
+  live tenancy; failed list-users calls and missing fields are reported as WARN. Tests:
+  `tests/script_ds_fleet_assessment_stats.bats`
+
 ### Fixed
 
 - README: test and script counts corrected (496 BATS tests, 33 executable scripts in `bin/`; was 414 / 32)
