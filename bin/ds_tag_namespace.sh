@@ -99,7 +99,7 @@ Required IAM (tenancy level, for --apply):
   The plan needs read access: inspect tag-namespaces in tenancy.
 
 Examples:
-  ${SCRIPT_NAME}.sh -f etc/dbsec_tag_namespace.json --oci-profile VW
+  ${SCRIPT_NAME}.sh -f etc/dbsec_tag_namespace.json --oci-profile MYPROFILE
   ${SCRIPT_NAME}.sh -f etc/dbsec_tag_namespace.json --oci-profile ADMIN --apply
 EOF
     exit 0

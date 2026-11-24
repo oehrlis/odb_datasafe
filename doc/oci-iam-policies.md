@@ -293,10 +293,10 @@ Add conditions to policies for enhanced security:
 # Example: Restrict by IP address
 Allow group grp-ds-operation to use data-safe-target-databases in compartment id <datasafe-compartment-ocid> where request.networkSource.name='CorporateNetwork'
 
-# Example: Restrict by time window (for maintenance windows)
+# Example: Require MFA for service operations
 Allow group grp-ds-service to manage data-safe-target-databases in compartment id <datasafe-compartment-ocid> where request.user.mfaAuthenticated='true'
 
-# Example: Restrict delete operations to specific times
+# Example: Require MFA for delete operations
 Allow group grp-ds-admin to manage data-safe-target-databases in compartment id <datasafe-compartment-ocid> where any {request.operation != 'DeleteTargetDatabase', request.operation = 'DeleteTargetDatabase' && request.user.mfaAuthenticated='true'}
 ```
 

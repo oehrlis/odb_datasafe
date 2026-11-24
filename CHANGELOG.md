@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- README: test and script counts corrected (496 BATS tests, 33 executable scripts in `bin/`; was 414 / 32)
+- `doc/oci-iam-policies.md`: the MFA examples were labelled "Restrict by time window" and "Restrict delete
+  operations to specific times" - labels now match the policy (require MFA)
+
+### Changed
+
+- Docs and examples neutralised: `ds_tag_namespace.sh` usage uses `--oci-profile MYPROFILE`; customer name
+  references removed from `tasks/` notes
+
 ### Removed
 
 - `tasks/plan-lrn6087-lab-fixes.md` - all eight LRN6087 lab defects fixed and released as 1.3.2, issues #18-#24

@@ -1,5 +1,13 @@
 # odb_datasafe - Active Tasks
 
+## Open - Data Safe audit trail states (2026-11-24)
+
+- [ ] Oracle removed the audit trail states `IDLE`, `RECOVERING` and `RETRYING` (Sep 2026): check
+  `ds_audit_trail_state.sh`, `ds_audit_reconcile.sh`, `ds_trail_report.sh`, `ds_target_audit_trail.sh` and their
+  tests/docs for these states and adapt filters and summaries (no code change made yet) [P2]
+- [ ] Script header `# Version....:` lines are stale (31 scripts still v0.19.1, release is 1.3.2); the repo has
+  no bump/sync target - decide on a `make` target or drop the header version [P3]
+
 ## Open - found on the LRN6087 lab (2026-10-23)
 
 Fixed on `main` 2026-10-25 (commits `29f44c0`..`d0963d7`, issues #18-#24 closed), released as v1.3.2 on

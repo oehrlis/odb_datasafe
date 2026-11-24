@@ -45,7 +45,7 @@ exa117r04c06_cdb03a06_ITLSAEP   ← Primary (registriert)
 exa118r05c06_cdb03a06_ITLSAEP   ← Standby (nicht registriert → fälschlich MISSING)
 ```
 
-Im VW-ExaCC-Environment: **37 DG-Paare** → 37 false-positive MISSING pro Reconcile-Lauf.
+Im Kunden-ExaCC-Environment: **37 DG-Paare** → 37 false-positive MISSING pro Reconcile-Lauf.
 Reconcile ist ohne Fix für dieses Environment nicht verwendbar.
 
 Entscheid (2026-07-03): **Nur Primary registrieren** (kein ADG-Workload, kein Peer-Link).

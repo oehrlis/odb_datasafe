@@ -12,7 +12,7 @@ The `odb_datasafe` extension provides comprehensive tools for managing Oracle OC
 - **Service Installer** - Install Data Safe On-Premises Connectors as systemd services  
 - **Connector Management** - List, configure, and manage connectors
 - **OCI Integration** - Built on OCI CLI with helper functions
-- **Comprehensive Testing** - 414 BATS tests with full coverage
+- **Comprehensive Testing** - 496 BATS tests with full coverage
 
 ## Quick Start
 
@@ -149,7 +149,7 @@ export DS_ROOT_COMP="ocid1.compartment.oc1....."
 - ✅ **Trail state reporting** — `ds_trail_report.sh` reports trail state,
   auto-purge, and collected volume per target, grouped by environment, in
   table, CSV, or JSON.
-- ✅ **Comprehensive testing** — 414 BATS tests for reliability.
+- ✅ **Comprehensive testing** — 496 BATS tests for reliability.
 
 ## Requirements
 
@@ -167,10 +167,10 @@ export DS_ROOT_COMP="ocid1.compartment.oc1....."
 
 ```text
 odb_datasafe/
-├── bin/              # 32 executable scripts
+├── bin/              # 33 executable scripts
 ├── lib/              # Shared libraries (common.sh, ds_lib.sh, oci_helpers.sh)
 ├── doc/              # Documentation
-├── tests/            # BATS test suite (414 tests)
+├── tests/            # BATS test suite (496 tests)
 ├── etc/              # Configuration templates
 ├── sql/              # SQL utility scripts
 └── Makefile         # Build and test automation
